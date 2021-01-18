@@ -398,12 +398,12 @@ language : [  'af_ZA', 'am_ET', 'an_ES', 'ar_AE', 'ar_BH', 'ar_DZ', 'ar_EG', 'ar
 # this image MUST exists on each abcdesktop node 
 # Please download this image BEFORE starting od.py
 # desktop.image is used in both standalone and kubernetes mode 
-desktop.image: 'abcdesktop/oio:oc.user.18.04'
+desktop.image: 'abcdesktopio/oc.user.18.04'
 
 # desktop.printerimage is only used in Kubernetes mode 
 # desktop.printerimage is the docker image name to start the printer servive container 
 # Please download this image BEFORE starting od.py if you have to run cupds service in a dedicated container in your user pod
-desktop.printerimage: 'abcdesktop/oio:oc.cupsd.18.04'
+desktop.printerimage: 'abcdesktopio/oc.cupsd.18.04'
 # desktop.useprintercontainer is a BOOLEAN
 # add or not the desktop.printerimage into the user pod 
 desktop.useprintercontainer: False
@@ -411,7 +411,7 @@ desktop.useprintercontainer: False
 # desktop.soundimage is only used in Kubernetes mode 
 # desktop.soundimage is the docker image name to start the sound servive container 
 # Please download this image BEFORE starting od.py if you have to run pulseaudio service in a dedicated container un your user pod
-desktop.soundimage: 'abcdesktop/oio:oc.pulseaudio.18.04'
+desktop.soundimage: 'abcdesktopio/oc.pulseaudio.18.04'
 # desktop.usesoundcontainer is a BOOLEAN
 # add or not the desktop.soundimage into the user pod 
 desktop.usesoundcontainer: False
