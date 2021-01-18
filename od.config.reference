@@ -212,7 +212,7 @@ jwt_token_desktop : {
   'exp': 240, 
   'jwtdesktopprivatekeyfile':     '/config.signing/abcdesktop_jwt_desktop_signing_private_key.pem',
   'jwtdesktoppublickeyfile' :     '/config.signing/abcdesktop_jwt_desktop_signing_public_key.pem',
-  'payloaddesktoppublickeyfile' : '/config.payload/abcndesktop_jwt_desktop_payload_public_key.pem' }
+  'payloaddesktoppublickeyfile' : '/config.payload/abcdesktop_jwt_desktop_payload_public_key.pem' }
 # END OF JWT SECTION #
 
 
