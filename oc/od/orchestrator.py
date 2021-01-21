@@ -1832,6 +1832,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktopimagepullsecret } ]
 
         if oc.od.settings.desktopuseprintercontainer is True and type(oc.od.settings.desktopprinterimage) is str :
+            # get the container sound name prefix with 'p' like sound
             container_printer_name = self.get_printercontainername( myuuid )
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_printer_name,
@@ -1843,13 +1844,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
         
         if oc.od.settings.desktopusesoundcontainer is True and type(oc.od.settings.desktopsoundimage) is str :
+            # get the container sound name prefix with 's' like sound
             container_sound_name = self.get_soundcontainername( myuuid )
+            # pulseaudio need only shared volume 
+            # /tmp for the unix socket 
+            # /dev/shm for the share memory
+            # this is a filter to reduce surface attack
+            soundcontainerlist_volumeMounts = [ {'mountPath': '/dev/shm',   'name': 'shm'}, 
+                                                {'mountPath': '/tmp',       'name': 'tmp'} ]
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_sound_name,
                                     'imagePullPolicy': 'IfNotPresent',
                                     'image': oc.od.settings.desktopsoundimage,                                    
                                     'env': envlist,
-                                    'volumeMounts': list_volumeMounts                                    
+                                    'volumeMounts': soundcontainerlist_volumeMounts                                    
                                 }   
             )
 
