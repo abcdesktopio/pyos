@@ -605,7 +605,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # Check if there is a specify rules to start this application
         rules = app.get('rules')
-        if rules is dict  :
+        if type(rules) is dict  :
             # Check if there is a network rule
             rule_network =  rules.get('network')
             if type(rule_network) is dict:
