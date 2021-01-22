@@ -35,9 +35,10 @@ class janusclient( object ):
         self.MAX_RETRY_CREATE_STREAM = 5
         self.janus_schema   = node.get('schema', 'http')
         self.janus_host     = node.get('host', 'localhost')
+        self.janus_hostip   = node.get('hostip', 'localhost')
         self.janus_port     = node.get('port', 8088)
         self.janus_apisecret = node.get('apisecret', 'janusrocks')
-        self.janus_adminkey  = node.get('adminkey', 'supersecret')
+        self.janus_adminkey  = node.get('adminkey',  'supersecret')
         self.janus_startport = node.get('startport', 5100 )
         self.janus_url = self.janus_schema + '://' + self.janus_host + ':' + str(self.janus_port) + '/janus'
         self.transaction = janusclient.randomStringwithDigitsAndSymbols()
@@ -186,7 +187,8 @@ class janusclient( object ):
             json_data = None
             try:
                 json_data = j["plugindata"]["data"]["info"]
-                json_data['host'] = self.janus_host
+                json_data['host']   = self.janus_host
+                json_data['hostip'] = self.janus_hostip
             except Exception as e:
                 self.logger.error( e )
             return json_data
