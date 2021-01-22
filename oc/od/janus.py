@@ -33,11 +33,11 @@ class janusclient( object ):
 
         # Janus config
         self.MAX_RETRY_CREATE_STREAM = 5
-        self.janus_schema = node.get('schema', 'http')
-        self.janus_host = node.get('host', 'localhost')
-        self.janus_port = node.get('port', 8088)
+        self.janus_schema   = node.get('schema', 'http')
+        self.janus_host     = node.get('host', 'localhost')
+        self.janus_port     = node.get('port', 8088)
         self.janus_apisecret = node.get('apisecret', 'janusrocks')
-        self.janus_adminkey = node.get('adminkey', 'supersecret')
+        self.janus_adminkey  = node.get('adminkey', 'supersecret')
         self.janus_startport = node.get('startport', 5100 )
         self.janus_url = self.janus_schema + '://' + self.janus_host + ':' + str(self.janus_port) + '/janus'
         self.transaction = janusclient.randomStringwithDigitsAndSymbols()
@@ -172,8 +172,8 @@ class janusclient( object ):
                             "audioport": audioport,
                             "audiopt": self.audiopt,
                             "audiortpmap": self.audiortpmap,
-                            "admin_key": self.janus_adminkey,
-                            "pin": pin
+                            "admin_key": self.janus_adminkey
+                        #    "pin": pin
                 }
             },
             not self.session["session_id"] or not self.session["handle_id"],
@@ -280,6 +280,7 @@ class ODJanusCluster():
         
         # create a janus client
         janus = janusclient( node )
+
         # create a streaming entry
         stream = janus.get_stream( pod_name )
         info = janus.info( stream['stream']['id'] )
@@ -292,8 +293,6 @@ class ODJanusCluster():
             janus.greet()
             janus.attach()
             results[i] = janus.find( description=pod_name )
-
- 
         except Exception as e:
             logger.error('not responding gateway %s %s', node.get('host'), str(e) )
             results[i] = None
