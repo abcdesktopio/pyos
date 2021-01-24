@@ -659,15 +659,20 @@ class ODOrchestrator(ODOrchestratorBase):
        
       
         network_name    = None
+        # make sure env DISPLAY exists
         display         = oc.od.settings.desktopenvironmentlocal.get('DISPLAY', ':0.0')
+        # make sure env PULSE_SERVER exists
         pulse_server    = oc.od.settings.desktopenvironmentlocal.get('PULSE_SERVER', '/tmp/.pulse.sock')
+        # make sure env CUPS_SERVER exists
         cups_server     = oc.od.settings.desktopenvironmentlocal.get('CUPS_SERVER', '/tmp/.cups.sock')
+        # read locale language from USER AGENT
         language        = userinfo.get('locale', 'en_US')
         lang            = language + '.UTF-8'    
 
         # copy a env dict from configuration file
         env = oc.od.settings.desktopenvironmentlocal.copy()
-
+        
+        # update env with user's lang value 
         env.update ( {  'DISPLAY'       : display,
                         'PULSE_SERVER'  : pulse_server,
                         'CUPS_SERVER'   : cups_server,
@@ -686,7 +691,7 @@ class ODOrchestrator(ODOrchestratorBase):
                         'PARENT_HOSTNAME'   : self.nodehostname
         } )
 
-      
+        # Add specific vars      
         timezone = kwargs.get('timezone')
         if type(timezone) is str and len(timezone) > 1:     env['TZ'] = timezone
         if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
@@ -1768,21 +1773,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         initContainers = []
 
-        if  oc.od.settings.desktopuseinitcontainer and \
-            type(oc.od.settings.desktopinitcontainerimage) is str and \
-            volumeMounts.get('home') :
+        if  oc.od.settings.desktopuseinitcontainer              is True and \
+            type(oc.od.settings.desktopuseinitcontainercommand) is list and \
+            type(oc.od.settings.desktopinitcontainerimage)      is str  :
             # init container chown to change the owner of the home directory
-            init_name = 'init' + pod_name            
-            init_chmod = 'chown {}:{} {}'.format(   oc.od.settings.getballoon_uid(),
-                                                    oc.od.settings.getballoon_gid(), 
-                                                    oc.od.settings.getballoon_defaulthomedirectory() )
-            init_command = ['sh', '-c',  init_chmod ]        
-            self.logger.debug( 'init container command %s', init_command )
+            init_name = 'init' + pod_name
             initContainers.append( {    'imagePullPolicy': 'IfNotPresent',
-                                        'name': init_name,
-                                        'image': oc.od.settings.desktopinitcontainerimage,
-                                        'command': init_command,
-                                        'volumeMounts': [  volumeMounts['home'] ]
+                                        'name':             init_name,
+                                        'image':            oc.od.settings.desktopinitcontainerimage,
+                                        'command':          oc.od.settings.desktopuseinitcontainercommand,
+                                        'volumeMounts':     list_volumeMounts
             } )
             self.logger.debug( 'initContainers is %s', initContainers)
 
