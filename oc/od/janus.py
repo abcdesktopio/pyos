@@ -28,8 +28,14 @@ class janusclient( object ):
         self.timeout = timeout
 
         # desktop rtp stream default config
-        self.audiopt = 8
-        self.audiortpmap = "PCMA/8000"
+        # read https://janus.conf.meetecho.com/docs/streaming.html
+        # read https://en.wikipedia.org/wiki/RTP_payload_formats
+        # by default abcdesktop use 
+        # 8	PCMA	audio	1	8000	any	20	ITU-T G.711 PCM A-Law audio 64 kbit/s	RFC 3551
+        # audio RTP payload type for example 8
+        self.audiopt     = node.get('audiopt', 8)
+        # audiortpmap = RTP map of the audio codec (e.g., PCMA/8000)
+        self.audiortpmap = node.get('audiortpmap', 'PCMA/8000' )
 
         # Janus config
         self.MAX_RETRY_CREATE_STREAM = 5
