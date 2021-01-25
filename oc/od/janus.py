@@ -141,7 +141,6 @@ class janusclient( object ):
                 pass
             return currentid
            
-
         return self.list( action=helper )
 
     def find( self, description ):
@@ -179,9 +178,8 @@ class janusclient( object ):
                             "audioport": audioport,
                             "audiopt": self.audiopt,
                             "audiortpmap": self.audiortpmap,
-                            "admin_key": self.janus_adminkey
-                            #,
-                            #"pin": pin
+                            "admin_key": self.janus_adminkey,
+                            "pin": pin
                 }
             },
             not self.session["session_id"] or not self.session["handle_id"],
@@ -335,12 +333,27 @@ class ODJanusCluster():
 
 
     def get_stream( self, pod_name ):
+        """[get_stream]
+
+        Args:
+            pod_name ([str]): create or return a strean if exixts
+
+        Returns:
+            [dict]: [stream dict description]
+        """
         self.logger.info('')
         # look for a stream
+        if type(pod_name) is not str:
+            self.logger.error( 'invalid stream name type')
+            return None
+
         stream = self.find_stream( pod_name )
         if stream is None:
+            self.logger.debug( 'stream entry %s does not exist, create a new one %s', pod_name )
             # not found, create it
             stream = self.create_stream( pod_name )
+            self.logger.debug( 'new stream create' )
+        self.logger.debug( 'get_stream return %s ', stream )
         return stream
 
     def destroy_stream( self, pod_name ):
