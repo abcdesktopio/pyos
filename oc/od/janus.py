@@ -179,7 +179,7 @@ class janusclient( object ):
                             "audioport": audioport,
                             "audiopt": self.audiopt,
                             "audiortpmap": self.audiortpmap,
-                            "admin_key": self.janus_adminkey
+                            "admin_key": self.janus_adminkey,
                             "pin": pin
                 }
             },
