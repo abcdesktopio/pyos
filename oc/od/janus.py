@@ -179,8 +179,9 @@ class janusclient( object ):
                             "audioport": audioport,
                             "audiopt": self.audiopt,
                             "audiortpmap": self.audiortpmap,
-                            "admin_key": self.janus_adminkey,
-                            "pin": pin
+                            "admin_key": self.janus_adminkey
+                            #,
+                            #"pin": pin
                 }
             },
             not self.session["session_id"] or not self.session["handle_id"],
