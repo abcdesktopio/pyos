@@ -180,7 +180,7 @@ class janusclient( object ):
                             "audiopt": self.audiopt,
                             "audiortpmap": self.audiortpmap,
                             "admin_key": self.janus_adminkey
-                        #    "pin": pin
+                            "pin": pin
                 }
             },
             not self.session["session_id"] or not self.session["handle_id"],
