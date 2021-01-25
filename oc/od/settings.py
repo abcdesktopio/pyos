@@ -69,16 +69,16 @@ desktopimagepullsecret  = None
 desktoppolicies         = {}
 
 # printer container
-desktopuseprintercontainer = False 
-desktopprinterimage     = None
+desktopuseprintercontainer  = False 
+desktopprinterimage         = None
 
 # sound container params
-desktopusesoundcontainer = False
-desktopsoundimage = None
+desktopusesoundcontainer    = False
+desktopsoundimage           = None
 
 # init container params
-desktopuseinitcontainer = False
-desktopinitcontainerimage = None
+desktopuseinitcontainer     = False
+desktopinitcontainerimage   = None
 desktopuseinitcontainercommand = None
 
 desktopsecretsrootdirectory = '/var/secrets/'
@@ -370,6 +370,7 @@ def init_desktop():
     # is an array 
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
     desktopuseinitcontainercommand = gconfig.get('desktop.initcontainercommand')
+    
     desktopcapabilities = gconfig.get( 'desktop.capabilities', {} )
     defaultbackgroundcolors = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktopusershareprocessnamespace = gconfig.get('desktop.usershareprocessnamespace', True)
