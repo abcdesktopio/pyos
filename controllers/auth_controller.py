@@ -77,10 +77,7 @@ class AuthController(BaseController):
     @cherrypy.tools.json_in()
     def disconnect(self):
         bReturn = None
-        args = cherrypy.request.json
         if services.auth.isidentified:
-            user = services.auth.user
-            auth = services.auth.auth   
             # Always remove all http cookies
             services.auth.logout()
             bReturn = Results.success()
