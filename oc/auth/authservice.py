@@ -1004,6 +1004,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.attrs = attrs            
 
     def __init__(self, manager, name, config={}):
+        self.logger.info('')
         super().__init__(manager, name, config)
         self.type = 'ldap'
 
