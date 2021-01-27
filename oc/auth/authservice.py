@@ -308,10 +308,10 @@ class ODAuthTool(cherrypy.Tool):
                 # skip the entry if not enabled
                 if not cfg.get('enabled', True): 
                     continue
-                logger.info( 'Adding Auth manager %s', name)
+                self.logger.info( 'Adding Auth manager %s', name)
                 self.managers[name] = self.createmanager(name,cfg)
             except Exception as e:
-                logger.exception(e)
+                self.logger.exception(e)
 
     def createmanager(self, name, config):
         cls = None
@@ -389,7 +389,6 @@ class ODAuthTool(cherrypy.Tool):
         
         
     def compiledcondition( self, condition, user, roles ):        
-
         def isPrimaryGroup(user, primaryGroupID):
             # primary group id is uniqu for
             if user.get('primaryGroupID') == primaryGroupID:  
@@ -413,6 +412,7 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
+        self.logger.info('confition %s ', condition )
         compiled_result = False
         if type(condition) is not dict :
             return False
@@ -498,7 +498,7 @@ class ODAuthTool(cherrypy.Tool):
                     if k is not None:
                         compiledrules[ k ] = rules.get('load')
             except Exception as e:
-                logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
+                self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
             
         return compiledrules
 
@@ -515,14 +515,14 @@ class ODAuthTool(cherrypy.Tool):
             claims,auth = result
             if not auth or not auth.token:
                 raise AuthenticationFailureError('No authentication token provided')
-            logger.info( 'mgr.authenticate provider=%s token success', provider) 
+            self.logger.info( 'mgr.authenticate provider=%s token success', provider) 
             
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)            
             user = mgr.getuserinfo(provider, auth.token, **arguments)
             if user is None:
                 raise AuthenticationFailureError('User data not found')
-            logger.info( 'mgr.getuserinfo provider=%s success', provider)
+            self.logger.info( 'mgr.getuserinfo provider=%s success', provider)
             
             
             # uncomment this line only to see password in clear text format
@@ -544,7 +544,7 @@ class ODAuthTool(cherrypy.Tool):
             auth.data['labels'] = {}
             if auth.get('data') and auth.data.get('rules'):
                 auth.data['labels'] = self.compiledrules( auth.data.get('rules'), user, roles )
-                logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+                self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
 
             if not oc.od.acl.ODAcl().isAllowed( auth, mgr.getprovider(provider).acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
@@ -781,6 +781,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
 
 
 # Implement OAuth 2.0 AuthProvider
+
+@oc.logging.with_logger()
 class ODExternalAuthProvider(ODAuthProviderBase):
     def __init__(self, manager, name, config):
         super().__init__(manager, name, config)
@@ -896,7 +898,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         return request
 
     def handlerequest(self, request):
-        logger.debug(request.__dict__)
+        self.logger.debug(request.__dict__)
         code = 500
 
         try:
