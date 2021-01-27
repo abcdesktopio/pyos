@@ -349,7 +349,7 @@ class ODJanusCluster():
 
         stream = self.find_stream( pod_name )
         if stream is None:
-            self.logger.debug( 'stream entry %s does not exist, create a new one %s', pod_name )
+            self.logger.debug( 'stream entry %s does not exist, create a new one', pod_name )
             # not found, create it
             stream = self.create_stream( pod_name )
             self.logger.debug( 'new stream create' )
