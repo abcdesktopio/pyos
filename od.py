@@ -11,6 +11,7 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
+#
 
 import sys
 import logging
