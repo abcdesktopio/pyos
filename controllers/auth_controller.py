@@ -76,14 +76,24 @@ class AuthController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def disconnect(self):
+        """
+            Disconnect a connected user, 
+            remove ONLY all cookies (by setting empty value)
+            Keep desktop running
+        Args:
+            None
+
+
+        Returns:
+            JSON Results
+        """
         bReturn = None
         if services.auth.isidentified:
             # Always remove all http cookies
             services.auth.logout()
             bReturn = Results.success()
         else:
-            bReturn = Results.error( message='invalid user credentials' )
-        
+            bReturn = Results.error( message='invalid user credentials' )  
         return bReturn
 
     @cherrypy.expose
