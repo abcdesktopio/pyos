@@ -67,13 +67,19 @@ class WebRTCController(BaseController):
     @cherrypy.tools.json_out()
     def get_stream(self):
         logger.debug('')
-        # get_stream create or get a previous created stream
-        return self.rtp_stream( services.webrtc.get_stream )
-        
+        if services.webrtc is None :
+            return Results.error( message='WebRTC is disabled in configuration file')
+        else:
+            # get_stream create or get a previous created stream
+            return self.rtp_stream( services.webrtc.get_stream )
+            
 
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def destroy_stream(self):
         logger.debug('')
-        return self.rtp_stream( services.webrtc.destroy_stream )
+        if services.webrtc is None :
+            return Results.error( message='WebRTC is disabled in configuration file')
+        else:
+            return self.rtp_stream( services.webrtc.destroy_stream )
