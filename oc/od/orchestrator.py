@@ -762,10 +762,11 @@ class ODOrchestrator(ODOrchestratorBase):
                 'network_mode'  : network_mode,
                 'pid_mode'      : pid_mode,
                 'dns'           : context_network_dns,
-                'security_opt'  : oc.od.settings.desktopsecurityopt,
-                'privileged'    : oc.od.settings.desktopdockerprivileged,
+                'security_opt'  : app.get('security_opt', oc.od.settings.desktopsecurityopt),
+                'privileged'    : app.get('privileged', oc.od.settings.desktopdockerprivileged),
                 'cap_add'       : oc.od.settings.desktopcapabilities.get('add'),
-                'cap_drop'      : oc.od.settings.desktopcapabilities.get('drop')
+                'cap_drop'      : oc.od.settings.desktopcapabilities.get('drop'),
+                'oom_kill_disable' : app.get( 'oom_kill_disable' ),
         }
 
         #
@@ -773,8 +774,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # set value if image require
         if app.get('shm_size') :        host_config.update(  { 'shm_size' :     app.get('shm_size') } )
         if app.get('memory') :          host_config.update(  { 'mem_limit' :    app.get('memory') } )
-        if app.get('security_opt') :    host_config.update(  { 'security_opt' : app.get('security_opt') } )
-        if app.get('privileged') :      host_config.update(  { 'privileged' :   app.get('privileged') } )
+
 
         appinfo = infra.createcontainer(
             image = app['id'],
@@ -792,7 +792,7 @@ class ODOrchestrator(ODOrchestratorBase):
             },
             volumes = volumes,
             host_config = host_config,
-            network_name = network_name
+            network_name = network_name,
         )
 
         if type(appinfo) is not dict :
