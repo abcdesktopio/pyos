@@ -64,6 +64,9 @@ class CoreController(BaseController):
             import oc.od.tracker
             id = oc.od.tracker.jiraclient().isenable()
 
+        elif provider == 'webrtc':
+            id = services.webrtc != None  # return true is services.webrtc is enabled
+
         return { 'id': id, 'callbackurl': callbackurl }
 
 
