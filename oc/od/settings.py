@@ -296,7 +296,7 @@ def init_tls():
     global defaultdockertcpport
     global defaultdomainname
 
-    # How to connect to docker dameon
+    # How to connect to docker daemon
     # TLS Section
     clienttlskey = gconfig.get('daemondockertlskey', None)
     clienttlscert = gconfig.get('daemondockertlscert', None)
@@ -316,7 +316,7 @@ def init_tls():
         logger.warning('SECURITY Warning tlscacert is not set')
 
     if clienttlskey is None or clienttlscert is None or tlscacert is None:
-        logger.warning('SECURITY Warning connection to docker dameon on host may failed or is insecure')
+        logger.warning('SECURITY Warning connection to docker daemon on host may failed or is insecure')
         logger.warning('Read HOWTO-configure documentation')
 
 
