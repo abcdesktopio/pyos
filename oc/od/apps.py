@@ -199,7 +199,7 @@ class ODApps:
                 args = labels.get('oc.args')
                 uniquerunkey = labels.get('oc.uniquerunkey')
                 shm_size = labels.get('oc.shm_size')
-                security_opt = labels.get('security_opt')
+                security_opt = labels.get('oc.security_opt')
                 memory  = labels.get('oc.memory')
                 oomkilldisable = labels.get('oc.oomkilldisable')
                 execmode = labels.get('oc.execmode')
