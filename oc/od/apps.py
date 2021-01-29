@@ -199,7 +199,6 @@ class ODApps:
                 args = labels.get('oc.args')
                 uniquerunkey = labels.get('oc.uniquerunkey')
                 shm_size = labels.get('oc.shm_size')
-                security_opt = labels.get('oc.security_opt')
                 memory  = labels.get('oc.memory')
                 oomkilldisable = labels.get('oc.oomkilldisable')
                 execmode = labels.get('oc.execmode')
@@ -230,6 +229,15 @@ class ODApps:
                     except Exception as e:
                         logger.error( 'invalid rules json format %s, skipping rules', e)
                         rules = None
+
+                 # safe load security_opt
+                security_opt = labels.get('oc.security_opt')
+                if security_opt is not None:
+                    try:
+                        security_opt = json.loads(security_opt)
+                    except Exception as e:
+                        logger.error( 'invalid security_opt json format %s, skipping rules', e)
+                        security_opt = None
 
                 executablefilename = None
                 if path is not None:
