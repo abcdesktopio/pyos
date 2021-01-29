@@ -81,6 +81,9 @@ desktopuseinitcontainer     = False
 desktopinitcontainerimage   = None
 desktopuseinitcontainercommand = None
 
+# desktoppostponeapp url 
+desktoppostponeapp          = None
+
 desktopsecretsrootdirectory = '/var/secrets/'
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
 desktopuseinternalfqdn = False
@@ -349,6 +352,7 @@ def init_desktop():
     global desktopsecurityopt
     global desktopuselocaltime
     global desktoppolicies
+    global desktoppostponeapp
 
     # load docker images name
     desktopimagepullsecret = gconfig.get('desktop.imagePullSecret')
@@ -385,7 +389,7 @@ def init_desktop():
     desktopuseinternalfqdn  = gconfig.get('desktop.useinternalfqdn', False ) 
     desktopsecurityopt      = gconfig.get('desktop.securityopt', [ 'no-new-privileges', 'seccomp=unconfined' ] )
     desktopuselocaltime     = gconfig.get('desktop.uselocaltime', False ) 
-
+    desktoppostponeapp      = gconfig.get('desktoppostponeapp')
     
     # add default env local vars if not set 
     desktopenvironmentlocal = gconfig.get(  'desktop.envlocal', 
@@ -402,7 +406,7 @@ def init_desktop():
 
 def init_menuconfig():
     global menuconfig
-    menuconfig = gconfig.get('front.menuconfig', { 'settings': True, 'appstore': True, 'screenshot':True, 'download': True, 'logout': True } )
+    menuconfig = gconfig.get('front.menuconfig', { 'settings': True, 'appstore': True, 'screenshot':True, 'download': True, 'logout': True, 'disconnect': True } )
 
 def init_balloon():
     global balloon_uid
