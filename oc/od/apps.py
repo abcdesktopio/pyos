@@ -210,8 +210,6 @@ class ODApps:
                 uniquerunkey = labels.get('oc.uniquerunkey')
                 shm_size = labels.get('oc.shm_size')
                 memory  = labels.get('oc.memory')
-                oomkilldisable = labels.get('oc.oomkilldisable', False)
-                privileged = labels.get('oc.privileged', False )
                 execmode = labels.get('oc.execmode')
                 showinview = labels.get('oc.showinview')
                 displayname = labels.get('oc.displayname')
@@ -226,7 +224,9 @@ class ODApps:
                 # safe load convert json data json
                 acl = safe_load_label_json( labels, 'oc.acl' )
                 rules = safe_load_label_json( labels, 'oc.rules' )
-                security_opt = safe_load_label_json( labels, 'oc.security_opt' )
+                security_opt = safe_load_label_json(labels, 'oc.security_opt' )
+                oomkilldisable = safe_load_label_json(labels, 'oc.oomkilldisable', False)
+                privileged = safe_load_label_json(labels, 'oc.privileged', False )
 
                 executablefilename = None
                 if path is not None:
