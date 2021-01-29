@@ -176,6 +176,16 @@ class ODApps:
     def build_applist():
         logger.debug('')
 
+        def safe_load_label_json( labels, label, default_value=None ): 
+            load_json = default_value # default return value
+            data = labels.get(label)
+            if data is not None:     
+                try:
+                    load_json = json.loads(data)
+                except Exception as e:
+                    logger.error( 'invalid label %s json format %s, skipping label', label, e)
+            return load_json 
+
         mydict = {}
         for image in ODInfra().findimages({'dangling': False, 'label': 'oc.type=app'}):
             try:
@@ -212,32 +222,11 @@ class ODApps:
                 if usedefaultapplication is not None:
                     usedefaultapplication = json.loads(usedefaultapplication)
 
-                # safe load acl
-                acl = labels.get('oc.acl')
-                if acl is not None:     
-                    try:
-                        acl = json.loads(acl)
-                    except Exception as e:
-                        logger.error( 'invalid acl json format %s, skipping acl', e)
-                        acl = None
-
-                # safe load rules
-                rules = labels.get('oc.rules')
-                if rules is not None:
-                    try:
-                        rules = json.loads(rules)
-                    except Exception as e:
-                        logger.error( 'invalid rules json format %s, skipping rules', e)
-                        rules = None
-
-                 # safe load security_opt
-                security_opt = labels.get('oc.security_opt')
-                if security_opt is not None:
-                    try:
-                        security_opt = json.loads(security_opt)
-                    except Exception as e:
-                        logger.error( 'invalid security_opt json format %s, skipping rules', e)
-                        security_opt = None
+                # safe load convert json data json
+                acl = safe_load_label_json( labels, 'oc.acl' )
+                rules = safe_load_label_json( labels, 'oc.rules' )
+                security_opt = safe_load_json( labels, 'oc.security_opt' )
+                privileged = safe_load_json( labels, 'oc.privileged', False )
 
                 executablefilename = None
                 if path is not None:
@@ -271,6 +260,7 @@ class ODApps:
                         'displayname': displayname,
                         'mimetype': mimelist,
                         'path': path,
+                        'privileged': privileged,
                         'desktopfile': desktopfile,
                         'executablefilename': executablefilename,
                         'usedefaultapplication': usedefaultapplication,

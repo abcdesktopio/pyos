@@ -768,12 +768,14 @@ class ODOrchestrator(ODOrchestratorBase):
                 'cap_drop'      : oc.od.settings.desktopcapabilities.get('drop')
         }
 
-        # set shm_size if image require
-        if app.get('shm_size') :        host_config.update(  { 'shm_size' : app.get('shm_size') } )
-        # set mem_limit if image require
-        if app.get('memory') :          host_config.update(  { 'mem_limit' : app.get('memory') } )
-        # Read https://github.com/jlesage/docker-firefox
+        #
+        # superchage desktop value if app as specific labels
+        # set value if image require
+        if app.get('shm_size') :        host_config.update(  { 'shm_size' :     app.get('shm_size') } )
+        if app.get('memory') :          host_config.update(  { 'mem_limit' :    app.get('memory') } )
         if app.get('security_opt') :    host_config.update(  { 'security_opt' : app.get('security_opt') } )
+        if app.get('privileged') :      host_config.update(  { 'privileged' :   app.get('privileged') } )
+
         appinfo = infra.createcontainer(
             image = app['id'],
             name  =  containername,
