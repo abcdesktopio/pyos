@@ -699,12 +699,11 @@ class ODInfra(object):
             execid = c.exec_create(container=containerid, cmd=command, user=user)
             stdout = c.exec_start(execid['Id'], detach=detach)
             myresult = c.exec_inspect(execid['Id'])
-            myresult['stdout'] = str( stdout ) # convert to srt to make sure json data ca be encoded
-            self.logger.info('stdout : %s', str(stdout) )
+            myresult['stdout'] = str( stdout ) # convert to str to make sure json data ca be encoded
         except docker.errors.APIError as e:
             self.logger.error('docker.errors.APIError: %s', e)
             if e.status_code == 409:                
-                self.logger.error('docker.errors.APIError is 409')
+                self.logger.error('docker.errors.APIError is 409')  
                 # Container is not running                
         except Exception as e:
             self.logger.error('failed: %s', e)
