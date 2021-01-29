@@ -769,10 +769,11 @@ class ODOrchestrator(ODOrchestratorBase):
         }
 
         # set shm_size if image require
-        if app.get('shm_size') :   host_config.update(  { 'shm_size' : app.get('shm_size') } )
+        if app.get('shm_size') :        host_config.update(  { 'shm_size' : app.get('shm_size') } )
         # set mem_limit if image require
-        if app.get('memory') :     host_config.update(  { 'mem_limit' : app.get('memory') } )
-
+        if app.get('memory') :          host_config.update(  { 'mem_limit' : app.get('memory') } )
+        # Read https://github.com/jlesage/docker-firefox
+        if app.get('security_opt') :    host_config.update(  { 'security_opt' : app.get('security_opt') } )
         appinfo = infra.createcontainer(
             image = app['id'],
             name  =  containername,
@@ -804,6 +805,12 @@ class ODOrchestrator(ODOrchestratorBase):
             return None
         
         infra.startcontainer(appinstance.id)
+
+        # if post app
+        if type(oc.od.settings.desktoppostponeapp) is dict :
+            # need to notify
+            pass
+
         return appinstance
         
 
