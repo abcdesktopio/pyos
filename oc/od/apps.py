@@ -156,8 +156,8 @@ class ODApps:
         for app in ODApps.myglobal_list.keys():
             myapp = ODApps.myglobal_list[app].copy()
             if ODApps.is_app_allowed( auth, myapp ) is True :
-                for m in [ 'acl', 'rules', 'shm_size', 'oomkilldisable', 'memory'] :
-                    # hidden internal dict entry to front
+                for m in [ 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'memory', 'privileged', 'security_opt'] :
+                    # hidden internal dict entry to frontweb json
                     del myapp[m]
                 userapplist.append( myapp )
         return userapplist
@@ -210,7 +210,8 @@ class ODApps:
                 uniquerunkey = labels.get('oc.uniquerunkey')
                 shm_size = labels.get('oc.shm_size')
                 memory  = labels.get('oc.memory')
-                oomkilldisable = labels.get('oc.oomkilldisable')
+                oomkilldisable = labels.get('oc.oomkilldisable', False)
+                privileged = labels.get('oc.privileged', False )
                 execmode = labels.get('oc.execmode')
                 showinview = labels.get('oc.showinview')
                 displayname = labels.get('oc.displayname')
@@ -225,8 +226,7 @@ class ODApps:
                 # safe load convert json data json
                 acl = safe_load_label_json( labels, 'oc.acl' )
                 rules = safe_load_label_json( labels, 'oc.rules' )
-                security_opt = safe_load_json( labels, 'oc.security_opt' )
-                privileged = safe_load_json( labels, 'oc.privileged', False )
+                security_opt = safe_load_label_json( labels, 'oc.security_opt' )
 
                 executablefilename = None
                 if path is not None:
@@ -255,7 +255,7 @@ class ODApps:
                         'memory': memory,
                         'shm_size': shm_size,
                         'security_opt' : security_opt,
-                        'oomkilldisable': oomkilldisable,
+                        'oom_kill_disable': oomkilldisable,
                         'showinview': showinview,
                         'displayname': displayname,
                         'mimetype': mimelist,
