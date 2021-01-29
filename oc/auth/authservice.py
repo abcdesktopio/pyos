@@ -51,7 +51,6 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-
 #
 # defined some AuthenticationError
 class AuthenticationError(Exception):
@@ -308,7 +307,7 @@ class ODAuthTool(cherrypy.Tool):
                 # skip the entry if not enabled
                 if not cfg.get('enabled', True): 
                     continue
-                self.logger.info( 'Adding Auth manager %s', name)
+                logger.info( 'Adding Auth manager %s', name)
                 self.managers[name] = self.createmanager(name,cfg)
             except Exception as e:
                 self.logger.exception(e)
@@ -412,7 +411,7 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
-        self.logger.info('confition %s ', condition )
+        logger.info('condition %s ', condition )
         compiled_result = False
         if type(condition) is not dict :
             return False
@@ -498,7 +497,7 @@ class ODAuthTool(cherrypy.Tool):
                     if k is not None:
                         compiledrules[ k ] = rules.get('load')
             except Exception as e:
-                self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
+                logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
             
         return compiledrules
 
@@ -515,14 +514,14 @@ class ODAuthTool(cherrypy.Tool):
             claims,auth = result
             if not auth or not auth.token:
                 raise AuthenticationFailureError('No authentication token provided')
-            self.logger.info( 'mgr.authenticate provider=%s token success', provider) 
+            logger.info( 'mgr.authenticate provider=%s token success', provider) 
             
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)            
             user = mgr.getuserinfo(provider, auth.token, **arguments)
             if user is None:
                 raise AuthenticationFailureError('User data not found')
-            self.logger.info( 'mgr.getuserinfo provider=%s success', provider)
+            logger.info( 'mgr.getuserinfo provider=%s success', provider)
             
             
             # uncomment this line only to see password in clear text format
@@ -544,7 +543,7 @@ class ODAuthTool(cherrypy.Tool):
             auth.data['labels'] = {}
             if auth.get('data') and auth.data.get('rules'):
                 auth.data['labels'] = self.compiledrules( auth.data.get('rules'), user, roles )
-                self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+                logger.info( 'compiled rules get labels %s', auth.data['labels'] )
 
             if not oc.od.acl.ODAcl().isAllowed( auth, mgr.getprovider(provider).acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
@@ -1004,7 +1003,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.attrs = attrs            
 
     def __init__(self, manager, name, config={}):
-        self.logger.info('')
+        logger.info('')
         super().__init__(manager, name, config)
         self.type = 'ldap'
 
@@ -1253,7 +1252,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         for i in range(len(self.servers)):
             try:                
                 server = self.servers[i] 
-                self.logger.info( 'ldap connecting to %s', server)
+                logger.info( 'ldap connecting to %s', server)
                 time_start = time.time()
                 conn = self.initconnection(server)
                 if userid:
@@ -1261,7 +1260,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     conn.simple_bind_s(userdn, password)
                     time_done = time.time()
                     elapsed = time_done - time_start
-                    self.logger.info( 'ldap connected to %s in %d s', server, int(elapsed))
+                    logger.info( 'ldap connected to %s in %d s', server, int(elapsed))
                     return conn
             # Only choose another LDAP server if SERVER_DOWN, TIMEOUT or TIMELIMIT_EXCEED
             except (ldap.SERVER_DOWN, ldap.TIMEOUT, ldap.TIMELIMIT_EXCEEDED) as e:
@@ -1280,7 +1279,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def initconnection(self, server):
         protocol = 'ldaps' if self.secure else 'ldap'
         ldap_url = protocol + '://' + server        
-        self.logger.debug( 'ldap.initialize to %s ', ldap_url)
+        logger.info( 'ldap.initialize to %s', ldap_url)
        
         if self.tls_require_cert is False:
             # TLS: hostname does not match CN peer cetificate
