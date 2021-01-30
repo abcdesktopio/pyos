@@ -1812,6 +1812,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 **self.get_annotations_lastlogin_datetime()
             },
             'spec': {
+                'automountServiceAccountToken': False, # disable service account 
                 'subdomain': self.endpoint_domain,
                 'shareProcessNamespace': oc.od.settings.desktopusershareprocessnamespace,
                 'volumes': list_volumes,                    
