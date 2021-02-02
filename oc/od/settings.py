@@ -79,7 +79,7 @@ desktopsoundimage           = None
 # init container params
 desktopuseinitcontainer     = False
 desktopinitcontainerimage   = None
-desktopuseinitcontainercommand = None
+desktopinitcontainercommand = None
 
 # desktoppostponeapp url 
 desktoppostponeapp          = None
@@ -335,7 +335,7 @@ def init_desktop():
     global desktopusesoundcontainer
     global desktopsoundimage
     global desktopuseinitcontainer
-    global desktopuseinitcontainercommand
+    global desktopinitcontainercommand
     global desktopinitcontainerimage
     global desktoppersistentvolumeclaim
     global desktopallowPrivilegeEscalation
@@ -370,10 +370,10 @@ def init_desktop():
     desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
     desktopusesoundcontainer = gconfig.get('desktop.usesoundcontainer',False)
     desktopuseinitcontainer = gconfig.get('desktop.useinitcontainer',False)
-    # desktopuseinitcontainercommand
+    # desktopinitcontainercommand
     # is an array 
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
-    desktopuseinitcontainercommand = gconfig.get('desktop.initcontainercommand')
+    desktopinitcontainercommand = gconfig.get('desktop.initcontainercommand')
     
     desktopcapabilities = gconfig.get( 'desktop.capabilities', {} )
     defaultbackgroundcolors = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])

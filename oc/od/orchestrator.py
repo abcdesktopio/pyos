@@ -773,7 +773,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # superchage desktop value if app as specific labels
         # set value if image require
         if app.get('shm_size') :        host_config.update(  { 'shm_size' :     app.get('shm_size') } )
-        if app.get('memory') :          host_config.update(  { 'mem_limit' :    app.get('memory') } )
+        if app.get('mem_limit') :       host_config.update(  { 'mem_limit' :    app.get('mem_limit') } )
 
 
         appinfo = infra.createcontainer(
@@ -1654,7 +1654,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # set shm_size if image require
         if app.get('shm_size') :   host_config.update(  { 'shm_size' : app.get('shm_size') } )
         # set mem_limit if image require
-        if app.get('memory') :     host_config.update(  { 'mem_limit' : app.get('memory') } )
+        if app.get('mem_limit') :     host_config.update(  { 'mem_limit' : app.get('mem_limit') } )
 
         appinfo = infra.createcontainer(
             image = app['id'],
@@ -1783,14 +1783,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         initContainers = []
 
         if  oc.od.settings.desktopuseinitcontainer              is True and \
-            type(oc.od.settings.desktopuseinitcontainercommand) is list and \
+            type(oc.od.settings.desktopinitcontainercommand) is list and \
             type(oc.od.settings.desktopinitcontainerimage)      is str  :
             # init container chown to change the owner of the home directory
             init_name = 'init' + pod_name
             initContainers.append( {    'imagePullPolicy': 'IfNotPresent',
                                         'name':             init_name,
                                         'image':            oc.od.settings.desktopinitcontainerimage,
-                                        'command':          oc.od.settings.desktopuseinitcontainercommand,
+                                        'command':          oc.od.settings.desktopinitcontainercommand,
                                         'volumeMounts':     list_volumeMounts
             } )
             self.logger.debug( 'initContainers is %s', initContainers)
