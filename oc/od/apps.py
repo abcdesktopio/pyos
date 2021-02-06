@@ -156,7 +156,7 @@ class ODApps:
         for app in ODApps.myglobal_list.keys():
             myapp = ODApps.myglobal_list[app].copy()
             if ODApps.is_app_allowed( auth, myapp ) is True :
-                for m in [ 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'memory', 'privileged', 'security_opt'] :
+                for m in [ 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'] :
                     # hidden internal dict entry to frontweb json
                     del myapp[m]
                 userapplist.append( myapp )
@@ -209,7 +209,7 @@ class ODApps:
                 args = labels.get('oc.args')
                 uniquerunkey = labels.get('oc.uniquerunkey')
                 shm_size = labels.get('oc.shm_size')
-                memory  = labels.get('oc.memory')
+                mem_limit  = labels.get('oc.mem_limit')
                 execmode = labels.get('oc.execmode')
                 showinview = labels.get('oc.showinview')
                 displayname = labels.get('oc.displayname')
@@ -252,7 +252,7 @@ class ODApps:
                         'cat': cat,
                         'args': args,
                         'execmode': execmode,
-                        'memory': memory,
+                        'mem_limit': mem_limit,
                         'shm_size': shm_size,
                         'security_opt' : security_opt,
                         'oom_kill_disable': oomkilldisable,
