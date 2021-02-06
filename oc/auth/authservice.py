@@ -394,6 +394,21 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
+        def isHttpHeader( headerdict ):
+            if type(headerdict) is not dict:
+                logger.warning('invalid value type http header %s, dict is expected in rule', type(headerdict) )
+                return False  
+
+            for header in headerdict.keys():
+                headervalue = cherrypy.request.headers.get(header)
+                if headervalue != headerdict[header] :
+                    return False
+            return True
+
+        def isBoolean( value ):
+            if value is True: return True
+            return False
+
         def isMemberOf(roles, groups) :
             if type(roles) is not list:  
                 roles = [roles]
@@ -420,6 +435,18 @@ class ODAuthTool(cherrypy.Tool):
         if type(expected) is not bool:
             logger.warning('invalid value type %s bool is expected in rule', type(expected) )
    
+        always = condition.get('boolean')
+        if type(always) is bool:
+            result     = isBoolean( always )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        httpheader = condition.get('httpheader')
+        if type(httpheader) is dict:
+            result     = isHttpHeader( httpheader )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
         memberOf = condition.get('memberOf')
         if type(memberOf) is str:
             result     = isMemberOf( roles, memberOf )
