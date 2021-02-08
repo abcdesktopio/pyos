@@ -406,6 +406,10 @@ class ODAuthTool(cherrypy.Tool):
             return True
 
         def isBoolean( value ):
+            if type(value) is not bool:
+                logger.warning('invalid value type boolean %s, bool is expected in rule', type(value) )
+                return False  
+
             if value is True: return True
             return False
 
@@ -515,18 +519,18 @@ class ODAuthTool(cherrypy.Tool):
         #                       'label': 'noinnet' }
         #
 
-        compiledrules = {}
+        buildcompiledrules = {}
         for name in rules.keys():
             try:
                 compiled_result = self.compiledrule( name, rules.get(name), user, roles )
                 if compiled_result is True:
                     k = rules.get(name).get('label')
                     if k is not None:
-                        compiledrules[ k ] = rules.get('load')
+                        buildcompiledrules[ k ] = rules.get('load')
             except Exception as e:
                 logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
             
-        return compiledrules
+        return buildcompiledrules
 
 
     
