@@ -206,6 +206,29 @@ class AuthController(BaseController):
                                         'expire_in': expire_in      
                                 })
 
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def labels(self):
+        """[summary]
+
+        Returns:
+            [json]: [Results array of labels if auth set]
+        """
+        self.logger.debug('')
+        res = None
+        if services.auth.isidentified:
+            auth = services.auth.auth
+            labels = [] 
+            if auth.data and type( auth.data.get('labels') ) is dict :
+                for k in auth.data.get('labels').keys():
+                    labels.append( str(k) )
+            res = Results.success( result=labels) 
+        else:
+            res = Results.error( message='invalid user credentials' )
+        return res
+
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST'])
     # Pure HTTP Form request
