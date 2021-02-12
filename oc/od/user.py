@@ -146,6 +146,7 @@ def whoami(auth, user):
     desktop = oc.od.composer.finddesktop( auth, user  )
     # desktop can be None, if desktop is not yet created 
     if desktop :
+        # filter and copy data from desktop to userinfo dict
         userinfo['target_ip'] = desktop.ipAddr
         userinfo['container_id'] = desktop.id 
         userinfo['hostedby'] = desktop.nodehostname
