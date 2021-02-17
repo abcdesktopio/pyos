@@ -506,15 +506,14 @@ def openapp( auth, user={}, kwargs={} ):
     services.accounting.accountex('api', 'openapp')
 
     appinstance = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
-    if appinstance is None :
+    if type(appinstance) is not docker.models.containers.Container :
         raise ODError('Failed to run application')
         
     logger.info('Container %s is started', appinstance.id)
-    return { 
-                'container_id': appinstance.id, 
-                'state': appinstance.status
-    }
-
+    openapp_dict =  {   'container_id': appinstance.id, 
+                        'state':        appinstance.status,
+                        'hookresult':   appinstance.hookresult }
+    return openapp_dict
 
 def getapp(authinfo, name):
 
