@@ -150,7 +150,20 @@ class AuthInfo(object):
             return False
         raise ValueError('Invalid token value type')
 
-
+    def todict( self ):
+        """[todict]
+            convert AuthInfo public data to dict
+        Returns:
+            [dict]: AuthInfo to dict 
+        """
+        mydict = {   
+            'provider' :    self.provider,
+            'providertype': self.providertype,
+            'protocol':     self.protocol,
+            'type':         self.type,
+            'data':         self.data 
+        } 
+        return mydict  
     
     
 
@@ -439,6 +452,10 @@ class ODAuthTool(cherrypy.Tool):
         if type(expected) is not bool:
             logger.warning('invalid value type %s bool is expected in rule', type(expected) )
    
+        # DO not change with lambda 
+        # this is not a dummy code
+        # this is readable code for human
+        #
         always = condition.get('boolean')
         if type(always) is bool:
             result     = isBoolean( always )
@@ -528,7 +545,7 @@ class ODAuthTool(cherrypy.Tool):
                     if k is not None:
                         buildcompiledrules[ k ] = rules.get('load')
             except Exception as e:
-                logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
+                self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
             
         return buildcompiledrules
 
@@ -545,14 +562,14 @@ class ODAuthTool(cherrypy.Tool):
             claims,auth = result
             if not auth or not auth.token:
                 raise AuthenticationFailureError('No authentication token provided')
-            logger.info( 'mgr.authenticate provider=%s token success', provider) 
+            self.logger.info( 'mgr.authenticate provider=%s token success', provider) 
             
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)            
             user = mgr.getuserinfo(provider, auth.token, **arguments)
             if user is None:
                 raise AuthenticationFailureError('User data not found')
-            logger.info( 'mgr.getuserinfo provider=%s success', provider)
+            self.logger.info( 'mgr.getuserinfo provider=%s success', provider)
             
             
             # uncomment this line only to see password in clear text format
@@ -574,7 +591,7 @@ class ODAuthTool(cherrypy.Tool):
             auth.data['labels'] = {}
             if auth.get('data') and auth.data.get('rules'):
                 auth.data['labels'] = self.compiledrules( auth.data.get('rules'), user, roles )
-                logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+                self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
 
             if not oc.od.acl.ODAcl().isAllowed( auth, mgr.getprovider(provider).acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
@@ -673,7 +690,7 @@ class ODAuthTool(cherrypy.Tool):
         oc.lib.removeCookie('abcdesktop_token','/API')             
         
           
-
+@oc.logging.with_logger()
 class ODAuthManagerBase(object):
     def __init__(self, name, config):
         self.name = name

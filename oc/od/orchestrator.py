@@ -28,7 +28,8 @@ import yaml
 import json
 import distutils.util
 import uuid
-
+import chevron
+import requests
 
 from kubernetes import client, config, watch
 from kubernetes.stream import stream
@@ -602,7 +603,7 @@ class ODOrchestrator(ODOrchestratorBase):
         network_disabled        = False      # network is enabled by default
         context_network_name    = None       # acl network is not set by default
         context_network_dns     = None       # to change the DNSServer used by a container
-
+        context_network_webhook = None       # url to call after a created app
         # Check if there is a specify rules to start this application
         rules = app.get('rules')
         if type(rules) is dict  :
@@ -615,8 +616,9 @@ class ODOrchestrator(ODOrchestratorBase):
                     network_disabled = True
               
                 if type(rule_network_default) is dict:
-                    context_network_name = rule_network_default.get('name')
-                    context_network_dns  = rule_network_default.get('dns')
+                    context_network_name    = rule_network_default.get('name')
+                    context_network_dns     = rule_network_default.get('dns')
+                    context_network_webhook = rule_network_default.get('webhook')
                     network_disabled = False    
 
                 # list user context tag 
@@ -625,8 +627,9 @@ class ODOrchestrator(ODOrchestratorBase):
                     for kn in rule_network.keys():
                         for ka in authinfo.data.get('labels') :
                             if kn == ka :
-                                context_network_name = rule_network.get(kn).get('name')
-                                context_network_dns  = rule_network.get(kn).get('dns')
+                                context_network_name    = rule_network.get(kn).get('name')
+                                context_network_dns     = rule_network.get(kn).get('dns')
+                                context_network_webhook = rule_network.get(kn).get('webhook')
                                 network_disabled = False
                                 break
                         if kn == ka :
@@ -637,7 +640,7 @@ class ODOrchestrator(ODOrchestratorBase):
                     # convert context_network_dns as list if need
                     context_network_dns = [ context_network_dns ]
 
-        return (network_disabled, context_network_name, context_network_dns)
+        return (network_disabled, context_network_name, context_network_dns, context_network_webhook )
 
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
@@ -653,30 +656,25 @@ class ODOrchestrator(ODOrchestratorBase):
         volumebind = desktop.attrs["HostConfig"]["Binds"]
 
         # apply network rules 
-        (network_disabled, context_network_name, context_network_dns) = self.applyappinstancerules_network( authinfo, app )
+        (network_disabled, context_network_name, context_network_dns, context_network_webhook_url ) = self.applyappinstancerules_network( authinfo, app )
         # apply homedir rules
         homedir_disabled = self.applyappinstancerules_homedir( authinfo, app )
        
       
         network_name    = None
-        # make sure env DISPLAY exists
-        display         = oc.od.settings.desktopenvironmentlocal.get('DISPLAY', ':0.0')
-        # make sure env PULSE_SERVER exists
-        pulse_server    = oc.od.settings.desktopenvironmentlocal.get('PULSE_SERVER', '/tmp/.pulse.sock')
-        # make sure env CUPS_SERVER exists
-        cups_server     = oc.od.settings.desktopenvironmentlocal.get('CUPS_SERVER', '/tmp/.cups.sock')
         # read locale language from USER AGENT
         language        = userinfo.get('locale', 'en_US')
-        lang            = language + '.UTF-8'    
+        lang            = language + '.UTF-8'  
 
-        # copy a env dict from configuration file
-        env = oc.od.settings.desktopenvironmentlocal.copy()
+         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist  
+        env = { 'DISPLAY':'0.0',
+                'PULSE_SERVER': '/tmp/.pulse.sock',
+                'CUPS_SERVER': '/tmp/.cups.sock' }
+        # update env dict from configuration file
+        env.update(oc.od.settings.desktopenvironmentlocal)
         
         # update env with user's lang value 
-        env.update ( {  'DISPLAY'       : display,
-                        'PULSE_SERVER'  : pulse_server,
-                        'CUPS_SERVER'   : cups_server,
-                        'LANGUAGE'	    : language,
+        env.update ( {  'LANGUAGE'	    : language,
                         'LANG'		    : lang,
                         'LC_ALL'        : lang,
                         'LC_PAPER'	    : lang,
@@ -687,7 +685,7 @@ class ODOrchestrator(ODOrchestratorBase):
                         'LC_TELEPHONE'  : lang,
                         'LC_NUMERIC'    : lang,                                       
                         'LC_IDENTIFICATION' : lang,
-                        'PARENT_ID' 	: desktop.id, 
+                        'PARENT_ID' 	    : desktop.id, 
                         'PARENT_HOSTNAME'   : self.nodehostname
         } )
 
@@ -775,7 +773,6 @@ class ODOrchestrator(ODOrchestratorBase):
         if app.get('shm_size') :        host_config.update(  { 'shm_size' :     app.get('shm_size') } )
         if app.get('mem_limit') :       host_config.update(  { 'mem_limit' :    app.get('mem_limit') } )
 
-
         appinfo = infra.createcontainer(
             image = app['id'],
             name  =  containername,
@@ -807,14 +804,64 @@ class ODOrchestrator(ODOrchestratorBase):
             return None
         
         infra.startcontainer(appinstance.id)
+        appinstance.message = 'starting'
 
-        # if post app
-        if type(oc.od.settings.desktoppostponeapp) is dict :
-            # need to notify
-            pass
-
+        # if context_network_webhook call request to webhook and replace all datas
+        # build the webhook url 
+        # fillwebhook return None if nothing to do
+        webhookurl = self.fillwebhook(  mustacheurl=context_network_webhook_url, 
+                                        app=app, 
+                                        authinfo=authinfo, 
+                                        userinfo=userinfo, 
+                                        network_name=network_name, 
+                                        containerid=appinstance_id )
+      
+        appinstance.hookresult = self.callwebhook( webhookurl )
+            # wait here for the stop event
+                
         return appinstance
+
+    def fillwebhook(self, mustacheurl, app, authinfo, userinfo, network_name, containerid ):
+
+        if type(mustacheurl) is not str:
+            return None
         
+        # merge all dict data from app, authinfo, userinfo, and containerip
+        sourcedict  = app.copy()
+        sourcedict.update( authinfo.todict() )
+        sourcedict.update( userinfo )
+
+        # getnetworkbyname
+        myinfra = self.createInfra( self.nodehostname )
+        network = myinfra.getnetworkbyname( network_name )
+        if network:
+            container_ip =  myinfra.getDesktopIpAddr( containerid, network.id )
+            sourcedict.update( { 'container_ip': container_ip } )
+        myinfra.close()
+
+        # merge all dict data from app, authinfo, userinfo, and containerip
+        moustachedata = {}
+        for k in sourcedict.keys():
+            if type(sourcedict[k]) is str:
+                moustachedata[k] = requests.utils.quote(sourcedict[k])
+        
+        webhookurl = chevron.render( mustacheurl, moustachedata )
+        return webhookurl
+
+    def callwebhook(self, webhookurl ):
+        # webhook should work    
+        hookdict = None
+        if type(webhookurl) is str:
+            hookdict = {}
+            try :
+                r = requests.get(webhookurl) 
+                hookdict['status'] = r.status_code
+                hookdict['text'] = r.text
+            except Exception as e:
+                hookdict['status'] = 500
+                hookdict['text'] = str(e)
+                self.logger.error( e )
+        return hookdict
 
     def resumedesktop(self, authinfo, userinfo, **kwargs):
         ''' update the lastconnectdatetime labels '''
