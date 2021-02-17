@@ -319,11 +319,11 @@ class ODInfra(object):
             container = self.getDesktopContainer( containerid )
             networksettings = container.attrs.get('NetworkSettings')
             if networksettings is not None:
-                networks = networksettings.get('Networks', None)
+                networks = networksettings.get('Networks', {} )
                 for n, vn in networks.items():
-                    networkid = vn.get('NetworkID', None)
+                    networkid = vn.get('NetworkID')
                     if networkid == lookfornetworkid:
-                        ip_addr = vn.get('IPAddress', None)
+                        ip_addr = vn.get('IPAddress')
                         break
         except (KeyError, Exception) as e:
                 self.logger.warning('Error - ip_addr not found: %s', e)
