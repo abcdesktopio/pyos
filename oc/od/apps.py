@@ -218,6 +218,7 @@ class ODApps:
                 fileextensions = labels.get('oc.fileextensions')
                 legacyfileextensions = labels.get('oc.legacyfileextensions')
                 usedefaultapplication = labels.get('oc.usedefaultapplication')
+
                 if usedefaultapplication is not None:
                     usedefaultapplication = json.loads(usedefaultapplication)
 
@@ -265,7 +266,8 @@ class ODApps:
                         'executablefilename': executablefilename,
                         'usedefaultapplication': usedefaultapplication,
                         'fileextensions': fileextensionslist,
-                        'legacyfileextensions': legacyfileextensionslist }
+                        'legacyfileextensions': legacyfileextensionslist
+                    }
                     mydict[ imageid ] = myapp
             except Exception as e:
                 logger.error('Image id:%s failed invalid value: %s', image, e)
