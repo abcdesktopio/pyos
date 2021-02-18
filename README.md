@@ -1,5 +1,5 @@
 # pyos
-abcdesktop API services
+abcdesktop control plane, API services
 
 ![Docker Stars](https://img.shields.io/docker/stars/abcdesktopio/oc.pyos.svg) ![Docker Pulls](https://img.shields.io/docker/pulls/abcdesktopio/oc.pyos.svg)
 
