@@ -1098,9 +1098,29 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.bConfigure = True
             self.name = 'kubernetes'
 
+            # defined remapped tmp volume
+            # if app is a pod use a specifed path in /var/abcdesktop/pods
+            # if app id a docker container use an empty
+            # if oc.od.settings.desktopusepodasapp :
+            # volume_tmp =      { 'name': 'tmp', 'emptyDir': { 'sizeLimit': '8Gi' } }
+            # volume_tmp_path = { 'name': 'tmp', 'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
+            # volumemount_tmp =  {'mountPath': '/tmp',       'name': 'tmp'} ]
+            # volumemount_tmp_path = {'mountPath': '/tmp',       'name': 'tmp', 'subPathExpr': '$(POD_NAME)'}
+            # self.volume
+            # no pods
+            self.default_volumes = {}
+            self.default_volumes_mount = {}
+            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '2Gi' } }
+            self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
+            if oc.od.settings.desktopusepodasapp :
+                self.default_volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
+                self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
+            else:
+                self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
+                self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
         except Exception as e:
             self.bConfigure = False
-            self.logger.warning( '%s', str(e) ) # this is not an error in docker configuration mode, do not log as an error but as warning
+            self.logger.info( '%s', str(e) ) # this is not an error in docker configuration mode, do not log as an error but as info
 
         self.logger.debug( 'ODOrchestratorKubernetes __init__ done configure=%s', str(self.bConfigure) )
 
@@ -1181,15 +1201,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             volumes_mount['localtime'] = { 'name': 'localtime', 'mountPath' : '/etc/localtime' }
 
         if oc.od.settings.desktopuserusehostsharememory is True:
-            volumes['shm']       = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '2Gi' } }
-            volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
+            volumes['shm']       = self.default_volumes['shm']
+            volumes_mount['shm'] = self.default_volumes_mount['shm']
         
         #
         # add dedicated tmp volume for /tmp/ X11 unix socket support
-        # volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods' } }
+        # volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' }
         # volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
-        volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
-        volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
+        # volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
+        # 
+        # default_tmp_volumes can be
+        #    if oc.od.settings.desktopusepodasapp :
+        #        self.default_tmp_volumes       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
+        #        self.default_tmp_volumes_mount = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
+        #    else
+        #        self.default_tmp_volumes       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
+        #        self.default_tmp_volumes_mount = { 'name': 'tmp',  'mountPath': '/tmp' }
+        #
+        volumes['tmp']       = self.default_volumes['tmp']
+        volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
 
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         for secret_auth_name in mysecretdict.keys():
@@ -1907,8 +1937,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # /tmp for the unix socket 
             # /dev/shm for the share memory
             # this is a filter to reduce surface attack
-            soundcontainerlist_volumeMounts = [ {'mountPath': '/dev/shm',   'name': 'shm'}, 
-                                                {'mountPath': '/tmp',       'name': 'tmp'} ]
+            soundcontainerlist_volumeMounts = [ {'mountPath': '/dev/shm',   'name': 'shm'},
+                                                self.default_tmp_volumes_mount ]
+
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_sound_name,
                                     'imagePullPolicy': 'IfNotPresent',

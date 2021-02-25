@@ -67,6 +67,7 @@ desktopimage            = None
 desktopnodeselector     = None
 desktopimagepullsecret  = None
 desktoppolicies         = {}
+desktopusepodasapp      = False
 
 # printer container
 desktopuseprintercontainer  = False 
@@ -353,6 +354,7 @@ def init_desktop():
     global desktopuselocaltime
     global desktoppolicies
     global desktoppostponeapp
+    global desktopusepodasapp
 
     # load docker images name
     desktopimagepullsecret = gconfig.get('desktop.imagePullSecret')
@@ -374,7 +376,7 @@ def init_desktop():
     # is an array 
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
     desktopinitcontainercommand = gconfig.get('desktop.initcontainercommand')
-    
+    desktopusepodasapp = gconfig.get( 'desktop.usepodasapp', False )
     desktopcapabilities = gconfig.get( 'desktop.capabilities', {} )
     defaultbackgroundcolors = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktopusershareprocessnamespace = gconfig.get('desktop.usershareprocessnamespace', True)
