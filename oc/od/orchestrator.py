@@ -1933,12 +1933,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.settings.desktopusesoundcontainer is True and type(oc.od.settings.desktopsoundimage) is str :
             # get the container sound name prefix with 's' like sound
             container_sound_name = self.get_soundcontainername( myuuid )
-            # pulseaudio need only shared volume 
+            # pulseaudio need only the shared volume 
             # /tmp for the unix socket 
             # /dev/shm for the share memory
             # this is a filter to reduce surface attack
-            soundcontainerlist_volumeMounts = [ {'mountPath': '/dev/shm',   'name': 'shm'},
-                                                self.default_tmp_volumes_mount ]
+            # the home directory of balloon user MUST belongs to balloon user 
+            # else pulseaudio does not start
+            soundcontainerlist_volumeMounts = [ self.default_volumes_mount['shm'],
+                                                self.default_volumes_mount['tmp'] ]
 
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_sound_name,
