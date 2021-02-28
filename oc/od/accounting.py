@@ -12,8 +12,8 @@
 # Software description: cloud native desktop service
 # 
 
-from oc.od.apps import ODApps
 from oc.od.composer import selectOrchestrator
+from oc.od.services import services
 
 class ODAccounting:
     def __init__(self):
@@ -59,10 +59,10 @@ class ODAccounting:
 
         # update not updated value
         orchestrator = selectOrchestrator()
-        self.setaccountex('desktop', 'current', orchestrator.countdesktop())
-        self.setaccountex('applist', 'installed', ODApps.countApps())
-        self.setaccountex('applist', 'cached', ODApps.getCached_image_counter() )
-        self.setaccountex('applist', 'build', ODApps.getBuild_image_counter() )
+        self.setaccountex('desktop', 'current', orchestrator.countdesktop() )
+        self.setaccountex('applist', 'installed', services.apps.countApps() )
+        self.setaccountex('applist', 'cached', services.apps.getCached_image_counter() )
+        self.setaccountex('applist', 'build', services.apps.getBuild_image_counter() )
 
         # dump data
         # for k, v in self.accounting.items():
