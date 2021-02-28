@@ -37,6 +37,7 @@ class ODServices(object):
         self.init_keymanager()
         self.init_webrtc()
 
+
     def init_webrtc(self):
         """init parameters to the janus webrtc gateway
         """
@@ -125,6 +126,14 @@ class ODServices(object):
         import oc.od.resolvnetbios
         self.resolvnetbios = oc.od.resolvnetbios.ODResolvNetbios()
 
+    def init_applist( self ):
+        logger.info('')
+        import oc.od.apps 
+        # Build applist cache data
+        self.apps = oc.od.apps.ODApps()
+        self.apps.cached_applist(bRefresh=True)
+
+# use services to access 
 services = ODServices()
 
 
@@ -192,21 +201,15 @@ def init_infra():
         settings.defaultnetworknetuserid = network.id
       logger.info('default overlay network: %s - id %s', settings.defaultnetworknetuser, settings.defaultnetworknetuserid)
 
-   
-def init_appscache():
-    ''' build the applist cache data '''
-    logger.info('')
-    import oc.od.apps 
-    # Build applist cache data
-    # Mimemap and Extension section
-    # Sort the applist using MimeType as index
-    # Sort the applist using FileExtension as index
-    # Sort the applist using LegacyFileExtension as index
-    oc.od.apps.ODApps.cached_applist(bRefresh=True)
+
 
 
 def init():
-    ''' init services '''
+    # init all services 
     services.init()
+    
+    # init docker or kubernetes infra
     init_infra()
-    init_appscache()
+
+    # now list images application
+    services.init_applist()
