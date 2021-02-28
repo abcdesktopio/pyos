@@ -656,7 +656,7 @@ class ODOrchestrator(ODOrchestratorBase):
         volumebind = desktop.attrs["HostConfig"]["Binds"]
 
         # apply network rules 
-        (network_disabled, context_network_name, context_network_dns, context_network_webhook_url ) = self.applyappinstancerules_network( authinfo, app )
+        (network_disabled, context_network_name, context_network_dns, context_network_webhook ) = self.applyappinstancerules_network( authinfo, app )
         # apply homedir rules
         homedir_disabled = self.applyappinstancerules_homedir( authinfo, app )
        
@@ -805,20 +805,36 @@ class ODOrchestrator(ODOrchestratorBase):
         
         infra.startcontainer(appinstance.id)
         appinstance.message = 'starting'
+        appinstance.webhook = None  # by default no hook
 
         # if context_network_webhook call request to webhook and replace all datas
-        # build the webhook url 
-        # fillwebhook return None if nothing to do
-        webhookurl = self.fillwebhook(  mustacheurl=context_network_webhook_url, 
-                                        app=app, 
-                                        authinfo=authinfo, 
-                                        userinfo=userinfo, 
-                                        network_name=network_name, 
-                                        containerid=appinstance_id )
-      
-        appinstance.hookresult = self.callwebhook( webhookurl )
-            # wait here for the stop event
-                
+        if type(context_network_webhook) is dict: 
+            appinstance.webhook = {}
+            # if create exist 
+            webhookstarturl = context_network_webhook.get('create')
+            if type(webhookstarturl) is str:
+                # build the webhook url 
+                # fillwebhook return None if nothing to do
+                webhookurl = self.fillwebhook(  mustacheurl=webhookstarturl, 
+                                                app=app, 
+                                                authinfo=authinfo, 
+                                                userinfo=userinfo, 
+                                                network_name=network_name, 
+                                                containerid=appinstance_id )
+                appinstance.webhook['create'] = webhookurl
+
+            # if destroy exist 
+            webhookstopurl = context_network_webhook.get('destroy')
+            if type(webhookstopurl) is str:
+                # fillwebhook return None if nothing to do
+                webhookurl = self.fillwebhook(  mustacheurl=webhookstopurl, 
+                                                app=app, 
+                                                authinfo=authinfo, 
+                                                userinfo=userinfo, 
+                                                network_name=network_name, 
+                                                containerid=appinstance_id )
+                appinstance.webhook['destroy'] = webhookurl
+
         return appinstance
 
     def fillwebhook(self, mustacheurl, app, authinfo, userinfo, network_name, containerid ):
@@ -848,20 +864,6 @@ class ODOrchestrator(ODOrchestratorBase):
         webhookurl = chevron.render( mustacheurl, moustachedata )
         return webhookurl
 
-    def callwebhook(self, webhookurl ):
-        # webhook should work    
-        hookdict = None
-        if type(webhookurl) is str:
-            hookdict = {}
-            try :
-                r = requests.get(webhookurl) 
-                hookdict['status'] = r.status_code
-                hookdict['text'] = r.text
-            except Exception as e:
-                hookdict['status'] = 500
-                hookdict['text'] = str(e)
-                self.logger.error( e )
-        return hookdict
 
     def resumedesktop(self, authinfo, userinfo, **kwargs):
         ''' update the lastconnectdatetime labels '''
