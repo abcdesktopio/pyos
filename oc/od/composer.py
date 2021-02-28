@@ -24,10 +24,10 @@ import oc.od.orchestrator
 
 from oc.od.services import services
 from oc.od.infra import ODError  # Desktop Infrastructure Class lib
-from oc.od.apps import ODApps
 import distutils.util
 import docker # only for type
 from cherrypy import _json as json
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -483,8 +483,9 @@ def openapp( auth, user={}, kwargs={} ):
 
     # check if app is allowed 
     # this can occur only if the applist has been (hacked) modified 
-    if not ODApps.is_app_allowed( auth, app ) :
+    if not services.apps.is_app_allowed( auth, app ) :
         logger.error( 'SECURITY Warning applist has been (hacked) modified')
+        # Block this IP source addr + user ?
         raise ODError('Application access is denied by security policy')
 
     # Check if the image is has the uniquerunkey Label set
@@ -510,14 +511,44 @@ def openapp( auth, user={}, kwargs={} ):
         raise ODError('Failed to run application')
         
     logger.info('Container %s is started', appinstance.id)
-    openapp_dict =  {   'container_id': appinstance.id, 
-                        'state':        appinstance.status,
-                        'hookresult':   appinstance.hookresult }
+    
+    # default return value
+    openapp_dict =  {   'container_id': appinstance.id,  'state':        appinstance.status }
+
+    # check if appinstances contains hook create or destroy
+    if type(appinstance.webhook) is dict:
+        webhook_create  = appinstance.webhook.get('create')
+        if type(webhook_create) is str:
+            webhook_result = callwebhook(webhook_create)
+            openapp_dict.update( { 'webhook': { 'create' : webhook_result } } )
+
+        webhook_destroy = appinstance.webhook.get('destroy')
+        if type(webhook_destroy) is str:
+            # post pone webhook_destroy call 
+            # add url to call in 
+            oc.od.services.services.sharecache.set( appinstance.id, webhook_destroy )
+
     return openapp_dict
+
+def callwebhook(webhookurl):
+    # webhook should work    
+    hookdict = None
+    if type(webhookurl) is str:
+        hookdict = {}
+        try :
+            r = requests.get(webhookurl) 
+            hookdict['status'] = r.status_code
+            hookdict['text'] = r.text
+        except Exception as e:
+            hookdict['status'] = 500
+            hookdict['text'] = str(e)
+            self.logger.error( e )
+    return hookdict
+
 
 def getapp(authinfo, name):
 
-    app = ODApps.findappbyname(authinfo, name)
+    app = services.apps.findappbyname(authinfo, name)
     if app is None:
         services.accounting.accountex('container', 'error')
         raise ODError('Fatal error - Cannot find image associated to application %s: ' % appname)
