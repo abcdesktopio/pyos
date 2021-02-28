@@ -27,7 +27,6 @@ import urllib
 from oc.od.services import services
 
 from oc.cherrypy import Results
-from oc.od.apps import ODApps
 from oc.od.base_controller import BaseController
 
 logger = logging.getLogger(__name__)
@@ -290,7 +289,7 @@ class ComposerController(BaseController):
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
-        return ODApps.cached_applist()
+        return services.apps.myglobal_list
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -343,11 +342,11 @@ class ComposerController(BaseController):
             logger.error( e )
             return Results.error( message=str(e) )
         
-        applist = ODApps.user_applist( auth )
+        # list all applications allowed for this user (auth)
+        applist = services.apps.user_applist( auth )
 
         # get the default application list from the config file
         userapplist = settings.get_default_applist()
-
         userapplist += applist
         
         return Results.success(result=userapplist)  

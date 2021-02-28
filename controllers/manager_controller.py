@@ -16,7 +16,6 @@
 import logging
 import cherrypy
 
-from oc.od.apps import ODApps
 from oc.od.base_controller import BaseController
 import oc.od.composer
 import oc.od.services
@@ -41,10 +40,19 @@ class ManagerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def buildapplist(self):
+        """[buildapplist]
+            build application list 
+            protected by is_permit_request()
+
+        Returns:
+            [json]: [list of all images]
+        """
+        # check if request is allowed, raise an exception if deny
         self.is_permit_request()
+        # disable trace log 
         cherrypy.response.notrace = True
         # True to force an application list refresh
-        return ODApps.cached_applist(True)
+        return oc.od.services.services.apps.cached_applist(True)
 
     # updateactivedirectorysite request is protected by is_permit_request()
     @cherrypy.expose
