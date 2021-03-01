@@ -131,9 +131,6 @@ class ODOrchestratorBase(object):
     def get_auth_env_dict( self, authinfo, userinfo ):
         raise NotImplementedError('%s.get_auth_env_dict' % type(self))
 
-    def getapplist(self, authinfo, userinfo, **kwargs):
-        raise NotImplementedError('%s.getapplist' % type(self))
-
     def getsecretuserinfo(self, authinfo, userinfo):
         raise NotImplementedError('%s.getsecretuserinfo' % type(self))
 
