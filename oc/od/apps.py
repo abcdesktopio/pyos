@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class ODApps:
 
     def __init__(self):
+        self.lock = threading.Lock()
         self.myglobal_list = {}
         self.build_image_counter = 0
         self.cached_image_counter = 0
@@ -67,7 +68,7 @@ class ODApps:
             mylen = len(self.myglobal_list)
         return mylen
 
-    def getCached_image_counter(selectInfra):
+    def getCached_image_counter(self,selectInfra):
         return self.cached_image_counter
 
     def getBuild_image_counter(self):
@@ -77,7 +78,13 @@ class ODApps:
         if bRefresh or len(self.myglobal_list) == 0:
 
             # Build the AppList
-            self.myglobal_list = self.build_applist()
+            mybuild_applist = self.build_applist()
+
+            self.lock.acquire()
+            try:
+                self.myglobal_list = mybuild_applist
+            finally:
+                self.lock.release()
 
             #
             # Note: this section code has been remove for user dedicated userapplist
@@ -97,7 +104,7 @@ class ODApps:
         else:
             self.cached_image_counter = self.cached_image_counter + 1 
 
-        return self.myglobal_list
+        return mybuild_applist
 
     
     def updatemap(self, mymap, app, attr):
@@ -118,8 +125,6 @@ class ODApps:
     # Query image list
     # label label image
     # mymap is map the update
-
-   
     def buildmap(self, applist, attr ):
         mymap = {}
         for app in applist.keys():
@@ -140,14 +145,17 @@ class ODApps:
         #
 
         # Lock here
-        applist = self.myglobal_list.copy()
-        # unlock here
+        self.lock.acquire()
+        try:
+            applist = self.myglobal_list.copy()
+        finally:
+            self.lock.release()
 
         # for each app in docker images
         for app in applist.keys():
-            myapp = applist[app]
+            myapp = applist[app].copy()
             if self.is_app_allowed( auth, myapp ) is True :
-                for m in [ 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'] :
+                for m in [ 'sha_id', 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'] :
                     # hidden internal dict entry to frontweb json
                     del myapp[m]
                 userapplist.append( myapp )
@@ -157,10 +165,14 @@ class ODApps:
     def user_appdict( self, auth ):
         
         userappdict = {}
+
         # Lock here
-        # copy all applications into a new dict
-        applist = self.myglobal_list.copy()
-        # unlock here
+        self.lock.acquire()
+        try:
+            # make a quick copy to release lock
+            applist = self.myglobal_list.copy()
+        finally:
+            self.lock.release()
 
         # make a copy to remove security entries 
         for app in applist.keys():
@@ -197,7 +209,9 @@ class ODApps:
         repoTags = image.get('RepoTags')
         if type(repoTags) is not list: # skip image if no repoTags 
             return None
-            
+
+        sha_id = image.get('Id')    
+
         # Read all data came from Labels images value
         imageid = repoTags[0]
         desktopfile = labels.get('oc.desktopfile')
@@ -241,8 +255,9 @@ class ODApps:
         if icon is not None and icondata is not None:
             self.makeiconfile(icon, icondata)
 
-        if all([launch, name, icon, imageid]):
+        if all([sha_id, launch, name, icon, imageid]):
             myapp = {
+                'sha_id': sha_id,
                 'id': imageid,
                 'rules' : rules,
                 'acl': acl,
@@ -275,7 +290,7 @@ class ODApps:
     def build_applist(self):
         logger.debug('')
         mydict = {}
-        for image in ODInfra().findimages({'dangling': False, 'label': 'oc.type=app'}):
+        for image in ODInfra().findimages( filters={'dangling': False, 'label': 'oc.type=app'} ):
             try:
                 myapp = self.imagetoapp(image)
                 if type(myapp) is dict:
@@ -284,7 +299,42 @@ class ODApps:
                 logger.error('Image id:%s failed invalid value: %s', image, e)
         return mydict
 
- 
+    def add_image( self, image_id ):
+        if image_id is None:
+            return None
+
+        for image in  ODInfra().findimages( name=image_id ):
+            myapp = self.imagetoapp( image )
+            if myapp :
+                # Lock here
+                self.lock.acquire()
+                try:
+                    # add new application to myglobal_list dict
+                    self.myglobal_list[ myapp['id'] ] = myapp
+                finally:
+                    self.lock.release()
+        return myapp
+
+
+    def del_image( self, image_sha_id ):
+        # Lock here
+        bDeleted = False
+        self.lock.acquire()
+        try:
+            # remove application to myglobal_list dict
+            for k in self.myglobal_list.keys():
+                if self.myglobal_list[k].get('sha_id') == image_sha_id:
+                    del self.myglobal_list[ k ]
+                    logger.debug( 'image %s DELETED', k, image_sha_id )
+                    bDeleted = True
+                    break
+        except Exception as e:
+            logger.error( e )
+        finally:
+            self.lock.release()
+        if not bDeleted :
+            logger.debug( 'image %s NOT DELETED', image_sha_id )
+
     def findappbyname(self, authinfo, keyname):
         """find application by kyname
 
