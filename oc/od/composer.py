@@ -531,7 +531,8 @@ def openapp( auth, user={}, kwargs={} ):
     return openapp_dict
 
 def callwebhook(webhookurl):
-    # webhook should work    
+    # webhook should work 
+    logger.info(webhookurl)   
     hookdict = None
     if type(webhookurl) is str:
         hookdict = {}
@@ -547,11 +548,9 @@ def callwebhook(webhookurl):
 
 
 def getapp(authinfo, name):
-
     app = services.apps.findappbyname(authinfo, name)
     if app is None:
-        services.accounting.accountex('container', 'error')
-        raise ODError('Fatal error - Cannot find image associated to application %s: ' % appname)
+        raise ODError('Fatal error - Cannot find image associated to application %s: ' % name)
     return app
 
 
@@ -559,8 +558,7 @@ def launchappprocess(orchestrator, appinstance, userargs):
     app = appinstance.app
     cmd = [ app['path'],  app['args'], userargs ]
     result = orchestrator.execincontainer(appinstance.id, cmd)
-    if not isinstance(result, dict):
-        services.accounting.accountex('container', 'reusederror')
+    if type(result) is not dict:
         raise ODError('execincontainer error')
     return (cmd, result)
 
@@ -608,3 +606,18 @@ def on_desktoplaunchprogress_info(source, key, *args):
 #        pass
 #    else:
 #        return
+
+
+
+def detach_container_from_network( container_id ):
+    """ detach a container from a network
+        call a url_webhook_destroy formated by orchestrator
+        to notify stop on firewall for example 
+    Args:
+        container_id ([str]): [container id]
+    """
+    url_webhook_destroy = oc.od.services.services.sharecache.get( container_id )
+    if url_webhook_destroy :
+        response_url_detach = callwebhook( url_webhook_destroy )
+        logger.info( response_url_detach )
+        
