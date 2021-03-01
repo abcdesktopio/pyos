@@ -278,19 +278,6 @@ class ComposerController(BaseController):
             return Results.success(result=result)
         return Results.error('failed to read container list')
 
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.json_in()
-    def getapplist(self):
-        logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            logger.error( e )
-            return Results.error( message=str(e) )
-        return services.apps.myglobal_list
-
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
