@@ -29,9 +29,9 @@ class ODMemcachedSharecache(ODSharecache):
         self.connectionstring   = connectionstring
 
     def get(self, key):        
-        try: 
-            self.logger.error('get(%s:%s)', self.connectionstring, key)           
-            value = self.createclient().get(str(key))        
+        try:     
+            value = self.createclient().get(str(key))   
+            self.logger.debug('memcached get(%s)->%s', key, value)             
             return value
         except Exception as e:
             self.logger.error('memcached %s failed, key:(%s) %s', self.connectionstring, key, e )
@@ -41,6 +41,7 @@ class ODMemcachedSharecache(ODSharecache):
         # self.logger.debug("setting key '%s' = %s", key, value)
         try:
             if self.createclient().set(str(key), str(value), time=time) != 0: 
+                self.logger.debug('memcached set(%s)->%s', key, value) 
                 return True
             self.logger.error('memcached %s failed, (%s: %s) return failed', self.connectionstring, key, value)
         except Exception as e:
