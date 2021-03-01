@@ -20,6 +20,12 @@ class ODServices(object):
         self.keymanager = None
         self.locatorPublicInternet = None
         self.webrtc = None
+        self.watcher = None
+        self.apps = None
+
+    def __del__(self):
+        if type(self.watcher) is oc.od.watcher.ODWatcher:
+            self.watcher.stop()
 
     def init(self):
         """init services 
@@ -133,6 +139,13 @@ class ODServices(object):
         self.apps = oc.od.apps.ODApps()
         self.apps.cached_applist(bRefresh=True)
 
+    def init_watcher( self ):
+        logger.info('')
+        import oc.od.watcher
+        self.watcher = oc.od.watcher.ODWatcher()
+        self.watcher.start()
+
+
 # use services to access 
 services = ODServices()
 
@@ -213,3 +226,6 @@ def init():
 
     # now list images application
     services.init_applist()
+
+    # run watcher for images pull or rm update
+    services.init_watcher()
