@@ -19,6 +19,7 @@ import json
 import os
 import cherrypy # web framework 
 from cherrypy._cpdispatch import Dispatcher
+from cherrypy.process import plugins
 
 import oc.logging
 import oc.cherrypy
@@ -181,6 +182,19 @@ class API(object):
     def healthcheck(self):
         return "OK"  
 
+
+
+
+class ODCherryWatcher(plugins.SimplePlugin):
+    """A feature that does something."""
+    def start(self):
+        logger.debug( "ODCherryWatcher starting" )
+
+    def stop(self):
+        logger.debug("ODCherryWatcher stopping.")
+        oc.od.services.services.watcher.stop()
+
+
 def run_server():   
     logger.info("Starting cherrypy service...")
     # update config for cherrypy
@@ -192,8 +206,13 @@ def run_server():
     cherrypy.tree.mount( API(settings.controllers), app_virtual_path, settings.config )
     # set /IMG
     cherrypy.tree.mount(IMG(), img_virtual_path, config={} ) # no config for img, use class config
+
+    odthread_watcher = ODCherryWatcher(cherrypy.engine)
+    odthread_watcher.subscribe()
+
     # start cherrypy engine
     cherrypy.engine.start()
+
     # infite loop
     logger.info("Waiting for requests...")
     cherrypy.engine.block()
