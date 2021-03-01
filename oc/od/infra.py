@@ -630,14 +630,10 @@ class ODInfra(object):
             self.logger.error('Error - %s: ', networkname, e)
         return None        
 
-    def getimage(self, name):
-        try:
-            return  self.getdockerClient().images.get(name)
-        except docker.errors.ImageNotFound:
-            return None
+
         
-    def findimages(self, filters={}):
-        return  self.getdockerClientAPI().images(filters={'dangling': False, 'label': 'oc.type=app'})
+    def findimages(self, name=None, filters={'dangling': False, 'label': 'oc.type=app'} ):
+        return  self.getdockerClientAPI().images(name=name, filters=filters)
 
     
     def resumeorcreatenewnetwork(self, name, labels=None):
