@@ -186,13 +186,18 @@ class API(object):
 
 
 class ODCherryWatcher(plugins.SimplePlugin):
-    """A feature that does something."""
+    """ signal thread to stop when cherrypy stop"""
     def start(self):
-        logger.debug( "ODCherryWatcher starting" )
+        logger.debug( "ODCherryWatcher start events, skipping" )
 
     def stop(self):
-        logger.debug("ODCherryWatcher stopping.")
-        oc.od.services.services.watcher.stop()
+        logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
+        # if oc.od.services.services.dockerwatcher exists, stop it
+        if type(oc.od.services.services.dockerwatcher) is oc.od.dockerwatcher.ODDockerWatcher:
+            oc.od.services.services.dockerwatcher.stop()
+        # if oc.od.services.services.imagewatcher exists, stop it
+        if type(oc.od.services.services.imagewatcher) is oc.od.imagewatcher.ODImageWatcher:
+            oc.od.services.services.imagewatcher.stop()
 
 
 def run_server():   
