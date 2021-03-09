@@ -68,7 +68,7 @@ class ODApps:
             mylen = len(self.myglobal_list)
         return mylen
 
-    def getCached_image_counter(self,selectInfra):
+    def getCached_image_counter(self):
         return self.cached_image_counter
 
     def getBuild_image_counter(self):
