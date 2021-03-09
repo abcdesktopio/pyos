@@ -540,6 +540,8 @@ def callwebhook(webhookurl):
             r = requests.get(webhookurl) 
             hookdict['status'] = r.status_code
             hookdict['text'] = r.text
+            if r.status_code != 200:
+                self.logger.error( 'failed to call %s resutl %s', webhookurl, str(r) )
         except Exception as e:
             hookdict['status'] = 500
             hookdict['text'] = str(e)
@@ -616,6 +618,7 @@ def detach_container_from_network( container_id ):
     Args:
         container_id ([str]): [container id]
     """
+    logger.debug( 'detach_container_from_network:key=%s', container_id )
     url_webhook_destroy = oc.od.services.services.sharecache.get( container_id )
     if url_webhook_destroy :
         response_url_detach = callwebhook( url_webhook_destroy )
