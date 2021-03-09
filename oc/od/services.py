@@ -20,12 +20,15 @@ class ODServices(object):
         self.keymanager = None
         self.locatorPublicInternet = None
         self.webrtc = None
-        self.watcher = None
+        self.dockerwatcher = None
+        self.imagewatcher = None
         self.apps = None
 
     def __del__(self):
-        if type(self.watcher) is oc.od.watcher.ODWatcher:
-            self.watcher.stop()
+        if type(self.dockerwatcher) is oc.od.dockerwatcher.ODDockerWatcher:
+            self.dockerwatcher.stop()
+        if type(self.imagewatcher) is oc.od.imagewatcher.ODImageWatcher:
+            self.imagewatcher.stop()
 
     def init(self):
         """init services 
@@ -139,11 +142,17 @@ class ODServices(object):
         self.apps = oc.od.apps.ODApps()
         self.apps.cached_applist(bRefresh=True)
 
-    def init_watcher( self ):
+    def init_dockerwatcher( self ):
         logger.info('')
-        import oc.od.watcher
-        self.watcher = oc.od.watcher.ODWatcher()
-        self.watcher.start()
+        import oc.od.dockerwatcher
+        self.dockerwatcher = oc.od.dockerwatcher.ODDockerWatcher()
+        self.dockerwatcher.start()
+
+    def init_imagewatcher( self ):
+        logger.info('')
+        import oc.od.imagewatcher
+        self.imagewatcher = oc.od.imagewatcher.ODImageWatcher()
+        self.imagewatcher.start()
 
 
 # use services to access 
@@ -227,5 +236,9 @@ def init():
     # now list images application
     services.init_applist()
 
-    # run watcher for images pull or rm update
-    services.init_watcher()
+    # run docker watcher for images and network object
+    # watch image pull rm event
+    # watch network create destroy event
+    services.init_dockerwatcher()
+
+    
