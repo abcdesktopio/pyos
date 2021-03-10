@@ -39,7 +39,7 @@ class ODApps:
 
         # normalise trust no one
         # hard code image path
-        currentPath = os.getcwd()
+        currentPath = '/var/pyos' # or os.getcwd()
         filepath = os.path.normpath( currentPath + '/img/app/' + filename)
         try:
             f = None
@@ -290,7 +290,8 @@ class ODApps:
     def build_applist(self):
         logger.debug('')
         mydict = {}
-        for image in ODInfra().findimages( filters={'dangling': False, 'label': 'oc.type=app'} ):
+        localimage_list = ODInfra().findimages( filters={'dangling': False, 'label': 'oc.type=app'} )
+        for image in localimage_list:
             try:
                 myapp = self.imagetoapp(image)
                 if type(myapp) is dict:
