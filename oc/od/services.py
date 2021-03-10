@@ -3,8 +3,6 @@ import oc.od.settings as settings
 import oc.od.infra
 import oc.od.orchestrator
 
-
-
 logger = logging.getLogger(__name__)
 
 class ODServices(object):
@@ -241,4 +239,6 @@ def init():
     # watch network create destroy event
     services.init_dockerwatcher()
 
-    
+    # run image watcher for images ain mongodb
+    # watch image pull event
+    services.init_imagewatcher()
