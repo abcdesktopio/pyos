@@ -1,10 +1,12 @@
 import docker
 import logging 
 import threading
+import logging
 import oc.logging
 
 logger = logging.getLogger(__name__)
 
+@oc.logging.with_logger()
 class ODDockerWatcher:
 
     def __init__(self):
@@ -22,10 +24,13 @@ class ODDockerWatcher:
         event_action = event.get('Action') 
         event_attributes = event.get('Actor').get('Attributes')
         if event_action == 'pull' or event_action == 'tag':
-            if event_attributes.get('oc.type') == 'app' :
-                image_id = event.get('id')
-                newapp = oc.od.services.services.apps.add_image( image_id )
-                logger.debug( 'new image added %s', newapp )
+            image_name = event_attributes.get('name')
+            if event_attributes.get('oc.type') == 'app' and image_name is not None :
+                newapp = oc.od.services.services.apps.add_image( image_name )
+                if (newapp):
+                    self.logger.debug( 'new image added %s', newapp )
+                else:
+                    self.logger.debug( 'Skipping image %s', newapp )
         if event_action == 'delete': 
             # delete is after event_action == 'untag' 
             # name is the image id
@@ -41,7 +46,7 @@ class ODDockerWatcher:
             oc.od.services.services.apps.del_image( image_sha_id=image_id )
 
     def event_network( self, client, event ):
-        logger.debug('new network event from docker event %s', event)
+        self.logger.debug('new network event from docker event %s', event)
         event_action = event.get('Action') 
         if event_action == 'create' :
             network_id = event.get('Actor').get('ID')
@@ -49,13 +54,13 @@ class ODDockerWatcher:
             network_labels = new_network.attrs.get('Labels')
             if network_labels.get('oc.type') == 'app':
                 self.abcnetworks[ network_id ] = new_network
-                logger.info( 'add new network in watching dict %s', network_id )
+                self.logger.info( 'add new network in watching dict %s', network_id )
 
         if event_action == 'destroy' :
             network_id = event.get('Actor').get('ID')
             if self.abcnetworks.get( network_id ):
                 del self.abcnetworks[ network_id ]
-                logger.info( 'remove network in watching dict %s', network_id )
+                self.logger.info( 'remove network in watching dict %s', network_id )
 
         if event_action == 'disconnect' :
             container_id = event.get('Actor').get('Attributes').get('container')
@@ -67,23 +72,22 @@ class ODDockerWatcher:
         client = oc.od.infra.ODInfra().getdockerClient()
 
         # read events
-        events = client.events(decode=True) # return docker.types.daemon.CancellableStream
-        self.events = events
-        for event in events:
+        self.events = client.events(decode=True) # return docker.types.daemon.CancellableStream
+        for event in self.events:
             try:
                 if event.get('Type') == 'image':    
-                    self.event_image(client,event)
+                    self.event_image(client, event)
                 if event.get('Type') == 'network':  
                     self.event_network(client, event)
             except Exception as e:
-                logger.error( '%s', e)
+                self.logger.error( '%s', e)
         
     def start(self):
-        logger.debug('starting watcher thread')
+        self.logger.debug('starting watcher thread')
         self.thead_event = threading.Thread(target=self.loop_forevent)
         self.thead_event.start() # infinite loop until events.close()
 
     def stop(self):
-        logger.debug('stoping watcher thread')
+        self.logger.debug('stoping watcher thread')
         self.events.close() # this will stop the thread self.thead_event
         self.thead_event.join() 
