@@ -13,6 +13,7 @@
 # 
 
 import logging
+import oc.logging
 import base64
 import os
 import json
@@ -24,6 +25,7 @@ from oc.od.infra import ODInfra
 logger = logging.getLogger(__name__)
 
 
+@oc.logging.with_logger()
 class ODApps:
 
     def __init__(self):
@@ -54,12 +56,12 @@ class ODApps:
             try:
                f.write(data)
             except Exception as e:
-              logger.error('Can not makeiconfile %s: %s', filename, e)
+              self.logger.error('Can not makeiconfile %s: %s', filename, e)
             f.close()
 
             bReturn = True
         except Exception as e:
-           logger.error('Can not makeiconfile %s: %s', filename, e)
+           self.logger.error('Can not makeiconfile %s: %s', filename, e)
         return bReturn
 
     def countApps(self):
@@ -300,13 +302,18 @@ class ODApps:
                 logger.error('Image id:%s failed invalid value: %s', image, e)
         return mydict
 
-    def add_image( self, image_id ):
-        if image_id is None:
-            return None
+    def add_image( self, image_name ):
+        myapp = None
 
-        for image in  ODInfra().findimages( name=image_id ):
+        if image_name is None:
+            return myapp
+
+        # query dockerd to get all properties of the new image
+        image_list_lookfor = ODInfra().findimages( name=image_name )
+        # there is only one image
+        for image in image_list_lookfor:
             myapp = self.imagetoapp( image )
-            if myapp :
+            if type(myapp) is dict :
                 # Lock here
                 self.lock.acquire()
                 try:
@@ -314,6 +321,7 @@ class ODApps:
                     self.myglobal_list[ myapp['id'] ] = myapp
                 finally:
                     self.lock.release()
+                logger.debug( 'updated global applist %s', myapp['id'])
         return myapp
 
 
@@ -326,7 +334,7 @@ class ODApps:
             for k in self.myglobal_list.keys():
                 if self.myglobal_list[k].get('sha_id') == image_sha_id:
                     del self.myglobal_list[ k ]
-                    logger.debug( 'image %s DELETED', k, image_sha_id )
+                    self.logger.debug( 'image %s %s DELETED', k, image_sha_id )
                     bDeleted = True
                     break
         except Exception as e:
@@ -334,7 +342,7 @@ class ODApps:
         finally:
             self.lock.release()
         if not bDeleted :
-            logger.debug( 'image %s NOT DELETED', image_sha_id )
+            self.logger.debug( 'image %s NOT DELETED', image_sha_id )
 
     def findappbyname(self, authinfo, keyname):
         """find application by kyname
