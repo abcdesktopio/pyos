@@ -23,9 +23,9 @@ class ODServices(object):
         self.apps = None
 
     def __del__(self):
-        if type(self.dockerwatcher) is oc.od.dockerwatcher.ODDockerWatcher:
+        if hasattr(self, dockerwatcher) and type(self.dockerwatcher) is oc.od.dockerwatcher.ODDockerWatcher:
             self.dockerwatcher.stop()
-        if type(self.imagewatcher) is oc.od.imagewatcher.ODImageWatcher:
+        if hasattr(self, imagewatcher) and type(self.imagewatcher) is oc.od.imagewatcher.ODImageWatcher:
             self.imagewatcher.stop()
 
     def init(self):
