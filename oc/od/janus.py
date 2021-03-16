@@ -46,7 +46,7 @@ class janusclient( object ):
         self.janus_apisecret = node.get('apisecret', 'janusrocks')
         self.janus_adminkey  = node.get('adminkey',  'supersecret')
         self.janus_startport = node.get('startport', 5100 )
-        self.janus_url = self.janus_schema + '://' + self.janus_host + ':' + str(self.janus_port) + '/janus'
+        self.janus_url = self.janus_schema + '://' + self.janus_hostip + ':' + str(self.janus_port) + '/janus'
         self.transaction = janusclient.randomStringwithDigitsAndSymbols()
 
     @staticmethod
