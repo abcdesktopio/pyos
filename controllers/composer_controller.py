@@ -24,6 +24,7 @@ import oc.od.composer
 import oc.i18n
 import oc.auth.jwt
 import urllib
+
 from oc.od.services import services
 
 from oc.cherrypy import Results
@@ -381,6 +382,10 @@ class ComposerController(BaseController):
             logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
             logger.info('Service is running on node %s', str(desktop.nodehostname) )
             
+            # set cookie for a better loadbalacing
+            if desktop.nodehostname is not None:
+                oc.lib.setCookie( 'abchost', desktop.nodehostname )
+
             datadict={  **user,
                         'provider': auth.providertype,
                         'date': datetime.datetime.utcnow().isoformat(),
