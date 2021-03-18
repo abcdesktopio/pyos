@@ -1797,7 +1797,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'access_userid':    userinfo.userid,
                     'access_username':  self.get_labelvalue(userinfo.name),
                     'domain':           self.endpoint_domain,
-                    'vnc_password':     vncPassword }
+                    'vnc_password':     vncPassword,
+                    'netpol/ocuser' :   'true' }
 
         # check if we run the desktop in metappli mode or desktop mode
         if type(appname) is str :
