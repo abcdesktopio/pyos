@@ -107,7 +107,8 @@ class janusclient( object ):
 
         json_attach = { "janus": "attach",
                         "plugin": plugin,
-                        "transaction": self.transaction}
+                        "apisecret": self.janus_apisecret, 
+                        "transaction": self.transaction }
 
         return self.janus_cmd(json_attach,
                 not self.session["session_id"],
@@ -179,6 +180,7 @@ class janusclient( object ):
                             "audiopt": self.audiopt,
                             "audiortpmap": self.audiortpmap,
                             "admin_key": self.janus_adminkey,
+                            "audioiface": self.janus_hostip,
                             "pin": pin
                 }
             },
