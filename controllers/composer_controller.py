@@ -384,7 +384,7 @@ class ComposerController(BaseController):
             
             # set cookie for a better loadbalacing
             if desktop.nodehostname is not None:
-                oc.lib.setCookie( 'abchost', desktop.nodehostname )
+                oc.lib.setCookie( 'abcdesktop_host', desktop.nodehostname )
 
             datadict={  **user,
                         'provider': auth.providertype,
