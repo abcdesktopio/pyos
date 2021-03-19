@@ -68,6 +68,7 @@ desktopnodeselector     = None
 desktopimagepullsecret  = None
 desktoppolicies         = {}
 desktopusepodasapp      = False
+desktopimagepullpolicy  = 'IfNotPresent'
 
 # printer container
 desktopuseprintercontainer  = False 
@@ -355,14 +356,16 @@ def init_desktop():
     global desktoppolicies
     global desktoppostponeapp
     global desktopusepodasapp
+    global desktopimagepullpolicy
 
     # load docker images name
-    desktopimagepullsecret = gconfig.get('desktop.imagePullSecret')
-    desktopimage        = gconfig.get('desktop.image')
-    desktopprinterimage = gconfig.get('desktop.printerimage')
-    desktopsoundimage   = gconfig.get('desktop.soundimage')
+    desktopimagepullsecret  = gconfig.get('desktop.imagePullSecret')
+    desktopimagepullpolicy  = gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' )
+    desktopimage            = gconfig.get('desktop.image')
+    desktopprinterimage     = gconfig.get('desktop.printerimage')
+    desktopsoundimage       = gconfig.get('desktop.soundimage')
+    desktoppolicies         = gconfig.get('desktop.policies', {} )
 
-    desktoppolicies     = gconfig.get('desktop.policies', {} )
     desktopinitcontainerimage = gconfig.get('desktop.initcontainerimage')
     desktopsharednetworkstack = gconfig.get('desktop.sharednetworkstack', True)
     desktopusex11unixsocket = gconfig.get('desktop.usex11unixsocket', True)

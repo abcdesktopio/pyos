@@ -1923,7 +1923,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             container_printer_name = self.get_printercontainername( myuuid )
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_printer_name,
-                                    'imagePullPolicy': 'IfNotPresent',
+                                    'imagePullPolicy': oc.od.settings.desktopimagepullpolicy,
                                     'image': oc.od.settings.desktopprinterimage,                                    
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts                                    
