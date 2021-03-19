@@ -941,7 +941,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
 
         if authheader:
             request.add_header('Authorization', authheader)
-
+        request.add_header('Accept','application/json')
         return request
 
     def handlerequest(self, request):
@@ -983,7 +983,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         return {
             'access_token': jsondata['access_token'], 
             'token_type': jsondata.get('token_type', 'Bearer'), 
-            'expires_in': jsondata['expires_in']
+            'expires_in': jsondata.get('expires_in')    
         }
 
     def parseuserinfo(self, jsondata):        
@@ -1003,6 +1003,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             user = jsondata
 
         userid = user.get('userid') or jsondata.get('id') or jsondata.get('sub', '')
+        userid = str(userid) # make sure always use string 
         user['userid'] = oc.auth.namedlib.normalize_name(userid)
         return user
 
@@ -1091,17 +1092,14 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('basedn'), 
             config.get('scope', ldap.SCOPE_SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
-            config.get('attrs')
-            )
+            config.get('attrs'))
+
         # query groups
         self.group_query = self.Query(
             config.get('group_basedn', self.user_query.basedn),
             config.get('group_scope', self.user_query.scope),
             config.get('group_filter', "(&(objectClass=Group)(cn=%s))"),
             config.get('group_attrs'))
-       
-        
-
 
     @staticmethod
     def create_controls(pagesize):
