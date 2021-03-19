@@ -17,12 +17,25 @@ from shellescape import quote
 def normalize_name(name, encoding='utf-8'):
     newname = ''
     # permit only DNS name [a-z][A-Z][0-9]-
+    #
+    # and for kubernetes lables
+    # a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', 
+    # and must start and end with an alphanumeric character 
+    # (e.g. 'MyValue',  or 'my_value',  or '12345', 
+    # regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')
     for c in name:
       # filter permit char
       if c.isalnum() or c == '-': 
         newname = newname + c
       else:
         newname = newname + '-'
+    
+    # remove the first char if it's a '-'
+    if newname[ 0 ] == '-':                 newname = newname[1::]
+    
+    # remove the last char if it's a '-'
+    if newname[ len(newname) - 1 ] == '-':  newname = newname[:-1:]
+
     newname = newname.lower()
     return newname
 
