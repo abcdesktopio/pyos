@@ -139,17 +139,6 @@ class AuthController(BaseController):
             return response.error
 
     @cherrypy.expose
-    @cherrypy.tools.allow(methods=['GET'])
-    def oauth_twitter(self, **params):
-        response = services.auth.login(**params)
-        if response.success:
-            services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None)
-            raise cherrypy.HTTPRedirect(response.redirect_to)      
-        else:
-            logger.error( 'auth error %s', response.reason)
-            return response.error
-
-    @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def auth(self):
