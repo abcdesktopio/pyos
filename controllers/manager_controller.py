@@ -85,13 +85,11 @@ class ManagerController(BaseController):
             nexpirein = int( expirein )
             if type(force) is str:
                 # convert str parameter to bool type
-                force = distutils.util.strtobool( force )
+                force = bool( distutils.util.strtobool( force ) )
+            else:
+                self.logger.error( 'bad force value str is expected : %s, using default value force to False', type(force))
+                force = False
         except Exception:
-            pass # test force type and nexpirein type are done next line      
-
-        # check if nexpirein is a integer value 
-        if type(nexpirein) is not int or type(force) is not bool:
-            # 400 - Invalid parameters Bad Request
             raise cherrypy.HTTPError(status=400)        
         
         # remove all disconnected container
