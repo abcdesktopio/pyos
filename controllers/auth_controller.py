@@ -137,9 +137,9 @@ class AuthController(BaseController):
             # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
             # Safari does not support Sending browser cookies during a 302 redirect correctly
             # This is typical in an OAuth2 flow:
-            # 
+            #
             # OAuth2 id provider (GitHub, Facebook, Google) redirects browser back to your app
-            # Your app's callback URL verifies the authorization and sets login cookies, 
+            # Your app's callback URL verifies the authorization and sets login cookies,
             # then redirects again to the destination URL
             # Your destination URL loads without any cookies set.
             # For reasons I haven't figured out yet, some cookies from request 2 are ignored while others are not. 
@@ -155,7 +155,7 @@ class AuthController(BaseController):
                     <body> <div id="loginScreen"></div> </body>\
                 </html>'
             cherrypy.response.headers[ 'Refresh' ] = '0; url=' + oc.od.settings.default_host_url
-            return oauth_html_refresh_page     
+            return oauth_html_refresh_page
         else:
             logger.error( 'auth error %s', str(response.reason) )
             return response.reason
