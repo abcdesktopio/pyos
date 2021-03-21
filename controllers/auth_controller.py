@@ -133,10 +133,32 @@ class AuthController(BaseController):
         response = services.auth.login(**params)
         if response.success:
             services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None)
-            raise cherrypy.HTTPRedirect(response.redirect_to)      
+            # do not use cherrypy.HTTPRedirect
+            # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
+            # Safari does not support Sending browser cookies during a 302 redirect correctly
+            # This is typical in an OAuth2 flow:
+            # 
+            # OAuth2 id provider (GitHub, Facebook, Google) redirects browser back to your app
+            # Your app's callback URL verifies the authorization and sets login cookies, 
+            # then redirects again to the destination URL
+            # Your destination URL loads without any cookies set.
+            # For reasons I haven't figured out yet, some cookies from request 2 are ignored while others are not. 
+            # However, if request 2 returns a HTTP 200 with a Refresh header (the "meta refresh" redirect), cookies are set properly by request 3.
+            #
+            # empty html page to fix HTTP redirect cookie bug with safari
+            oauth_html_refresh_page = '\
+                <html dir="ltr" lang="en">\
+                    <head>\
+                        <title>abcdesktop.io</title>\
+                        <link rel="stylesheet" href="css/css-dist/loginScreen.css" type="text/css" />\
+                    </head>\
+                    <body> <div id="loginScreen"></div> </body>\
+                </html>'
+            cherrypy.response.headers[ 'Refresh' ] = '0; url=' + oc.od.settings.default_host_url
+            return oauth_html_refresh_page     
         else:
-            logger.error( 'auth error %s', response.reason)
-            return response.error
+            logger.error( 'auth error %s', str(response.reason) )
+            return response.reason
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
