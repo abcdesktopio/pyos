@@ -17,5 +17,5 @@ python-ldap==3.2.0
 python-memcached
 PyYAML
 requests
-rsa==4.0
+rsa==4.1
 shellescape
