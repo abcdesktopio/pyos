@@ -19,6 +19,7 @@ import os
 import json
 import oc.od.acl
 import threading
+import copy
 
 from oc.od.infra import ODInfra
 
@@ -140,22 +141,38 @@ class ODApps:
         return oc.od.acl.ODAcl().isAllowed( auth, app.get('acl'))
    
     def user_applist( self, auth ):
+        """[user_applist] return a list of user application list
+        make a copy to remove security entries 
+        remove key value 'sha_id', 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'
+        Args:
+            auth ([type]): [description]
+
+        Returns:
+            [list]: [list of application]
+        """
         userapplist = []
         #
         # make a copy to remove security entries 
-        # like 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'
+        # 'sha_id', 
+        # 'acl', 
+        # 'rules', 
+        # 'shm_size', 
+        # 'oom_kill_disable', 
+        # 'mem_limit', 
+        # 'privileged', 
+        # 'security_opt'
         #
 
-        # Lock here
+        # Lock here 
+        # run a quick deep copy of self.myglobal_list 
         self.lock.acquire()
         try:
-            applist = self.myglobal_list.copy()
+            applist = copy.deepcopy( self.myglobal_list )
         finally:
             self.lock.release()
 
         # for each app in docker images
-        for app in applist.keys():
-            myapp = applist[app].copy()
+        for myapp in applist.values():
             if self.is_app_allowed( auth, myapp ) is True :
                 for m in [ 'sha_id', 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'] :
                     # hidden internal dict entry to frontweb json
@@ -164,15 +181,22 @@ class ODApps:
         return userapplist
 
     
-    def user_appdict( self, auth ):
-        
+    def user_appdict( self, auth ):     
+        """return a dict of user application list
+
+        Args:
+            auth ([type]): [description]
+
+        Returns:
+            [dict]: [user application list]
+        """
         userappdict = {}
 
         # Lock here
         self.lock.acquire()
         try:
             # make a quick copy to release lock
-            applist = self.myglobal_list.copy()
+            applist = copy.deepcopy(self.myglobal_list)
         finally:
             self.lock.release()
 
