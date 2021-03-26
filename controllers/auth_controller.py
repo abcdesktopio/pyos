@@ -146,11 +146,11 @@ class AuthController(BaseController):
             # However, if request 2 returns a HTTP 200 with a Refresh header (the "meta refresh" redirect), cookies are set properly by request 3.
             #
             # empty html page to fix HTTP redirect cookie bug with safari
-            oauth_html_refresh_page = '\
-                <html dir="ltr" lang="en">\
-                    <head>\
+            loginScreencss_url = oc.od.settings.default_host_url + '/css/css-dist/loginScreen.css'
+            oauth_html_refresh_page = '<html dir="ltr" lang="en">\
+                        <head>\
                         <title>abcdesktop.io</title>\
-                        <link rel="stylesheet" href="css/css-dist/loginScreen.css" type="text/css" />\
+                        <link rel="stylesheet" href="' + loginScreencss_url + '" type="text/css" />\
                     </head>\
                     <body> <div id="loginScreen"></div> </body>\
                 </html>'
@@ -189,7 +189,7 @@ class AuthController(BaseController):
 
         # services.auth.isauthenticated is False
 
-        if type(args) is not dict:
+        if not isinstance(args, dict):
             raise cherrypy.HTTPError(400)
 
         # Check if provider is set            
@@ -210,7 +210,7 @@ class AuthController(BaseController):
         # if the user have to access authenticated external ressources 
         # this is the only one request whicj contains users credentials       
         # Build now auth secret for postponed usage    
-        if type(response.mgr) is oc.auth.authservice.ODExplicitAuthManager :
+        if isinstance(response.mgr, oc.auth.authservice.ODExplicitAuthManager) :
             # prepare external ressource access with current credentials 
             # build secret for kubernetes to use the desktop flexvolume drivers
             # Only used if mode is kubernetes, nothing to do in docker standalone
@@ -245,7 +245,7 @@ class AuthController(BaseController):
         if services.auth.isidentified:
             auth = services.auth.auth
             labels = [] 
-            if auth.data and type( auth.data.get('labels') ) is dict :
+            if auth.data and isinstance( auth.data.get('labels'), dict) :
                 for k in auth.data.get('labels').keys():
                     labels.append( str(k) )
             res = Results.success( result=labels) 
@@ -259,21 +259,20 @@ class AuthController(BaseController):
     def autologin(self, login, password, provider):
         self.logger.debug('')
 
-        if type(login) is not str:
+        if isinstance(login,str) is False:
             raise cherrypy.HTTPError(400, 'Bad request invalid login parameter')
 
-        if type(password) is not str:
+        if isinstance(password,str) is False:
             raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
 
-        if type(provider) is not str:
+        if isinstance(provider,str) is False:
             raise cherrypy.HTTPError(400, 'Bad request invalid provider parameter')
 
         # build a login dict arg object with provider set to AD
-        args_login = { 
-                'manager':  None,
-                'password': password,
-                'provider': provider,
-                'userid':   login
+        args_login = {  'manager':  None,
+                        'password': password,
+                        'provider': provider,
+                        'userid':   login
         }
         
         # do login        
@@ -285,7 +284,7 @@ class AuthController(BaseController):
         # Explicit Manager contains credentials
         # if the user have access to authenticated external ressources
         # this is the only one request with users credentials            
-        if type(response.mgr) is oc.auth.authservice.ODExplicitAuthManager :
+        if isinstance(response.mgr, oc.auth.authservice.ODExplicitAuthManager) :
             # prepare external ressource access with current credentials 
             # build secret for kubernetes to use the desktop flexvolume drivers
             # Only used if mode is kubernetes, nothing to do in docker standalone
