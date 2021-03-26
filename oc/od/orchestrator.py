@@ -176,7 +176,18 @@ class ODOrchestratorBase(object):
             logger.error( '%s', str(e) ) 
 
         return result
-        
+
+    def countRunningContainerforUser( self, authinfo, userinfo):  
+        counter = -1  
+        myinfra = self.createInfra( self.nodehostname )
+        # get list of app 
+        listContainersApps = myinfra.listContainersApps( userinfo.userid )        
+        myinfra.close()
+        if type(listContainersApps) is list:
+            counter = len(listContainersApps)
+        return counter
+
+
     def envContainerApp( self, authinfo, userinfo, containerid):
         '''get the environment vars exec for the containerid '''
         env_result = {}
