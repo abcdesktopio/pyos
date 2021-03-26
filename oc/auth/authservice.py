@@ -23,6 +23,10 @@ from   distutils.version import LooseVersion
 import platform
 import chevron  # for citrix All_Regions.ini
 
+# OAuth lib
+from requests_oauthlib import OAuth2Session
+import requests
+
 import json
 import urllib
 import urllib.parse 
@@ -559,9 +563,9 @@ class ODAuthTool(cherrypy.Tool):
             if not result:
                 raise AuthenticationFailureError('No authentication token provided')
             
-            claims,auth = result
-            if not auth or not auth.token:
-                raise AuthenticationFailureError('No authentication token provided')
+            claims, auth = result
+            if not auth :
+                raise AuthenticationFailureError('No authentication provided')
             self.logger.info( 'mgr.authenticate provider=%s token success', provider) 
             
             # uncomment this line only to see password in clear text format
@@ -578,6 +582,8 @@ class ODAuthTool(cherrypy.Tool):
             if roles is None:
                 raise AuthenticationFailureError('User roles not found')
             
+            auth = mgr.finalize(provider, auth, **arguments)
+
             # if the mgr is an explicit mgr then add the claims for next usage 
             # for example domain, username, password are used by desktop cifs driver
             # claims contains raw user credentials 
@@ -595,7 +601,7 @@ class ODAuthTool(cherrypy.Tool):
 
             if not oc.od.acl.ODAcl().isAllowed( auth, mgr.getprovider(provider).acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
-
+            
             myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles } ) 
             response.success = True     
             response.mgr = mgr       
@@ -610,12 +616,16 @@ class ODAuthTool(cherrypy.Tool):
                 response.reason = str(e) # default value
                 if hasattr( e, 'args'):
                     # try to extract the desc value 
-                    if type(e.args) is tuple and len(e.args) > 0:
-                        response.reason = str(e.args[0].get('desc',str(e)))
-                response.code = 500
+                    if isinstance(e.args, tuple) and len(e.args) > 0:
+                        try:
+                            response.reason = e.args[0].get('desc',str(e))
+                        except:
+                            pass
+                
+                response.code = e.code if hasattr( e, 'code') else 500
+                
             response.error = e
-            # response.redirect_to = self.getredirecturl(False, type=provider, status=response.code, message=response.reason)
-       
+            
         return response
 
     def authenticate(self, provider,  manager=None, **arguments):
@@ -626,6 +636,9 @@ class ODAuthTool(cherrypy.Tool):
 
     def getroles(self, provider, token, manager=None, **arguments):
         return self.findmanager(provider, manager).getroles(provider, token, **arguments)
+
+    def finalize(self, provider, token, manager=None, **arguments):
+        return self.findmanager(provider, manager).finalize(provider, token, **arguments)
 
     def authorize(self, allow_anonymous=False, allow_authentified=True):        
         self.logger.debug('')
@@ -717,6 +730,9 @@ class ODAuthManagerBase(object):
 
     def getroles(self, provider, token, **arguments):
         return self.getprovider(provider, True).getroles(token, **arguments)
+
+    def finalize(self, provider, token, **arguments):
+        return self.getprovider(provider, True).finalize(token, **arguments)
     
     def createprovider(self, name, config):
         return ODAuthProviderBase(self, name, config)
@@ -826,6 +842,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'displayname': self.displayname
         }
 
+    def finalize(self, token, **params):
+        return token
+
 
 # Implement OAuth 2.0 AuthProvider
 
@@ -837,155 +856,53 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         self.encoding = config.get('encoding', 'utf-8')
         self.client_id = config.get('client_id')
         self.client_secret = config.get('client_secret')
+        self.scope = config.get('scope')
+
         self.basic_auth = config.get('basic_auth', False) is True
         self.userinfo_auth = config.get('userinfo_auth', False) is True
-        self.scope = config.get('scope')
         self.type = config.get('type', 'oauth')
-        self.userinfomap = config.get('userinfomap', {})
-
-        # add the default host url to the callback url if not set
-        callback_url = config[ 'callback_url' ]
-        parsed_callback_url =  urllib.parse.urlparse( callback_url )
-        if parsed_callback_url.scheme == '':
-           logger.error( 'invalid url format %s', callback_url )
-      
-        self.initurlfields( 'callback_url', callback_url) 
-
-        for u in ('dialog_url','auth_url','userinfo_url'): 
-            self.initurlfields(u, config[u] )
-
-    def initurlfields(self, name, url ):
-        parsed_url = urllib.parse.urlparse( url )
-        parts = list( parsed_url )
-        setattr(self, '_%s_qs' % name, urllib.parse.parse_qsl(parts[4]))
-        parts[4] = ''
-        unparsed_url = urllib.parse.urlunparse(parts)
-        setattr(self, '_%s' % name, unparsed_url)
+        self.userinfomap = config.get('userinfomap')
+       
+        self.authorization_base_url = config.get('authorization_base_url')
+        self.token_url = config.get('token_url')
+        self.redirect_uri_prefix = config.get('redirect_uri_prefix')
+        self.redirect_uri_querystring = config.get('redirect_uri_querystring')
+        self.redirect_uri = self.redirect_uri_prefix + '?' + self.redirect_uri_querystring
+        self.userinfo_url = config.get('userinfo_url')
 
     def getclientdata(self):
         data = super().getclientdata()
-        data['dialog_url'] = self.dialog_url
+        oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
+        authorization_url, state = oauthsession.authorization_url( self.authorization_base_url ) 
+        data['dialog_url']  = authorization_url
+        data['state']       = state
         return data
-
-    @property
-    def callback_url(self):
-        return self.buildurl(self._callback_url, self._callback_url_qs)
-
-    @property
-    def dialog_url(self):
-        return self.buildurl(self._dialog_url, self._dialog_url_qs)
 
     def authenticate(self, code=None, **params):
-        token = params.get('token')
-        if token:    
-           data = ({'token': token}, AuthInfo(self.name, self.type, token, 'Bearer', protocol='oauth'))
-           return data
-
-        if not code:            
-            raise InvalidCredentialsError('Invalid authentication token/code')
-
-        token = self.gettoken(code, **params)
-        data = ({'code': code}, AuthInfo(self.name, self.type, token['access_token'], token['token_type'], token['expires_in'], protocol='oauth'))
+        oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
+        authorization_response = self.redirect_uri_prefix + '?' + cherrypy.request.query_string
+        token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, authorization_response=authorization_response )
+        self.logger.debug( 'provider %s type %s return token %s', self.name,  self.type, str(token) )
+        data = (    {}, 
+                    AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth') )
         return data
 
 
-    def getuserinfo(self, token, **params):
-        serinfo_url_qs = self._userinfo_url_qs
-        serinfo_url_qs.append( ('access_token', token ) )
-        return self.getresult(self._userinfo_url, serinfo_url_qs, {**params, 'access_token':token })
+    def getuserinfo(self, oauthsession, **params):
+        if type(oauthsession) is not OAuth2Session:
+            raise ExternalAuthError( message='token has invalid oauthsession type')
 
-    def gettoken(self, code, **params):
-        return self.getresult(self._auth_url, self._auth_url_qs, {**params, 'code':code })
+        userinfo = None
+        if self.userinfo_auth is True and oauthsession.authorized is True:
+            userinfo = oauthsession.get(self.userinfo_url)
 
-    def getresult_userinfo(self, url, qs, params={}): 
-        pass
-
-    def getresult(self, url, qs, params={}):
-        preparedata = self.preparedata(url, qs, params)
-        createrequest = self.createrequest(url, preparedata)
-        handlerequest = self.handlerequest( createrequest )
-        result = self.parseresult(url,  handlerequest )
-        return result
-    
-    def preparedata(self, url, qs, params={}):
-        context = {**pyutils.get_formatdata(self), **params} 
-        data = OrderedDict() # params MUST BE order in OAuth provider redirect uri 
-        # qs must be sorted
-        # if we do not short, the querystring parameter order may change
-        # the callback url can change and refused by the auth provider  
-        for k,v in qs :
-            value = pyutils.format_safe(v, context)
-            if value: 
-                data[k] = value
-        return data
-
-    def createrequest(self, url, data={}):
-        authheader = None
-        # call url with Berear + accee_token 
-        # as parameters
-        # self.userinfo_auth is a flag(bool) set in configuration file 
-        if self.userinfo_auth and url == self._userinfo_url:
-           request = urllib.request.Request(url)
-           authheader = '%s %s' % ('Bearer', data.get('access_token', ''))
-        else:
-           # add data to url
-           request_data = urllib.parse.urlencode(data).encode(self.encoding)
-           request = urllib.request.Request(url, request_data )
-           if self.basic_auth:
-             if url == self._auth_url:
-                authstring = '%s:%s' % (self.client_id, self.client_secret)
-                base64string = base64.standard_b64encode(authstring.encode('utf-8'))
-                authheader = "Basic %s" % base64string.decode('utf-8')
-             else:
-                authheader = 'Bearer %s' % data.get('access_token')
-
-        if authheader:
-            request.add_header('Authorization', authheader)
-        request.add_header('Accept','application/json')
-        return request
-
-    def handlerequest(self, request):
-        self.logger.debug(request.__dict__)
-        code = 500
-
-        try:
-            return self.sendrequest(request)
-        except urllib.error.HTTPError as e:
-            message = "The server {0} returned an error: {1} - {2}".format(request.host, e.code, e.reason)
-            code = e.code
-        except urllib.error.URLError as e:
-            message = "The server {0} can't be reached: {1}".format(request.host, e.reason)
-        except Exception as e:
-            logger.exception(e)
-            message = str(e)
-
-        raise ExternalAuthError(message, code)
-
-    def sendrequest(self, request):
-        logger.debug('send request %s' , request ) 
-        with urllib.request.urlopen(request) as response:
-            content = response.read()
-            logger.debug(response.__dict__)
-            return json.loads(content.decode(response.info().get_content_charset(self.encoding)))
-
-    def parseresult(self, url, jsondata):
-        try:
-            if url == self._auth_url: 
-                return self.parsetoken(jsondata)
-            if url == self._userinfo_url: 
-                return self.parseuserinfo(jsondata)
-        except Exception as e:
-            raise ExternalAuthError('The server returned invalid data: %s' % e)
-
-        raise ExternalAuthError('Invalid operation')
-
-    def parsetoken(self, jsondata):
-        return {
-            'access_token': jsondata['access_token'], 
-            'token_type': jsondata.get('token_type', 'Bearer'), 
-            'expires_in': jsondata.get('expires_in')    
-        }
-
+        if isinstance(userinfo, requests.models.Response) and userinfo.ok is True :
+            jsondata = userinfo.content.decode(userinfo.encoding or self.encoding ) 
+            data = json.loads(jsondata)
+            userinfo = self.parseuserinfo( data )
+        return userinfo
+        
+  
     def parseuserinfo(self, jsondata):        
         if self.userinfomap:
             user = {}
@@ -1004,16 +921,14 @@ class ODExternalAuthProvider(ODAuthProviderBase):
 
         userid = user.get('userid') or jsondata.get('id') or jsondata.get('sub', '')
         userid = str(userid) # make sure always use string 
-        user['userid'] = oc.auth.namedlib.normalize_name(userid)
+        name   = user.get('name') or user.get('lastname') or userid
+        user['userid'] = oc.auth.namedlib.normalize_name(userid) 
+        user['name']   = name
         return user
 
-    def buildurl(self, url, qs, params={}):
-        parsed_url = urllib.parse.urlparse(url)
-        parts = list( parsed_url )
-        preparedata = self.preparedata(url, qs, params)
-        parts[4] = urllib.parse.urlencode(preparedata)
-        buildedurl = urllib.parse.urlunparse(parts)
-        return buildedurl
+    def finalize(self, token, **params):
+
+        return token
 
 # ODImplicitAuthProvider is an Anonymous AuthProvider
 class ODImplicitAuthProvider(ODAuthProviderBase):
