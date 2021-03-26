@@ -377,7 +377,7 @@ class ODInfra(object):
             self.logger.error('Error: %s', e)
 
         return None
-         
+  
 
     def findDesktopbyContainerId( self, containerid ):
         res = None
