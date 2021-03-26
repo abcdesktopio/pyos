@@ -449,17 +449,13 @@ def createdesktop( preferednodehostname, authinfo, userinfo, args  ):
             services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
         else:
             messageinfo.push('createDesktop error - myOrchestrator.createDesktop return None')
-
         return myDesktop
-
 
     except Exception as e:
         logger.exception('failed: %s', e)
         return None
 
-
-
-
+    
 def openapp( auth, user={}, kwargs={} ):
     logger.debug('')
     
@@ -475,6 +471,16 @@ def openapp( auth, user={}, kwargs={} ):
         raise ODError( 'openapp:findDesktopByUser not found')
 
     myOrchestrator.nodehostname = myDesktop.nodehostname
+
+
+    # Check limit apps counter
+    max_app_counter = oc.od.settings.desktoppolicies.get('max_app_counter', -1)
+    # check if 
+    if max_app_counter > 0 :
+        # count running applications
+        running_user_applications_counter = myOrchestrator.countRunningContainerforUser( auth, user )
+        if running_user_applications_counter > max_app_counter:
+            raise ODError( 'policies %d too much applications are running, stop one of them' % running_user_applications_counter )
 
     # get application object from application name
     app = getapp(auth, appname)
