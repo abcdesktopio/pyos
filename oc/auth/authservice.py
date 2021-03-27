@@ -242,9 +242,11 @@ class AuthCache(object):
 @oc.logging.with_logger()
 class ODAuthTool(cherrypy.Tool):
 
+    abcdesktop_auth_token_cookie_name = 'abcdesktop_token'
+
     def parse_auth_request(self):
         authcache = None
-        token = oc.lib.getCookie('abcdesktop_token')
+        token = oc.lib.getCookie(ODAuthTool.abcdesktop_auth_token_cookie_name)
         if token :
             # get the dict decoded token
             decoded_token = self.jwt.decode( token )
@@ -570,7 +572,7 @@ class ODAuthTool(cherrypy.Tool):
             
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)            
-            user = mgr.getuserinfo(provider, auth.token, **arguments)
+            user = mgr.getuserinfo(provider, auth, **arguments)
             if user is None:
                 raise AuthenticationFailureError('User data not found')
             self.logger.info( 'mgr.getuserinfo provider=%s success', provider)
@@ -578,7 +580,7 @@ class ODAuthTool(cherrypy.Tool):
             
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getroles arguments=%s', arguments)            
-            roles = mgr.getroles(provider, auth.token, **arguments)
+            roles = mgr.getroles(provider, auth, **arguments)
             if roles is None:
                 raise AuthenticationFailureError('User roles not found')
             
@@ -631,14 +633,14 @@ class ODAuthTool(cherrypy.Tool):
     def authenticate(self, provider,  manager=None, **arguments):
         return self.findmanager(provider, manager).authenticate(provider, **arguments)
 
-    def getuserinfo(self, provider, token, manager=None, **arguments):
-        return self.findmanager(provider, manager).getuserinfo(provider, token, **arguments)
+    def getuserinfo(self, provider, authinfo, manager=None, **arguments):
+        return self.findmanager(provider, manager).getuserinfo(provider, authinfo, **arguments)
 
-    def getroles(self, provider, token, manager=None, **arguments):
-        return self.findmanager(provider, manager).getroles(provider, token, **arguments)
+    def getroles(self, provider, authinfo, manager=None, **arguments):
+        return self.findmanager(provider, manager).getroles(provider, authinfo, **arguments)
 
-    def finalize(self, provider, token, manager=None, **arguments):
-        return self.findmanager(provider, manager).finalize(provider, token, **arguments)
+    def finalize(self, provider, authinfo, manager=None, **arguments):
+        return self.findmanager(provider, manager).finalize(provider, authinfo, **arguments)
 
     def authorize(self, allow_anonymous=False, allow_authentified=True):        
         self.logger.debug('')
@@ -646,9 +648,6 @@ class ODAuthTool(cherrypy.Tool):
         # reset cache data
         if allow_anonymous is True: 
             return
-        
-        # if not self.token:
-        #    self.raise_unauthorized()
 
         if not self.provider or not self.providertype:
             self.raise_unauthorized('Invalid token')
@@ -657,50 +656,32 @@ class ODAuthTool(cherrypy.Tool):
         if is_unauthorized is True:
             self.raise_unauthorized()       
 
-    def refreshuser(self):
-        user = {}
-        if self.isauthenticated:
-            try:
-                user = self.getuserinfo(self.provider, self.token)
-            except Exception as e:
-                self.logger.exception(e)
-
-        # todo updatetoken
-        # self.updatesession(user=user)
-        return user
-
-    def refreshroles(self):
-        roles = []
-        if self.isauthenticated:
-            try:
-                roles = self.getroles(self.current.auth.provider, self.current.auth.token)
-            except Exception as e:
-                self.logger.exception(e)
-
-        # self.updatesession(roles=roles)
-        return roles
-
     def logout(self):
         self.clearcookies()
-
-    '''
-    def getredirecturl(self, success=True, **params):
-        params['m'] = 'auth' if success else 'error'
-        redirect_url = self.redirect_url + '?' + urllib.parse.urlencode(params)
-        self.logger.info( 'redirect_url=%s', redirect_url )
-        return redirect_url
-    '''
 
     def raise_unauthorized(self, message='Unauthorized'):
         raise cherrypy.HTTPError(401, message)
     
-    def updatecookies(self, jwt_token=None, expire_in=None):
+    def updatecookies(self, jwt_token, expire_in=None):
+        """[updatecookies]
+            set cookie abcdesktop_token value jwt_token
+        Args:
+            jwt_token ([jwt]): [jwt token]
+            expire_in ([type], optional): [description]. Defaults to None.
+        """
         if jwt_token:            
             self.logger.debug( 'setCookie abcdesktop_token len %d', len(jwt_token) )
-            oc.lib.setCookie( name='abcdesktop_token', value=jwt_token, path='/API', expire_in=expire_in)
+            oc.lib.setCookie(   name=ODAuthTool.abcdesktop_auth_token_cookie_name, 
+                                value=jwt_token, 
+                                path='/API', 
+                                expire_in=expire_in)
 
     def clearcookies(self):
-        oc.lib.removeCookie('abcdesktop_token','/API')             
+        """[clearcookies]
+            remore the abcdesktop_token path '/API'
+        """
+        oc.lib.removeCookie(    ODAuthTool.abcdesktop_auth_token_cookie_name,
+                                '/API')             
         
           
 @oc.logging.with_logger()
@@ -728,11 +709,11 @@ class ODAuthManagerBase(object):
     def getuserinfo(self, provider, token, **arguments):
         return self.getprovider(provider, True).getuserinfo(token, **arguments)
 
-    def getroles(self, provider, token, **arguments):
-        return self.getprovider(provider, True).getroles(token, **arguments)
+    def getroles(self, provider, authinfo, **arguments):
+        return self.getprovider(provider, True).getroles(authinfo, **arguments)
 
-    def finalize(self, provider, token, **arguments):
-        return self.getprovider(provider, True).finalize(token, **arguments)
+    def finalize(self, provider, authinfo, **arguments):
+        return self.getprovider(provider, True).finalize(authinfo, **arguments)
     
     def createprovider(self, name, config):
         return ODAuthProviderBase(self, name, config)
@@ -810,7 +791,7 @@ class ODImplicitAuthManager(ODAuthManagerBase):
 
 
 class ODRoleProviderBase(object):
-    def getroles(self, token, **params):
+    def getroles(self, authinfo, **params):
         return []
 
     def isinrole(self, token, role, **params):
@@ -832,7 +813,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
     def authenticate(self, **params):
         raise NotImplementedError()
 
-    def getuserinfo(self, token, **params):
+    def getuserinfo(self, authinfo, **params):
         raise NotImplementedError()
 
     def getclientdata(self):
@@ -888,9 +869,14 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         return data
 
 
-    def getuserinfo(self, oauthsession, **params):
-        if type(oauthsession) is not OAuth2Session:
-            raise ExternalAuthError( message='token has invalid oauthsession type')
+    def getuserinfo(self, authinfo, **params):
+
+        # retrieve the token object from the previous authinfo 
+        oauthsession = authinfo.token 
+
+        # Check if token type is OAuth2Session
+        if not isinstance(oauthsession,OAuth2Session) :
+            raise ExternalAuthError( message='authinfo is an invalid oauthsession object')
 
         userinfo = None
         if self.userinfo_auth is True and oauthsession.authorized is True:
@@ -926,9 +912,13 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         user['name']   = name
         return user
 
-    def finalize(self, token, **params):
-
-        return token
+    def finalize(self, authinfo, **params):   
+        # retrieve the token object from the previous authinfo 
+        oauthsession = authinfo.token 
+        # Check if type is OAuth2Session
+        if not isinstance(oauthsession,OAuth2Session) :
+            authinfo.token = None
+        return authinfo
 
 # ODImplicitAuthProvider is an Anonymous AuthProvider
 class ODImplicitAuthProvider(ODAuthProviderBase):
@@ -938,15 +928,22 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         self.username = config.get('username', self.name)
         self.userinfo = copy.deepcopy(config.get('userinfo', {}))
 
-    def getuserinfo(self, token, **params):
+    def getuserinfo(self, authinfo, **params):
+
+        userid = authinfo.token
+
+         # Check if token type is dict
+        if not isinstance(userid,str) :
+            raise ExternalAuthError( message='authinfo is an invalid str object')
+    
         user = copy.deepcopy(self.userinfo)
-        user['name'] =  self.username
-        user['userid'] = self.userid
+        user['name']   = self.username   # static value always 'Anonymous'
+        user['userid'] = userid          # set previously by authenticate str(uuid.uuid4())
         return user
 
     def authenticate(self, **params):
-        self.userid = str(uuid.uuid4())
-        return ({}, AuthInfo(self.name, self.type, self.userid, data={ 'userid': self.userid }))
+        userid = str(uuid.uuid4())
+        return ({}, AuthInfo( self.name, self.type, userid, data={ 'userid': userid }))
 
     
 
@@ -1166,9 +1163,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         conn.unbind()
         return True
    
-    def getuserinfo(self, token, **params):        
+    def getuserinfo(self, authinfo, **params):        
         # uncomment this line may dump password in clear text 
         # logger.debug(locals())
+        token = authinfo.token 
         q = self.user_query
         userinfo = self.search_one(q.basedn, q.scope, ldap.filter.filter_format(q.filter, [token]), q.attrs, **params)
         if userinfo:
@@ -1192,7 +1190,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             if ldap_bind_userid: 
                 conn.unbind()
 
-    def getroles(self, token, **params):               
+    def getroles(self, authinfo, **params):    
+        token = authinfo.token            
         q = self.user_query
         result = self.search_one(q.basedn, q.scope, ldap.filter.filter_format(q.filter, [token]), ['memberOf'], **params)
         # return [dn.split(',',2)[0].split('=',2)[1] for dn in result['memberOf']] if result else []
@@ -1690,7 +1689,8 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             AuthInfo(self.name, self.type, userid, data=data, protocol=self.auth_protocol)
         )
 
-    def getuserinfo(self, token, **params):
+    def getuserinfo(self, authinfo, **params):
+        token = authinfo.token 
         userinfo = super().getuserinfo(token, **params)
     
         if userinfo:
@@ -1706,7 +1706,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             profilePath = userinfo.get('profilePath')
             if profilePath: 
                 userinfo['profilePath'] = path.replace('\\','/')
-
         return userinfo
 
     
@@ -1727,9 +1726,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             if self.userid: 
                 conn.unbind()
 
-    def getroles(self, token, **params):
+    def getroles(self, authinfo, **params):
+        token = authinfo.token 
         if not self.recursive_search:
-            return super().getroles(token, **params)
+            return super().getroles(authinfo, **params)
 
         ldap_bind_userid     = params.get( 'userid', self.userid )
         ldap_bind_password   = params.get( 'password',self.password )        
