@@ -808,6 +808,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         policies = config.get('policies', {} )
         self.acls  = policies.get('acls')
         self.rules = policies.get('rules')
+       
 
 
     def authenticate(self, **params):
@@ -850,12 +851,16 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         self.redirect_uri_querystring = config.get('redirect_uri_querystring')
         self.redirect_uri = self.redirect_uri_prefix + '?' + self.redirect_uri_querystring
         self.userinfo_url = config.get('userinfo_url')
+        # relation ship to allow an external provider to resign as an explicitprovider
+        # after login process and pod create
+        self.explicitproviderapproval = config.get('explicitproviderapproval') 
 
     def getclientdata(self):
         data = super().getclientdata()
         oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
         authorization_url, state = oauthsession.authorization_url( self.authorization_base_url ) 
         data['dialog_url']  = authorization_url
+        data['explicitproviderapproval'] = self.explicitproviderapproval 
         data['state']       = state
         return data
 
@@ -916,8 +921,8 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         # retrieve the token object from the previous authinfo 
         oauthsession = authinfo.token 
         # Check if type is OAuth2Session
-        if not isinstance(oauthsession,OAuth2Session) :
-            authinfo.token = None
+        if isinstance(oauthsession,OAuth2Session) :
+            authinfo.token = oauthsession.token 
         return authinfo
 
 # ODImplicitAuthProvider is an Anonymous AuthProvider
@@ -972,7 +977,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         self.auth_type  = config.get('auth_type', 'bind')
         serviceaccount = config.get('serviceaccount', { 'login':None, 'password':None } )
-        if type(serviceaccount) is dict:
+        if isinstance(serviceaccount,dict):
             self.userid = serviceaccount.get('login')
             self.password = serviceaccount.get('password')
         
@@ -1108,13 +1113,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         AuthInfo(self.name, self.type, userid, data=data, protocol=self.auth_protocol) )
 
     def krb5_validate(self, userid, password):
-        if type(userid) is not str or len(userid) < 1 :
+        if not isinstance(userid,str) or len(userid) < 1 :
             raise AuthenticationError('user can not be an empty string')
 
         if len(userid) > 256 :
             raise AuthenticationError('user length must be less than 256 characters')
 
-        if type(password) is not str or len(password) < 1 :
+        if not isinstance(password,str) or len(password) < 1 :
             raise AuthenticationError('password can not be an empty string')
 
         # kerberos password length Limit.
@@ -1122,7 +1127,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if len(password) > 256 :
             raise AuthenticationError('password length must be less than 256 characters')
 
-        if type(self.kerberos_krb5_conf) is not str:
+        if not isinstance(self.kerberos_krb5_conf, str):
             raise AuthenticationError('invalid krb5 configuration file')
 
         cmd = [ self.kerberos_kinit, userid]
@@ -1146,12 +1151,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # especially as LDAP doesn't really specify which attribute qualifies as the username.
         # The DN is similarly unencumbered.
         # set max value to 256
-        if type(userid) is not str or len(userid) < 1 :
+        if not isinstance(userid, str)  or len(userid) < 1 :
             raise AuthenticationError('user can not be an empty string')
         if len(userid) > 256 :
             raise AuthenticationError('user length must be less than 256 characters')
 
-        if type(password) is not str or len(password) < 1 :
+        if not isinstance(password,str) or len(password) < 1 :
             raise AuthenticationError('password can not be an empty string')
 
         # LDAP BIND password length Limit.
@@ -1306,11 +1311,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def decodeValue(self, name, value):
         if not isinstance(value, list): 
-            return value
+           return value
 
         items = [] 
         for item in value:
-            if type(item) is bytes: # try to translate bytes to str using decode
+            # try to translate bytes to str using decode utf8
+            if isinstance(item,bytes): 
                 try:
                     item = item.decode('utf-8')
                 except Exception as e:
@@ -1432,11 +1438,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.logger.error('makekeytab invalid parameters ')
             return None
 
-        if type(self.kerberos_krb5_conf) is not str:
+        if not isinstance(self.kerberos_krb5_conf, str):
             self.logger.error('invalid krb5.conf file option')
             return None
 
-        if type(self.kerberos_ktutil) is not str:
+        if not isinstance(self.kerberos_ktutil, str):
             self.logger.error('invalid ktutil file option')
             return None
 
@@ -1504,8 +1510,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         "--username", username,
         '''
         hashes = {}
-        if  type(password) is not str :
-            self.logger.error('Invalid parameters')
+        if  not isinstance(password, str) :
+            self.logger.error('Invalid password parameters')
             return hashes
         try:
             # Linux: Linux
@@ -1542,12 +1548,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return hashes
 
     def generateCitrixAllRegionsini(self, user, password, domain ):
-        if type(self.citrix_all_regions) is str:
+        hashes = {}
+        if isinstance(self.citrix_all_regions, str) :
             # read https://www.citrix.com/content/dam/citrix/en_us/documents/downloads/citrix-receiver/linux-oem-guide-13-1.pdf
             self.logger.debug('Generating file All_Regions.ini for citrix-receiver')
             data = chevron.render( self.citrix_all_regions, {'user': user, 'password': password, 'domain': domain })
             hashes = { 'All_Regions.ini' : data }
-            return hashes
+        return hashes
 
     def generateCNTLMhash(self, user, password, domain ):
         self.logger.debug('Generating CNTLM hashes')
@@ -1555,9 +1562,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         cntlm_command = '/usr/sbin/cntlm'
 
-        if  type(user) is not str or \
-            type(password) is not str or \
-            type(domain) is not str :
+        if  not isinstance( user, str)      or \
+            not isinstance( password, str)  or \
+            not isinstance( domain, str ) :
             self.logger.error('CNTLM missing parameters, CNTLM hashes has been disabled')
             return hashes
 
@@ -1746,31 +1753,55 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
     
     def issafeAdAuthusername(self, username):
-        ''' protect against injection       '''
-        ''' return True if username is safe '''
+        """[issafeAdAuthusername]
+            return True if username can be a safe sAMAccountName
+            protect against injection
+        Args:
+            username ([str]): [user name]
+
+        Returns:
+            [bool]: [True or False]
+        """
+
         if not isinstance(username, str): 
             return False
+
         # username len must be more than 0 and less than 20 chars lens
         if len(username) < 1 or len(username) > 20:
             return False    
+
+        # Check if cstr contains INVALID_CHARS 
         for c in username:
             if c in ODAdAuthProvider.INVALID_CHARS: 
                 return False
             if ord(c) < 32: 
                 return False
+
         return True
 
     def issafeAdAuthpassword(self, password):
-        ''' protect against injection       '''
-        ''' return True if password is safe '''
+        """[issafeAdAuthpassword]
+            return True if password can be a safe password
+            protect against injection
+        Args:
+            password ([str]): [user password]
+
+        Returns:
+            [bool]: [True or False]
+        """
+
         if not isinstance(password, str): 
             return False
+
         # password len must be more than 0 and less than 255 chars lens
         if len(password) < 1 or len(password) > 255:
             return False
+        
+        # Check if str contains chars with ascii value under 32  
         for c in password:
             if ord(c) < 32: 
                 return False
+
         return True
 
     def refreshdcs(self):
@@ -1810,7 +1841,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         userid     = params.get( 'userid', self.userid )
         password   = params.get( 'password',self.password )                
         
-        if type(filter) is str:
+        if isinstance(filter, str):
            filter = '(&' + self.printer_query.filter + filter + ')'
         else:
            filter = self.printer_query.filter
@@ -1826,7 +1857,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             for dn in result:
                 attrs = result.get(dn)
                 # attrs must be a dict
-                if type( attrs ) is not dict: 
+                if not isinstance( attrs, dict): 
                     logger.error( 'attrs must be a dict, return data from ldap attrs %s', str(type( attrs )))
                     continue
                 myobject = {}             
@@ -1851,7 +1882,8 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         userid     = params.get( 'userid', self.userid )
         password   = params.get( 'password',self.password )                
         
-        if userid is None or password is None:
+        if not isinstance( userid, str) or \
+           not isinstance( password, str ) :
             logger.info( 'service account not set in config file, listsite return empty site')
             return dictsite
 
@@ -1869,7 +1901,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     logger.info( 'ldap dn=%s has no attrs %s, skipping', str(dn), self.site_query.attrs  )
                     continue
 
-                if type( attrs ) is not dict: 
+                if not isinstance( attrs, dict): 
                     logger.error( 'dn=%s attrs must be a dict, return data from ldap attrs %s', str(dn), str( type( attrs )))
                     continue
                 
