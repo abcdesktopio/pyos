@@ -55,7 +55,9 @@ class ODJWToken( object):
         if payload is None:
             raise ValueError('invalid payload data')    
 
-        # There is no public or private key concept, all keys are private                
+        # There is no public or private key concept, all keys are private   
+        # can     raise ExpiredSignatureError("Signature has expired")
+        # jwt.exceptions.ExpiredSignatureError: Signature has expired             
         data = jwt.decode(payload, self.jwt_publickey, algorithms=self.algorithms)
         
         return data
