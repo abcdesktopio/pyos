@@ -1149,6 +1149,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( str(e) )
         return bReturn
 
+    def findAllSecretsByUser( self,  authinfo, userinfo ):
+        """[findAllSecretsByUser]
+            list all user secret for all supported type
+        Args:
+            authinfo ([type]): [description]
+            userinfo ([type]): [description]
+
+        Returns:
+            [dict]: [dict of secret]
+            key is the secret type
+            value is the secret value
+        """
+        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
+        return mysecretdict
+
     def findSecretByUser( self,  authinfo, userinfo, secret_type ):
         secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, secret_type )
         return secret.read_credentials(userinfo)
@@ -1561,7 +1576,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             [dict]: cached user info dict from ldif secret
                     empty dict if None
         """
-        dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type='ldif' )
+        dict_secret = self.list_dict_secret_data( authinfo, userinfo )
         raw_secrets = {}
         for key in dict_secret.keys():
             raw_secrets.update( dict_secret[key] )
