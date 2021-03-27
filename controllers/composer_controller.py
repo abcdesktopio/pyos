@@ -30,6 +30,7 @@ from oc.od.services import services
 from oc.cherrypy import Results
 from oc.od.base_controller import BaseController
 
+
 logger = logging.getLogger(__name__)
 
 @cherrypy.config(**{ 'tools.auth.on': True })
@@ -438,7 +439,7 @@ class ComposerController(BaseController):
 
         # set default value as fallback
         # to pass exception
-        url = urlparse(http_requested_host)
+        url = urllib.parse.urlparse(http_requested_host)
         route = url.hostname
 
         # Now do the route
@@ -448,7 +449,7 @@ class ComposerController(BaseController):
                 if myhosturl is None:
                     myhosturl = http_origin
                 logger.debug('Use %s', myhosturl)
-                url = urlparse(myhosturl)
+                url = urllib.parse.urlparse(myhosturl)
                 route = url.hostname
             except Exception as e:
                 logger.error('failed: %s', e)
@@ -460,7 +461,7 @@ class ComposerController(BaseController):
             if http_origin is not None:
                 try:
                     # use the origin url to connect to
-                    url = urlparse(http_origin)
+                    url = urllib.parse.urlparse(http_origin)
                     route = url.hostname
                 except Exception as e:
                     logger.error('Errror: %s', e)
@@ -468,10 +469,27 @@ class ComposerController(BaseController):
         elif oc.od.settings.websocketrouting == 'http_host':
             try:
                 # use the origin url to connect to
-                url = urlparse(http_host)
+                url = urllib.parse.urlparse(http_host)
                 route = url.hostname
             except Exception as e:
                 logger.error('Errror: %s', e)
 
         logger.info('Route websocket to: %s', route)
         return route
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def listsecrets(self):
+        logger.debug('')
+        try:
+            (auth, user ) = self.validate_env()
+        except Exception as e:
+            logger.error( e )
+            return Results.error( message=str(e) )
+
+        # list secrets
+
+        secrets = oc.od.composer.listAllSecretsByUser( auth, user)
+        list_secrets = list( secrets )
+        return  Results.success(result=list_secrets)

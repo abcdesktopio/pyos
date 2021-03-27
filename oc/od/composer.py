@@ -629,4 +629,27 @@ def detach_container_from_network( container_id ):
     if url_webhook_destroy :
         response_url_detach = callwebhook( url_webhook_destroy )
         logger.info( response_url_detach )
+
+
+
+def listAllSecretsByUser(authinfo, userinfo ):
+    """[listAllSecretsByUser]
+
+    Args:
+        authinfo ([type]): [description]
+        userinfo ([type]): [description]
+
+    Returns:
+        [list]: [list of secret type]
+    """
+
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+    # find all screcrets for a user
+    secrets_dict = myOrchestrator.list_dict_secret_data( authinfo, userinfo )
+    # map to filter secret type
+    secrets_type_list = list( map(lambda x: x.get('type'), secrets_dict.values() ) )
+    # return list
+    return secrets_type_list
+
         
