@@ -45,6 +45,8 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
        
         return secret
 
+def list_secretype():
+    return [ 'cifs', 'webdav', 'ldif', 'citrix' ]
 
 
 @oc.logging.with_logger()
