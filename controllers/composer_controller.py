@@ -407,7 +407,7 @@ class ComposerController(BaseController):
             expire_in = services.jwtdesktop.exp() 
 
             return Results.success(result={
-                'target_ip'     :   oc.lib.get_target_ip_route(desktop.ipAddr),
+                'target_ip'     :   self.get_target_ip_route(desktop.ipAddr),
                 'vncpassword'   :   desktop.vncPassword,
                 'authorization' :   jwtdesktoptoken,                    # contains desktop.uri (ipaddr)   
                 'websocketrouting': oc.od.settings.websocketrouting,
@@ -416,3 +416,62 @@ class ComposerController(BaseController):
             })
         finally:
             messageinfo.stop() # Stop message info log
+
+
+    def get_target_ip_route(self, target_ip):  
+        """[get_target_ip_route]
+        
+            return hostname how to reach the websocket from HTTP web browser to docker container
+        Args:
+            target_ip ([str]): [target ip destination of the user container ]
+
+        Returns:
+            [str]: [hostname to reach the websocket container]
+        """ 
+        
+        http_requested_host = cherrypy.url()
+        http_origin = cherrypy.request.headers.get('Origin', None)
+        http_host   = cherrypy.request.headers.get('Host', None)
+        # logger.debug(locals())
+
+        route = None
+
+        # set default value as fallback
+        # to pass exception
+        url = urlparse(http_requested_host)
+        route = url.hostname
+
+        # Now do the route
+        if oc.od.settings.websocketrouting == 'default_host_url':
+            try:
+                myhosturl = oc.od.settings.default_host_url
+                if myhosturl is None:
+                    myhosturl = http_origin
+                logger.debug('Use %s', myhosturl)
+                url = urlparse(myhosturl)
+                route = url.hostname
+            except Exception as e:
+                logger.error('failed: %s', e)
+
+        elif oc.od.settings.websocketrouting == 'bridge':
+            route = target_ip
+
+        elif oc.od.settings.websocketrouting == 'http_origin':
+            if http_origin is not None:
+                try:
+                    # use the origin url to connect to
+                    url = urlparse(http_origin)
+                    route = url.hostname
+                except Exception as e:
+                    logger.error('Errror: %s', e)
+
+        elif oc.od.settings.websocketrouting == 'http_host':
+            try:
+                # use the origin url to connect to
+                url = urlparse(http_host)
+                route = url.hostname
+            except Exception as e:
+                logger.error('Errror: %s', e)
+
+        logger.info('Route websocket to: %s', route)
+        return route
