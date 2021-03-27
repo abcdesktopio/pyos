@@ -249,6 +249,7 @@ class ODAuthTool(cherrypy.Tool):
         token = oc.lib.getCookie(ODAuthTool.abcdesktop_auth_token_cookie_name)
         if token :
             # get the dict decoded token
+            # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
             decoded_token = self.jwt.decode( token )
 
             # read user, roles, auth
@@ -824,8 +825,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'displayname': self.displayname
         }
 
-    def finalize(self, token, **params):
-        return token
+    def finalize(self, auth, **params):
+        return auth
 
 
 # Implement OAuth 2.0 AuthProvider
