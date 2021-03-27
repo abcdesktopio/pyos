@@ -17,23 +17,41 @@ import string   # for randomStringwithDigitsAndSymbols
 import unicodedata      # for remove accent
 import logging
 import cherrypy
-
 import oc.od.settings   # settings lib
 
 from urllib.parse import urlparse
 
-
+# logger instance
 logger = logging.getLogger(__name__)
 
+# lib shared tools
+
 def randomStringwithDigitsAndSymbols(stringLength=10):
-    ''' Generate a random string of letters, digits and special characters '''
+    """[randomStringwithDigitsAndSymbols]
+        Generate a random string of letters, digits and special characters
+        allow char is string.ascii_letters + string.digits 
+    Args:
+        stringLength (int, optional): [length of randomString]. Defaults to 10.
+
+    Returns:
+        [str]: [the random string with digits and symbols]
+    """
     # password_characters = string.ascii_letters + string.digits + string.punctuation
     password_characters = string.ascii_letters + string.digits 
     return ''.join(random.choice(password_characters) for i in range(stringLength))
 
-def get_target_ip_route(target_ip):    
-    """ target_ip : str
-        return hosname how to route the websocket from HTTP web browser to docker container """    
+def get_target_ip_route(target_ip):  
+    """[get_target_ip_route]
+    
+        return hostname how to reach the websocket from HTTP web browser to docker container
+    Args:
+        target_ip ([str]): [target ip destination of the user container ]
+
+    Returns:
+        [str]: [hostname to reach the websocket container]
+    """
+
+ 
     http_requested_host = cherrypy.url()
     http_origin = cherrypy.request.headers.get('Origin', None)
     http_host   = cherrypy.request.headers.get('Host', None)
@@ -83,7 +101,14 @@ def get_target_ip_route(target_ip):
 
 
 def remove_accents(input_str):
-    ''' remove accents in string '''
+    """[remove_accents]
+        remove accents in string and set to lower case
+    Args:
+        input_str ([str]): [str to remove accent]
+
+    Returns:
+        [str]: [str without accent]
+    """
     s = input_str
     try:
         # nkfd_form = unicodedata.normalize('NFKD', unicode(input_str))
@@ -96,17 +121,33 @@ def remove_accents(input_str):
     return r
 
         
-def getCookie(name):    
-    ''' retrieve the cookie name value      '''
-    ''' return the value, None if not set   '''
+def getCookie(name):
+    """[getCookie] get the cookie name value
+        retrieve the cookie name value 
+        return the value, None if not set
+    Args:
+        name ([str]): [name of the cookie]
+
+    Returns:
+        [str]: [value of the cookie]
+        None if not
+    """
     c = cherrypy.request.cookie.get(name)
-    if c:
+    if c and hasattr(c, 'value') :
         return c.value
     else:
         return None
 
+
 def setCookie( name, value, path='/', expire_in=None):    
-    ''' set the cookie  '''
+    """[setCookie] set a cookie
+
+    Args:
+        name ([str]): [name of the cookie]
+        value ([str]): [value of the cookie]
+        path (str, optional): [path of the cookie]. Defaults to '/'.
+        expire_in ([int], optional): [Number of seconds until the cookie expires]. Defaults to None.
+    """
     cherrypy.response.cookie[name] = value
     
     
@@ -126,7 +167,12 @@ def setCookie( name, value, path='/', expire_in=None):
     cherrypy.response.cookie[name]['version'] = 1
 
 def removeCookie(name, path='/'):
-    ''' remove the cookie name  '''
+    """[removeCookie] delete a cookie
+
+    Args:
+        name ([str]): [name of the cookie]
+        path (str, optional): [path of the cookie]. Defaults to '/'.
+    """
     # When you wish to “delete” (expire) a cookie, therefore, 
     # you must set cherrypy.response.cookie[key] = value first, 
     # and then set its expires attribute to 0.
