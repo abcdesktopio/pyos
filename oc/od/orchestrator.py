@@ -757,9 +757,9 @@ class ODOrchestrator(ODOrchestratorBase):
         # DO NOT USE TOO LONG NAME for container name  
         # filter can failed or retrieve invalid value in case userid + app.name + uuid
         # limit length is not defined but take care 
-        _containername = userinfo.get('name','name') + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
-        containername =  oc.auth.namedlib.normalize_name( _containername )
-
+        _containername = oc.lib.remove_accents( userinfo.get('name','name') ) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
+        containername = oc.auth.namedlib.normalize_name( _containername )
+        
         host_config = {
                 'auto_remove'   : oc.od.settings.desktopcontainer_autoremove,
                 'binds'         : volumebind,
