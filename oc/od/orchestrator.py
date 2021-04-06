@@ -1175,7 +1175,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return oc.auth.namedlib.normalize_name( container_name ) 
 
     def get_labelvalue( self, label_value):
-        return oc.auth.namedlib.normalize_label( label_value )
+        normalize_data = oc.auth.namedlib.normalize_label( label_value )
+        no_accent_normalize_data = oc.lib.remove_accents( normalize_data )
+        return no_accent_normalize_data
 
     def logs( self, authinfo, userinfo ):
         strlogs = ''
