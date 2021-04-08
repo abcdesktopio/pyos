@@ -254,25 +254,55 @@ class AuthController(BaseController):
         return res
 
     @cherrypy.expose
+    @cherrypy.tools.json_out()
+    # @cherrypy.tools.json_in()
+    @cherrypy.tools.allow(methods=['GET'])
+    def su(self, password):
+        self.logger.debug('')
+     
+        try:
+            (auth, user ) = self.validate_env()
+
+            if not isinstance(password,str) :
+                raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
+            
+            # build a login dict arg object with provider set to AD
+            args_login = {  'manager' : None,
+                            'provider': auth.provider,
+                            'password': password,
+                            'userid'  : user.userid
+            }
+            result = services.auth.su(**args_login)           
+            return Results.success(result=result)
+
+        except Exception as e:
+            logger.error( e )
+            return Results.error( message=str(e) )
+        
+     
+
+    @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST'])
     # Pure HTTP Form request
-    def autologin(self, login, password, provider):
+    def autologin(self, login, provider, password=None):
         self.logger.debug('')
 
-        if isinstance(login,str) is False:
+        if not isinstance(login,str):
             raise cherrypy.HTTPError(400, 'Bad request invalid login parameter')
 
-        if isinstance(password,str) is False:
+        # password is an optionnal value but must be a str if set
+        if password is not None and not isinstance(password,str) :
             raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
 
         if isinstance(provider,str) is False:
             raise cherrypy.HTTPError(400, 'Bad request invalid provider parameter')
-
+        
         # build a login dict arg object with provider set to AD
         args_login = {  'manager':  None,
                         'password': password,
                         'provider': provider,
-                        'userid':   login
+                        'userid':   login,
+                        'auto':     True
         }
         
         # do login        
@@ -321,17 +351,15 @@ class AuthController(BaseController):
         # push a start message to the message info database
         services.messageinfo.start(user.userid, 'Authentication successful %s' % user.name)   
 
-        preferednodehostname = cherrypy.request.headers.get('Prefered-Nodename')    
-        self.logger.debug('cherrypy.request.headers.get(Prefered-Nodename) = %s ', str(preferednodehostname))
-
         # launch the user desktop 
-        return self.root.composer._launchdesktop(preferednodehostname, auth, user, args)
+        return self.root.composer._launchdesktop( auth, user, args)
 
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def refreshtoken(self):
+        
         if services.auth.isidentified:
             user = services.auth.user
             auth = services.auth.auth
