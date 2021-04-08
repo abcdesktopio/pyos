@@ -66,6 +66,65 @@ class ODDockerWatcher:
             container_id = event.get('Actor').get('Attributes').get('container')
             oc.od.composer.detach_container_from_network( container_id )
 
+    def event_oom( self, client, event ):
+        self.logger.debug('new oom event from docker event %s', event)
+        try:
+            attributes = event.get('Actor').get('Attributes')
+            access_userid   = attributes.get('access_userid')
+            access_type     = attributes.get('access_type')
+            name            = attributes.get('oc.name')
+            # skip not abcdeskop container notification 
+            if access_userid is None or  access_type is None or name is None :
+                return
+            message = "Out of memory for application {}".format(  name )
+            data = { 'status':  event.get('status'), 
+                     'message': message, 
+                     'icon':    attributes.get('oc.icon'), 
+                     'image':   attributes.get('image'), 
+                     'launch':  attributes.get('oc.launch'), 
+                     'name':    name }
+
+            oc.od.composer.notify_user( access_userid=access_userid,
+                                        access_type=access_type, 
+                                        method='container', 
+                                        data=data )
+
+        except Exception as e:
+            self.logger.error(str(e))
+
+    def event_die( self, client, event ):
+        self.logger.debug('new die event from docker event %s', event)
+        try:
+            attributes = event.get('Actor').get('Attributes')
+            access_userid   = attributes.get('access_userid')
+            access_type     = attributes.get('access_type')
+            name            = attributes.get('oc.name')
+            exitcode        = attributes.get('exitCode')
+            # skip not abcdeskop container notification 
+            if access_userid is None or  access_type is None or name is None :
+                return
+            # if exit code is zero
+            # skip user notification 
+            if int(exitcode) == 0:
+                return
+
+            message = "application {} die exit code {}".format(  name, exitcode )
+            data = { 'status':  event.get('status'), 
+                     'message': message, 
+                     'icon':    attributes.get('oc.icon'), 
+                     'image':   attributes.get('image'), 
+                     'launch':  attributes.get('oc.launch'), 
+                     'name':    name }
+
+            oc.od.composer.notify_user( access_userid=access_userid,
+                                        access_type=access_type, 
+                                        method='container', 
+                                        data=data )
+
+        except Exception as e:
+            self.logger.error(str(e))
+
+
     def loop_forevent(self):    
 
         # connect to local docker daemon
@@ -74,7 +133,13 @@ class ODDockerWatcher:
         # read events
         self.events = client.events(decode=True) # return docker.types.daemon.CancellableStream
         for event in self.events:
+            # self.logger.debug('event from docker event %s', event)
             try:
+                if event.get('Type') == 'container':
+                    if event.get('Action') == 'oom':
+                        self.event_oom(client, event)
+                    if event.get('Action') == 'die':
+                        self.event_die(client, event)
                 if event.get('Type') == 'image':    
                     self.event_image(client, event)
                 if event.get('Type') == 'network':  

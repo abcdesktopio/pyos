@@ -30,6 +30,7 @@ import distutils.util
 import uuid
 import chevron
 import requests
+import copy
 
 from kubernetes import client, config, watch
 from kubernetes.stream import stream
@@ -41,7 +42,7 @@ import oc.lib
 from oc.od.desktop import ODDesktop
 import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
-from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and  
+from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,17 @@ class ODOrchestratorBase(object):
         return  self.soundcontainernameprefix       + \
                 self.containernameseparator         + \
                 oc.auth.namedlib.normalize_name( container_name )
+
+    def get_normalized_username(self, name ):
+        """[get_normalized_username]
+            return a username without accent to be use in label and container name
+        Args:
+            name ([str]): [username string]
+
+        Returns:
+            [str]: [username correct value]
+        """
+        return oc.lib.remove_accents( name ) 
 
     def __del__(self):
         self.close()
@@ -462,7 +474,7 @@ class ODOrchestrator(ODOrchestratorBase):
             
         # Check if share memory is enable if config file 
         # add the volume mappping for /dev/shm device
-        if kwargs.get( 'desktopuserusehostsharememory' ) :
+        if oc.od.settings.desktopuserusehostsharememory is True:
             # add -v /dev/shm:/dev/shm        
             volumes.append('/dev/shm')
             volumesbind.append('/dev/shm:/dev/shm')
@@ -606,7 +618,20 @@ class ODOrchestrator(ODOrchestratorBase):
         return homedir_disabled        
 
     def applyappinstancerules_network( self, authinfo, app ):
+        """[applyappinstancerules_network]
+            return a dict network_config
 
+        Args:
+            authinfo ([type]): [description]
+            app ([type]): [description]
+
+        Returns:
+            [dict ]: [network config]
+            network_config = {  'network_disabled' : network_disabled, 
+                            'context_network_name': context_network_name, 
+                            'context_network_dns': context_network_dns
+                            'context_network_webhook' : context_network_webhook}
+        """
         # set default context value 
         network_disabled        = False      # network is enabled by default
         context_network_name    = None       # acl network is not set by default
@@ -637,6 +662,7 @@ class ODOrchestrator(ODOrchestratorBase):
                             if kn == ka :
                                 context_network_name    = rule_network.get(kn).get('name')
                                 context_network_dns     = rule_network.get(kn).get('dns')
+                                context_network_dns     = rule_network.get(kn).get('dns')
                                 context_network_webhook = rule_network.get(kn).get('webhook')
                                 network_disabled = False
                                 break
@@ -648,8 +674,11 @@ class ODOrchestrator(ODOrchestratorBase):
                     # convert context_network_dns as list if need
                     context_network_dns = [ context_network_dns ]
 
-        return (network_disabled, context_network_name, context_network_dns, context_network_webhook )
-
+        network_config = {  'network_disabled' : network_disabled, 
+                            'context_network_name': context_network_name, 
+                            'context_network_dns': context_network_dns,
+                            'context_network_webhook' : context_network_webhook}
+        return network_config
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
@@ -664,7 +693,7 @@ class ODOrchestrator(ODOrchestratorBase):
         volumebind = desktop.attrs["HostConfig"]["Binds"]
 
         # apply network rules 
-        (network_disabled, context_network_name, context_network_dns, context_network_webhook ) = self.applyappinstancerules_network( authinfo, app )
+        network_config = self.applyappinstancerules_network( authinfo, app )
         # apply homedir rules
         homedir_disabled = self.applyappinstancerules_homedir( authinfo, app )
        
@@ -718,68 +747,65 @@ class ODOrchestrator(ODOrchestratorBase):
         volumes = self.build_volumefromvolumebind(volumebind)
         command = '/composer/appli-docker-entrypoint.sh'
         
-        # network_mode (str) – One of:
-        #   bridge Create a new network stack for the container on on the
-        #   bridge network.
-        #   none No networking for this container.
-        #   container:<name|id> Reuse another container’s network stack.
-        #   host Use the host network stack.
-        # Warning: if desktopusex11unixsocket is set then aclnetworkname is not
-        # used
-        if oc.od.settings.desktopsharednetworkstack:
-            network_mode = 'container:' + desktop.id    # by default
-        if context_network_name :
-            network_name = context_network_name
-            network_mode = context_network_name
-        if network_disabled :
-            network_mode = 'none'
-            network_name = None
-        
-        extra_hosts = {}
-        try:
-            host_imagelabel = app.get('oc.extra_hosts')
-            if host_imagelabel is not None:
-                extra_hosts = json.loads(host_imagelabel)
-        except Exception as e:
-            self.logger.warning('Failed to parse extra_hosts: %s', e)
-
-        # “container: <_name-or-ID_>"
-        # Join another (“shareable”) container’s IPC namespace.
-        if oc.od.settings.desktopusershareipcnamespace == 'shareable':
-            ipc_mode = 'container:' + desktop.id
-        else:
-            ipc_mode = None
-
-        # share process name space
-        pid_mode = 'container:' + desktop.id if oc.od.settings.desktopusershareprocessnamespace else None
-
         # container name
         # DO NOT USE TOO LONG NAME for container name  
         # filter can failed or retrieve invalid value in case userid + app.name + uuid
         # limit length is not defined but take care 
-        _containername = userinfo.get('name','name') + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
+        _containername = self.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
         containername =  oc.auth.namedlib.normalize_name( _containername )
 
-        host_config = {
-                'auto_remove'   : oc.od.settings.desktopcontainer_autoremove,
+        # build the host config
+        # first load the default hostconfig from od.config for all containers
+        host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
+
+        # load the specific hostconfig from the app object
+        host_config.update( app.get('host_config'))
+        
+        # container: <_name-or-ID_>
+        # Join another ("shareable") container's IPC namespace.
+        ipc_mode = None
+        if host_config.get('ipc_mode') == 'shareable':  
+            ipc_mode = 'container:' + desktop.id
+
+        pid_mode = None
+        # share process name space
+        if host_config.get('pid_mode') is True :        
+            pid_mode = 'container:' + desktop.id
+
+
+        # set network config default value 
+        network_mode = 'none'
+        network_name = None
+        network_disabled = network_config.get('network_disabled')
+        network_dns      = network_config.get('context_network_dns')
+        # if network mode use conainer network 
+        # bind the desktop container network to the application container
+        if host_config.get('network_mode') == 'container':
+            network_mode = 'container:' + desktop.id
+        # if specific network exists
+        # bind the specific network to the application container
+        if isinstance( network_config.get('context_network_name'), str)  :
+            network_name = network_config.get('context_network_name')
+            network_mode = network_config.get('context_network_name')
+        # if network_disabled is Tue 
+        # bind the specific network to None
+        if network_disabled is True :
+            network_mode = 'none'
+            network_name = None
+      
+
+        # set abcdesktop requirements and specific context running 
+        # 'binds'    : volumebind
+        # 'ipc_mode' : ipc_mode
+        # 'pid_mode' : pid_mode
+        host_config.update( {
                 'binds'         : volumebind,
-                'extra_hosts'   : extra_hosts,
                 'ipc_mode'      : ipc_mode,
                 'network_mode'  : network_mode,
-                'pid_mode'      : pid_mode,
-                'dns'           : context_network_dns,
-                'security_opt'  : app.get('security_opt', oc.od.settings.desktopsecurityopt),
-                'privileged'    : app.get('privileged', oc.od.settings.desktopdockerprivileged),
-                'cap_add'       : oc.od.settings.desktopcapabilities.get('add'),
-                'cap_drop'      : oc.od.settings.desktopcapabilities.get('drop'),
-                'oom_kill_disable' : app.get( 'oom_kill_disable' ),
-        }
+                'dns'           : network_dns,
+                'pid_mode'      : pid_mode
+        } )
 
-        #
-        # superchage desktop value if app as specific labels
-        # set value if image require
-        if app.get('shm_size') :        host_config.update(  { 'shm_size' :     app.get('shm_size') } )
-        if app.get('mem_limit') :       host_config.update(  { 'mem_limit' :    app.get('mem_limit') } )
 
         appinfo = infra.createcontainer(
             image = app['id'],
@@ -790,7 +816,7 @@ class ODOrchestrator(ODOrchestratorBase):
             network_disabled = network_disabled,
             labels = {                
                 'access_type'           : authinfo.provider,
-                'access_username'       : userinfo.get('name'),
+                'access_username'       : self.get_normalized_username( userinfo.get('name') ),
                 'access_userid'         : userinfo.userid,
                 'access_parent_id'      : desktop.id,
                 'access_parent_hostname': self.nodehostname
@@ -800,7 +826,7 @@ class ODOrchestrator(ODOrchestratorBase):
             network_name = network_name,
         )
 
-        if type(appinfo) is not dict :
+        if not isinstance( appinfo, dict) :
             return None
 
         appinstance_id = appinfo.get('Id')
@@ -816,11 +842,12 @@ class ODOrchestrator(ODOrchestratorBase):
         appinstance.webhook = None  # by default no hook
 
         # if context_network_webhook call request to webhook and replace all datas
-        if type(context_network_webhook) is dict: 
+        context_network_webhook = network_config.get('context_network_webhook')
+        if isinstance( context_network_webhook, dict) : 
             appinstance.webhook = {}
             # if create exist 
             webhookstarturl = context_network_webhook.get('create')
-            if type(webhookstarturl) is str:
+            if isinstance( webhookstarturl, str) :
                 # build the webhook url 
                 # fillwebhook return None if nothing to do
                 webhookurl = self.fillwebhook(  mustacheurl=webhookstarturl, 
@@ -833,7 +860,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
             # if destroy exist 
             webhookstopurl = context_network_webhook.get('destroy')
-            if type(webhookstopurl) is str:
+            if isinstance( webhookstopurl, str) :
                 # fillwebhook return None if nothing to do
                 webhookurl = self.fillwebhook(  mustacheurl=webhookstopurl, 
                                                 app=app, 
@@ -899,7 +926,6 @@ class ODOrchestrator(ODOrchestratorBase):
         args     = kwargs.get('args')
         image    = kwargs.get('image')
         command  = kwargs.get('command')
-        ipc_mode = oc.od.settings.desktopusershareipcnamespace
         env      = kwargs.get('env', {} )
         appname  = kwargs.get('appname')
         container_name = None
@@ -954,12 +980,9 @@ class ODOrchestrator(ODOrchestratorBase):
             c = myinfra.getdockerClientAPI()
             # callback_notify( 'Create your network' )
             networking_config = c.create_networking_config({oc.od.settings.defaultnetworknetuser: c.create_endpoint_config()})
-            host_config       = c.create_host_config(   auto_remove=True, 
-                                                        binds=volumebind, 
-                                                        privileged=oc.od.settings.desktopdockerprivileged, 
-                                                        ipc_mode=ipc_mode,
-                                                        cap_add=oc.od.settings.desktopcapabilities.get('add'),
-                                                        cap_drop=oc.od.settings.desktopcapabilities.get('drop') )
+            host_config       = c.create_host_config(   binds=volumebind, 
+                                                        **oc.od.settings.desktophostconfig.get('privileged', False), 
+                                                    )
             # callback_notify( 'Create your desktop' )
             mydesktopcreate_container = c.create_container( name=container_name,
                                                             image=image,
@@ -1120,7 +1143,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # no pods
             self.default_volumes = {}
             self.default_volumes_mount = {}
-            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '2Gi' } }
+            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size') } }
             self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
             if oc.od.settings.desktopusepodasapp :
                 self.default_volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
@@ -1128,6 +1151,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             else:
                 self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
                 self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
+
+            self.resource_limits = self.read_resource_limits()
+
         except Exception as e:
             self.bConfigure = False
             self.logger.info( '%s', str(e) ) # this is not an error in docker configuration mode, do not log as an error but as info
@@ -1138,7 +1164,36 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #self.kupeapi.close()
         pass
 
+    def read_resource_limits(self):
+        """ [read_resource_limits]
+            convert docker cpu_period and cpu_quota as a kubernetes cpu limit ressource
+            convert docker mem as a kubernetes cpu limit ressource
+        Returns:
+            [dict]: [kubernetes resources limit dict]
+        """
+        limits = {} 
+        # you set --cpus="1.5", the container is guaranteed at most one and a half of the CPUs. 
+        # This is the equivalent of setting --cpu-period="100000" and --cpu-quota="150000".
+        cpu_period = oc.od.settings.desktophostconfig.get('cpu_period')
+        cpu_quota  = oc.od.settings.desktophostconfig.get('cpu_quota')
+        if isinstance( cpu_period, int ) and isinstance( cpu_quota,  int ) :
+            cpu_period = cpu_period / 100000
+            cpu_quota  = cpu_quota  / 100000
+            cpu        = float( "{:.1f}".format(cpu_period * cpu_quota) )
+            limits.update( { 'cpu': cpu } )
+        
+        mem_limit = oc.od.settings.desktophostconfig.get('mem_limit')
+        if isinstance(mem_limit, str ) :
+            limits.update( { 'memory': str(mem_limit) } )
+        return { 'limits': limits }
+
     def is_configured(self): 
+        """[is_configured]
+            return True if kubernetes is configured 
+            call list_node() API  
+        Returns:
+            [bool]: [if kubernetes is configured]
+        """
         bReturn = False
         try:
             if self.bConfigure :
@@ -1175,7 +1230,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return oc.auth.namedlib.normalize_name( container_name ) 
 
     def get_labelvalue( self, label_value):
-        return oc.auth.namedlib.normalize_label( label_value )
+        normalize_data = oc.auth.namedlib.normalize_label( label_value )
+        no_accent_normalize_data = oc.lib.remove_accents( normalize_data )
+        return no_accent_normalize_data
 
     def logs( self, authinfo, userinfo ):
         strlogs = ''
@@ -1729,9 +1786,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         else:
             ipc_mode = None
 
-        # share process name space
-        pid_mode = 'container:' + desktop.id if oc.od.settings.desktopusershareprocessnamespace else None
-
+       
         # container name
         # DO NOT USE TOO LONG NAME for container name  
         # filter can failed or retrieve invalid value in case userid + app.name + uuid
@@ -1748,7 +1803,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'pid_mode'      : pid_mode,
                 'dns'           : context_network_dns,
                 'security_opt'  : oc.od.settings.desktopsecurityopt,
-                'privileged'    : oc.od.settings.desktopdockerprivileged,
                 'cap_add'       : oc.od.settings.desktopcapabilities.get('add'),
                 'cap_drop'      : oc.od.settings.desktopcapabilities.get('drop')
         }
@@ -1756,7 +1810,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # set shm_size if image require
         if app.get('shm_size') :   host_config.update(  { 'shm_size' : app.get('shm_size') } )
         # set mem_limit if image require
-        if app.get('mem_limit') :     host_config.update(  { 'mem_limit' : app.get('mem_limit') } )
+        if app.get('mem_limit') :  host_config.update(  { 'mem_limit' : app.get('mem_limit') } )
 
         appinfo = infra.createcontainer(
             image = app['id'],
@@ -1814,7 +1868,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         command  = kwargs.get('command')
         env      = kwargs.get('env', {} )
         appname  = kwargs.get('appname')
-        preferednodehostname = kwargs.get('preferednodehostname', None )
 
         vncPassword = self.mkvnc_password()
         args.extend('--vncpassword {}'.format(vncPassword).split(' '))
@@ -1899,12 +1952,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug( 'initContainers is %s', initContainers)
 
 
-        nodeselector = {}
-        if type(preferednodehostname) is str :
-            nodeselector.update( { 'kubernetes.io/hostname': preferednodehostname } )
-        if type(oc.od.settings.desktopnodeselector) is dict:
-            nodeselector.update( oc.od.settings.desktopnodeselector )
-
         pod_manifest = {
             'apiVersion': 'v1',
             'kind': 'Pod',
@@ -1917,7 +1964,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'spec': {
                 'automountServiceAccountToken': False, # disable service account 
                 'subdomain': self.endpoint_domain,
-                'shareProcessNamespace': oc.od.settings.desktopusershareprocessnamespace,
+                'shareProcessNamespace': oc.od.settings.desktophostconfig.get( 'pid_mode', False ),
                 'volumes': list_volumes,                    
                 'nodeSelector': oc.od.settings.desktopnodeselector, 
                 'initContainers': initContainers,
@@ -1934,8 +1981,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                              # permit sudo command inside the container False by default 
                                             'allowPrivilegeEscalation': oc.od.settings.desktopallowPrivilegeEscalation,
                                             # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]  
-                                            'capabilities':  oc.od.settings.desktopcapabilities
-                                        } 
+                                            'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
+                                                              'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
+                                        },
+                                    'resources': self.resource_limits
                                 }                                                             
                 ],
             }
@@ -1965,8 +2014,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # this is a filter to reduce surface attack
             # the home directory of balloon user MUST belongs to balloon user 
             # else pulseaudio does not start
-            soundcontainerlist_volumeMounts = [ self.default_volumes_mount['shm'],
-                                                self.default_volumes_mount['tmp'] ]
+            soundcontainerlist_volumeMounts = [ self.default_volumes_mount['tmp'] ]
+            if oc.od.settings.desktopuserusehostsharememory is True:
+                soundcontainerlist_volumeMounts += [ self.default_volumes_mount['shm'] ]
 
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_sound_name,
