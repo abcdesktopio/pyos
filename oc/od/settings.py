@@ -50,16 +50,12 @@ memconnectionstring = None  # memcache connection syting format 'server:port'
 
 jira = None             # Jira tracker configuration 
 
-desktopsharednetworkstack = True
 desktophomedirectorytype = None  #
-desktopcontainer_autoremove = True
-desktopusershareipcnamespace = ''
-desktopuserusehostsharememory = False
 desktopallowPrivilegeEscalation = False     # Permit sudo command inside a container
-desktopusershareprocessnamespace = True     # Share process namespace from the container
-desktopdockerprivileged = False             # Run docker container in privilege mode
+
 defaultbackgroundcolors = []
-desktopcapabilities     = {}
+desktophostconfig       = {}
+applicationshostconfig  = {}
 desktopenvironmentlocal = {}
 desktopusedbussession   = None
 desktopusedbussystem    = None
@@ -69,6 +65,7 @@ desktopimagepullsecret  = None
 desktoppolicies         = {}
 desktopusepodasapp      = False
 desktopimagepullpolicy  = 'IfNotPresent'
+desktopuserusehostsharememory = True
 
 # printer container
 desktopuseprintercontainer  = False 
@@ -89,7 +86,6 @@ desktoppostponeapp          = None
 desktopsecretsrootdirectory = '/var/secrets/'
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
 desktopuseinternalfqdn = False
-desktopusewinsresolver = False
 desktopuselocaltime = True
 desktopsecurityopt = []
 desktopservicestcpport = { 'x11server': 6081, 'spawner': 29786, 'broadcast': 29784, 'pulseaudio': 4714 }
@@ -323,14 +319,10 @@ def init_tls():
 
 
 def init_desktop():
+    global desktophostconfig
+    global applicationhostconfig
     global desktophomedirectorytype
-    global desktopusex11unixsocket
-    global desktopcontainer_autoremove
-    global desktopusershareipcnamespace
-    global desktopuserusehostsharememory
     global defaultbackgroundcolors
-    global desktopsharednetworkstack
-    global desktopusershareprocessnamespace
     global desktopimage
     global desktopprinterimage
     global desktopuseprintercontainer
@@ -342,14 +334,12 @@ def init_desktop():
     global desktoppersistentvolumeclaim
     global desktopallowPrivilegeEscalation
     global desktopnodeselector
-    global desktopcapabilities
     global desktopusedbussession
     global desktopusedbussystem
     global desktopenvironmentlocal
     global desktopimagepullsecret
     global desktopuseinternalfqdn
-    global desktopdockerprivileged
-    global desktopusewinsresolver
+    global desktopuserusehostsharememory
     global stack_mode
     global desktopsecurityopt
     global desktopuselocaltime
@@ -357,6 +347,77 @@ def init_desktop():
     global desktoppostponeapp
     global desktopusepodasapp
     global desktopimagepullpolicy
+
+    list_hostconfigkey = [ 
+        'auto_remove',
+        'cap_add', 
+        'cap_drop',
+        'cpu_period',
+        'cpu_quota',
+        'cpu_shares',
+        'cpuset_cpus',
+        'cpuset_mems',
+        'device_cgroup_rules',
+        'device_read_bps',
+        'device_read_iops',
+        'device_write_bps',
+        'device_write_iops',
+        'devices',
+        'device_requests',
+        'ipc_mode',
+        'mem_limit',
+        'mem_reservation',
+        'mem_swappiness',
+        'memswap_limit',
+        'network_mode',
+        'oom_kill_disable',
+        'oom_score_adj',
+        'pid_mode',
+        'pids_limit',
+        'privileged',
+        'read_only',
+        'restart_policy',
+        'runtime',
+        'security_opt',
+        'shm_size', 
+        'storage_opt',
+        'sysctls',
+        'tmpfs',
+        'ulimits'
+        ]
+
+
+    _desktophostconfig = gconfig.get('desktop.hostconfig',
+                                {   'auto_remove'   : True,
+                                    'ipc_mode'      : 'shareable',
+                                    'pid_mode'      : True,
+                                    'network_mode'  : 'container',
+                                    'shm_size'      : '128M'
+                                })
+    # check if desktophostconfig contains permit value
+    desktophostconfig = {}
+    for keyconfig in _desktophostconfig.keys():
+        if keyconfig in list_hostconfigkey:
+            desktophostconfig[keyconfig] =  _desktophostconfig[keyconfig]
+    # check if desktophostconfig contains permit value
+    desktophostconfig = {}
+    for keyconfig in _desktophostconfig.keys():
+        if keyconfig in list_hostconfigkey:
+            desktophostconfig[keyconfig] =  _desktophostconfig[keyconfig]
+
+
+    _applicationhostconfig = gconfig.get('desktop.applicationconfig',
+                                {   'auto_remove'   : True,
+                                    'ipc_mode'      : 'shareable',
+                                    'pid_mode'      : True,
+                                    'network_mode'  : 'container',
+                                    'shm_size'      : '128M'
+                                })
+    # check if desktophostconfig contains permit value
+    applicationhostconfig = {}
+    for keyconfig in _applicationhostconfig.keys():
+        if keyconfig in list_hostconfigkey:
+            applicationhostconfig[keyconfig] =  _applicationhostconfig[keyconfig]
 
     # load docker images name
     desktopimagepullsecret  = gconfig.get('desktop.imagePullSecret')
@@ -367,30 +428,25 @@ def init_desktop():
     desktoppolicies         = gconfig.get('desktop.policies', {} )
 
     desktopinitcontainerimage = gconfig.get('desktop.initcontainerimage')
-    desktopsharednetworkstack = gconfig.get('desktop.sharednetworkstack', True)
-    desktopusex11unixsocket = gconfig.get('desktop.usex11unixsocket', True)
-    desktopcontainer_autoremove = gconfig.get('desktop.container_autoremove', True)
-    desktopusershareipcnamespace = gconfig.get('desktop.shareipcnamespace', 'shareable')
-    desktopuserusehostsharememory = gconfig.get('desktop.userusehostsharememory', False)
+   
     desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
-    desktopusesoundcontainer = gconfig.get('desktop.usesoundcontainer',False)
-    desktopuseinitcontainer = gconfig.get('desktop.useinitcontainer',False)
+    desktopusesoundcontainer   = gconfig.get('desktop.usesoundcontainer',False)
+    desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
     # desktopinitcontainercommand
     # is an array 
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
     desktopinitcontainercommand = gconfig.get('desktop.initcontainercommand')
     desktopusepodasapp = gconfig.get( 'desktop.usepodasapp', False )
-    desktopcapabilities = gconfig.get( 'desktop.capabilities', {} )
+
     defaultbackgroundcolors = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
-    desktopusershareprocessnamespace = gconfig.get('desktop.usershareprocessnamespace', True)
+    
+    desktopuserusehostsharememory   = gconfig.get('desktop.userusehostsharememory', True )
     desktophomedirectorytype        = gconfig.get('desktop.homedirectorytype', 'volume')
     desktoppersistentvolumeclaim    = gconfig.get('desktop.persistentvolumeclaim', 'abcdesktop-pvc' )
     desktopallowPrivilegeEscalation = gconfig.get('desktop.allowPrivilegeEscalation', False )
     desktopnodeselector     = gconfig.get('desktop.nodeselector', {} )    
     desktopusedbussession   = gconfig.get('desktop.usedbussession', False )
     desktopusedbussystem    = gconfig.get('desktop.usedbussystem', False )
-    desktopdockerprivileged = gconfig.get('desktop.dockerprivileged', False) 
-    desktopusewinsresolver  = gconfig.get('desktop.usewinsresolver', False )
     desktopuseinternalfqdn  = gconfig.get('desktop.useinternalfqdn', False ) 
     desktopsecurityopt      = gconfig.get('desktop.securityopt', [ 'no-new-privileges', 'seccomp=unconfined' ] )
     desktopuselocaltime     = gconfig.get('desktop.uselocaltime', False ) 
@@ -411,7 +467,12 @@ def init_desktop():
 
 def init_menuconfig():
     global menuconfig
-    menuconfig = gconfig.get('front.menuconfig', { 'settings': True, 'appstore': True, 'screenshot':True, 'download': True, 'logout': True, 'disconnect': True } )
+    menuconfig = gconfig.get('front.menuconfig', {  'settings': True, 
+                                                    'appstore': True, 
+                                                    'screenshot':True, 
+                                                    'download': True, 
+                                                    'logout':   True, 
+                                                    'disconnect': True } )
 
 def init_balloon():
     global balloon_uid
