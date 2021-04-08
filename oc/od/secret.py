@@ -25,27 +25,40 @@ import json
 
 
 def selectSecret( namespace, kubeapi, prefix, secret_type):
-        secret = None
-        secret_cls = None
-     
-        if secret_type == 'cifs': 
-            secret_cls = ODSecretCIFS
-        elif secret_type == 'webdav':
-            secret_cls = ODSecretWEBDAV
-        elif secret_type == 'ldif':
-            secret_cls = ODSecretLDIF
-        elif secret_type == 'citrix':
-            secret_cls = ODSecretCitrix
-        else:
-            secret_cls = ODSecret
+    """[selectSecret]
+        return a secret class object from a secret_type
+    Args:
+        namespace ([str]): [kubernetes namespace where secret should be created]
+        kubeapi ([api]): [kubernets api object]
+        prefix ([str]): [prefix for secret name]
+        secret_type ([str]): [type of secret] must be in the list [ 'cifs', 'webdav', 'ldif', 'citrix' ]
 
-        secret = secret_cls( namespace, kubeapi, prefix, secret_type )
-        if secret is None:
-            raise NotImplementedError('Secret type=%s can not be instanciated', secret_type) 
-       
-        return secret
+    Returns:
+        [secret class]: [secret class instance for the secret_type]
+    """
+    secret = None
+    secret_cls = None
+    
+    # secret_cls_dict is a dict of class 
+    # key   : is the class name equal to the secret_type
+    # value : is the class object 
+    secret_cls_dict = { 'cifs':    ODSecretCIFS,
+                        'webdav':  ODSecretWEBDAV,
+                        'ldif':    ODSecretLDIF,
+                        'citrix':  ODSecretCitrix }
+    # get the class from the secret_type
+    secret_cls = secret_cls_dict.get( secret_type, ODSecret )
+    # instance the class
+    secret = secret_cls( namespace, kubeapi, prefix, secret_type )
+    # return the secret object
+    return secret
 
 def list_secretype():
+    """[list_secretype]
+        list all supported secret type
+    Returns:
+        [list]: [list of supported secret type]
+    """
     return [ 'cifs', 'webdav', 'ldif', 'citrix' ]
 
 
@@ -69,8 +82,25 @@ class ODSecret():
         secret_name = oc.auth.namedlib.normalize_name(secret_name)        
         return secret_name
 
+    def is_valid( self ):
+        """[is_valid]
+            check if secret is ready to use and contains all datas
+            if data id empty return False
+        Returns:
+            [bool]: [True if valid, else False]
+        """
+        return True
+
     @staticmethod
-    def b64tostr( s ):    
+    def b64tostr( s ):
+        """[b64tostr]
+            convert b64 to str
+        Args:
+            s ([b64]): [b64 'ascii' encoded str]
+
+        Returns:
+            [str]: [str utf-8 ]
+        """
         b = base64.b64decode( s.encode('ascii') ).decode('utf-8')
         return b
 
@@ -194,7 +224,12 @@ class ODSecretCitrix( ODSecret ):
         self.access_type='auth'
 
 class ODSecretRemoteFileSystemDriver( ODSecret ):
-    ''' Create a secret used by for Remote File System driver ''' 
+    """[class ODSecretRemoteFileSystemDriver]
+        Create a secret used by for Remote File System driver 
+    Args:
+        ODSecret ([ODSecret]): [ODSecret class]
+
+    """
 
     def __init__( self, namespace, kubeapi, prefix, secret_type ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
