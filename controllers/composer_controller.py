@@ -51,27 +51,26 @@ class ComposerController(BaseController):
         
         try:
             (auth, user ) = self.validate_env()
+            args = cherrypy.request.json
+            if not isinstance(args, dict):
+                return Results.error( message='invalid parameters' )
+
+            # appname must exists
+            appname = args.get('image')
+            if not isinstance(appname, str):
+                return Results.error('Missing parameter image')
+
+            # add lang to user dict
+            self.LocaleSettingsLanguage( user )
+            # open the app
+            result = oc.od.composer.openapp( auth, user, args )
+            return Results.success(result=result)
+
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
         
-        args = cherrypy.request.json
-        if type(args) is not dict:
-            return Results.error( message='invalid parameters' )
-
-        # appname must exists
-        appname = args.get('image')
-        if type(appname) is not str:
-            return Results.error('Missing parameter image')
-
-        # add lang to user dict
-        self.LocaleSettingsLanguage( user )
-        try:                       
-            result = oc.od.composer.openapp( auth, user, args )
-        except Exception as e:
-            return Results.error(str(e))
-            
-        return Results.success(result=result)
+       
     
     def LocaleSettingsLanguage( self, user ):
         # add current locale from http Accept-Language to AuthUser 
@@ -123,13 +122,10 @@ class ComposerController(BaseController):
 
         logger.info('Metappli : %s %s', str(appname), str(appargs))
 
-        preferednodehostname = cherrypy.request.headers.get('Prefered-Nodename')
-        self.logger.debug('cherrypy.request.headers.get(Prefered-Nodename) = %s ', str(preferednodehostname))
-        
         # add lang to user dict
         self.LocaleSettingsLanguage( user )
      
-        return self._launchdesktop(preferednodehostname, auth, user, args)
+        return self._launchdesktop(auth, user, args)
 
     @cherrypy.expose
     @cherrypy.tools.json_in()
@@ -138,21 +134,13 @@ class ComposerController(BaseController):
 
         try:
             (auth, user ) = self.validate_env()
+            # add lang to user dict   
+            self.LocaleSettingsLanguage( user )
+            return self._launchdesktop(auth, user, cherrypy.request.json)
+
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
-
-        # add lang to user dict   
-        self.LocaleSettingsLanguage( user )
-        
-        preferednodehostname = services.auth.user.get('nodehostname')
-        if preferednodehostname is None:
-            self.logger.debug('services.auth.nodehostname is None')    
-            preferednodehostname = cherrypy.request.headers.get('Prefered-Nodename')    
-
-        self.logger.debug('cherrypy.request.headers.get(Prefered-Nodename) = %s ', str(preferednodehostname))
-        
-        return self._launchdesktop(preferednodehostname, auth, user, cherrypy.request.json)
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -271,14 +259,15 @@ class ComposerController(BaseController):
     def listcontainer(self):
         try:
             (auth, user ) = self.validate_env()
+            result = oc.od.composer.listContainerApp(auth, user)
+            if type(result) is list:     
+                return Results.success(result=result)
+            else:
+                return Results.error('failed to read container list')
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )       
 
-        result = oc.od.composer.listContainerApp(auth, user)
-        if type(result) is list:     
-            return Results.success(result=result)
-        return Results.error('failed to read container list')
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -287,39 +276,35 @@ class ComposerController(BaseController):
         logger.debug('')
         try:
             (auth, user ) = self.validate_env()
+
+            appname = None
+            args = cherrypy.request.json
+            if isinstance(args, dict):
+                appname = args.get('app')
+
+            desktop = oc.od.composer.finddesktop_quiet(authinfo=auth, userinfo=user, appname=appname) 
+            # check desktop object
+            if desktop is None:                
+                return Results.error('finddesktop_quiet return None object')
+            if not hasattr(desktop, 'internaluri') :
+                return Results.error('finddesktop_quiet return invalid desktop object')
+            if desktop.internaluri is None:                
+                return Results.error('finddesktop_quiet return desktop.internaluri is None, unreachable')
+            
+            # build new jwtdesktop
+            jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
+            logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
+
+            return Results.success(result={
+                    'authorization' : jwtdesktoptoken,  # the desktop.ipAddr encrypted
+                    'expire_in'     : services.jwtdesktop.exp() # jwt TTL
+            })
+
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
 
-        appname = None
-        args = cherrypy.request.json
-        if type(args) is dict:
-            appname = args.get('app')
-
-        preferednodehostname = services.auth.user.get('nodehostname')
-        if preferednodehostname is None:
-            self.logger.debug('services.auth.nodehostname is None')    
-            preferednodehostname = cherrypy.request.headers.get('Prefered-Nodename') 
-
-        desktop = oc.od.composer.finddesktop_quiet(authinfo=auth, userinfo=user, appname=appname) 
-        if desktop is None:                
-            return Results.error('refreshdesktoptoken failed')
-        
-        # This case should only exist if a desktop is running twice on the same host
-        # twice mode standalone in docker mode and kubernetes mode
-        if desktop.internaluri is None:                
-            return Results.error('refreshdesktoptoken Desktop internaluri is None, unreachable')
-        
-        # build new jwtdesktop
-        jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-        logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
-
-        return Results.success(result={
-                'authorization' : jwtdesktoptoken,                   # desktop.ipAddr
-                'expire_in'      : services.jwtdesktop.exp()
-        })
-
-
+    
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
@@ -327,44 +312,42 @@ class ComposerController(BaseController):
         logger.debug('')
         try:
             (auth, user ) = self.validate_env()
+            # list all applications allowed for this user (auth)
+            applist = services.apps.user_applist( auth )
+            # get the default application list from the config file
+            defaultapplist = settings.get_default_applist()
+            # user application list is the default applist + the user application list
+            userapplist = defaultapplist + applist
+            return Results.success(result=userapplist)    
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
         
-        # list all applications allowed for this user (auth)
-        applist = services.apps.user_applist( auth )
-
-        # get the default application list from the config file
-        userapplist = settings.get_default_applist()
-        userapplist += applist
-        
-        return Results.success(result=userapplist)  
-    
-    def removedesktop(self, auth, user, args ):                
+    def removedesktop(self, auth, user, args ):  
+        logger.debug('')              
         services.accounting.accountex('desktop', 'remove')
-        logger.debug('')
         try:
             (auth, user ) = self.validate_env()
+            remove = oc.od.composer.removedesktop(auth, user, args)
+            return Results.success(result=remove)
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
         
-        return oc.od.composer.removedesktop(auth, user, args)
 
-    def _launchdesktop(self, preferednodehostname, auth, user, args):
-
-        nodehostname = preferednodehostname
-        appname = args.get('app')
-        messageinfo = services.messageinfo.start(user.userid, 'Looking for your desktop')
+    def _launchdesktop(self, auth, user, args):
 
         try:
+            appname = args.get('app')
+            # read the user ip source address 
             ipaddr = oc.cherrypy.getclientipaddr()
             args[ 'usersourceipaddr' ] = ipaddr
-            desktop = oc.od.composer.opendesktop( nodehostname, auth, user, args ) 
+
+            # open a new desktop
+            desktop = oc.od.composer.opendesktop( auth, user, args ) 
             if desktop is None:                
                 return Results.error('Desktop creation failed')
-            
-            if desktop.internaluri is None:                
+            if not hasattr( desktop, 'internaluri') or desktop.internaluri is None:                
                 return Results.error('Desktop URI is None, creation failed')
             
             # update internal dns entry
@@ -383,10 +366,14 @@ class ComposerController(BaseController):
             logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
             logger.info('Service is running on node %s', str(desktop.nodehostname) )
             
-            # set cookie for a better loadbalacing
-            if desktop.nodehostname is not None:
+            # set cookie for a optimized load balacing http request
+            # if loadbalancing support cookie persistance routing
+            # cookie name is abcdesktop_host
+            # match the worker node hostname
+            if isinstance(desktop.nodehostname, str):
                 oc.lib.setCookie( 'abcdesktop_host', desktop.nodehostname, path='/' )
 
+            # accounting data
             datadict={  **user,
                         'provider': auth.providertype,
                         'date': datetime.datetime.utcnow().isoformat(),
@@ -400,13 +387,11 @@ class ComposerController(BaseController):
                 datadict['app']  = appname
             else:
                 datadict['type'] = 'desktop'
-            
-            
             services.datastore.addtocollection( databasename=user.userid, 
                                                 collectionname='loginHistory', 
                                                 datadict=datadict)
-            expire_in = services.jwtdesktop.exp() 
 
+            expire_in = services.jwtdesktop.exp() 
             return Results.success(result={
                 'target_ip'     :   self.get_target_ip_route(desktop.ipAddr),
                 'vncpassword'   :   desktop.vncPassword,
@@ -415,8 +400,13 @@ class ComposerController(BaseController):
                 'websockettcpport': oc.od.settings.desktopservicestcpport['x11server'],
                 'expire_in'     :   expire_in             
             })
+
+        except Exception as e:
+            return Results.error( message=str(e) )
+
         finally:
-            messageinfo.stop() # Stop message info log
+            if hasattr( user, 'userid'): 
+                services.messageinfo.stop(user.userid) # Stop message info log
 
 
     def get_target_ip_route(self, target_ip):  
@@ -481,15 +471,13 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def listsecrets(self):
-        logger.debug('')
         try:
             (auth, user ) = self.validate_env()
+            # list secrets
+            secrets = oc.od.composer.listAllSecretsByUser( auth, user)
+            list_secrets = list( secrets )
+            return Results.success(result=list_secrets)
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
-
-        # list secrets
-
-        secrets = oc.od.composer.listAllSecretsByUser( auth, user)
-        list_secrets = list( secrets )
-        return  Results.success(result=list_secrets)
+ 
