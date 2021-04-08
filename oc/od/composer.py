@@ -24,10 +24,12 @@ import oc.od.orchestrator
 
 from oc.od.services import services
 from oc.od.infra import ODError  # Desktop Infrastructure Class lib
+from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 import distutils.util
 import docker # only for type
-from cherrypy import _json as json
+import json
 import requests
+
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +72,9 @@ def selectOrchestrator(arguments=None):
     return myOrchestrator
 
 
-def opendesktop(nodehostname, authinfo, userinfo, args ):
-    """open a new or resule a desktop
+def opendesktop(authinfo, userinfo, args ):
+    """open a new or return a desktop
     Args:
-        nodehostname (str): prefered node host name
         authinfo (AuthInfo): authentification data
         userinfo (AuthUser): user data 
         args (dict): additionnal desktop data 
@@ -90,17 +91,20 @@ def opendesktop(nodehostname, authinfo, userinfo, args ):
     logger.info('')
     app = args.get('app')
     
+    services.messageinfo.start(userinfo.userid, 'Looking for your desktop')
     # look for a desktop
     desktop = finddesktop( authinfo, userinfo, app )
     desktoptype = 'desktopmetappli' if app else 'desktop' 
     if type(desktop) is oc.od.desktop.ODDesktop :
+        services.messageinfo.push(userinfo.userid, 'Connecting to your running desktop')  
         # if the desktop exists resume the connection
         services.accounting.accountex( desktoptype, 'resumed')
         logger.info("Container %s available, resuming", userinfo.userid)
-        resumedesktop( nodehostname, authinfo, userinfo ) # update last connection datetime
+        resumedesktop( authinfo, userinfo ) # update last connection datetime
     else:
         # create a new desktop
-        desktop = createdesktop(nodehostname, authinfo, userinfo, args) 
+        services.messageinfo.push(userinfo.userid, 'Creating a new desktop')
+        desktop = createdesktop( authinfo, userinfo, args) 
         if desktop is None:
             services.accounting.accountex( desktoptype, 'createfailed')
             logger.error('Cannot create a new desktop') 
@@ -173,11 +177,10 @@ def finddesktop( authinfo, userinfo, appname=None ):
     Returns:
         [ODesktop]: oc.od.desktop.ODDesktop Desktop Object or None if not found
     """
-    services.messageinfo.push(userinfo.userid, 'Looking for your desktop...')        
+    services.messageinfo.push(userinfo.userid, 'Looking for your desktop.')        
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
     kwargs = { 'defaultnetworknetuserid': oc.od.settings.defaultnetworknetuserid, 'appname': appname }
-    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)  
-    services.messageinfo.push(userinfo.userid, 'Looking for your desktop done')     
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)     
     return myDesktop
 
 
@@ -359,30 +362,23 @@ def createDesktopArguments( authinfo, userinfo ):
         'balloon_gid': settings.getballoon_gid(),   
             # set the username for balloon running inside the docker container 
             # by default balloon            
-        'balloon_name': settings.getballoon_name(), 
-            # set desktopuserusehostsharememory
-            # use the host share memory 
-        'desktopuserusehostsharememory': settings.desktopuserusehostsharememory,            
-            # ipc_mode for share ipc between container 
-            # by default ipc_mode is 'shareable' 
-        'ipc_mode' : settings.desktopusershareipcnamespace,
+        'balloon_name': settings.getballoon_name(),       
             # environment vars
         'env' : env
     }
     return myCreateDesktopArguments
  
-def resumedesktop( preferednodehostname, authinfo, userinfo, appname='' ):
+def resumedesktop( authinfo, userinfo, appname='' ):
     myOrchestrator = selectOrchestrator()
     kwargs = { 'defaultnetworknetuserid': oc.od.settings.defaultnetworknetuserid, 'appname': appname }
     myDesktop = myOrchestrator.resumedesktop(authinfo, userinfo, **kwargs)  
     return myDesktop
         
 
-def createdesktop( preferednodehostname, authinfo, userinfo, args  ):
+def createdesktop( authinfo, userinfo, args  ):
     """create a new desktop 
 
     Args:
-        preferednodehostname (str): [description]
         authinfo (AuthInfo): authentification data
         userinfo (AuthUser): user data 
         args ([type]): [description]
@@ -395,7 +391,6 @@ def createdesktop( preferednodehostname, authinfo, userinfo, args  ):
 
     try:
         myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo )
-        myCreateDesktopArguments['preferednodehostname'] = preferednodehostname
         myCreateDesktopArguments['usersourceipaddr']     = args[ 'usersourceipaddr' ] 
         appname = args.get('app')
        
@@ -432,7 +427,6 @@ def createdesktop( preferednodehostname, authinfo, userinfo, args  ):
             myCreateDesktopArguments['env'].update({'DISABLE_REMOTEIP_FILTERING': 'enabled' })
         
         messageinfo = services.messageinfo.getqueue(userinfo.userid)
-        messageinfo.push('Building desktop')
 
         # new Orchestrator Object
         myOrchestrator = selectOrchestrator()
@@ -442,7 +436,7 @@ def createdesktop( preferednodehostname, authinfo, userinfo, args  ):
         myDesktop = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo,  **myCreateDesktopArguments )
 
         if myDesktop is not None:
-            messageinfo.push('Starting network services, it will take a while...')
+            messageinfo.push('Starting network services, it will take a while.')
             processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
             messageinfo.push('Network services started.')
             logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
@@ -554,6 +548,25 @@ def callwebhook(webhookurl):
             self.logger.error( e )
     return hookdict
 
+def notify_user( access_userid, access_type, method, data ):
+    """[notify_user]
+        Send a notify message to a userid
+    Args:
+        userid ([str]): [userid]
+        status ([str]): [one of 'oom']
+        message ([str]): [message]
+    """
+    # fake an authinfo object
+    authinfo = AuthInfo( provider=access_type )
+    # fake an userinfo object
+    userinfo = AuthUser( {  'userid': access_userid } )
+
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()  
+    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
+    cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
+    myOrchestrator.execincontainer(myDesktop.container_id, cmd)
+    
 
 def getapp(authinfo, name):
     app = services.apps.findappbyname(authinfo, name)
@@ -647,6 +660,7 @@ def listAllSecretsByUser(authinfo, userinfo ):
     myOrchestrator = selectOrchestrator()
     # find all screcrets for a user
     secrets_dict = myOrchestrator.list_dict_secret_data( authinfo, userinfo )
+    # for secret in secrets_dict.values():
     # map to filter secret type
     secrets_type_list = list( map(lambda x: x.get('type'), secrets_dict.values() ) )
     # return list
