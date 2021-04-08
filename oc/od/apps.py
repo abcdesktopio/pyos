@@ -34,6 +34,11 @@ class ODApps:
         self.myglobal_list = {}
         self.build_image_counter = 0
         self.cached_image_counter = 0
+        self.public_attr_list   = [ 
+            'launch',   'name', 'icon', 'keyword',      'uniquerunkey', 'cat',  'args', 'image',
+            'execmode', 'showinview',   'displayname',  'mimetype', 'path', 'desktopfile', 'executablefilename' ]
+        self.private_attr_list  = [ 
+            'sha_id', 'acl',  'rules', 'privileged', 'security_opt']
 
     def makeiconfile(self, filename, b64data):
         bReturn = False
@@ -143,7 +148,10 @@ class ODApps:
     def user_applist( self, auth ):
         """[user_applist] return a list of user application list
         make a copy to remove security entries 
-        remove key value 'sha_id', 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'
+        keep only public_attr_list data
+        self.public_attr_list   = [ 'launch', 'name', 'icon',       'keyword',      'uniquerunkey',
+                                    'cat',    'args',  'execmode',  'showinview', 'displayname', 
+                                    'mimetype', 'path', 'desktopfile', 'executablefilename' ]
         Args:
             auth ([type]): [description]
 
@@ -151,18 +159,7 @@ class ODApps:
             [list]: [list of application]
         """
         userapplist = []
-        #
-        # make a copy to remove security entries 
-        # 'sha_id', 
-        # 'acl', 
-        # 'rules', 
-        # 'shm_size', 
-        # 'oom_kill_disable', 
-        # 'mem_limit', 
-        # 'privileged', 
-        # 'security_opt'
-        #
-
+        
         # Lock here 
         # run a quick deep copy of self.myglobal_list 
         self.lock.acquire()
@@ -174,10 +171,15 @@ class ODApps:
         # for each app in docker images
         for myapp in applist.values():
             if self.is_app_allowed( auth, myapp ) is True :
-                for m in [ 'sha_id', 'acl', 'rules', 'shm_size', 'oom_kill_disable', 'mem_limit', 'privileged', 'security_opt'] :
-                    # hidden internal dict entry to frontweb json
-                    del myapp[m]
-                userapplist.append( myapp )
+                newapp = {}
+
+                # filter only public attr 
+                # do not push system informations
+                # to web user
+                # for a in self.public_attr_list:
+                #    newapp[a] = myapp[a]
+                newapp = myapp
+                userapplist.append( newapp )
         return userapplist
 
     
@@ -200,7 +202,7 @@ class ODApps:
         finally:
             self.lock.release()
 
-        # make a copy to remove security entries 
+        # for earch app, add only allowed app
         for app in applist.keys():
             myapp = applist[app]
             if self.is_app_allowed( auth, myapp ) is True :
@@ -220,11 +222,11 @@ class ODApps:
         def safe_load_label_json( labels, label, default_value=None ): 
             load_json = default_value # default return value
             data = labels.get(label)
-            if data is not None:     
+            if isinstance(data, str) :     
                 try:
                     load_json = json.loads(data)
                 except Exception as e:
-                    logger.error( 'invalid label %s json format %s, skipping label', label, e)
+                    logger.error( 'invalid label %s, json format %s, skipping label', label, e)
             return load_json 
 
         myapp = None
@@ -249,9 +251,6 @@ class ODApps:
         name = labels.get('oc.name')
         args = labels.get('oc.args')
         uniquerunkey = labels.get('oc.uniquerunkey')
-        shm_size = labels.get('oc.shm_size')
-        mem_limit  = labels.get('oc.mem_limit')
-        execmode = labels.get('oc.execmode')
         showinview = labels.get('oc.showinview')
         displayname = labels.get('oc.displayname')
         mimetype = labels.get('oc.mimetype')
@@ -259,16 +258,18 @@ class ODApps:
         fileextensions = labels.get('oc.fileextensions')
         legacyfileextensions = labels.get('oc.legacyfileextensions')
         usedefaultapplication = labels.get('oc.usedefaultapplication')
-
+        execmode = labels.get('oc.execmode')
+       
+        
+        
         if usedefaultapplication is not None:
             usedefaultapplication = json.loads(usedefaultapplication)
 
         # safe load convert json data json
-        acl = safe_load_label_json( labels, 'oc.acl' )
         rules = safe_load_label_json( labels, 'oc.rules' )
+        acl = safe_load_label_json( labels, 'oc.ressources' )
         security_opt = safe_load_label_json(labels, 'oc.security_opt' )
-        oomkilldisable = safe_load_label_json(labels, 'oc.oomkilldisable', False)
-        privileged = safe_load_label_json(labels, 'oc.privileged', False )
+        host_config = safe_load_label_json(labels, 'oc.host_config', default_value={})
 
         executablefilename = None
         if path is not None:
@@ -278,7 +279,8 @@ class ODApps:
         fileextensionslist = self.labeltoList(fileextensions)
         legacyfileextensionslist = self.labeltoList(legacyfileextensions)
 
-        if icon is not None and icondata is not None:
+        # check if icon file name exists and icon data is str
+        if isinstance(icon, str) and isinstance(icondata, str):
             self.makeiconfile(icon, icondata)
 
         if all([sha_id, launch, name, icon, imageid]):
@@ -295,20 +297,17 @@ class ODApps:
                 'cat': cat,
                 'args': args,
                 'execmode': execmode,
-                'mem_limit': mem_limit,
-                'shm_size': shm_size,
                 'security_opt' : security_opt,
-                'oom_kill_disable': oomkilldisable,
                 'showinview': showinview,
                 'displayname': displayname,
                 'mimetype': mimelist,
                 'path': path,
-                'privileged': privileged,
                 'desktopfile': desktopfile,
                 'executablefilename': executablefilename,
                 'usedefaultapplication': usedefaultapplication,
                 'fileextensions': fileextensionslist,
-                'legacyfileextensions': legacyfileextensionslist
+                'legacyfileextensions': legacyfileextensionslist,
+                'host_config' : host_config
             }
 
         return myapp
