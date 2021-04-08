@@ -219,7 +219,7 @@ def run_server():
     cherrypy.engine.start()
 
     # infite loop
-    logger.info("Waiting for requests...")
+    logger.info("Waiting for requests.")
     cherrypy.engine.block()
 
 def main(argv):
