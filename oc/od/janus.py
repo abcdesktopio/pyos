@@ -68,7 +68,7 @@ class janusclient( object ):
             r = self.mypost(self.janus_url + endpoint, cmd)
             if r :
                 j = r.json()
-                self.logger.debug(json.dumps(j, indent=4, separators=(',', ': ')))
+                # self.logger.debug(json.dumps(j, indent=4, separators=(',', ': ')))
                 return action(j)
 
     def ping( self ):
@@ -343,7 +343,7 @@ class ODJanusCluster():
         Returns:
             [dict]: [stream dict description]
         """
-        self.logger.info('')
+        self.logger.debug('')
         # look for a stream
         if type(pod_name) is not str:
             self.logger.error( 'invalid stream name type')
@@ -355,11 +355,11 @@ class ODJanusCluster():
             # not found, create it
             stream = self.create_stream( pod_name )
             self.logger.debug( 'new stream create' )
-        self.logger.debug( 'get_stream return %s ', stream )
+        # self.logger.debug( 'get_stream return %s ', stream )
         return stream
 
     def destroy_stream( self, pod_name ):
-        self.logger.info('')
+        self.logger.debug('')
         if type(pod_name) is not str:
             self.logger.error( 'invalid stream name type')
             return None
