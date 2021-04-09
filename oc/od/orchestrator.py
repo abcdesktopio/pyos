@@ -471,13 +471,6 @@ class ODOrchestrator(ODOrchestratorBase):
         if myvol is not None:
             volumes.append('/tmp')
             volumesbind.append(myvol.name + ':/tmp')
-            
-        # Check if share memory is enable if config file 
-        # add the volume mappping for /dev/shm device
-        if oc.od.settings.desktopuserusehostsharememory is True:
-            # add -v /dev/shm:/dev/shm        
-            volumes.append('/dev/shm')
-            volumesbind.append('/dev/shm:/dev/shm')
 
         # if home is volume, create a volume or reuse the volume
         if kwargs.get('desktophomedirectorytype') == 'volume':        
@@ -756,20 +749,27 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # build the host config
         # first load the default hostconfig from od.config for all containers
+        # create a new host_config dict
+        # 
+        # host_config = applicationhostconfig from configuration file
+        # host_config.update( application hostconfig entry )
+        # host_config.update( user rules entry )
+        # host_config.update( volume )
+        #
+        # read the default applicationhostconfig from configuration file
         host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
-
         # load the specific hostconfig from the app object
-        host_config.update( app.get('host_config'))
-        
+        # host_config.update( app.get('host_config'))
+
         # container: <_name-or-ID_>
         # Join another ("shareable") container's IPC namespace.
         ipc_mode = None
-        if host_config.get('ipc_mode') == 'shareable':  
-            ipc_mode = 'container:' + desktop.id
+        if oc.od.settings.applicationhostconfig.get('ipc_mode') == 'shareable' and oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':  
+           ipc_mode = 'container:' + desktop.id
 
+        # share pid name space
         pid_mode = None
-        # share process name space
-        if host_config.get('pid_mode') is True :        
+        if host_config.get('pid_mode') is True :     
             pid_mode = 'container:' + desktop.id
 
 
@@ -964,8 +964,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # if appname is set then create a metappli labels
         # this will change and run the app
         if type(appname) is str:
-            labels.update( {    'type':     self.x11servertype_embeded,
-                                'appname':  appname } )
+            labels.update( { 'type': self.x11servertype_embeded, 'appname':  appname } )
             container_name  = self.get_graphicalcontainername( userinfo.userid + '-' + appname )
         else:
             container_name  = self.get_graphicalcontainername( userinfo.userid )
@@ -980,9 +979,19 @@ class ODOrchestrator(ODOrchestratorBase):
             c = myinfra.getdockerClientAPI()
             # callback_notify( 'Create your network' )
             networking_config = c.create_networking_config({oc.od.settings.defaultnetworknetuser: c.create_endpoint_config()})
-            host_config       = c.create_host_config(   binds=volumebind, 
-                                                        **oc.od.settings.desktophostconfig.get('privileged', False), 
-                                                    )
+            
+            # remove bad/nosence value if exists
+            if oc.od.settings.desktophostconfig.get('pid_mode'):      
+               del oc.od.settings.desktophostconfig['pid_mode']
+
+            # if oc.od.settings.desktophostconfig.get('network_mode') :  
+            #    del oc.od.settings.desktophostconfig['container']
+            desktophostconfig = copy.deepcopy( oc.od.settings.desktophostconfig )
+            if desktophostconfig.get('pid_mode'): del desktophostconfig['pid_mode']
+
+            desktophostconfig['binds'] = volumebind
+            host_config  = c.create_host_config( **desktophostconfig )
+            
             # callback_notify( 'Create your desktop' )
             mydesktopcreate_container = c.create_container( name=container_name,
                                                             image=image,
@@ -993,7 +1002,8 @@ class ODOrchestrator(ODOrchestratorBase):
                                                             volumes=volumes,
                                                             host_config=host_config,
                                                             detach=True
-                        )
+            )
+
             # get the containerid as mydesktopid
             mydesktopid = mydesktopcreate_container.get('Id', None)
             if mydesktopid is not None:
@@ -1010,8 +1020,7 @@ class ODOrchestrator(ODOrchestratorBase):
                                         desktop_id = mydesktopid,
                                         status=status,
                                         ipAddr=ipAddr,
-                                        vncPassword=vncPassword
-                                        )                
+                                        vncPassword=vncPassword )                
             myinfra.close()
 
         except docker.errors.APIError as e:
@@ -1143,8 +1152,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # no pods
             self.default_volumes = {}
             self.default_volumes_mount = {}
-            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size') } }
-            self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
+            
             if oc.od.settings.desktopusepodasapp :
                 self.default_volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
                 self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
@@ -1281,10 +1289,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.settings.desktopuselocaltime is True:
             volumes['localtime']       = { 'name': 'localtime', 'hostPath': { 'path': '/etc/localtime' } }
             volumes_mount['localtime'] = { 'name': 'localtime', 'mountPath' : '/etc/localtime' }
-
-        if oc.od.settings.desktopuserusehostsharememory is True:
-            volumes['shm']       = self.default_volumes['shm']
-            volumes_mount['shm'] = self.default_volumes_mount['shm']
         
         #
         # add dedicated tmp volume for /tmp/ X11 unix socket support
@@ -1939,7 +1943,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         initContainers = []
 
         if  oc.od.settings.desktopuseinitcontainer              is True and \
-            type(oc.od.settings.desktopinitcontainercommand) is list and \
+            type(oc.od.settings.desktopinitcontainercommand)    is list and \
             type(oc.od.settings.desktopinitcontainerimage)      is str  :
             # init container chown to change the owner of the home directory
             init_name = 'init' + pod_name
@@ -1951,7 +1955,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             } )
             self.logger.debug( 'initContainers is %s', initContainers)
 
+        # check if shareProcessNamespace is enabled
+        # read the pid_mode as shareProcessNamespace in desktophostconfig
+        # if not set or not bool set shareProcessNamespace to False
+        shareProcessNamespace = oc.od.settings.desktophostconfig.get( 'pid_mode' )
+        if not isinstance( shareProcessNamespace, bool):
+            shareProcessNamespace = False
 
+        # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
             'kind': 'Pod',
@@ -1962,9 +1973,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 **self.get_annotations_lastlogin_datetime()
             },
             'spec': {
-                'automountServiceAccountToken': False, # disable service account 
+                'automountServiceAccountToken': False,  # disable service account 
                 'subdomain': self.endpoint_domain,
-                'shareProcessNamespace': oc.od.settings.desktophostconfig.get( 'pid_mode', False ),
+                'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list_volumes,                    
                 'nodeSelector': oc.od.settings.desktopnodeselector, 
                 'initContainers': initContainers,
@@ -1993,7 +2004,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.settings.desktopimagepullsecret:
             pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktopimagepullsecret } ]
 
-        if oc.od.settings.desktopuseprintercontainer is True and type(oc.od.settings.desktopprinterimage) is str :
+        if oc.od.settings.desktopuseprintercontainer is True and \
+            type(oc.od.settings.desktopprinterimage) is str :
             # get the container sound name prefix with 'p' like sound
             container_printer_name = self.get_printercontainername( myuuid )
             pod_manifest['spec']['containers'].append( { 
@@ -2005,7 +2017,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                 }   
             )
         
-        if oc.od.settings.desktopusesoundcontainer is True and type(oc.od.settings.desktopsoundimage) is str :
+        if oc.od.settings.desktopusesoundcontainer is True and \
+           type(oc.od.settings.desktopsoundimage) is str :
             # get the container sound name prefix with 's' like sound
             container_sound_name = self.get_soundcontainername( myuuid )
             # pulseaudio need only the shared volume 
@@ -2015,8 +2028,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # the home directory of balloon user MUST belongs to balloon user 
             # else pulseaudio does not start
             soundcontainerlist_volumeMounts = [ self.default_volumes_mount['tmp'] ]
-            if oc.od.settings.desktopuserusehostsharememory is True:
-                soundcontainerlist_volumeMounts += [ self.default_volumes_mount['shm'] ]
 
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_sound_name,
@@ -2035,71 +2046,62 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # we are ready to create our Pod 
         myDesktop = None
-        try:
-            nMaxEvent = 64
-            nEventCount = 0
-            
-            self.on_desktoplaunchprogress('Creating your desktop')
-            pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
-
-            if type(pod) is not client.models.v1_pod.V1Pod:
-                self.on_desktoplaunchprogress('Create Pod failed.' )
-                raise ValueError( 'Invalid create_namespaced_pod type')
-
-            try:                    
-                self.logger.info( 'Start watching events' )
-                self.on_desktoplaunchprogress('Watching for events from services')
-                w = watch.Watch()                 
-                for event in w.stream(  self.kubeapi.list_namespaced_pod, 
-                                        namespace=self.namespace, 
-                                        field_selector='metadata.name=' + pod_name ):                        
-                    event_type = event.get('type')
-                    if event_type is None:
-                        # nothing to do 
-                        continue
-
-                    self.logger.info('count=%d event_type=%s ', nEventCount, event['type'] )
-                    self.on_desktoplaunchprogress('{} event received', event_type.lower() )
-
-                    nEventCount +=1
-                    if nEventCount > nMaxEvent:                            
-                        w.stop()  
-                    
-                    if event_type == 'ADDED':
-                        self.logger.info('event type ADDED received')
-                        # the pod has been added
-                        # wait for next MODIFIED event type
-                        
-                    if event_type == 'MODIFIED':
-                        self.logger.info('event type MODIFIED received')
-                        # pod_event = w.unmarshal_event( data=event['object'], return_type=type(pod) )
-
-                    pod_event = event.get('object')
-                    
-                    if type(pod_event) == type(pod) :                            
-                        self.on_desktoplaunchprogress('Install process can take up to 10 s. Status is {}:{}', pod_event.status.phase, event_type.lower() )
-                        if pod_event.status.phase != 'Pending' :
-                            self.logger.info('Stop event')
-                            w.stop()                          
-                                            
-            except ApiException as e:
-                self.logger.debug("Exception when calling CoreV1Api->list_namespaced_pod: %s\n", str(e) )
-
-
-            self.logger.debug( "%d/%d", nEventCount, nMaxEvent )
-            
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
-            self.on_desktoplaunchprogress('Your desktop phase is {}.', myPod.status.phase.lower() )
-          
-            self.logger.info( 'myPod %s', myPod)
-            self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
-
-            myDesktop = self.pod2desktop( myPod )
-
-        except ApiException as e:
-            self.logger.error( str(e) )
-
         
+        nMaxEvent = 64
+        nEventCount = 0
+        
+        self.on_desktoplaunchprogress('Creating your desktop')
+        pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
+
+        if not isinstance(pod, client.models.v1_pod.V1Pod ):
+            self.on_desktoplaunchprogress('Create Pod failed.' )
+            raise ValueError( 'Invalid create_namespaced_pod type')
+
+        self.on_desktoplaunchprogress('Watching for events from services')
+
+        w = watch.Watch()                 
+        for event in w.stream(  self.kubeapi.list_namespaced_pod, 
+                                namespace=self.namespace, 
+                                field_selector='metadata.name=' + pod_name ):                        
+            event_type = event.get('type')
+            if event_type is None:
+                # nothing to do 
+                continue
+
+            self.logger.info('count=%d event_type=%s ', nEventCount, event['type'] )
+            self.on_desktoplaunchprogress('{} event received', event_type.lower() )
+
+            nEventCount +=1
+            if nEventCount > nMaxEvent:                            
+                w.stop()  
+            
+            if event_type == 'ADDED':
+                self.logger.info('event type ADDED received')
+                # the pod has been added
+                # wait for next MODIFIED event type
+                
+            if event_type == 'MODIFIED':
+                self.logger.info('event type MODIFIED received')
+                # pod_event = w.unmarshal_event( data=event['object'], return_type=type(pod) )
+
+            pod_event = event.get('object')
+            
+            if type(pod_event) == type(pod) :                            
+                self.on_desktoplaunchprogress('Install process can take up to 10 s. Status is {}:{}', pod_event.status.phase, event_type.lower() )
+                if pod_event.status.phase != 'Pending' :
+                    self.logger.info('Stop event')
+                    w.stop()                          
+
+        self.logger.debug( "%d/%d", nEventCount, nMaxEvent )
+        
+        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
+        self.on_desktoplaunchprogress('Your desktop phase is {}.', myPod.status.phase.lower() )
+        
+        self.logger.info( 'myPod %s', myPod)
+        self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
+
+        myDesktop = self.pod2desktop( myPod )
+
         return myDesktop
 
   
