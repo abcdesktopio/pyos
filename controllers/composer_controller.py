@@ -131,7 +131,7 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def launchdesktop(self):
-
+        logger.debug('')
         try:
             (auth, user ) = self.validate_env()
             # add lang to user dict   
