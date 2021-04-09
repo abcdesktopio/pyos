@@ -65,7 +65,6 @@ desktopimagepullsecret  = None
 desktoppolicies         = {}
 desktopusepodasapp      = False
 desktopimagepullpolicy  = 'IfNotPresent'
-desktopuserusehostsharememory = True
 
 # printer container
 desktopuseprintercontainer  = False 
@@ -87,7 +86,6 @@ desktopsecretsrootdirectory = '/var/secrets/'
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
 desktopuseinternalfqdn = False
 desktopuselocaltime = True
-desktopsecurityopt = []
 desktopservicestcpport = { 'x11server': 6081, 'spawner': 29786, 'broadcast': 29784, 'pulseaudio': 4714 }
 
 # fake network default interface ip address Only for reverse proxy
@@ -339,9 +337,7 @@ def init_desktop():
     global desktopenvironmentlocal
     global desktopimagepullsecret
     global desktopuseinternalfqdn
-    global desktopuserusehostsharememory
     global stack_mode
-    global desktopsecurityopt
     global desktopuselocaltime
     global desktoppolicies
     global desktoppostponeapp
@@ -387,13 +383,12 @@ def init_desktop():
         ]
 
 
-    _desktophostconfig = gconfig.get('desktop.hostconfig',
+    _desktophostconfig = gconfig.get('desktop.host_config',
                                 {   'auto_remove'   : True,
                                     'ipc_mode'      : 'shareable',
-                                    'pid_mode'      : True,
-                                    'network_mode'  : 'container',
-                                    'shm_size'      : '128M'
+                                    'pid_mode'      : True
                                 })
+
     # check if desktophostconfig contains permit value
     desktophostconfig = {}
     for keyconfig in _desktophostconfig.keys():
@@ -406,13 +401,13 @@ def init_desktop():
             desktophostconfig[keyconfig] =  _desktophostconfig[keyconfig]
 
 
-    _applicationhostconfig = gconfig.get('desktop.applicationconfig',
+    _applicationhostconfig = gconfig.get('desktop.application_config',
                                 {   'auto_remove'   : True,
-                                    'ipc_mode'      : 'shareable',
                                     'pid_mode'      : True,
-                                    'network_mode'  : 'container',
-                                    'shm_size'      : '128M'
+                                    'ipc_mode'      : 'shareable',
+                                    'network_mode'  : 'container'
                                 })
+
     # check if desktophostconfig contains permit value
     applicationhostconfig = {}
     for keyconfig in _applicationhostconfig.keys():
@@ -426,31 +421,27 @@ def init_desktop():
     desktopprinterimage     = gconfig.get('desktop.printerimage')
     desktopsoundimage       = gconfig.get('desktop.soundimage')
     desktoppolicies         = gconfig.get('desktop.policies', {} )
-
-    desktopinitcontainerimage = gconfig.get('desktop.initcontainerimage')
-   
+    desktopinitcontainerimage  = gconfig.get('desktop.initcontainerimage')
     desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
     desktopusesoundcontainer   = gconfig.get('desktop.usesoundcontainer',False)
     desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
+
     # desktopinitcontainercommand
     # is an array 
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
-    desktopinitcontainercommand = gconfig.get('desktop.initcontainercommand')
-    desktopusepodasapp = gconfig.get( 'desktop.usepodasapp', False )
+    desktopinitcontainercommand     = gconfig.get('desktop.initcontainercommand')
+    desktopusepodasapp              = gconfig.get('desktop.usepodasapp', False )
+    defaultbackgroundcolors         = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
 
-    defaultbackgroundcolors = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
-    
-    desktopuserusehostsharememory   = gconfig.get('desktop.userusehostsharememory', True )
     desktophomedirectorytype        = gconfig.get('desktop.homedirectorytype', 'volume')
     desktoppersistentvolumeclaim    = gconfig.get('desktop.persistentvolumeclaim', 'abcdesktop-pvc' )
     desktopallowPrivilegeEscalation = gconfig.get('desktop.allowPrivilegeEscalation', False )
-    desktopnodeselector     = gconfig.get('desktop.nodeselector', {} )    
-    desktopusedbussession   = gconfig.get('desktop.usedbussession', False )
-    desktopusedbussystem    = gconfig.get('desktop.usedbussystem', False )
-    desktopuseinternalfqdn  = gconfig.get('desktop.useinternalfqdn', False ) 
-    desktopsecurityopt      = gconfig.get('desktop.securityopt', [ 'no-new-privileges', 'seccomp=unconfined' ] )
-    desktopuselocaltime     = gconfig.get('desktop.uselocaltime', False ) 
-    desktoppostponeapp      = gconfig.get('desktoppostponeapp')
+    desktopnodeselector             = gconfig.get('desktop.nodeselector', {} )    
+    desktopusedbussession           = gconfig.get('desktop.usedbussession', False )
+    desktopusedbussystem            = gconfig.get('desktop.usedbussystem', False )
+    desktopuseinternalfqdn          = gconfig.get('desktop.useinternalfqdn', False ) 
+    desktopuselocaltime             = gconfig.get('desktop.uselocaltime', False ) 
+    desktoppostponeapp              = gconfig.get('desktoppostponeapp')
     
     # add default env local vars if not set 
     desktopenvironmentlocal = gconfig.get(  'desktop.envlocal', 
