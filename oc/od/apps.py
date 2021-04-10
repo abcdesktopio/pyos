@@ -270,7 +270,8 @@ class ODApps:
         acl = safe_load_label_json( labels, 'oc.ressources' )
         security_opt = safe_load_label_json(labels, 'oc.security_opt' )
         host_config = safe_load_label_json(labels, 'oc.host_config', default_value={})
-
+        host_config = oc.od.settings.filter_hostconfig( host_config )
+        
         executablefilename = None
         if path is not None:
             executablefilename = os.path.basename(path)

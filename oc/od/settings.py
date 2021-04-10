@@ -93,7 +93,7 @@ desktopservicestcpport = { 'x11server': 6081, 'spawner': 29786, 'broadcast': 297
 # this is not the binding ip for the server
 default_server_ipaddr   = None  # THIS IS NOT THE BINDING IP ADDR 
 default_host_url        = None  # default FQDN host name to reach the web site
-default_host_url_is_securised = None  # is default_host_url securized https
+default_host_url_is_securised = False  # is default_host_url securized https
 
 defaultnetworknetuser   = None  # name of the default netuser network by default netuser
 defaultnetworknetuserid = None  # id of the default netuser network
@@ -121,6 +121,51 @@ jwt_config_desktop = None
 # webrtc janus config
 webrtc_server = None
 webrtc_enable = False
+
+# hostconfig define
+desktophostconfig = {}
+applicationhostconfig = {}
+desktopkubernetesresourcelimits = {}
+
+list_hostconfigkey = [ 
+        'auto_remove',
+        'cap_add', 
+        'cap_drop',
+        'cpu_period',
+        'cpu_quota',
+        'cpu_shares',
+        'cpuset_cpus',
+        'cpuset_mems',
+        'device_cgroup_rules',
+        'device_read_bps',
+        'device_read_iops',
+        'device_write_bps',
+        'device_write_iops',
+        'devices',
+        'device_requests',
+        'ipc_mode',
+        'mem_limit',
+        'mem_reservation',
+        'mem_swappiness',
+        'memswap_limit',
+        'network_mode',
+        'oom_kill_disable',
+        'oom_score_adj',
+        'pid_mode',
+        'pids_limit',
+        'privileged',
+        'read_only',
+        'restart_policy',
+        'runtime',
+        'security_opt',
+        'shm_size', 
+        'storage_opt',
+        'sysctls',
+        'tmpfs',
+        'ulimits'
+        ]
+
+
 
 def getuser_execute_policy():
     return user_execute_policy
@@ -316,6 +361,20 @@ def init_tls():
         logger.warning('Read HOWTO-configure documentation')
 
 
+def filter_hostconfig( host_config ):
+    """[filter_hostconfig]
+        safe function
+        return a filtered host_config dict with only entry from the list_hostconfigkey list
+    Args:
+        host_config ([dict]): [filtered host_config]
+    """
+
+    myhostconfig = {}
+    for keyconfig in host_config.keys():
+        if keyconfig in list_hostconfigkey:
+            myhostconfig[keyconfig] =  host_config[keyconfig]
+    return myhostconfig
+
 def init_desktop():
     global desktophostconfig
     global applicationhostconfig
@@ -343,76 +402,29 @@ def init_desktop():
     global desktoppostponeapp
     global desktopusepodasapp
     global desktopimagepullpolicy
+    global desktopkubernetesresourcelimits
 
-    list_hostconfigkey = [ 
-        'auto_remove',
-        'cap_add', 
-        'cap_drop',
-        'cpu_period',
-        'cpu_quota',
-        'cpu_shares',
-        'cpuset_cpus',
-        'cpuset_mems',
-        'device_cgroup_rules',
-        'device_read_bps',
-        'device_read_iops',
-        'device_write_bps',
-        'device_write_iops',
-        'devices',
-        'device_requests',
-        'ipc_mode',
-        'mem_limit',
-        'mem_reservation',
-        'mem_swappiness',
-        'memswap_limit',
-        'network_mode',
-        'oom_kill_disable',
-        'oom_score_adj',
-        'pid_mode',
-        'pids_limit',
-        'privileged',
-        'read_only',
-        'restart_policy',
-        'runtime',
-        'security_opt',
-        'shm_size', 
-        'storage_opt',
-        'sysctls',
-        'tmpfs',
-        'ulimits'
-        ]
+    
 
-
-    _desktophostconfig = gconfig.get('desktop.host_config',
-                                {   'auto_remove'   : True,
-                                    'ipc_mode'      : 'shareable',
-                                    'pid_mode'      : True
-                                })
-
+    desktophostconfig = gconfig.get('desktop.host_config',
+                                    {   'auto_remove'   : True,
+                                        'ipc_mode'      : 'shareable',
+                                        'pid_mode'      : True
+                                    })
     # check if desktophostconfig contains permit value
-    desktophostconfig = {}
-    for keyconfig in _desktophostconfig.keys():
-        if keyconfig in list_hostconfigkey:
-            desktophostconfig[keyconfig] =  _desktophostconfig[keyconfig]
+    desktophostconfig = filter_hostconfig( desktophostconfig )
+
+
+    applicationhostconfig = gconfig.get('desktop.application_config',
+                                        {   'auto_remove'   : True,
+                                            'pid_mode'      : True,
+                                            'ipc_mode'      : 'shareable',
+                                            'network_mode'  : 'container'
+                                        })
     # check if desktophostconfig contains permit value
-    desktophostconfig = {}
-    for keyconfig in _desktophostconfig.keys():
-        if keyconfig in list_hostconfigkey:
-            desktophostconfig[keyconfig] =  _desktophostconfig[keyconfig]
+    applicationhostconfig = filter_hostconfig( applicationhostconfig )
 
-
-    _applicationhostconfig = gconfig.get('desktop.application_config',
-                                {   'auto_remove'   : True,
-                                    'pid_mode'      : True,
-                                    'ipc_mode'      : 'shareable',
-                                    'network_mode'  : 'container'
-                                })
-
-    # check if desktophostconfig contains permit value
-    applicationhostconfig = {}
-    for keyconfig in _applicationhostconfig.keys():
-        if keyconfig in list_hostconfigkey:
-            applicationhostconfig[keyconfig] =  _applicationhostconfig[keyconfig]
+    desktopkubernetesresourcelimits = read_kubernetes_resource_limits( desktophostconfig )
 
     # load docker images name
     desktopimagepullsecret  = gconfig.get('desktop.imagePullSecret')
@@ -453,7 +465,10 @@ def init_desktop():
                 'LOGNAME'	        : 'balloon',
                 'PULSE_SERVER'          : '/tmp/.pulse.sock',
                 'CUPS_SERVER'           : 'localhost:631'} )
+
     init_balloon()
+
+   
 
 
 def init_menuconfig():
@@ -461,7 +476,6 @@ def init_menuconfig():
     menuconfig = gconfig.get('front.menuconfig', {  'settings': True, 
                                                     'appstore': True, 
                                                     'screenshot':True, 
-                                                    'download': True, 
                                                     'logout':   True, 
                                                     'disconnect': True } )
 
@@ -556,6 +570,30 @@ def init_controllers():
     # local net is defined as list_local_subnet
     list_local_subnet = [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8', '169.254.0.0/16', '127.0.0.0/8' ]
     controllers = gconfig.get(  'controllers', { 'manager': { 'permitip': list_local_subnet } } )
+
+def read_kubernetes_resource_limits( hostconfig ):
+    """ [read_resource_limits]
+        convert docker cpu_period and cpu_quota as a kubernetes cpu limit ressource
+        convert docker mem as a kubernetes cpu limit ressource
+    Returns:
+        [dict]: [kubernetes resources limit dict]
+    """
+    limits = {} 
+    # you set --cpus="1.5", the container is guaranteed at most one and a half of the CPUs. 
+    # This is the equivalent of setting --cpu-period="100000" and --cpu-quota="150000".
+    cpu_period = hostconfig.get('cpu_period')
+    cpu_quota  = hostconfig.get('cpu_quota')
+    if isinstance( cpu_period, int ) and isinstance( cpu_quota,  int ) :
+        cpu_period = cpu_period / 100000
+        cpu_quota  = cpu_quota  / 100000
+        cpu        = float( "{:.1f}".format(cpu_period * cpu_quota) )
+        limits.update( { 'cpu': cpu } )
+    
+    mem_limit = hostconfig.get('mem_limit')
+    if isinstance(mem_limit, str ) :
+        limits.update( { 'memory': str(mem_limit) } )
+    return { 'limits': limits }
+
 
 def init_config_mongodb():
     """init mongodb config

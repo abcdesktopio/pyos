@@ -1160,8 +1160,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
                 self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
-            self.resource_limits = self.read_resource_limits()
-
         except Exception as e:
             self.bConfigure = False
             self.logger.info( '%s', str(e) ) # this is not an error in docker configuration mode, do not log as an error but as info
@@ -1171,29 +1169,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     def close(self):
         #self.kupeapi.close()
         pass
-
-    def read_resource_limits(self):
-        """ [read_resource_limits]
-            convert docker cpu_period and cpu_quota as a kubernetes cpu limit ressource
-            convert docker mem as a kubernetes cpu limit ressource
-        Returns:
-            [dict]: [kubernetes resources limit dict]
-        """
-        limits = {} 
-        # you set --cpus="1.5", the container is guaranteed at most one and a half of the CPUs. 
-        # This is the equivalent of setting --cpu-period="100000" and --cpu-quota="150000".
-        cpu_period = oc.od.settings.desktophostconfig.get('cpu_period')
-        cpu_quota  = oc.od.settings.desktophostconfig.get('cpu_quota')
-        if isinstance( cpu_period, int ) and isinstance( cpu_quota,  int ) :
-            cpu_period = cpu_period / 100000
-            cpu_quota  = cpu_quota  / 100000
-            cpu        = float( "{:.1f}".format(cpu_period * cpu_quota) )
-            limits.update( { 'cpu': cpu } )
-        
-        mem_limit = oc.od.settings.desktophostconfig.get('mem_limit')
-        if isinstance(mem_limit, str ) :
-            limits.update( { 'memory': str(mem_limit) } )
-        return { 'limits': limits }
 
     def is_configured(self): 
         """[is_configured]
@@ -1987,15 +1962,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'args': args,
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
-                                    'securityContext': 
-                                        { 
+                                    'securityContext': { 
                                              # permit sudo command inside the container False by default 
                                             'allowPrivilegeEscalation': oc.od.settings.desktopallowPrivilegeEscalation,
                                             # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]  
                                             'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
                                                               'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
-                                        },
-                                    'resources': self.resource_limits
+                                    },
+                                    'resources': oc.od.settings.desktopkubernetesresourcelimits
                                 }                                                             
                 ],
             }
