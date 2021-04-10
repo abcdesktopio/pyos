@@ -3,7 +3,7 @@ setuptools-rust
 CherryPy==18.5.0
 cryptography
 dnspython
-docker
+docker>=5.0.0
 GeoIP
 graypy
 iso8601
