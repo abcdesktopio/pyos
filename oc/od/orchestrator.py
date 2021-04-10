@@ -759,12 +759,12 @@ class ODOrchestrator(ODOrchestratorBase):
         # read the default applicationhostconfig from configuration file
         host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
         # load the specific hostconfig from the app object
-        # host_config.update( app.get('host_config'))
+        host_config.update( app.get('host_config'))
 
         # container: <_name-or-ID_>
         # Join another ("shareable") container's IPC namespace.
         ipc_mode = None
-        if oc.od.settings.applicationhostconfig.get('ipc_mode') == 'shareable' and oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':  
+        if host_config.get('ipc_mode') == 'shareable' and oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':  
            ipc_mode = 'container:' + desktop.id
 
         # share pid name space
