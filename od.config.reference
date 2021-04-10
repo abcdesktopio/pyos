@@ -418,14 +418,24 @@ desktop.usesoundcontainer: False
 # desktop.usesoundcontainer: True
 
 
-# Option: desktop.container_autoremove
-# desktop.container_autoremove: BOOLEAN
-# When an application container is exited, do we need to remove the container ?
-# By default we do remove the container
-# To troubleshoot some container change this option to False 
-desktop.container_autoremove: True 
-# desktop.container_autoremove: False
 #
+# desktop.applicationconfig
+# desktop.hostconfig
+# use host_config dictionary
+# read host_config page on abcdesktop website
+#
+desktop.applicationconfig : {      
+                        'auto_remove'   : True,
+                        'ipc_mode'      : 'shareable',
+                        'pid_mode'      : True,
+                        'network_mode'  : 'container',
+                        'shm_size'      : '256M' }
+
+desktop.hostconfig : {  'auto_remove'   : True,
+                        'ipc_mode'      : 'shareable',
+                        'pid_mode'      : True,
+                        'network_mode'  : 'container',
+                        'shm_size'      : '256M' }
 
 
 
@@ -461,34 +471,6 @@ desktop.container_autoremove: True
 # using shareable mode for the main (i.e. donor) container, and container:<donor-name-or-ID> for other containers.
 desktop.shareipcnamespace : 'shareable'
 # desktop.shareipcnamespace: 'private'
-
-
-#
-# desktop.usershareprocessnamespace
-# the default value is 'True'
-# This is only for application
-# This option permit user container to share the process namespace with application
-desktop.usershareprocessnamespace: True
-# desktop.usershareprocessnamespace: False
-
-
-#
-# desktop.userusehostsharememory
-# the value is a boolean True or False
-# This option permit docker container to use host shared memory 
-# it add a volume mapping /dev/shm:/dev/shm
-# the default value is False
-desktop.userusehostsharememory : False
-# desktop.userusehostsharememory : True
-
-# 
-# desktop.sharednetworkstack
-# the value is a boolean True or False
-# This is only for application
-# This option permit docker container application to use share the network stack of the user coantainer
-# the default value is True
-desktop.sharednetworkstack: True
-#
 
 
 # Option: desktop.desktopuseinternalfqdn
@@ -539,24 +521,6 @@ desktop.homedirectorytype: 'volume'
 desktop.persistentvolumeclaim: None
 
 
-
-#
-# desktop.capabilities: {}
-# This option set the runtime privilege and Linux capabilities
-# This value is avalaible in kubernetes and docker mode, and only to troubleshoot an application.
-# in docker mode you should also set desktop.privilege : True
-# desktop.capabilities: { 'add': [ "SYS_ADMIN", "SYS_PTRACE" ]}
-# Permit the oc.user to call ptrace:
-#   "SYS_PTRACE": Trace arbitrary processes using ptrace
-#   "SYS_ADMIN": Perform a range of system administration operations.
-# Read the docker run command informations
-# https://docs.docker.com/engine/reference/run/
-# Chapter Runtime privilege and Linux capabilities
-# in kubernetes mode dictionnay value are set to pods directly
-# in docker mode  'add' entry are set to cap_add (list of str) and 
-#                 'drop' entry are set to cap_drop (list of str).
-desktop.capabilities: {}
-
 # desktop.allowPrivilegeEscalation
 # value True or False 
 # This value is only avalaible in kubernetes mode,
@@ -568,19 +532,6 @@ desktop.capabilities: {}
 # You should only set desktop.allowPrivilegeEscalation to run sudo command.
 # In production this value MUST be set to False
 desktop.allowPrivilegeEscalation: False 
-
-# desktop.privilege
-# value True or False 
-# This value is only avalaible in docker mode
-# The desktop.privilege run a user container in privilege mode 
-# When the operator executes docker run privileged, 
-# Docker will enable access to all devices on the host as well as set some configuration 
-# in AppArmor or SELinux to allow the container nearly all the same access to the host as 
-# processes running outside containers on the host.allow a user to run a sudo command. 
-# The default value is False 
-# You should only' set desktop.privilege to troobleshooting.
-# In production this value MUST be set to False
-desktop.privilege: False 
 
 
 #
