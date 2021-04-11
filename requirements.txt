@@ -20,3 +20,4 @@ PyYAML
 requests
 rsa>=4.1
 shellescape
+pan-python
