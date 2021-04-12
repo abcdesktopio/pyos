@@ -24,11 +24,14 @@ import oc.od.orchestrator
 
 from oc.od.services import services
 from oc.od.infra import ODError  # Desktop Infrastructure Class lib
-from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+
 import distutils.util
 import docker # only for type
 import json
 import requests
+import subprocess
+import threading
 
 
 logger = logging.getLogger(__name__)
@@ -513,14 +516,14 @@ def openapp( auth, user={}, kwargs={} ):
     logger.info('Container %s is started', appinstance.id)
     
     # default return value
-    openapp_dict =  {   'container_id': appinstance.id,  'state':        appinstance.status }
+    openapp_dict =  { 'container_id': appinstance.id, 'state': appinstance.status }
 
     # check if appinstances contains hook create or destroy
     if type(appinstance.webhook) is dict:
         webhook_create  = appinstance.webhook.get('create')
         if type(webhook_create) is str:
-            webhook_result = callwebhook(webhook_create)
-            openapp_dict.update( { 'webhook': { 'create' : webhook_result } } )
+            t1=threading.Thread(target=callwebhook, args=[webhook_create])
+            t1.start()
 
         webhook_destroy = appinstance.webhook.get('destroy')
         if type(webhook_destroy) is str:
@@ -530,23 +533,18 @@ def openapp( auth, user={}, kwargs={} ):
 
     return openapp_dict
 
-def callwebhook(webhookurl):
-    # webhook should work 
-    logger.info(webhookurl)   
-    hookdict = None
-    if type(webhookurl) is str:
-        hookdict = {}
-        try :
-            r = requests.get(webhookurl) 
-            hookdict['status'] = r.status_code
-            hookdict['text'] = r.text
-            if r.status_code != 200:
-                self.logger.error( 'failed to call %s resutl %s', webhookurl, str(r) )
-        except Exception as e:
-            hookdict['status'] = 500
-            hookdict['text'] = str(e)
-            self.logger.error( e )
-    return hookdict
+def callwebhook(webhookcmd, timeout=60):
+    try :
+        proc = subprocess.run(webhookcmd, shell=True, timeout=timeout )
+        if isinstance( proc, subprocess.CompletedProcess) :
+            proc.check_returncode()
+            logger.info( 'command %s exit_code=%d stdtout=%s', webhookcmd, proc.returncode, proc.stdout )
+        else:
+            logger.error( 'command %s failed ',webhookcmd )
+    except subprocess.CalledProcessError as e:
+        logger.error( 'command %s failed exit_code=%d stdtout=%s', webhookcmd, proc.returncode, proc.stdout )
+    except Exception as e:
+        logger.error( e )
 
 def notify_user( access_userid, access_type, method, data ):
     """[notify_user]
@@ -638,10 +636,9 @@ def detach_container_from_network( container_id ):
         container_id ([str]): [container id]
     """
     logger.debug( 'detach_container_from_network:key=%s', container_id )
-    url_webhook_destroy = oc.od.services.services.sharecache.get( container_id )
-    if url_webhook_destroy :
-        response_url_detach = callwebhook( url_webhook_destroy )
-        logger.info( response_url_detach )
+    cmd_webhook_destroy = oc.od.services.services.sharecache.get( container_id )
+    if isinstance( cmd_webhook_destroy, str) :
+        callwebhook( cmd_webhook_destroy )
 
 
 

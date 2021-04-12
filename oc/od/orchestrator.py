@@ -846,42 +846,42 @@ class ODOrchestrator(ODOrchestratorBase):
         if isinstance( context_network_webhook, dict) : 
             appinstance.webhook = {}
             # if create exist 
-            webhookstarturl = context_network_webhook.get('create')
-            if isinstance( webhookstarturl, str) :
+            webhookstartcmd = context_network_webhook.get('create')
+            if isinstance( webhookstartcmd, str) :
                 # build the webhook url 
                 # fillwebhook return None if nothing to do
-                webhookurl = self.fillwebhook(  mustacheurl=webhookstarturl, 
+                webhookcmd = self.fillwebhook(  mustachecmd=webhookstartcmd, 
                                                 app=app, 
                                                 authinfo=authinfo, 
                                                 userinfo=userinfo, 
                                                 network_name=network_name, 
                                                 containerid=appinstance_id )
-                appinstance.webhook['create'] = webhookurl
+                appinstance.webhook['create'] = webhookcmd
 
             # if destroy exist 
-            webhookstopurl = context_network_webhook.get('destroy')
-            if isinstance( webhookstopurl, str) :
+            webhookstopcmd = context_network_webhook.get('destroy')
+            if isinstance( webhookstopcmd, str) :
                 # fillwebhook return None if nothing to do
-                webhookurl = self.fillwebhook(  mustacheurl=webhookstopurl, 
+                webhookcmd = self.fillwebhook(  mustachecmd=webhookstopcmd, 
                                                 app=app, 
                                                 authinfo=authinfo, 
                                                 userinfo=userinfo, 
                                                 network_name=network_name, 
                                                 containerid=appinstance_id )
-                appinstance.webhook['destroy'] = webhookurl
+                appinstance.webhook['destroy'] = webhookcmd
 
         return appinstance
 
-    def fillwebhook(self, mustacheurl, app, authinfo, userinfo, network_name, containerid ):
+    def fillwebhook(self, mustachecmd, app, authinfo, userinfo, network_name, containerid ):
 
-        if type(mustacheurl) is not str:
+        if not isinstance(mustachecmd, str) :
             return None
         
         # merge all dict data from app, authinfo, userinfo, and containerip
         sourcedict  = app.copy()
         sourcedict.update( authinfo.todict() )
         sourcedict.update( userinfo )
-
+      
         # getnetworkbyname
         myinfra = self.createInfra( self.nodehostname )
         network = myinfra.getnetworkbyname( network_name )
@@ -890,14 +890,18 @@ class ODOrchestrator(ODOrchestratorBase):
             sourcedict.update( { 'container_ip': container_ip } )
         myinfra.close()
 
-        # merge all dict data from app, authinfo, userinfo, and containerip
+        # merge all dict data from desktopwebhookdict, app, authinfo, userinfo, and containerip
         moustachedata = {}
         for k in sourcedict.keys():
-            if type(sourcedict[k]) is str:
-                moustachedata[k] = requests.utils.quote(sourcedict[k])
-        
-        webhookurl = chevron.render( mustacheurl, moustachedata )
-        return webhookurl
+            if isinstance(sourcedict[k], str):
+                if oc.od.settings.desktopwebhookencodeparams is True:
+                    moustachedata[k] = requests.utils.quote(sourcedict[k])
+                else: 
+                    moustachedata[k] = sourcedict[k]
+
+        moustachedata.update( oc.od.settings.desktopwebhookdict )
+        webhookcmd = chevron.render( mustachecmd, moustachedata )
+        return webhookcmd
 
 
     def resumedesktop(self, authinfo, userinfo, **kwargs):

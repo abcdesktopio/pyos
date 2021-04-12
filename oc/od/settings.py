@@ -98,9 +98,13 @@ default_host_url_is_securised = False  # is default_host_url securized https
 defaultnetworknetuser   = None  # name of the default netuser network by default netuser
 defaultnetworknetuserid = None  # id of the default netuser network
 
+desktopwebhookencodeparams = False  # url encode webhook params 
+desktopwebhookdict         = {}     # addtional dict data
+
 # String to route (container target_ip) or (public host url) default is
 # public host 
 websocketrouting = None
+
 
 printercupsdriverLanguageDict = {}  # Dict to map Printer Language to cupsd driver
 printercupsembeddedList = []        # List printer embedded inside the user container
@@ -403,6 +407,8 @@ def init_desktop():
     global desktopusepodasapp
     global desktopimagepullpolicy
     global desktopkubernetesresourcelimits
+    global desktopwebhookencodeparams
+    global desktopwebhookdict
 
     
 
@@ -433,6 +439,8 @@ def init_desktop():
     desktopprinterimage     = gconfig.get('desktop.printerimage')
     desktopsoundimage       = gconfig.get('desktop.soundimage')
     desktoppolicies         = gconfig.get('desktop.policies', {} )
+    desktopwebhookencodeparams = gconfig.get('desktop.webhookencodeparams', False )
+    desktopwebhookdict         = gconfig.get('desktop.webhookdict', {} )
     desktopinitcontainerimage  = gconfig.get('desktop.initcontainerimage')
     desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
     desktopusesoundcontainer   = gconfig.get('desktop.usesoundcontainer',False)
