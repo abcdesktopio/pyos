@@ -520,6 +520,7 @@ def openapp( auth, user={}, kwargs={} ):
 
     # check if appinstances contains hook create or destroy
     if type(appinstance.webhook) is dict:
+        logger.debug( 'appinstance contains webhook properties')
         webhook_create  = appinstance.webhook.get('create')
         if type(webhook_create) is str:
             t1=threading.Thread(target=callwebhook, args=[webhook_create])
@@ -534,6 +535,7 @@ def openapp( auth, user={}, kwargs={} ):
     return openapp_dict
 
 def callwebhook(webhookcmd, timeout=60):
+    logger.debug( 'callwebhook exec ' + webhookcmd )
     try :
         proc = subprocess.run(webhookcmd, shell=True, timeout=timeout )
         if isinstance( proc, subprocess.CompletedProcess) :
