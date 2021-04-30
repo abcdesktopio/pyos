@@ -410,8 +410,6 @@ def init_desktop():
     global desktopwebhookencodeparams
     global desktopwebhookdict
 
-    
-
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,
                                         'ipc_mode'      : 'shareable',
@@ -427,7 +425,7 @@ def init_desktop():
     # then set a shm_size value to max value '2G'
     if desktophostconfig.get('ipc_mode') == 'shareable' and \
        desktophostconfig.get('shm_size') is None:
-            desktophostconfig['shm_size'] = '2G'
+            desktophostconfig['shm_size'] = '2Gi'
 
 
     applicationhostconfig = gconfig.get('desktop.application_config',
@@ -436,6 +434,7 @@ def init_desktop():
                                             'ipc_mode'      : 'shareable',
                                             'network_mode'  : 'container'
                                         })
+
     # check if desktophostconfig contains permit value
     applicationhostconfig = filter_hostconfig( applicationhostconfig )
 
