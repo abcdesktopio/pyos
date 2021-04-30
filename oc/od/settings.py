@@ -415,10 +415,19 @@ def init_desktop():
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,
                                         'ipc_mode'      : 'shareable',
-                                        'pid_mode'      : True
+                                        'pid_mode'      : True,
+                                        'shm_size'      : '2G'
                                     })
+
     # check if desktophostconfig contains permit value
     desktophostconfig = filter_hostconfig( desktophostconfig )
+
+    #
+    # if ipc_mode = 'shareable' and shm_size is not set 
+    # then set a shm_size value to max value '2G'
+    if desktophostconfig.get('ipc_mode') == 'shareable' and \
+       desktophostconfig.get('shm_size') is None:
+            desktophostconfig['shm_size'] = '2G'
 
 
     applicationhostconfig = gconfig.get('desktop.application_config',

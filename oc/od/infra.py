@@ -763,17 +763,22 @@ class ODInfra(object):
         return False
 
 
-    def createvolume( self, name, prefix=None, driver='local', labels={}, removeifexist=False ):
+    def createvolume( self, name, prefix=None, driver='local', labels={}, removeifexist=False, size=None ):
+
+        '''
+        docker volume create --driver local \
+            --opt type=tmpfs \
+            --opt device=tmpfs \
+            --opt o=size=100m,uid=1000 \
+            foo
+        '''
 
         driver_opts = {}
-        if prefix == 'tmp':
-            driver_opts = {'type': 'tmpfs', 'device': 'tmpfs'}            
-        elif prefix == 'home':
-            pass
-            # driver_opts={'type': 'tmpfs', 'device': 'tmpfs'}
-        elif prefix == 'remotehome':
-            driver_opts = {'type': 'tmpfs', 'device': 'tmpfs'}
-        
+        if prefix in [ 'tmp', 'mem', 'remotehome' ]:
+            driver_opts = {'type': 'tmpfs', 'device': 'tmpfs'}    
+            if size is not None :
+                driver_opts['o'] = 'size=' + str(size)
+
         volume = None
         try:        
             c = self.getdockerClient()            
