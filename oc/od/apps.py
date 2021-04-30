@@ -35,8 +35,11 @@ class ODApps:
         self.build_image_counter = 0
         self.cached_image_counter = 0
         self.public_attr_list   = [ 
-            'launch',   'name', 'icon', 'keyword',      'uniquerunkey', 'cat',  'args', 'image',
-            'execmode', 'showinview',   'displayname',  'mimetype', 'path', 'desktopfile', 'executablefilename' ]
+            'launch',       'name',     'icon',     'keyword',      'uniquerunkey',     
+            'cat',          'args',     'image',    'execmode',     'showinview',   
+            'displayname',  'mimetype', 'path',     'desktopfile',  'executablefilename',
+            'secrets_requirement' ]
+
         self.private_attr_list  = [ 
             'sha_id', 'acl',  'rules', 'privileged', 'security_opt']
 
@@ -259,6 +262,7 @@ class ODApps:
         legacyfileextensions = labels.get('oc.legacyfileextensions')
         usedefaultapplication = labels.get('oc.usedefaultapplication')
         execmode = labels.get('oc.execmode')
+        secrets_requirement = labels.get('oc.secrets_requirement', [] )
        
         
         
@@ -267,10 +271,10 @@ class ODApps:
 
         # safe load convert json data json
         rules = safe_load_label_json( labels, 'oc.rules' )
-        acl = safe_load_label_json( labels, 'oc.ressources' )
+        acl   = safe_load_label_json( labels, 'oc.ressources' )
         security_opt = safe_load_label_json(labels, 'oc.security_opt' )
-        host_config = safe_load_label_json(labels, 'oc.host_config', default_value={})
-        host_config = oc.od.settings.filter_hostconfig( host_config )
+        host_config  = safe_load_label_json(labels, 'oc.host_config', default_value={})
+        host_config  = oc.od.settings.filter_hostconfig( host_config )
         
         executablefilename = None
         if path is not None:
@@ -308,7 +312,8 @@ class ODApps:
                 'usedefaultapplication': usedefaultapplication,
                 'fileextensions': fileextensionslist,
                 'legacyfileextensions': legacyfileextensionslist,
-                'host_config' : host_config
+                'host_config' : host_config,
+                'secrets_requirement' : secrets_requirement
             }
 
         return myapp
