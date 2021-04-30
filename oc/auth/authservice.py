@@ -691,19 +691,16 @@ class ODAuthTool(cherrypy.Tool):
         if target_provider is None:
             raise AuthenticationFailureError( 'provider %s is not found' % target_provider_name )
         
-        # check if manager is explicit
+        # check if target manager is an explicit manager
         if not isinstance( target_provider.manager, ODExplicitAuthManager ):    
             raise AuthenticationFailureError( 'provider explicitproviderapproval %s must be an explicit Auth Manager ' %  source_provider.explicitproviderapproval )
 
         mgr = target_provider.manager
 
-        mgr.authenticate( target_provider_name, userid=None, password=None, **arguments)
         # do authenticate 
-        claims, auth = mgr.authenticate(provider, **arguments)
-            
+        response = self.login(self, provider, manager=target_provider.manager, **arguments)
 
-        # perform auth 
-
+        
 
     def authenticate(self, provider,  manager=None, **arguments):
         return self.findmanager(provider, manager).authenticate(provider, **arguments)
