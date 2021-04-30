@@ -262,16 +262,14 @@ class ODApps:
         legacyfileextensions = labels.get('oc.legacyfileextensions')
         usedefaultapplication = labels.get('oc.usedefaultapplication')
         execmode = labels.get('oc.execmode')
-        secrets_requirement = labels.get('oc.secrets_requirement', [] )
        
-        
-        
         if usedefaultapplication is not None:
             usedefaultapplication = json.loads(usedefaultapplication)
 
         # safe load convert json data json
         rules = safe_load_label_json( labels, 'oc.rules' )
         acl   = safe_load_label_json( labels, 'oc.ressources' )
+        secrets_requirement = safe_load_label_json( labels, 'oc.secrets_requirement' )
         security_opt = safe_load_label_json(labels, 'oc.security_opt' )
         host_config  = safe_load_label_json(labels, 'oc.host_config', default_value={})
         host_config  = oc.od.settings.filter_hostconfig( host_config )
