@@ -257,7 +257,7 @@ class AuthController(BaseController):
     @cherrypy.tools.json_out()
     # @cherrypy.tools.json_in()
     @cherrypy.tools.allow(methods=['GET'])
-    def su(self, password):
+    def buildsecret(self, password):
         self.logger.debug('')
      
         try:
