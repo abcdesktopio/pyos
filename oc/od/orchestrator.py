@@ -66,6 +66,7 @@ class ODOrchestratorBase(object):
             self.desktoplaunchprogress(self, key, *args)
 
     def __init__(self, nodehostname=None):
+
         if nodehostname is not None and type(nodehostname) is not str: 
             raise ValueError('Invalid nodehostname, must be a string or None: type nodehostname = %s ' % str(type(nodehostname)))
 
@@ -87,6 +88,7 @@ class ODOrchestratorBase(object):
         self.endpoint_domain        = 'desktop'
         self._myinfra = None
         self.name = 'base'
+        self.wait_port_bin         = '/composer/node/wait-port/node_modules/.bin/wait-port'
   
     def get_graphicalcontainername( self, container_name ):
         return  self.graphicalcontainernameprefix   + \
@@ -338,7 +340,7 @@ class ODOrchestratorBase(object):
             raise ValueError('invalid desktop object type' )
         
         binding = '{}:{}'.format(desktop.ipAddr, str(port))
-        command = [ '/usr/local/bin/wait-port', '-t', str(timeout), binding ]       
+        command = [ self.wait_port_bin, '-t', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
         self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
      
@@ -471,6 +473,15 @@ class ODOrchestrator(ODOrchestratorBase):
         if myvol is not None:
             volumes.append('/tmp')
             volumesbind.append(myvol.name + ':/tmp')
+
+        # Check if share memory is enable if config file 
+        # add the volume mappping for /dev/shm device
+        if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
+            # if ipc_mode = 'shareable' then
+            # application does not use own shm memory but the pod share memory 
+            myvol = self.createvolume('mem', userinfo, authinfo, removeifexist=True)
+            volumes.append('/dev/shm')
+            volumesbind.append( myvol.name + ':/dev/shm')
 
         # if home is volume, create a volume or reuse the volume
         if kwargs.get('desktophomedirectorytype') == 'volume':        
@@ -697,7 +708,7 @@ class ODOrchestrator(ODOrchestratorBase):
         lang            = language + '.UTF-8'  
 
          # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist  
-        env = { 'DISPLAY':'0.0',
+        env = { 'DISPLAY': '0.0',
                 'PULSE_SERVER': '/tmp/.pulse.sock',
                 'CUPS_SERVER': '/tmp/.cups.sock' }
         # update env dict from configuration file
@@ -1155,13 +1166,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # self.volume
             # no pods
             self.default_volumes = {}
-            self.default_volumes_mount = {}
+            self.default_volumes_mount  = {}
             
+            #
+            # POSIX shared memory requires that a tmpfs be mounted at /dev/shm. 
+            # The containers in a pod do not share their mount namespaces so we use volumes 
+            # to provide the same /dev/shm into each container in a pod. 
+            # read https://docs.openshift.com/container-platform/3.6/dev_guide/shared_memory.html
+            # 
+            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size') } }
+            self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
+
             if oc.od.settings.desktopusepodasapp :
                 self.default_volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
                 self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
             else:
-                self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
+                self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
                 self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
         except Exception as e:
@@ -1285,6 +1305,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         volumes['tmp']       = self.default_volumes['tmp']
         volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
+
+
+        if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
+            # if ipc_mode = 'shareable' then
+            # application does not use own shm memory but the pod share memory 
+            volumes['shm']       = self.default_volumes['shm']
+            volumes_mount['shm'] = self.default_volumes_mount['shm']
 
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         for secret_auth_name in mysecretdict.keys():
