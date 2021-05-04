@@ -65,6 +65,7 @@ desktopimagepullsecret  = None
 desktoppolicies         = {}
 desktopusepodasapp      = False
 desktopimagepullpolicy  = 'IfNotPresent'
+desktopuseruntime       = None
 
 # printer container
 desktopuseprintercontainer  = False 
@@ -409,6 +410,7 @@ def init_desktop():
     global desktopkubernetesresourcelimits
     global desktopwebhookencodeparams
     global desktopwebhookdict
+    global desktopuseruntime
 
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,
@@ -453,6 +455,7 @@ def init_desktop():
     desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
     desktopusesoundcontainer   = gconfig.get('desktop.usesoundcontainer',False)
     desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
+    desktopuseruntime          = gconfig.get('desktop.useruntime')
 
     # desktopinitcontainercommand
     # is an array 
