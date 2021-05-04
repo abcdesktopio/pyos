@@ -1016,7 +1016,8 @@ class ODOrchestrator(ODOrchestratorBase):
                                                             labels=labels,
                                                             volumes=volumes,
                                                             host_config=host_config,
-                                                            detach=True
+                                                            detach=True,
+                                                            runtime=oc.od.settings.desktopuseruntime
             )
 
             # get the containerid as mydesktopid
