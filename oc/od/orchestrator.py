@@ -1034,8 +1034,8 @@ class ODOrchestrator(ODOrchestratorBase):
                                                             labels=labels,
                                                             volumes=volumes,
                                                             host_config=host_config,
-                                                            detach=True
-                                                            #, runtime=host_config.get('runtime')
+                                                            detach=True,
+                                                            runtime=host_config.get('runtime')
             )
 
             # get the containerid as mydesktopid
