@@ -298,6 +298,19 @@ class ODOrchestratorBase(object):
                 self.logger.error(str(e))
         return nReturn
 
+    def list_dict_secret_data( self, authinfo, userinfo, access_type=None ):
+        """get a dict of secret (key value) for the access_type
+           if access_type is None will list all user secrets
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data 
+            access_type (str): type of secret like 'auth' 
+
+        Returns:
+            dict: return dict of secret key value 
+        """
+        return {}
+
     def waitForDesktopProcessReady(self, desktop, callback_notify, nTimeout=42):
         self.logger.info('')
 
