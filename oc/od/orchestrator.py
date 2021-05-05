@@ -1005,6 +1005,9 @@ class ODOrchestrator(ODOrchestratorBase):
             if desktophostconfig.get('pid_mode'): del desktophostconfig['pid_mode']
 
             desktophostconfig['binds'] = volumebind
+            # dump host config berfore create
+            self.logger.debug('desktophostconfig=', desktophostconfig )
+
             host_config  = c.create_host_config( **desktophostconfig )
             
             # callback_notify( 'Create your desktop' )
@@ -1017,7 +1020,7 @@ class ODOrchestrator(ODOrchestratorBase):
                                                             volumes=volumes,
                                                             host_config=host_config,
                                                             detach=True,
-                                                            runtime=oc.od.settings.desktopuseruntime
+                                                            runtime=host_config.get('runtime')
             )
 
             # get the containerid as mydesktopid
