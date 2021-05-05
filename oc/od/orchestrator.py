@@ -1020,7 +1020,8 @@ class ODOrchestrator(ODOrchestratorBase):
             desktophostconfig['binds'] = volumebind
 
             # dump host config berfore create
-            self.logger.info('desktophostconfig=', desktophostconfig )
+            self.logger.info('oc.od.settings.desktophostconfig=%s', str( oc.od.settings.desktophostconfig ) )
+            self.logger.info('desktophostconfig=%s', str( desktophostconfig) )
 
             host_config  = c.create_host_config( **desktophostconfig )
             
