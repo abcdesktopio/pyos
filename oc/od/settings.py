@@ -54,8 +54,6 @@ desktophomedirectorytype = None  #
 desktopallowPrivilegeEscalation = False     # Permit sudo command inside a container
 
 defaultbackgroundcolors = []
-desktophostconfig       = {}
-applicationshostconfig  = {}
 desktopenvironmentlocal = {}
 desktopusedbussession   = None
 desktopusedbussystem    = None
