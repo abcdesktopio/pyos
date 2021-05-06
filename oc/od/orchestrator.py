@@ -492,9 +492,8 @@ class ODOrchestrator(ODOrchestratorBase):
         if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
             # if ipc_mode = 'shareable' then
             # application does not use own shm memory but the pod share memory 
-            myvol = self.createvolume('mem', userinfo, authinfo, removeifexist=True)
             volumes.append('/dev/shm')
-            volumesbind.append( myvol.name + ':/dev/shm')
+            volumesbind.append( '/dev/shm:/dev/shm')
 
         # if home is volume, create a volume or reuse the volume
         if kwargs.get('desktophomedirectorytype') == 'volume':        
