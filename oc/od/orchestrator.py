@@ -782,8 +782,11 @@ class ODOrchestrator(ODOrchestratorBase):
         #
         # read the default applicationhostconfig from configuration file
         host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
+        self.logger.info('default application hostconfig=%s', host_config )
+
         # load the specific hostconfig from the app object
         host_config.update( app.get('host_config'))
+        self.logger.info('updated app values hostconfig=%s', host_config )
 
         # container: <_name-or-ID_>
         # Join another ("shareable") container's IPC namespace.
@@ -829,6 +832,9 @@ class ODOrchestrator(ODOrchestratorBase):
                 'dns'           : network_dns,
                 'pid_mode'      : pid_mode
         } )
+
+         # dump host config berfore create   
+        self.logger.info('application hostconfig=%s', host_config )
 
 
         appinfo = infra.createcontainer(
