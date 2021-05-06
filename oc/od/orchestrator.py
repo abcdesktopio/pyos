@@ -489,11 +489,11 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # Check if share memory is enable if config file 
         # add the volume mappping for /dev/shm device
-        if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
-            # if ipc_mode = 'shareable' then
-            # application does not use own shm memory but the pod share memory 
-            volumes.append('/dev/shm')
-            volumesbind.append( '/dev/shm:/dev/shm')
+        # if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
+        #    # if ipc_mode = 'shareable' then
+        #    # application does not use own shm memory but the pod share memory 
+        #    volumes.append('/dev/shm')
+        #    volumesbind.append('/dev/shm:/dev/shm')
 
         # if home is volume, create a volume or reuse the volume
         if kwargs.get('desktophomedirectorytype') == 'volume':        
@@ -539,7 +539,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # if the conainer has been removed successully
         # remove the tmp volume 
 
-        if bRemove and isinstance( volume_binds, dict) :
+        if bRemove and isinstance(volume_binds, dict) :
             # Remove volume if desktop home directory type is volume 
             if oc.od.settings.getdesktop_homedirectory_type() == 'volume':
                 for k, v in volume_binds.items(): 
@@ -1012,20 +1012,18 @@ class ODOrchestrator(ODOrchestratorBase):
             c = myinfra.getdockerClientAPI()
             # callback_notify( 'Create your network' )
             networking_config = c.create_networking_config({oc.od.settings.defaultnetworknetuser: c.create_endpoint_config()})
-            
+
+            # if oc.od.settings.desktophostconfig.get('network_mode') :  
+            #    del oc.od.settings.desktophostconfig['container']
             # remove bad/nosence value if exists
             if oc.od.settings.desktophostconfig.get('pid_mode'):      
                del oc.od.settings.desktophostconfig['pid_mode']
 
-            # if oc.od.settings.desktophostconfig.get('network_mode') :  
-            #    del oc.od.settings.desktophostconfig['container']
             desktophostconfig = copy.deepcopy( oc.od.settings.desktophostconfig )
-            if desktophostconfig.get('pid_mode'): del desktophostconfig['pid_mode']
-
             desktophostconfig['binds'] = volumebind
 
             # dump host config berfore create
-            self.logger.info('oc.od.settings.desktophostconfig=%s', oc.od.settings.desktophostconfig )
+            # self.logger.info('oc.od.settings.desktophostconfig=%s', oc.od.settings.desktophostconfig )
             self.logger.info('desktophostconfig=%s', desktophostconfig )
 
             host_config  = c.create_host_config( **desktophostconfig )
