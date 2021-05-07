@@ -1329,11 +1329,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
 
 
-        if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
+        # if shm_size is set to a value or if ipc_mode = 'shareable' 
+        # then create a dedicated shm memory volume for kubernetes
+        # See this issue https://docs.openshift.com/container-platform/3.6/dev_guide/shared_memory.html
+        # POSIX shared memory requires that a tmpfs be mounted at /dev/shm. 
+        if  oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable' or \
+            oc.od.settings.desktophostconfig.get('shm_size') is not None :
             # if ipc_mode = 'shareable' then
             # application does not use own shm memory but the pod share memory 
+            # The containers in a pod do not share their mount namespaces so we use volumes 
+            # to provide the same /dev/shm into each container in a pod. 
             volumes['shm']       = self.default_volumes['shm']
             volumes_mount['shm'] = self.default_volumes_mount['shm']
+
 
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         for secret_auth_name in mysecretdict.keys():
