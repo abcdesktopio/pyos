@@ -255,25 +255,55 @@ class AuthController(BaseController):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    # @cherrypy.tools.json_in()
-    @cherrypy.tools.allow(methods=['GET'])
-    def buildsecret(self, password):
+    @cherrypy.tools.json_in()
+    # @cherrypy.tools.allow(methods=['GET']) 
+    def buildsecret(self):
         self.logger.debug('')
      
+        cherrypy.response.timeout = 180
+        args = cherrypy.request.json
+
+        # services.auth.isauthenticated is False
+
+        if not isinstance(args, dict):
+            raise cherrypy.HTTPError(400)
+
+        # Check if password is set
+        password = args.get('password')
+        if not isinstance(password, str):
+            raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
+
         try:
             (auth, user ) = self.validate_env()
 
-            if not isinstance(password,str) :
-                raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
-            
             # build a login dict arg object with provider set to AD
-            args_login = {  'manager' : None,
-                            'provider': auth.provider,
-                            'password': password,
-                            'userid'  : user.userid
+            args_login = {  'userid'  : user.userid,
+                            'password': password
             }
-            result = services.auth.su(**args_login)           
-            return Results.success(result=result)
+
+            response = services.auth.su( source_provider_name=auth.provider, arguments=args_login)  
+            if not response.success:                
+                raise cherrypy.HTTPError(401, response.reason)
+
+        
+            # Explicit Manager contains credentials
+            # if the user have access to authenticated external ressources
+            # this is the only one request with users credentials            
+            if isinstance(response.mgr, oc.auth.authservice.ODExplicitAuthManager) :
+                # prepare external ressource access with current credentials 
+                # build secret for kubernetes to use the desktop flexvolume drivers
+                # Only used if mode is kubernetes, nothing to do in docker standalone
+                oc.od.composer.prepareressources( response.result.auth, response.result.user )
+                expire_in = oc.od.settings.jwt_config_user.get('exp')    
+                # do not update cookie for su
+                services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=False )
+            
+            return Results.success( message="Authentication successful", 
+                                    result={'userid': response.result.user.userid,
+                                            'name': response.result.user.name,
+                                            'provider': response.result.auth.providertype,       
+                                            'expire_in': expire_in      
+                                    })
 
         except Exception as e:
             logger.error( e )
