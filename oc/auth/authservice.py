@@ -416,7 +416,7 @@ class ODAuthTool(cherrypy.Tool):
     def getclientdata(self):
        return { 'managers': list(map(lambda m: m.getclientdata(), self.managers.values())) }
     
-    def update_token( self, auth, user, roles, expire_in ):        
+    def update_token( self, auth, user, roles, expire_in, updatecookies=True ):        
         
         # remove unused data
         # jwt_token is a cookie and must be less than 4096 Bytes
@@ -439,7 +439,8 @@ class ODAuthTool(cherrypy.Tool):
         jwt_token = self.jwt.encode( jwt_auth_reduce, jwt_user_reduce, jwt_role_reduce )
 
         # save the jwt into cookie data
-        self.updatecookies( jwt_token=jwt_token, expire_in=expire_in )
+        if updatecookies is True:
+            self.updatecookies( jwt_token=jwt_token, expire_in=expire_in )
         return jwt_token 
 
         
@@ -678,27 +679,30 @@ class ODAuthTool(cherrypy.Tool):
         return response
 
 
-    def su(self, provider, manager=None, **arguments):
+    def su(self, source_provider_name, arguments):
 
-        # look for the cuurent provider source_provider_name
-        source_provider = self.findprovider(provider)
+        # look for the current provider source_provider_name
+        source_provider = self.findprovider(source_provider_name)
         if source_provider.explicitproviderapproval is None:
             raise AuthenticationFailureError( 'provider %s has no explicitproviderapproval' %  source_provider.providername )
         
         # read the explicitproviderapproval from the source_provider
         target_provider_name = source_provider.explicitproviderapproval
         target_provider = self.findprovider(target_provider_name)
-        if target_provider is None:
-            raise AuthenticationFailureError( 'provider %s is not found' % target_provider_name )
+
+        # check if provider is a valid object 
+        if not isinstance( target_provider, ODAuthProviderBase ):
+            raise AuthenticationFailureError( 'provider %s is not approvable' % target_provider_name )
         
         # check if target manager is an explicit manager
         if not isinstance( target_provider.manager, ODExplicitAuthManager ):    
             raise AuthenticationFailureError( 'provider explicitproviderapproval %s must be an explicit Auth Manager ' %  source_provider.explicitproviderapproval )
 
-        mgr = target_provider.manager
-
         # do authenticate 
-        response = self.login(self, provider, manager=target_provider.manager, **arguments)
+        response = self.login( provider=target_provider.name, manager=None, **arguments)
+
+        return response
+
 
         
 
