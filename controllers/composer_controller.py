@@ -480,24 +480,3 @@ class ComposerController(BaseController):
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.json_in()
-    def buildsecrets(self):
-        try:
-            (auth, user ) = self.validate_env()
-
-            password = cherrypy.request.json
-            if not isinstance(password, str):
-                return Results.error('invalid passwork parameter')
-
-            
-            # list secrets
-            secrets = oc.od.composer.listAllSecretsByUser( auth, user)
-            list_secrets = list( secrets )
-            return Results.success(result=list_secrets)
-        except Exception as e:
-            logger.error( e )
-            return Results.error( message=str(e) )
- 
