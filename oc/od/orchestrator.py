@@ -2132,7 +2132,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
         self.on_desktoplaunchprogress('Your desktop phase is {}.', myPod.status.phase.lower() )
         
-        self.logger.info( 'myPod %s', myPod)
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
         myDesktop = self.pod2desktop( myPod )
