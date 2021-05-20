@@ -274,7 +274,13 @@ class ODAuthTool(cherrypy.Tool):
 
     def parse_auth_request(self):
         authcache = None
-        token = oc.lib.getCookie(ODAuthTool.abcdesktop_auth_token_cookie_name)
+        # token = oc.lib.getCookie(ODAuthTool.abcdesktop_auth_token_cookie_name)
+        token = cherrypy.request.headers.get('Authorization', None)
+        if isinstance(token, str):
+            if token.startswith( 'Bearer '):
+                # remove the 'Bearer ')
+                # len( 'Bearer ') = 7
+                token = token[7:]
         if token :
             # get the dict decoded token
             # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
@@ -286,6 +292,7 @@ class ODAuthTool(cherrypy.Tool):
             authcache = AuthCache( decoded_token )
             authcache.markAuthDoneFromPreviousToken()
         else:
+            # empty auth 
             authcache = AuthCache()
         return authcache
 
