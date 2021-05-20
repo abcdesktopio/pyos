@@ -132,7 +132,7 @@ class AuthController(BaseController):
     def oauth(self, **params):
         response = services.auth.login(**params)
         if response.success:
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None)
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None, updatecookies=oc.od.settings.jwt_cookie_auth)
             
             # do not use cherrypy.HTTPRedirect
             # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
@@ -228,7 +228,7 @@ class AuthController(BaseController):
 
         self.logger.info( 'event:start oc.od.settings.jwt_config_user' )
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
-        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
         self.logger.info( 'event:stop oc.od.settings.jwt_config_user' )
 
         return Results.success( message="Authentication successful", 
@@ -303,7 +303,7 @@ class AuthController(BaseController):
                 oc.od.composer.prepareressources( response.result.auth, response.result.user )
                 expire_in = oc.od.settings.jwt_config_user.get('exp')    
                 # do not update cookie for su
-                jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=True )
+                jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
             
             return Results.success( message="Authentication successful", 
                                     result={'userid': response.result.user.userid,
@@ -357,7 +357,7 @@ class AuthController(BaseController):
             # Only used if mode is kubernetes, nothing to do in docker standalone
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
 
         # the token is transmit via cookie 
         raise cherrypy.HTTPRedirect(oc.od.settings.default_host_url)
@@ -401,7 +401,8 @@ class AuthController(BaseController):
             user = services.auth.user
             auth = services.auth.auth
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in )
+            jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+ )
             services.accounting.accountex('login', 'refreshtoken')
             return Results.success( "Authentication successful", 
                                     {   'expire_in': expire_in,

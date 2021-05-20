@@ -120,6 +120,7 @@ internaldns = { 'subdomain': None, 'domain': None, 'secret': None }
 
 jwt_config_user = None
 jwt_config_desktop = None
+jwt_cookie_auth = False
 
 # webrtc janus config
 webrtc_server = None
@@ -686,9 +687,10 @@ def init_jwt_config():
     """
     global jwt_config_user
     global jwt_config_desktop
+    global jwt_cookie_auth
     jwt_config_user     = gconfig.get('jwt_token_user',    { 'exp': 180, 'privatekeyfile': 'userprivatekey.pem',    'publickeyfile': 'userpublickey.pem'    })
     jwt_config_desktop  = gconfig.get('jwt_token_desktop', { 'exp': 180, 'privatekeyfile': 'desktopprivatekey.pem', 'publickeyfile': 'desktoppublickey.pem' })
-
+    jwt_cookie_auth     = gconfig.get('jwt_cookie_auth', False )
 
 def init_internaldns_config():
     global internaldns    
