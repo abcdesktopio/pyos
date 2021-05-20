@@ -402,7 +402,6 @@ class AuthController(BaseController):
             auth = services.auth.auth
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
             jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
- )
             services.accounting.accountex('login', 'refreshtoken')
             return Results.success( "Authentication successful", 
                                     {   'expire_in': expire_in,
