@@ -132,7 +132,8 @@ class AuthController(BaseController):
     def oauth(self, **params):
         response = services.auth.login(**params)
         if response.success:
-            services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None)
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None)
+            
             # do not use cherrypy.HTTPRedirect
             # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
             # Safari does not support Sending browser cookies during a 302 redirect correctly
@@ -151,10 +152,17 @@ class AuthController(BaseController):
                         <head>\
                         <title>abcdesktop.io</title>\
                         <link rel="stylesheet" href="' + loginScreencss_url + '" type="text/css" />\
-                    </head>\
-                    <body> <div id="loginScreen"></div> </body>\
+                        <script type="text/javascript"> \
+                            var jwt_user_token="' +  jwt_user_token + '"; \
+                            var default_host_url="' +  oc.od.settings.default_host_url + '"; \
+                        </script> \
+                        <script type="text/javascript" src="/js/jwtstorage.js"></script> \
+                    </head> \
+                    <body>  \
+                        <div id="loginScreen">Reloading</div>\
+                    </body>\
                 </html>'
-            cherrypy.response.headers[ 'Refresh' ] = '0; url=' + oc.od.settings.default_host_url
+            cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
             return oauth_html_refresh_page
         else:
             logger.error( 'auth error %s', str(response.reason) )
@@ -220,11 +228,12 @@ class AuthController(BaseController):
 
         self.logger.info( 'event:start oc.od.settings.jwt_config_user' )
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
-        services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
         self.logger.info( 'event:stop oc.od.settings.jwt_config_user' )
 
         return Results.success( message="Authentication successful", 
                                 result={'userid': response.result.user.userid,
+                                        'jwt_user_token': jwt_user_token,
                                         'name': response.result.user.name,
                                         'provider': response.result.auth.providertype,       
                                         'expire_in': expire_in      
@@ -263,8 +272,6 @@ class AuthController(BaseController):
         cherrypy.response.timeout = 180
         args = cherrypy.request.json
 
-        # services.auth.isauthenticated is False
-
         if not isinstance(args, dict):
             raise cherrypy.HTTPError(400)
 
@@ -296,11 +303,12 @@ class AuthController(BaseController):
                 oc.od.composer.prepareressources( response.result.auth, response.result.user )
                 expire_in = oc.od.settings.jwt_config_user.get('exp')    
                 # do not update cookie for su
-                services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=False )
+                jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=True )
             
             return Results.success( message="Authentication successful", 
                                     result={'userid': response.result.user.userid,
                                             'name': response.result.user.name,
+                                            'jwt_user_token': jwt_user_token,
                                             'provider': response.result.auth.providertype,       
                                             'expire_in': expire_in      
                                     })
@@ -340,7 +348,6 @@ class AuthController(BaseController):
         if not response.success:                
             raise cherrypy.HTTPError(401, response.reason)
 
-        
         # Explicit Manager contains credentials
         # if the user have access to authenticated external ressources
         # this is the only one request with users credentials            
@@ -350,7 +357,7 @@ class AuthController(BaseController):
             # Only used if mode is kubernetes, nothing to do in docker standalone
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
 
         # the token is transmit via cookie 
         raise cherrypy.HTTPRedirect(oc.od.settings.default_host_url)
@@ -394,8 +401,10 @@ class AuthController(BaseController):
             user = services.auth.user
             auth = services.auth.auth
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in )
+            jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in )
             services.accounting.accountex('login', 'refreshtoken')
-            return Results.success("Authentication successful", {'expire_in': expire_in } )
+            return Results.success( "Authentication successful", 
+                                    {   'expire_in': expire_in,
+                                        'jwt_user_token': jwt_user_token } )
      
         return Results.error(message='Invalid user')
