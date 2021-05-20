@@ -423,7 +423,7 @@ class ODAuthTool(cherrypy.Tool):
     def getclientdata(self):
        return { 'managers': list(map(lambda m: m.getclientdata(), self.managers.values())) }
     
-    def update_token( self, auth, user, roles, expire_in, updatecookies=True ):        
+    def update_token( self, auth, user, roles, expire_in, updatecookies=False ):        
         
         # remove unused data
         # jwt_token is a cookie and must be less than 4096 Bytes
@@ -446,8 +446,9 @@ class ODAuthTool(cherrypy.Tool):
         jwt_token = self.jwt.encode( jwt_auth_reduce, jwt_user_reduce, jwt_role_reduce )
 
         # save the jwt into cookie data
-        if updatecookies is True:
-            self.updatecookies( jwt_token=jwt_token, expire_in=expire_in )
+        # if updatecookies is True:
+        #    self.updatecookies( jwt_token=jwt_token, expire_in=expire_in )
+        
         return jwt_token 
 
         
