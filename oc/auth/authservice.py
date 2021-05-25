@@ -274,13 +274,19 @@ class ODAuthTool(cherrypy.Tool):
 
     def parse_auth_request(self):
         authcache = None
-        # token = oc.lib.getCookie(ODAuthTool.abcdesktop_auth_token_cookie_name)
+        
+        # by default user token use Authorization HTTP Header
         token = cherrypy.request.headers.get('Authorization', None)
         if isinstance(token, str):
             if token.startswith( 'Bearer '):
                 # remove the 'Bearer ')
                 # len( 'Bearer ') = 7
                 token = token[7:]
+
+        # if not set try to use cookie value 
+        if token is None:
+            token = oc.lib.getCookie(ODAuthTool.abcdesktop_auth_token_cookie_name)
+
         if token :
             # get the dict decoded token
             # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
@@ -446,9 +452,9 @@ class ODAuthTool(cherrypy.Tool):
         jwt_token = self.jwt.encode( jwt_auth_reduce, jwt_user_reduce, jwt_role_reduce )
 
         # save the jwt into cookie data
-        # if updatecookies is True:
-        #    self.updatecookies( jwt_token=jwt_token, expire_in=expire_in )
-        
+        if updatecookies is True:
+           self.updatecookies( jwt_token=jwt_token, expire_in=expire_in )
+
         return jwt_token 
 
         
@@ -623,10 +629,16 @@ class ODAuthTool(cherrypy.Tool):
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)            
             user = mgr.getuserinfo(provider, auth, **arguments)
-            if user is None:
+            if not isinstance(user, dict ):
                 raise AuthenticationFailureError('getuserinfo return None provider=%s', provider)
+
+            userid = user.get('userid')
+            if not isinstance(userid, str):
+                raise AuthenticationFailureError('getuserinfo return invalid userid provider=%s', provider)
+
             self.logger.debug( 'mgr.getuserinfo provider=%s success', provider)
-            
+            # make sure to use the same case sensitive if we change provider
+            user['userid'] = userid.upper()
             
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getroles arguments=%s', arguments)            
@@ -636,7 +648,6 @@ class ODAuthTool(cherrypy.Tool):
             self.logger.debug( 'mgr.getroles provider=%s success', provider)
 
             
-
             # if the mgr is an explicit mgr then add the claims for next usage 
             # for example domain, username, password are used by desktop cifs driver
             # claims contains raw user credentials 
@@ -1454,26 +1465,42 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         try: 
             if self.auth_protocol.get('kerberos') is True:
-                default_authenv.update( { 'kerberos' : {    'PRINCIPAL'   : userid,
-                                                            'REALM' : self.kerberos_realm,
-                                                            **self.generateKerberosKeytab( userid, password ) }
-                } )
+                try:
+                    dict_hash = self.generateKerberosKeytab( userid, password )
+                    if isinstance( dict_hash, dict ): 
+                        default_authenv.update( { 'kerberos' : {    'PRINCIPAL'   : userid,
+                                                                    'REALM' : self.kerberos_realm,
+                                                                    **dict_hash } } )
+                except Exception as e:
+                    pass
             
             if self.auth_protocol.get('ntlm') is True :
-                default_authenv.update( { 'ntlm' : {    'NTLM_USER'   : userid,
-                                                        'NTLM_DOMAIN' : self.domain,
-                                                        **self.generateNTLMhash(password) } 
-                } )
+                try:
+                    dict_hash = self.generateNTLMhash(password)
+                    if isinstance( dict_hash, dict ):
+                        default_authenv.update( { 'ntlm' : {    'NTLM_USER'   : userid,
+                                                                'NTLM_DOMAIN' : self.domain,
+                                                                **dict_hash } } )
+                except Exception as e:
+                        pass
 
             if self.auth_protocol.get('cntlm') is True :
-                default_authenv.update( { 'cntlm' : {   'NTLM_USER'   : userid,
-                                                        'NTLM_DOMAIN' : self.domain,
-                                                        **self.generateCNTLMhash( userid, password, self.domain) } 
-                } )
+                try:
+                    dict_hash = self.generateCNTLMhash( userid, password, self.domain)
+                    if isinstance( dict_hash, dict ):
+                        default_authenv.update( { 'cntlm' : {   'NTLM_USER'   : userid,
+                                                                'NTLM_DOMAIN' : self.domain,
+                                                                 **dict_hash } } )
+                except Exception as e:
+                        pass
 
             if self.auth_protocol.get('citrix') is True :
-                default_authenv.update( { 'citrix' : {  **self.generateCitrixAllRegionsini ( userid, password, self.domain) } 
-                } )
+                try:
+                    dict_hash = self.generateCitrixAllRegionsini ( userid, password, self.domain) 
+                    if isinstance( dict_hash, dict ):
+                        default_authenv.update( { 'citrix' : { **dict_hash } } )
+                except Exception as e:
+                        pass   
 
         except Exception as e:
             self.logger.error('Failed: %s', e)
@@ -1533,7 +1560,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def generateKerberosKeytab(self, principal, password ):
         self.logger.info('')
-        keytab = {}
         #
         # source https://support.microsoft.com/en-us/help/327825/problems-with-kerberos-authentication-when-a-user-belongs-to-many-grou
         # 
