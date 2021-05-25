@@ -64,6 +64,8 @@ desktoppolicies         = {}
 desktopusepodasapp      = False
 desktopimagepullpolicy  = 'IfNotPresent'
 
+desktopauthproviderneverchange = True     # if user can change auth provider in the same session
+
 
 # printer container
 desktopuseprintercontainer  = False 
@@ -409,6 +411,9 @@ def init_desktop():
     global desktopkubernetesresourcelimits
     global desktopwebhookencodeparams
     global desktopwebhookdict
+    global desktopauthproviderneverchange
+
+    desktopauthproviderneverchange = gconfig.get('desktop.authproviderneverchange', True );
 
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,

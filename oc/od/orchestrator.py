@@ -395,13 +395,14 @@ class ODOrchestrator(ODOrchestratorBase):
 
         if  type(appname) is str and len(appname) > 0  :
             myFilter = {    'type': self.x11servertype_embeded, 
-                            'access_provider': access_provider, 
                             'access_userid': access_userid,
                             'appname': appname }
         else :
             myFilter = {    'type': self.x11servertype, 
-                            'access_provider': access_provider, 
                             'access_userid': access_userid }
+
+        if oc.od.settings.desktopauthproviderneverchange is True:
+            myFilter['access_provider'] = access_provider
 
         myInfra = self.createInfra( self.nodehostname )
 
@@ -2165,8 +2166,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_name = args.get( 'pod_name' )
         try: 
             field_selector = ''
-            label_selector = 'access_userid='    + access_userid     + ',' + \
-                             'access_provider='  + access_provider   
+            label_selector = 'access_userid='    + access_userid     
+        
+            if oc.od.settings.desktopauthproviderneverchange is True:
+                label_selector += ',' + 'access_provider='  + access_provider   
+
             # if pod_name is set, don't care about the type
             # type can be type=self.x11servertype or type=self.x11embededservertype
             if type( pod_name ) is str :
@@ -2179,6 +2183,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if len(myPodList.items)> 0:
                 for myPod in myPodList.items:
                     myPhase = myPod.status.phase
+                    # keep only Running pod
                     if myPod.metadata.deletion_timestamp is not None:
                        myPhase = 'Terminating'
                     if myPhase != 'Running':                        
@@ -2206,10 +2211,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         access_provider = authinfo.provider
 
         try: 
-            label_selector= 'access_userid='    + access_userid     + ',' + \
-                            'access_provider='  + access_provider   + ',' + \
-                            'type='             + self.x11servertype_embeded + ',' + \
-                            'appname='          + appname
+            label_selector= 'access_userid='    + access_userid + \
+                            ',type='            + self.x11servertype_embeded + \
+                            ',appname='         + appname
+
+            if oc.od.settings.desktopauthproviderneverchange is True:
+                label_selector += ',access_provider='  + access_provider
+
             myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
 
             if len(myPodList.items)> 0:
