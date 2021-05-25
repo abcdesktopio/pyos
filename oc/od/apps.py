@@ -20,6 +20,7 @@ import json
 import oc.od.acl
 import threading
 import copy
+import oc.od.settings
 
 from oc.od.infra import ODInfra
 
@@ -232,6 +233,19 @@ class ODApps:
                     logger.error( 'invalid label %s, json format %s, skipping label', label, e)
             return load_json 
 
+        def safe_secrets_requirement_prefix( secrets_requirement, namespace ):
+            mylist = []
+            muststartwith = namespace + '/' 
+            for secret in secrets_requirement:
+                startwith = namespace + '/' 
+                if isinstance(secret, str ):
+                    if not secret.startswith( muststartwith ):
+                       secret =  muststartwith + secret
+                    mylist.append( secret )
+                else:
+                    logger.error( 'skipping bad data in secrets_requirement')
+            return mylist
+
         myapp = None
         labels = image.get('Labels')
         if type(labels) is not dict: # skip image if no labels
@@ -270,6 +284,13 @@ class ODApps:
         rules = safe_load_label_json( labels, 'oc.rules' )
         acl   = safe_load_label_json( labels, 'oc.ressources' )
         secrets_requirement = safe_load_label_json( labels, 'oc.secrets_requirement' )
+
+        if secrets_requirement is not None: 
+            # type of secrets_requirement must be list
+            if isinstance( secrets_requirement, str ):
+                secrets_requirement = [ secrets_requirement ]
+            secrets_requirement = safe_secrets_requirement_prefix( secrets_requirement, oc.od.settings.namespace)
+
         security_opt = safe_load_label_json(labels, 'oc.security_opt' )
         host_config  = safe_load_label_json(labels, 'oc.host_config', default_value={})
         host_config  = oc.od.settings.filter_hostconfig( host_config )
