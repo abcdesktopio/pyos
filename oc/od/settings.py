@@ -413,7 +413,18 @@ def init_desktop():
     global desktopwebhookdict
     global desktopauthproviderneverchange
 
-    desktopauthproviderneverchange = gconfig.get('desktop.authproviderneverchange', True );
+    # read authmanagers configuration 
+    # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
+    # desktop authprovider can change on the fly 
+    desktopauthproviderneverchange = True # default value
+    authmanagers = gconfig.get('authmanagers', {} )
+    for manager in authmanagers.values():
+        providers = manager.get('providers',{})
+        for provider in providers.values():
+            if provider.get('explicitproviderapproval'): # one provider set explicitproviderapproval
+                desktopauthproviderneverchange = False # this allow a user to change auth provider on the fly
+                break
+
 
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,
