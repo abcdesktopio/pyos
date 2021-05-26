@@ -298,7 +298,7 @@ class ODOrchestratorBase(object):
                 self.logger.error(str(e))
         return nReturn
 
-    def list_dict_secret_data( self, authinfo, userinfo, access_type=None ):
+    def list_dict_secret_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
         """get a dict of secret (key value) for the access_type
            if access_type is None will list all user secrets
         Args:
@@ -1588,12 +1588,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             secret.create( authinfo, userinfo, data=userinfo )
 
         # Create environments secrets
-        auth_environment = authinfo.data.get('environment')
-        if type( auth_environment ) is dict :
+        auth_environment = authinfo.data.get('environment', { 'ntlm': {}, 'kerberos': {}, 'cntlm': {}, 'citrix': {} } )
+        if isinstance( auth_environment, dict) :
             # for each auth protocol enabled
             for auth_env_built_key in auth_environment.keys():
-                # each entry in authinfo.data.environment is a dict 
-                # build a kubernetes secret with the auth values
+                # each entry in authinfo.data.environment
+                # build a kubernetes secret with the auth values 
+                # values can be empty to be updated later
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
                 secret.create( authinfo, userinfo, data=auth_environment.get(auth_env_built_key) )
     
@@ -1680,7 +1681,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             raw_secrets.update( dict_secret[key] )
         return raw_secrets
 
-    def list_dict_secret_data( self, authinfo, userinfo, access_type=None ):
+    def list_dict_secret_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
         """get a dict of secret (key value) for the access_type
            if access_type is None will list all user secrets
         Args:
@@ -1695,22 +1696,35 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         access_provider = authinfo.provider
         secret_dict = {}
         try: 
-            label_selector =    'access_userid=' + access_userid + ',' + \
-                                'access_provider='  + access_provider 
+            label_selector =    'access_userid=' + access_userid 
+
+            if oc.od.settings.desktopauthproviderneverchange is True:
+                label_selector += ',' + 'access_provider='  + access_provider   
+   
             if type(access_type) is str :
                 label_selector += ',access_type=' + access_type 
            
             ksecret_list = self.kubeapi.list_namespaced_secret(self.namespace, label_selector=label_selector)
           
             for mysecret in ksecret_list.items:
-                secret_dict[mysecret.metadata.name] = { 'type': mysecret.type, 'data': {} }
-                for mysecretkey in mysecret.data:
-                    b64data = mysecret.data[mysecretkey]
-                    data = oc.od.secret.ODSecret.b64todata( b64data )
-                    secret_dict[mysecret.metadata.name]['data'][mysecretkey] = data 
+                if hidden_empty :
+                    # check if mysecret.data is None or an emtpy dict 
+                    if mysecret.data is None :
+                        continue
+                    if isinstance( mysecret.data, dict) and len( mysecret.data ) == 0: 
+                        continue
+
+                secret_dict[mysecret.metadata.name] = { 'type': mysecret.type, 'data': mysecret.data }
+                if isinstance( mysecret.data, dict):
+                    for mysecretkey in mysecret.data:
+                        b64data = mysecret.data[mysecretkey]
+                        data = oc.od.secret.ODSecret.b64todata( b64data )
+                        secret_dict[mysecret.metadata.name]['data'][mysecretkey] = data 
 
         except ApiException as e:
             self.logger.error("Exception %s", str(e) )
+    
+
         return secret_dict
 
     def get_auth_env_dict( self, authinfo, userinfo ):
