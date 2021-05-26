@@ -132,6 +132,7 @@ class AuthController(BaseController):
     def oauth(self, **params):
         response = services.auth.login(**params)
         if response.success:
+            oc.od.composer.prepareressources( response.result.auth, response.result.user )
             jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None, updatecookies=oc.od.settings.jwt_cookie_auth)
             
             # do not use cherrypy.HTTPRedirect
@@ -214,17 +215,12 @@ class AuthController(BaseController):
 
         services.accounting.accountex('login', 'success')
         services.accounting.accountex('login', response.result.auth.providertype )
-        # Explicit Manager contains credentials
+        
+
         # if the user have to access authenticated external ressources 
-        # this is the only one request whicj contains users credentials       
+        # this is the only one request which contains users credentials       
         # Build now auth secret for postponed usage    
-        if isinstance(response.mgr, oc.auth.authservice.ODExplicitAuthManager) :
-            # prepare external ressource access with current credentials 
-            # build secret for kubernetes to use the desktop flexvolume drivers
-            # Only used if mode is kubernetes, nothing to do in docker standalone
-            self.logger.info( 'event:start oc.od.composer.prepareressources' )
-            oc.od.composer.prepareressources( response.result.auth, response.result.user )
-            self.logger.info( 'event:stop oc.od.composer.prepareressources' )
+        oc.od.composer.prepareressources( response.result.auth, response.result.user )
 
         self.logger.info( 'event:start oc.od.settings.jwt_config_user' )
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
@@ -292,18 +288,9 @@ class AuthController(BaseController):
             if not response.success:                
                 raise cherrypy.HTTPError(401, response.reason)
 
-        
-            # Explicit Manager contains credentials
-            # if the user have access to authenticated external ressources
-            # this is the only one request with users credentials            
-            if isinstance(response.mgr, oc.auth.authservice.ODExplicitAuthManager) :
-                # prepare external ressource access with current credentials 
-                # build secret for kubernetes to use the desktop flexvolume drivers
-                # Only used if mode is kubernetes, nothing to do in docker standalone
-                oc.od.composer.prepareressources( response.result.auth, response.result.user )
-                expire_in = oc.od.settings.jwt_config_user.get('exp')    
-                # do not update cookie for su
-                jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+            oc.od.composer.prepareressources( response.result.auth, response.result.user )
+            expire_in = oc.od.settings.jwt_config_user.get('exp')    
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
             
             return Results.success( message="Authentication successful", 
                                     result={'userid': response.result.user.userid,
@@ -348,16 +335,10 @@ class AuthController(BaseController):
         if not response.success:                
             raise cherrypy.HTTPError(401, response.reason)
 
-        # Explicit Manager contains credentials
-        # if the user have access to authenticated external ressources
-        # this is the only one request with users credentials            
-        if isinstance(response.mgr, oc.auth.authservice.ODExplicitAuthManager) :
-            # prepare external ressource access with current credentials 
-            # build secret for kubernetes to use the desktop flexvolume drivers
-            # Only used if mode is kubernetes, nothing to do in docker standalone
-            oc.od.composer.prepareressources( response.result.auth, response.result.user )
-            expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+
+        oc.od.composer.prepareressources( response.result.auth, response.result.user )
+        expire_in = oc.od.settings.jwt_config_user.get('exp')    
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
 
         # the token is transmit via cookie 
         raise cherrypy.HTTPRedirect(oc.od.settings.default_host_url)
