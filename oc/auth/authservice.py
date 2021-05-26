@@ -1037,7 +1037,7 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
 
         userid = authinfo.token
 
-         # Check if token type is dict
+         # Check if token type is str
         if not isinstance(userid,str) :
             raise ExternalAuthError( message='authinfo is an invalid str object')
     
@@ -1622,6 +1622,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         except Exception as e:
             self.logger.error( 'command %s failed %s', self.kerberos_ktutil, e)
+            # clean tmp filename
             removekoutputfile( koutputfilename )
             return keytab
 

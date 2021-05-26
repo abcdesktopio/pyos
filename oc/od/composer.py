@@ -658,7 +658,9 @@ def listAllSecretsByUser(authinfo, userinfo ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()
     # find all screcrets for a user
-    secrets_dict = myOrchestrator.list_dict_secret_data( authinfo, userinfo )
+    # do not show empty secret
+    # empty secrets always exists to be updated with full data in case of double auth provider
+    secrets_dict = myOrchestrator.list_dict_secret_data( authinfo, userinfo, hidden_empty=True )
     # for secret in secrets_dict.values():
     # map to filter secret type
     secrets_type_list = list( map(lambda x: x.get('type'), secrets_dict.values() ) )
