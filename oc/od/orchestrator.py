@@ -1588,14 +1588,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             secret.create( authinfo, userinfo, data=userinfo )
 
         # Create environments secrets
-        auth_environment = authinfo.data.get('environment', { 'ntlm': {}, 'kerberos': {}, 'cntlm': {}, 'citrix': {} } )
+        # if user can change the auth provider, we need to create all secrets with empty value
+        auth_default_environment = { 'ntlm': {}, 'kerberos': {}, 'cntlm': {}, 'citrix': {} }
+        if oc.od.settings.desktopauthproviderneverchange :
+            # if user can not change the auth provider,
+            # then use only the user defined settings 
+            auth_default_environment = {}
+
+        auth_environment = authinfo.data.get('environment', auth_default_environment )
         if isinstance( auth_environment, dict) :
             # for each auth protocol enabled
             for auth_env_built_key in auth_environment.keys():
                 # each entry in authinfo.data.environment
+                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
                 # build a kubernetes secret with the auth values 
                 # values can be empty to be updated later
-                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
                 secret.create( authinfo, userinfo, data=auth_environment.get(auth_env_built_key) )
     
         # Create flexvolume secrets
