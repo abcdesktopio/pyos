@@ -1032,22 +1032,26 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         self.userid = config.get('userid', self.name)
         self.username = config.get('username', self.name)
         self.userinfo = copy.deepcopy(config.get('userinfo', {}))
+        self.explicitproviderapproval = config.get('explicitproviderapproval') 
 
     def getuserinfo(self, authinfo, **params):
 
-        userid = authinfo.token
-
-         # Check if token type is str
-        if not isinstance(userid,str) :
-            raise ExternalAuthError( message='authinfo is an invalid str object')
-    
         user = copy.deepcopy(self.userinfo)
-        user['name']   = self.username   # static value always 'Anonymous'
-        user['userid'] = userid          # set previously by authenticate str(uuid.uuid4())
+       
+        # Check if token type is str
+        if  isinstance(authinfo.token ,str) :
+            # anonymous can have a username
+            # user name is set has the auth token 
+            user['name']   = authinfo.token
+            user['userid'] = authinfo.token # take care, it must be uniqu
+        else:
+            # set default values
+            user['name']   = self.username      # anomymous by default
+            user['userid'] = str(uuid.uuid4())  # create a user id
+            
         return user
 
-    def authenticate(self, **params):
-        userid = str(uuid.uuid4())
+    def authenticate(self, userid=None, password=None, **params):
         return ({}, AuthInfo( self.name, self.type, userid, data={ 'userid': userid }))
 
     
