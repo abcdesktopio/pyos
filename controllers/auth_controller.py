@@ -103,7 +103,6 @@ class AuthController(BaseController):
         """
         Logout a connected user, remove the desktop
         only if anonymous remove all homedir data
-        remove all cookies (by setting empty value)
         Args:
             redirect_uri (str): redirect uri 
 
@@ -165,7 +164,7 @@ class AuthController(BaseController):
         response = services.auth.login(**params)
         if response.success:
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None, updatecookies=oc.od.settings.jwt_cookie_auth)
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
             oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
             cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
             return oauth_html_refresh_page
@@ -228,7 +227,7 @@ class AuthController(BaseController):
 
         self.logger.info( 'event:start oc.od.settings.jwt_config_user' )
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
-        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
         self.logger.info( 'event:stop oc.od.settings.jwt_config_user' )
 
         return Results.success( message="Authentication successful", 
@@ -294,7 +293,7 @@ class AuthController(BaseController):
 
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
             
             return Results.success( message="Authentication successful", 
                                     result={'userid': response.result.user.userid,
@@ -344,7 +343,7 @@ class AuthController(BaseController):
 
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
-        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
         cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
         return oauth_html_refresh_page
@@ -389,7 +388,7 @@ class AuthController(BaseController):
             user = services.auth.user
             auth = services.auth.auth
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+            jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in )
             services.accounting.accountex('login', 'refreshtoken')
             return Results.success( 'Authentication successful %s' % user.name, 
                                     {   'expire_in': expire_in,
