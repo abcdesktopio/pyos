@@ -371,7 +371,7 @@ class ComposerController(BaseController):
             # cookie name is abcdesktop_host
             # match the worker node hostname
             if isinstance(desktop.nodehostname, str):
-                oc.lib.setCookie( 'abcdesktop_host', desktop.nodehostname, path='/' )
+                oc.lib.setCookie( oc.od.settings.route_host_cookie_name, desktop.nodehostname, path='/' )
 
             # accounting data
             datadict={  **user,
