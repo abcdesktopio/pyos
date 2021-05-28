@@ -1560,8 +1560,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return statusPod
             
     def prepareressources(self, authinfo, userinfo, **kwargs):
-        
+        """[prepareressources]
 
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data
+
+        """
         # create a kerberos kubernets secret 
         #  
         # translate the userid as sAMAccountName in the authinfo.claims dict
@@ -1592,7 +1597,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         auth_default_environment = { 'ntlm': {}, 'kerberos': {}, 'cntlm': {}, 'citrix': {} }
         if oc.od.settings.desktopauthproviderneverchange :
             # if user can not change the auth provider,
-            # then use only the user defined settings 
+            # then use only the user defined settings during auth
             auth_default_environment = {}
 
         auth_environment = authinfo.data.get('environment', auth_default_environment )
