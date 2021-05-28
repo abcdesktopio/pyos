@@ -47,6 +47,7 @@ tlscacert = None        # CA ROOT certificat file
 tls_assert_hostname = False
 
 memconnectionstring = None  # memcache connection syting format 'server:port'
+services_http_request_denied = {} # deny http request 
 
 jira = None             # Jira tracker configuration 
 
@@ -264,7 +265,8 @@ def init_defaulthostfqdn():
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
     global default_server_ipaddr            # default ip addr to fake real ip source in geoip
-    global routehostcookiename           # name of the cookie with the hostname value for an efficient LoadBalacing
+    global routehostcookiename              # name of the cookie with the hostname value for an efficient LoadBalacing
+    global services_http_request_denied     # denied http request uri
 
     # Use for reserve proxy
     default_host_url = gconfig.get('default_host_url')
@@ -291,6 +293,10 @@ def init_defaulthostfqdn():
     logger.info('default_server_ipaddr: %s', default_server_ipaddr)
 
     routehostcookiename = gconfig.get('routehostcookiename','abcdesktop_host')
+    logger.info('route host cookie name: %s', routehostcookiename)
+
+    services_http_request_denied = gconfig.get('services_http_request_denied',{})
+    logger.info('services http request denied: %s', services_http_request_denied)
 
 
 def init_printercupsdict():
