@@ -269,9 +269,6 @@ class AuthCache(object):
 @oc.logging.with_logger()
 class ODAuthTool(cherrypy.Tool):
 
-    # default cookie nale for auth_token
-    abcdesktop_auth_token_cookie_name = 'abcdesktop_token'
-
     def parse_auth_request(self):
         authcache = None
         
@@ -282,10 +279,6 @@ class ODAuthTool(cherrypy.Tool):
                 # remove the 'Bearer ')
                 # len( 'Bearer ') = 7
                 token = token[7:]
-
-        # if not set try to use cookie value 
-        if token is None:
-            token = oc.lib.getCookie(ODAuthTool.abcdesktop_auth_token_cookie_name)
 
         if token :
             # get the dict decoded token
@@ -432,7 +425,6 @@ class ODAuthTool(cherrypy.Tool):
     def update_token( self, auth, user, roles, expire_in, updatecookies=False ):        
         
         # remove unused data
-        # jwt_token is a cookie and must be less than 4096 Bytes
         # call reducetoToken() for auth, user, roles
         # compute the jwt token
        
@@ -450,10 +442,6 @@ class ODAuthTool(cherrypy.Tool):
         jwt_role_reduce = {} 
 
         jwt_token = self.jwt.encode( jwt_auth_reduce, jwt_user_reduce, jwt_role_reduce )
-
-        # save the jwt into cookie data
-        if updatecookies is True:
-           self.updatecookies( jwt_token=jwt_token, expire_in=expire_in )
 
         return jwt_token 
 
@@ -753,33 +741,13 @@ class ODAuthTool(cherrypy.Tool):
 
     def logout(self):
         """[logout]
-            delete the abcdesktop_token cookie
         """
-        self.clearcookies()
+        pass
+        
 
     def raise_unauthorized(self, message='Unauthorized'):
         raise cherrypy.HTTPError(401, message)
-    
-    def updatecookies(self, jwt_token, expire_in=None):
-        """[updatecookies]
-            set cookie abcdesktop_token value jwt_token
-        Args:
-            jwt_token ([jwt]): [jwt token]
-            expire_in ([type], optional): [description]. Defaults to None.
-        """
-        if jwt_token:            
-            self.logger.debug( 'setCookie abcdesktop_token len %d', len(jwt_token) )
-            oc.lib.setCookie(   name=ODAuthTool.abcdesktop_auth_token_cookie_name, 
-                                value=jwt_token, 
-                                path='/API', 
-                                expire_in=expire_in)
-
-    def clearcookies(self):
-        """[clearcookies]
-            remore the abcdesktop_token cookie, path '/API'
-        """
-        oc.lib.removeCookie(    ODAuthTool.abcdesktop_auth_token_cookie_name,
-                                '/API')             
+               
         
           
 @oc.logging.with_logger()
