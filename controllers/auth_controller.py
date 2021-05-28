@@ -127,6 +127,38 @@ class AuthController(BaseController):
         
         return bReturn
             
+    def build_redirecthtmlpage(self,jwt_user_token):
+        # do not use cherrypy.HTTPRedirect
+        # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
+        # Safari does not support Sending browser cookies during a 302 redirect correctly
+        # This is typical in an OAuth2 flow:
+        #
+        # OAuth2 id provider (GitHub, Facebook, Google) redirects browser back to your app
+        # Your app's callback URL verifies the authorization and sets login cookies,
+        # then redirects again to the destination URL
+        # Your destination URL loads without any cookies set.
+        # For reasons I haven't figured out yet, some cookies from request 2 are ignored while others are not. 
+        # However, if request 2 returns a HTTP 200 with a Refresh header (the "meta refresh" redirect), cookies are set properly by request 3.
+        #
+        # empty html page to fix HTTP redirect cookie bug with safari
+        loginScreencss_url = oc.od.settings.default_host_url + '/css/css-dist/loginScreen.css'
+        oauth_html_refresh_page = '<html dir="ltr" lang="en">\
+                    <head>\
+                    <title>abcdesktop.io</title>\
+                    <link rel="stylesheet" href="' + loginScreencss_url + '" type="text/css" />\
+                    <script type="text/javascript"> \
+                        var jwt_user_token="' +  jwt_user_token + '"; \
+                        var default_host_url="' +  oc.od.settings.default_host_url + '"; \
+                    </script> \
+                    <script type="text/javascript" src="/js/jwtstorage.js"></script> \
+                </head> \
+                <body>  \
+                    <div id="loginScreen">Reloading</div>\
+                </body>\
+            </html>'
+        
+        return oauth_html_refresh_page
+
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['GET'])
     def oauth(self, **params):
@@ -134,35 +166,7 @@ class AuthController(BaseController):
         if response.success:
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
             jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None, updatecookies=oc.od.settings.jwt_cookie_auth)
-            
-            # do not use cherrypy.HTTPRedirect
-            # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
-            # Safari does not support Sending browser cookies during a 302 redirect correctly
-            # This is typical in an OAuth2 flow:
-            #
-            # OAuth2 id provider (GitHub, Facebook, Google) redirects browser back to your app
-            # Your app's callback URL verifies the authorization and sets login cookies,
-            # then redirects again to the destination URL
-            # Your destination URL loads without any cookies set.
-            # For reasons I haven't figured out yet, some cookies from request 2 are ignored while others are not. 
-            # However, if request 2 returns a HTTP 200 with a Refresh header (the "meta refresh" redirect), cookies are set properly by request 3.
-            #
-            # empty html page to fix HTTP redirect cookie bug with safari
-            loginScreencss_url = oc.od.settings.default_host_url + '/css/css-dist/loginScreen.css'
-            oauth_html_refresh_page = '<html dir="ltr" lang="en">\
-                        <head>\
-                        <title>abcdesktop.io</title>\
-                        <link rel="stylesheet" href="' + loginScreencss_url + '" type="text/css" />\
-                        <script type="text/javascript"> \
-                            var jwt_user_token="' +  jwt_user_token + '"; \
-                            var default_host_url="' +  oc.od.settings.default_host_url + '"; \
-                        </script> \
-                        <script type="text/javascript" src="/js/jwtstorage.js"></script> \
-                    </head> \
-                    <body>  \
-                        <div id="loginScreen">Reloading</div>\
-                    </body>\
-                </html>'
+            oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
             cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
             return oauth_html_refresh_page
         else:
@@ -307,13 +311,16 @@ class AuthController(BaseController):
      
 
     @cherrypy.expose
-    @cherrypy.tools.allow(methods=['POST'])
+    @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def autologin(self, login, provider, password=None):
+    def autologin(self, login=None, provider='anonymous', password=None):
         self.logger.debug('')
 
-        if not isinstance(login,str):
-            raise cherrypy.HTTPError(400, 'Bad request invalid login parameter')
+        if oc.od.settings.services_http_request_denied.get(self.autologin.__name__) is True:
+            raise cherrypy.HTTPError(400, 'request is denied by configfile')
+
+        #if not isinstance(login,str):
+        #    raise cherrypy.HTTPError(400, 'Bad request invalid login parameter')
 
         # password is an optionnal value but must be a str if set
         if password is not None and not isinstance(password,str) :
@@ -335,13 +342,13 @@ class AuthController(BaseController):
         if not response.success:                
             raise cherrypy.HTTPError(401, response.reason)
 
-
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
+        oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
+        cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
+        return oauth_html_refresh_page
 
-        # the token is transmit via cookie 
-        raise cherrypy.HTTPRedirect(oc.od.settings.default_host_url)
         
 
 
@@ -384,7 +391,7 @@ class AuthController(BaseController):
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
             jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in, updatecookies=oc.od.settings.jwt_cookie_auth )
             services.accounting.accountex('login', 'refreshtoken')
-            return Results.success( "Authentication successful", 
+            return Results.success( 'Authentication successful %s' % user.name, 
                                     {   'expire_in': expire_in,
                                         'jwt_user_token': jwt_user_token } )
      
