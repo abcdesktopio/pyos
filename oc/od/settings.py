@@ -50,7 +50,7 @@ memconnectionstring = None  # memcache connection syting format 'server:port'
 
 jira = None             # Jira tracker configuration 
 
-route_host_cookie_name = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
+routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
 
 desktophomedirectorytype = None  #
 desktopallowPrivilegeEscalation = False     # Permit sudo command inside a container
@@ -264,7 +264,7 @@ def init_defaulthostfqdn():
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
     global default_server_ipaddr            # default ip addr to fake real ip source in geoip
-    global route_host_cookie_name           # name of the cookie with the hostname value for an efficient LoadBalacing
+    global routehostcookiename           # name of the cookie with the hostname value for an efficient LoadBalacing
 
     # Use for reserve proxy
     default_host_url = gconfig.get('default_host_url')
@@ -290,7 +290,7 @@ def init_defaulthostfqdn():
             default_server_ipaddr = '127.0.0.1' # dummy value localhost
     logger.info('default_server_ipaddr: %s', default_server_ipaddr)
 
-    route_host_cookie_name = gconfig.get('route_host_cookie_name','abcdesktop_host')
+    routehostcookiename = gconfig.get('routehostcookiename','abcdesktop_host')
 
 
 def init_printercupsdict():
