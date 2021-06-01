@@ -47,6 +47,7 @@ import time
 import oc.logging
 import oc.pyutils as pyutils
 import oc.od.resolvdns
+import jwt
 import oc.auth.jwt
 import oc.od.acl
 
@@ -280,16 +281,19 @@ class ODAuthTool(cherrypy.Tool):
                 # len( 'Bearer ') = 7
                 token = token[7:]
 
-        if token :
-            # get the dict decoded token
-            # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
-            decoded_token = self.jwt.decode( token )
+        if token is not None:
+            try:
+                # get the dict decoded token
+                # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
+                decoded_token = self.jwt.decode( token )
 
-            # read user, roles, auth
-            # Build a cache data to store value from decoded token 
-            # into object class AuthCache
-            authcache = AuthCache( decoded_token )
-            authcache.markAuthDoneFromPreviousToken()
+                # read user, roles, auth
+                # Build a cache data to store value from decoded token 
+                # into object class AuthCache
+                authcache = AuthCache( decoded_token )
+                authcache.markAuthDoneFromPreviousToken()
+            except jwt.exceptions.DecodeError as e:
+                authcache = AuthCache()
         else:
             # empty auth 
             authcache = AuthCache()
