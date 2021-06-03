@@ -176,15 +176,15 @@ class API(object):
         except Exception as e:
             logger.error( str(e))
         return data
-     
+
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['GET'])
-    def healthcheck(self):
+    def healthz(self):
+        # disable trace log
+        cherrypy.response.notrace = True
+        # return OK i'm fine
         return "OK"  
-
-
-
-
+    
 class ODCherryWatcher(plugins.SimplePlugin):
     """ signal thread to stop when cherrypy stop"""
     def start(self):
