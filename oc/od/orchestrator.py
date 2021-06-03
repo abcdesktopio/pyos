@@ -88,7 +88,7 @@ class ODOrchestratorBase(object):
         self.endpoint_domain        = 'desktop'
         self._myinfra = None
         self.name = 'base'
-        self.wait_port_bin         = '/composer/node/wait-port/node_modules/.bin/wait-port'
+        self.wait_port_bin         = '/usr/local/bin/wait-port'
   
     def get_graphicalcontainername( self, container_name ):
         return  self.graphicalcontainernameprefix   + \
