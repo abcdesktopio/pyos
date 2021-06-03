@@ -490,7 +490,7 @@ def init_desktop():
     desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
     desktopusesoundcontainer   = gconfig.get('desktop.usesoundcontainer',False)
     desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
-    desktopwaitportbin         = gconfig.get('desktop.desktopwaitportbin', '/usr/local/bin/wait-port')
+    desktopwaitportbin         = gconfig.get('desktop.desktopwaitportbin', '/composer/node/wait-port/node_modules/.bin/wait-port')
 
     # desktopinitcontainercommand
     # is an array 
