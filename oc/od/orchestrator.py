@@ -88,7 +88,6 @@ class ODOrchestratorBase(object):
         self.endpoint_domain        = 'desktop'
         self._myinfra = None
         self.name = 'base'
-        self.wait_port_bin         = '/usr/local/bin/wait-port'
   
     def get_graphicalcontainername( self, container_name ):
         return  self.graphicalcontainernameprefix   + \
@@ -353,7 +352,7 @@ class ODOrchestratorBase(object):
             raise ValueError('invalid desktop object type' )
         
         binding = '{}:{}'.format(desktop.ipAddr, str(port))
-        command = [ self.wait_port_bin, '-t', str(timeout), binding ]       
+        command = [ oc.od.settings.desktopwaitportbin, '-t', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
         self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
      

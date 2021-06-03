@@ -83,6 +83,9 @@ desktopuseinitcontainer     = False
 desktopinitcontainerimage   = None
 desktopinitcontainercommand = None
 
+# wait port binary path to run inside docker oc.user 
+desktopwaitportbin = None
+
 # desktoppostponeapp url 
 desktoppostponeapp          = None
 
@@ -421,6 +424,7 @@ def init_desktop():
     global desktopwebhookencodeparams
     global desktopwebhookdict
     global desktopauthproviderneverchange
+    global desktopwaitportbin
 
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
@@ -486,7 +490,7 @@ def init_desktop():
     desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
     desktopusesoundcontainer   = gconfig.get('desktop.usesoundcontainer',False)
     desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
-  
+    desktopwaitportbin         = gconfig.get('desktop.desktopwaitportbin', '/usr/local/bin/wait-port')
 
     # desktopinitcontainercommand
     # is an array 
