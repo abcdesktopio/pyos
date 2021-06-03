@@ -113,14 +113,22 @@ class AuthController(BaseController):
         bReturn = None
         args = cherrypy.request.json
         if services.auth.isidentified:
+            bReturn = None
             user = services.auth.user
             auth = services.auth.auth  
             # remove the pod/container          
             if oc.od.composer.removedesktop(auth, user, args) is False:
                 bReturn = Results.error( message='removedesktop failed' )
-            # Always remove all http cookies
-            services.auth.logout()
-            bReturn = Results.success()
+
+            # Always remove removeCookie
+            oc.lib.removeCookie( oc.od.settings.routehostcookiename )
+
+            # Always call logout auth services 
+            services.auth.logout() 
+            
+            if bReturn is None:
+                bReturn = Results.success()
+
         else:
             bReturn = Results.error( message='invalid user credentials' )
         
