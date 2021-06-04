@@ -27,11 +27,11 @@ class ODAcl():
     def isAllowed( self, authinfo, acl ):
         if acl is None :
             # no acl has been defined
-            return True
+            return False
 
         if type(acl) is not dict :
             logger.error( 'invalid acl type, dict is attended' )
-            return True
+            return False
         
         deny   = acl.get('deny', [])
         if type(deny) is not list :
@@ -57,6 +57,8 @@ class ODAcl():
         if "all" in permit: ispermit = True
         if "all" in deny:   isdeny = True
 
+        # this is an acl
+        # always starts by denied 
         if isdeny is True:    
             # app is denied 
             return False
@@ -66,4 +68,6 @@ class ODAcl():
             return True
         
         # no deny and no permit 
+        # authorization must be explicit
+        # return False 
         return False
