@@ -312,12 +312,24 @@ class ComposerController(BaseController):
         logger.debug('')
         try:
             (auth, user ) = self.validate_env()
+            userappdict = {}
             # list all applications allowed for this user (auth)
-            applist = services.apps.user_applist( auth )
-            # get the default application list from the config file
-            defaultapplist = settings.get_default_applist()
+            appdict = services.apps.user_appdict( auth, filtered_public_attr_list=True)
+            # list all default application from the config file allowed for this user (auth)
+            defaultappdict= services.apps.default_appdict( auth, settings.get_default_appdict(), filtered_public_attr_list=True )
+
             # user application list is the default applist + the user application list
-            userapplist = defaultapplist + applist
+            # add defaultappdict 
+            # defaultappdict id the first one to get filemanager as first entry if in 
+            userappdict.update( defaultappdict )
+            # add appdict
+            userappdict.update( appdict )
+
+
+            # return value is a list
+            # convert dict to list
+            userapplist = list( userappdict.values() )
+            # return succes data 
             return Results.success(result=userapplist)    
         except Exception as e:
             logger.error( e )
