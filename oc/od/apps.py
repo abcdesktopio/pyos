@@ -36,13 +36,13 @@ class ODApps:
         self.build_image_counter = 0
         self.cached_image_counter = 0
         self.public_attr_list   = [ 
-            'launch',       'name',     'icon',     'keyword',      'uniquerunkey',     
-            'cat',          'args',     'image',    'execmode',     'showinview',   
-            'displayname',  'mimetype', 'path',     'desktopfile',  'executablefilename',
-            'secrets_requirement' ]
+            'id', 
+            'launch',       'name',     'icon',         'keyword',              'uniquerunkey',     
+            'cat',          'args',     'execmode',     'showinview',           'displayname',  
+            'mimetype',     'path',     'desktopfile',  'executablefilename',   'secrets_requirement' ]
 
         self.private_attr_list  = [ 
-            'sha_id', 'acl',  'rules', 'privileged', 'security_opt']
+            'sha_id', 'acl',  'rules', 'privileged', 'security_opt', 'host_config' ]
 
     def makeiconfile(self, filename, b64data):
         bReturn = False
@@ -149,7 +149,17 @@ class ODApps:
     def is_app_allowed( self, auth, app ):
         return oc.od.acl.ODAcl().isAllowed( auth, app.get('acl'))
    
-    def user_applist( self, auth ):
+    def acl_permission_appdict( self, auth, applist ):
+        appdict = {}
+        # for earch app, add only allowed app
+        for app in applist.keys():
+            myapp = applist[app]
+            # add application if allowed
+            if self.is_app_allowed( auth, myapp ) is True :
+                appdict[ app ] = myapp
+        return appdict
+
+    def user_applist( self, auth, filter ):
         """[user_applist] return a list of user application list
         make a copy to remove security entries 
         keep only public_attr_list data
@@ -180,14 +190,16 @@ class ODApps:
                 # filter only public attr 
                 # do not push system informations
                 # to web user
-                # for a in self.public_attr_list:
-                #    newapp[a] = myapp[a]
-                newapp = myapp
+                for a in self.public_attr_list:
+                        newapp[a] = myapp[a]
                 userapplist.append( newapp )
         return userapplist
 
-    
-    def user_appdict( self, auth ):     
+    def default_appdict( self, auth, default_app, filtered_public_attr_list=False ):    
+        default_app = self.acl_permission_appdict( auth, default_app ) 
+        return default_app
+
+    def user_appdict( self, auth, filtered_public_attr_list=False ):     
         """return a dict of user application list
 
         Args:
@@ -202,18 +214,33 @@ class ODApps:
         self.lock.acquire()
         try:
             # make a quick copy to release lock
-            applist = copy.deepcopy(self.myglobal_list)
+            appdict = copy.deepcopy(self.myglobal_list)
         finally:
             self.lock.release()
 
-        # for earch app, add only allowed app
-        for app in applist.keys():
-            myapp = applist[app]
-            if self.is_app_allowed( auth, myapp ) is True :
-                # add application if allowed
-                userappdict[app] = myapp
+        # reduce acl apps
+        appdict = self.acl_permission_appdict( auth, appdict )
 
+        userappdict = appdict
+        # reduce entries in each app if need
+        if filtered_public_attr_list is True :
+            userappdict = self.filter_public_attr_list( appdict )
+        
         return userappdict
+
+    def filter_public_attr_list( self, appdict ):
+        filtered_app_dict = {}
+        for key in appdict.keys():
+            currentapp = appdict[key]
+            newapp = {}
+            # filter only public attr 
+            # do not push system informations
+            # to web user
+            for a in self.public_attr_list:
+                newapp[a] = currentapp.get(a)
+            filtered_app_dict[key] = newapp
+           
+        return filtered_app_dict
 
     def imagetoapp( self, image ):
         """[imagetoapp]
@@ -282,7 +309,7 @@ class ODApps:
 
         # safe load convert json data json
         rules = safe_load_label_json( labels, 'oc.rules' )
-        acl   = safe_load_label_json( labels, 'oc.ressources' )
+        acl   = safe_load_label_json( labels, 'oc.acl' )
         secrets_requirement = safe_load_label_json( labels, 'oc.secrets_requirement' )
 
         if secrets_requirement is not None: 
