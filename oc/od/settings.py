@@ -755,29 +755,8 @@ def init_dock():
     global dock
     dock = gconfig.get('dock', {})
 
-def get_applist_filemanager():
-    return dock.get('filemanager', None)
-
-def get_applist_terminal():
-    return dock.get('terminal', None)
-
-def get_applist_webshell():
-    return dock.get('webshell', None)
-
-def get_applist_lync():
-    return dock.get('lync', None)
-
-def get_applist_webshortcut():
-    return dock.get('webshortcut', None)
-
-def get_default_applist():
-    localdefaultlist = [
-        get_applist_filemanager(),
-        get_applist_terminal(),
-        get_applist_webshell(),
-        get_applist_webshortcut() 
-    ]
-    return [a for a in localdefaultlist if a is not None]
+def get_default_appdict():
+    return dock
 
 def load():    
     global config
