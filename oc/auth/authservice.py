@@ -610,7 +610,7 @@ class ODAuthTool(cherrypy.Tool):
 
             # look for an auth manager
             mgr = self.findmanager(provider, manager)
-
+            
             # do authenticate 
             claims, auth = mgr.authenticate(provider, **arguments)
             
@@ -647,15 +647,21 @@ class ODAuthTool(cherrypy.Tool):
             if mgr.name == 'explicit':
                 auth.claims = claims  
 
-            # if the auth has data and rules request
-            # then compile data using rules
-            # and runs the rules to get associated labels
+            # add labels tag entry
             auth.data['labels'] = {}
-            if auth.get('data') and auth.data.get('rules'):
-                auth.data['labels'] = self.compiledrules( auth.data.get('rules'), user, roles )
+     
+            # get the provider object
+            pdr = mgr.getprovider(provider)
+
+            # if the provider has rules defined
+            # then compile data using rules
+            # and runs the rules to get associated labels tag
+            if pdr.rules:
+                auth.data['labels'] = self.compiledrules( pdr.rules, user, roles )
                 self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
 
-            if not oc.od.acl.ODAcl().isAllowed( auth, mgr.getprovider(provider).acls ):
+            # check if acl matches with tag
+            if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
             
             myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles } ) 
@@ -878,11 +884,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.displayname = config.get('displayname',  self.name) 
         self.caption = config.get('caption', self.displayname )
         policies = config.get('policies', {} )
-        self.acls  = policies.get('acls')
+        self.acls  = policies.get('acl', { 'permit': [ 'all' ] } ) 
         self.rules = policies.get('rules')
        
-
-
     def authenticate(self, **params):
         raise NotImplementedError()
 
@@ -1188,8 +1192,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         data = {    'userid': userid, 
                     'dn': userdn,
-                    'environment': self.createauthenv(userid, password),
-                    'rules':  self.rules }
+                    'environment': self.createauthenv(userid, password) }
         
         return (    {   'userid': userid, 
                         'password': password }, 
@@ -1813,8 +1816,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     'domain': self.domain, 
                     'ad_domain': self.domain,
                     'dn': userdn,
-                    'environment': self.createauthenv(userid, password),
-                    'rules':  self.rules
+                    'environment': self.createauthenv(userid, password)
         }
 
         return (
