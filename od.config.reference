@@ -614,6 +614,7 @@ desktop.userhomedirectory : '/home/balloon'
 # The values are parsed by javascript front  
 # 
 dock : {        'filemanager':  {       'args': None,
+                                        'acl': { 'permit': [ 'all' ] },
                                         'showinview': u'dock',
                                         'name': u'FileManager',
                                         'keyword': u'files,file manager',
@@ -625,6 +626,7 @@ dock : {        'filemanager':  {       'args': None,
                                         'icon': u'pantheon-files-icons.svg'},
 
                 'terminal':     {       'args': '',
+                                        'acl': { 'permit': [ 'all' ] },
                                         'name': u'TerminalBuiltin',
                                         'keyword': u'terminal,shell,bash,builtin,pantheon',
                                         'launch': u'qterminal.qterminal',
@@ -635,6 +637,7 @@ dock : {        'filemanager':  {       'args': None,
                                         'hideindock': True,
                                         'icon': u'pantheon-terminal-builtin-icons.svg'},
                 'webshell':     {       'name': u'WebShell',
+                                        'acl': { 'permit': [ 'all' ] },
                                         'keyword': u'terminal,shell,webshell,bash,cmd',
                                         'launch': u'frontendjs.webshell',
                                         'displayname': u'Web Shell',
