@@ -309,7 +309,7 @@ class ODApps:
 
         # safe load convert json data json
         rules = safe_load_label_json( labels, 'oc.rules' )
-        acl   = safe_load_label_json( labels, 'oc.acl' )
+        acl   = safe_load_label_json( labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
         secrets_requirement = safe_load_label_json( labels, 'oc.secrets_requirement' )
 
         if secrets_requirement is not None: 
