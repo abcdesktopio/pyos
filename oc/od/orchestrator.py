@@ -39,7 +39,8 @@ from kubernetes.client.rest import ApiException
 
 import oc.lib
 
-from oc.od.desktop import ODDesktop
+import oc.od.acl
+from   oc.od.desktop import ODDesktop
 import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
@@ -2066,6 +2067,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktopimagepullsecret } ]
 
         if oc.od.settings.desktopuseprintercontainer is True and \
+           oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopprinteracl ) and \
             type(oc.od.settings.desktopprinterimage) is str :
             # get the container sound name prefix with 'p' like sound
             container_printer_name = self.get_printercontainername( myuuid )
@@ -2079,6 +2081,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
         
         if oc.od.settings.desktopusesoundcontainer is True and \
+           oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopsoundacl ) and \
            type(oc.od.settings.desktopsoundimage) is str :
             # get the container sound name prefix with 's' like sound
             container_sound_name = self.get_soundcontainername( myuuid )

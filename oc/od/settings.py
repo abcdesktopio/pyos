@@ -73,10 +73,12 @@ desktopauthproviderneverchange = True     # if user can change auth provider in 
 # printer container
 desktopuseprintercontainer  = False 
 desktopprinterimage         = None
+desktopprinteracl           = {}
 
 # sound container params
 desktopusesoundcontainer    = False
 desktopsoundimage           = None
+desktopsoundacl             = {}
 
 # init container params
 desktopuseinitcontainer     = False
@@ -400,9 +402,11 @@ def init_desktop():
     global defaultbackgroundcolors
     global desktopimage
     global desktopprinterimage
+    global desktopprinteracl
     global desktopuseprintercontainer
     global desktopusesoundcontainer
     global desktopsoundimage
+    global desktopsoundacl
     global desktopuseinitcontainer
     global desktopinitcontainercommand
     global desktopinitcontainerimage
@@ -425,6 +429,7 @@ def init_desktop():
     global desktopwebhookdict
     global desktopauthproviderneverchange
     global desktopwaitportbin
+
 
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
@@ -482,7 +487,9 @@ def init_desktop():
     desktopimagepullpolicy  = gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' )
     desktopimage            = gconfig.get('desktop.image')
     desktopprinterimage     = gconfig.get('desktop.printerimage')
+    desktopprinteracl       = gconfig.get('desktop.printeracl', { 'permit': 'all' })
     desktopsoundimage       = gconfig.get('desktop.soundimage')
+    desktopsoundacl         = gconfig.get('desktop.soundacl', { 'permit': 'all' })
     desktoppolicies         = gconfig.get('desktop.policies', {} )
     desktopwebhookencodeparams = gconfig.get('desktop.webhookencodeparams', False )
     desktopwebhookdict         = gconfig.get('desktop.webhookdict', {} )
