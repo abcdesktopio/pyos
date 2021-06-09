@@ -71,12 +71,10 @@ desktopauthproviderneverchange = True     # if user can change auth provider in 
 
 
 # printer container
-desktopuseprintercontainer  = False 
 desktopprinterimage         = None
 desktopprinteracl           = {}
 
 # sound container params
-desktopusesoundcontainer    = False
 desktopsoundimage           = None
 desktopsoundacl             = {}
 
@@ -403,8 +401,6 @@ def init_desktop():
     global desktopimage
     global desktopprinterimage
     global desktopprinteracl
-    global desktopuseprintercontainer
-    global desktopusesoundcontainer
     global desktopsoundimage
     global desktopsoundacl
     global desktopuseinitcontainer
@@ -494,8 +490,6 @@ def init_desktop():
     desktopwebhookencodeparams = gconfig.get('desktop.webhookencodeparams', False )
     desktopwebhookdict         = gconfig.get('desktop.webhookdict', {} )
     desktopinitcontainerimage  = gconfig.get('desktop.initcontainerimage')
-    desktopuseprintercontainer = gconfig.get('desktop.useprintercontainer',False)
-    desktopusesoundcontainer   = gconfig.get('desktop.usesoundcontainer',False)
     desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
     desktopwaitportbin         = gconfig.get('desktop.desktopwaitportbin', '/composer/node/wait-port/node_modules/.bin/wait-port')
 
