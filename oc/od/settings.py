@@ -66,6 +66,8 @@ desktopimagepullsecret  = None
 desktoppolicies         = {}
 desktopusepodasapp      = False
 desktopimagepullpolicy  = 'IfNotPresent'
+desktopdnspolicy        = None
+desktopdnsconfig        = None
 
 desktopauthproviderneverchange = True     # if user can change auth provider in the same session
 
@@ -74,11 +76,15 @@ desktopauthproviderneverchange = True     # if user can change auth provider in 
 desktopprinterimage         = None
 desktopprinteracl           = {}
 
-# sound container params
+# sound container 
 desktopsoundimage           = None
 desktopsoundacl             = {}
 
-# init container params
+# filter container 
+desktopfilerimage          = None
+desktopfileracl            = {}
+
+# init container 
 desktopuseinitcontainer     = False
 desktopinitcontainerimage   = None
 desktopinitcontainercommand = None
@@ -403,6 +409,8 @@ def init_desktop():
     global desktopprinteracl
     global desktopsoundimage
     global desktopsoundacl
+    global desktopfilerimage
+    global desktopfileracl
     global desktopuseinitcontainer
     global desktopinitcontainercommand
     global desktopinitcontainerimage
@@ -425,6 +433,9 @@ def init_desktop():
     global desktopwebhookdict
     global desktopauthproviderneverchange
     global desktopwaitportbin
+    global desktopdnspolicy
+    global desktopdnsconfig
+ 
 
 
     # read authmanagers configuration 
@@ -484,6 +495,8 @@ def init_desktop():
     desktopimage            = gconfig.get('desktop.image')
     desktopprinterimage     = gconfig.get('desktop.printerimage')
     desktopprinteracl       = gconfig.get('desktop.printeracl', { 'permit': [ 'all' ] })
+    desktopfilerimage       = gconfig.get('desktop.filerimage')
+    desktopfileracl         = gconfig.get('desktop.fileracl', { 'permit': [ 'all' ] })
     desktopsoundimage       = gconfig.get('desktop.soundimage')
     desktopsoundacl         = gconfig.get('desktop.soundacl', { 'permit': [ 'all' ] })
     desktoppolicies         = gconfig.get('desktop.policies', {} )
@@ -492,6 +505,7 @@ def init_desktop():
     desktopinitcontainerimage  = gconfig.get('desktop.initcontainerimage')
     desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
     desktopwaitportbin         = gconfig.get('desktop.desktopwaitportbin', '/composer/node/wait-port/node_modules/.bin/wait-port')
+
 
     # desktopinitcontainercommand
     # is an array 
@@ -509,15 +523,17 @@ def init_desktop():
     desktopuseinternalfqdn          = gconfig.get('desktop.useinternalfqdn', False ) 
     desktopuselocaltime             = gconfig.get('desktop.uselocaltime', False ) 
     desktoppostponeapp              = gconfig.get('desktoppostponeapp')
+    desktopdnspolicy                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
+    desktopdnsconfig                = gconfig.get('desktop.dnsconfig')
     
     # add default env local vars if not set 
     desktopenvironmentlocal = gconfig.get(  'desktop.envlocal', 
             {   'DISPLAY'               : ':0.0',
-                'USER'		        : 'balloon',
+                'USER'		            : 'balloon',
                 'LIBOVERLAY_SCROLLBAR'  : '0',
                 'UBUNTU_MENUPROXY'      : '0',
-                'HOME' 		        : '/home/balloon',
-                'LOGNAME'	        : 'balloon',
+                'HOME' 		            : '/home/balloon',
+                'LOGNAME'	            : 'balloon',
                 'PULSE_SERVER'          : '/tmp/.pulse.sock',
                 'CUPS_SERVER'           : 'localhost:631'} )
 
