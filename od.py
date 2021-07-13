@@ -178,7 +178,7 @@ class API(object):
         return data
 
     @cherrypy.expose
-    @cherrypy.tools.allow(methods=['GET'])
+    @cherrypy.tools.allow(methods=['GET','POST'])
     def healthz(self):
         # disable trace response in log
         cherrypy.response.notrace = True
