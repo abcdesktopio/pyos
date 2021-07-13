@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODDesktop(object):
 
-    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None ):
+    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
@@ -34,6 +34,9 @@ class ODDesktop(object):
         self._container_name = container_name
         self._name = name
         self._fqdn = fqdn
+        self._desktop_interfaces    = desktop_interfaces
+        self._websocketroute        = websocketroute
+        self._websocketrouting      = websocketrouting
 
     # id is the container id in docker mode
     # id is the pod id in kubernetes node
@@ -119,6 +122,15 @@ class ODDesktop(object):
     def vncPassword(self, val ):
         self._vncPassword = val
 
+    @property 
+    def websocketrouting(self):
+        return self._websocketrouting
+
+    @websocketrouting.setter
+    def websocketrouting(self, val):
+        self._websocketrouting = val
+
+
     def isRunning(self):
         status = str(self._status)
         if status.lower() == 'running':
@@ -130,4 +142,30 @@ class ODDesktop(object):
         if status.lower() == 'terminating':
            return True
         return False
+
+    @property 
+    def desktop_interfaces(self):
+        return self._desktop_interfaces
+
+    @property 
+    def websocketroute(self):
+        return self._websocketroute
+
+    def to_dict(self):
+        return {
+            'id':       self._id,
+            'ipAddr':   self._ipAddr,
+            'status':   self._status,
+            'container_id' : self._container_id,
+            'nodehostname' : self._nodehostname,
+            'vncPassword' : self._vncPassword,
+            'hostname' : self._hostname,
+            'container_name' : self._container_name,
+            'name' : self._name,
+            'fqdn' : self._fqdn,
+            'desktop_interfaces' : self._desktop_interfaces,
+            'websocketroute' : self._websocketroute,
+            'websocketrouting' : self._websocketrouting
+        }
+
     
