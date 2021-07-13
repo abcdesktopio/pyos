@@ -98,24 +98,50 @@ def opendesktop(authinfo, userinfo, args ):
     # look for a desktop
     desktop = finddesktop( authinfo, userinfo, app )
     desktoptype = 'desktopmetappli' if app else 'desktop' 
-    if type(desktop) is oc.od.desktop.ODDesktop :
-        services.messageinfo.push(userinfo.userid, 'Connecting to your running desktop')  
+    if isinstance(desktop, oc.od.desktop.ODDesktop) :
+        services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop')  
         # if the desktop exists resume the connection
         services.accounting.accountex( desktoptype, 'resumed')
         logger.info("Container %s available, resuming", userinfo.userid)
         resumedesktop( authinfo, userinfo ) # update last connection datetime
     else:
         # create a new desktop
-        services.messageinfo.push(userinfo.userid, 'Creating a new desktop')
+        services.messageinfo.push(userinfo.userid, 'Cold start, creating your new desktop')
         desktop = createdesktop( authinfo, userinfo, args) 
-        if desktop is None:
+        if isinstance( desktop, oc.od.desktop.ODDesktop) :
+            services.accounting.accountex( desktoptype, 'createsucess')
+        else:
             services.accounting.accountex( desktoptype, 'createfailed')
             logger.error('Cannot create a new desktop') 
             return None
-        else:
-            services.accounting.accountex( desktoptype, 'createsucess')
-
+            
     return desktop
+
+def runwebhook( c, messageinfo=None ):
+    bReturn = False
+    # check if c contains webhook create or destroy entry
+    if hasattr(c, 'webhook') and type(c.webhook) is dict:
+        webhook_create  = c.webhook.get('create')
+
+        # convert webhook_create to a list of webhook_create
+        if isinstance(webhook_create, str):
+            webhook_create = [ webhook_create ]
+
+        if isinstance(webhook_create, list):
+            bReturn = True # need to call a command
+            for webhook_command in webhook_create:
+                logger.debug( 'calling webhook cmd %s', webhook_command )
+                t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
+                t1.start()
+
+        webhook_destroy = c.webhook.get('destroy')
+        if webhook_destroy :
+            # post pone webhook_destroy call 
+            # add url to call in 
+            oc.od.services.services.sharecache.set( c.id, webhook_destroy )
+    return bReturn 
+
+
 
 
 def logdesktop( authinfo, userinfo ):
@@ -332,12 +358,15 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
 
     return env
 
-def createDesktopArguments( authinfo, userinfo ):
+def createDesktopArguments( authinfo, userinfo, args ):
 
     # build env dict
     # add environment variables   
     env = createExecuteEnvironment( authinfo, userinfo  )
-
+    
+    # add source ip addr 
+    env.update( { 'WEBCLIENT_SOURCEIPADDR':  args.get('WEBCLIENT_SOURCEIPADDR') } )
+    
     #
     # get value from configuration files to build dict
     #                        
@@ -392,65 +421,62 @@ def createdesktop( authinfo, userinfo, args  ):
     logger.info('Starting desktop creation')
     app = None
 
-    try:
-        myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo )
-        myCreateDesktopArguments['usersourceipaddr']     = args[ 'usersourceipaddr' ] 
-        appname = args.get('app')
-       
-        if type(appname) is str:
-            app = getapp(authinfo, appname)
-            myCreateDesktopArguments['desktopmetappli'] = True
-            myCreateDesktopArguments['appname'] = appname
-            myCreateDesktopArguments['image'] = app.name
+    
+    myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, args )
+   
+    appname = args.get('app')
+    
+    if type(appname) is str:
+        app = getapp(authinfo, appname)
+        myCreateDesktopArguments['desktopmetappli'] = True
+        myCreateDesktopArguments['appname'] = appname
+        myCreateDesktopArguments['image'] = app.name
 
-            # environment variables for application 
-            querystring = args.get('querystring')      
-            if querystring :
-                myCreateDesktopArguments['env'].update({'QUERYSTRING': querystring})
-            
-            argumentsmetadata = args.get('metadata')
-            if argumentsmetadata :
-                myCreateDesktopArguments['env'].update({'METADATA': argumentsmetadata })
-
-            arguments = args.get('args')
-            if arguments :
-                myCreateDesktopArguments['env'].update({'APPARGS': arguments })
-
-            timezone = args.get('timezone')
-            if type(timezone) is str and len(timezone) > 1:
-                myCreateDesktopArguments['env'].update({'TZ': timezone })
-
-            logger.info("App image name : %s %s", app.name, arguments)
-        else:
-            # use the desktop image
-            myCreateDesktopArguments['image'] = settings.desktopimage
-
-        if oc.od.settings.websocketrouting == 'bridge' :
-            # no filter if cointainer ip addr use a bridged network interface
-            myCreateDesktopArguments['env'].update({'DISABLE_REMOTEIP_FILTERING': 'enabled' })
+        # environment variables for application 
+        querystring = args.get('querystring')      
+        if querystring :
+            myCreateDesktopArguments['env'].update({'QUERYSTRING': querystring})
         
-        messageinfo = services.messageinfo.getqueue(userinfo.userid)
+        argumentsmetadata = args.get('metadata')
+        if argumentsmetadata :
+            myCreateDesktopArguments['env'].update({'METADATA': argumentsmetadata })
 
-        # new Orchestrator Object
-        myOrchestrator = selectOrchestrator()
-        myOrchestrator.desktoplaunchprogress += on_desktoplaunchprogress_info
+        arguments = args.get('args')
+        if arguments :
+            myCreateDesktopArguments['env'].update({'APPARGS': arguments })
 
-        # Create the desktop                
-        myDesktop = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo,  **myCreateDesktopArguments )
+        timezone = args.get('timezone')
+        if type(timezone) is str and len(timezone) > 1:
+            myCreateDesktopArguments['env'].update({'TZ': timezone })
 
-        if myDesktop is not None:
-            messageinfo.push('Starting network services, it will take a while.')
-            processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
-            messageinfo.push('Network services started.')
-            logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
-            services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
+        logger.info("App image name : %s %s", app.name, arguments)
+    else:
+        # use the desktop image
+        myCreateDesktopArguments['image'] = settings.desktopimage
+    
+    messageinfo = services.messageinfo.getqueue(userinfo.userid)
+
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+    myOrchestrator.desktoplaunchprogress += on_desktoplaunchprogress_info
+
+    # Create the desktop                
+    myDesktop = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo,  **myCreateDesktopArguments )
+
+    if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
+            messageinfo.push('Webhooking network services')
         else:
-            messageinfo.push('createDesktop error - myOrchestrator.createDesktop return None')
-        return myDesktop
+            messageinfo.push('Starting network services, it will take a while.')
+        processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
+        messageinfo.push('Network services started.')
+        logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
+        services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
+    else:
+        messageinfo.push('createDesktop error - myOrchestrator.createDesktop return None')
+    return myDesktop
 
-    except Exception as e:
-        logger.exception('failed: %s', e)
-        return None
+
 
     
 def openapp( auth, user={}, kwargs={} ):
@@ -512,40 +538,34 @@ def openapp( auth, user={}, kwargs={} ):
     appinstance = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
     if type(appinstance) is not docker.models.containers.Container :
         raise ODError('Failed to run application')
-        
     logger.info('Container %s is started', appinstance.id)
-    
+
+    runwebhook( appinstance )
+   
     # default return value
     openapp_dict =  { 'container_id': appinstance.id, 'state': appinstance.status }
-
-    # check if appinstances contains hook create or destroy
-    if type(appinstance.webhook) is dict:
-        logger.debug( 'appinstance contains webhook properties')
-        webhook_create  = appinstance.webhook.get('create')
-        if type(webhook_create) is str:
-            t1=threading.Thread(target=callwebhook, args=[webhook_create])
-            t1.start()
-
-        webhook_destroy = appinstance.webhook.get('destroy')
-        if type(webhook_destroy) is str:
-            # post pone webhook_destroy call 
-            # add url to call in 
-            oc.od.services.services.sharecache.set( appinstance.id, webhook_destroy )
-
     return openapp_dict
 
-def callwebhook(webhookcmd, timeout=60):
+def callwebhook(webhookcmd, messageinfo=None, timeout=60):
     logger.debug( 'callwebhook exec ' + webhookcmd )
     try :
         proc = subprocess.run(webhookcmd, shell=True, timeout=timeout )
         if isinstance( proc, subprocess.CompletedProcess) :
             proc.check_returncode()
+            if messageinfo:
+                messageinfo.push('Webhooking updated service successfully')
             logger.info( 'command %s exit_code=%d stdtout=%s', webhookcmd, proc.returncode, proc.stdout )
         else:
+            if messageinfo:
+                messageinfo.push('Webhooking updated service error ' + str(proc.stdout) )
             logger.error( 'command %s failed ',webhookcmd )
     except subprocess.CalledProcessError as e:
-        logger.error( 'command %s failed exit_code=%d stdtout=%s', webhookcmd, proc.returncode, proc.stdout )
+        if messageinfo:
+            messageinfo.push('Webhooking updated service error ' + str(e) )
+        logger.error( 'command %s failed error=%s', webhookcmd, str(e) )
     except Exception as e:
+        if messageinfo:
+            messageinfo.push('Webhooking updated service error ' + str(e) )
         logger.error( e )
 
 def notify_user( access_userid, access_type, method, data ):
