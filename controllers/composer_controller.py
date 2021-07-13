@@ -419,6 +419,7 @@ class ComposerController(BaseController):
             })
 
         except Exception as e:
+            logger.error( str(e) )
             return Results.error( message=str(e) )
 
         finally:
