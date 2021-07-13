@@ -13,6 +13,7 @@
 #
 
 import logging
+from oc.od.apps import ODApps
 import oc.logging
 import oc.od.settings
 import docker
@@ -77,6 +78,8 @@ class ODOrchestratorBase(object):
         self.printercontainernameprefix     = 'p'   # printer container letter prefix 
         # sound name is p-UUID
         self.soundcontainernameprefix       = 's'   # sound container letter prefix
+        # sound name is p-UUID
+        self.filercontainernameprefix       = 'f'   # file container letter prefix
         # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
 
@@ -102,6 +105,11 @@ class ODOrchestratorBase(object):
 
     def get_soundcontainername( self, container_name ):
         return  self.soundcontainernameprefix       + \
+                self.containernameseparator         + \
+                oc.auth.namedlib.normalize_name( container_name )
+
+    def get_filercontainername( self, container_name ):
+        return  self.filercontainernameprefix       + \
                 self.containernameseparator         + \
                 oc.auth.namedlib.normalize_name( container_name )
 
@@ -413,11 +421,12 @@ class ODOrchestrator(ODOrchestratorBase):
             len_list_containers = len( list_containers )
             if len_list_containers > 1 :
                 self.logger.error( 'query too much desktop found with filter %s, attended 1 , get %d', myFilter, len_list_containers )                
-                self.logger.error( 'dump result %s', list_containers )                
-            # This loop read the fisrt one and break
+                self.logger.error( 'dump result %s', list_containers )   
+
+            # This loop read the fisrt one containers and break
             for c in list_containers:                                
                 ipAddr = myInfra.getDesktopIpAddr( c.id, kwargs.get('defaultnetworknetuserid') )
-                myDesktop = oc.od.desktop.ODDesktop( nodehostname=self.nodehostname, ipAddr=ipAddr, status=c.status, desktop_id=c.id, container_id=c.id, vncPassword=c.labels['vnc_password'] )
+                myDesktop = oc.od.desktop.ODDesktop( nodehostname=self.nodehostname, ipAddr=ipAddr, status=c.status, desktop_id=c.id, container_id=c.id, vncPassword=c.labels['vnc_password'], websocketrouting=oc.od.settings.websocketrouting )
                 break   
         
         return myDesktop
@@ -608,12 +617,11 @@ class ODOrchestrator(ODOrchestratorBase):
                 volume.append(arv[1])
         return volume
 
-    def applyappinstancerules_homedir( self, authinfo, app ):
+    def applyappinstancerules_homedir( self, authinfo, rules ):
         homedir_disabled        = False      # by default all application share the user homedir
 
         # Check if there is a specify rules to start this application
-        rules = app.get('rules')
-        if rules is dict  :
+        if type(rules) is dict  :
             # Check if there is a homedir rule
             rule_homedir =  rules.get('homedir')
             if type(rule_homedir) is dict:
@@ -634,28 +642,33 @@ class ODOrchestrator(ODOrchestratorBase):
                                 break
         return homedir_disabled        
 
-    def applyappinstancerules_network( self, authinfo, app ):
+    def applyappinstancerules_network( self, authinfo, rules ):
         """[applyappinstancerules_network]
             return a dict network_config
 
         Args:
             authinfo ([type]): [description]
-            app ([type]): [description]
+            rules ([type]): [description]
 
         Returns:
             [dict ]: [network config]
             network_config = {  'network_disabled' : network_disabled, 
-                            'context_network_name': context_network_name, 
-                            'context_network_dns': context_network_dns
-                            'context_network_webhook' : context_network_webhook}
+                                'name': name, 
+                                'dns': dns
+                                'webhook' : webhook}
         """
         # set default context value 
-        network_disabled        = False      # network is enabled by default
-        context_network_name    = None       # acl network is not set by default
-        context_network_dns     = None       # to change the DNSServer used by a container
-        context_network_webhook = None       # url to call after a created app
+        network_config = {  'network_disabled' :    False, 
+                            'annotations':          None,
+                            'name':                 None, 
+                            'external_dns':         None,
+                            'internal_dns':         None,
+                            'webhook' :             None,
+                            'websocketrouting' :    oc.od.settings.websocketrouting,
+                            'websocketrouting_interface' :  None }
+      
+
         # Check if there is a specify rules to start this application
-        rules = app.get('rules')
         if type(rules) is dict  :
             # Check if there is a network rule
             rule_network =  rules.get('network')
@@ -663,38 +676,22 @@ class ODOrchestrator(ODOrchestratorBase):
                 # read the default context first 
                 rule_network_default = rule_network.get('default', True)
                 if rule_network_default is False:
-                    network_disabled = True
+                    network_config[ 'network_disabled' ] = True
               
                 if type(rule_network_default) is dict:
-                    context_network_name    = rule_network_default.get('name')
-                    context_network_dns     = rule_network_default.get('dns')
-                    context_network_webhook = rule_network_default.get('webhook')
-                    network_disabled = False    
-
+                    network_config.update( rule_network_default )
+                
                 # list user context tag 
                 # check if user auth tag context exist
                 if authinfo.data and type( authinfo.data.get('labels') ) is dict :
                     for kn in rule_network.keys():
                         for ka in authinfo.data.get('labels') :
                             if kn == ka :
-                                context_network_name    = rule_network.get(kn).get('name')
-                                context_network_dns     = rule_network.get(kn).get('dns')
-                                context_network_dns     = rule_network.get(kn).get('dns')
-                                context_network_webhook = rule_network.get(kn).get('webhook')
-                                network_disabled = False
+                                network_config.update ( rule_network.get(kn) )
                                 break
                         if kn == ka :
                                 break
 
-                # context_network_dns must be an array for docker api
-                if type( context_network_dns ) is str:
-                    # convert context_network_dns as list if need
-                    context_network_dns = [ context_network_dns ]
-
-        network_config = {  'network_disabled' : network_disabled, 
-                            'context_network_name': context_network_name, 
-                            'context_network_dns': context_network_dns,
-                            'context_network_webhook' : context_network_webhook}
         return network_config
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
@@ -709,10 +706,13 @@ class ODOrchestrator(ODOrchestratorBase):
         # get volunebind from the running x11 container
         volumebind = desktop.attrs["HostConfig"]["Binds"]
 
+        rules = app.get('rules') 
+
         # apply network rules 
-        network_config = self.applyappinstancerules_network( authinfo, app )
+        network_config = self.applyappinstancerules_network( authinfo, rules )
+
         # apply homedir rules
-        homedir_disabled = self.applyappinstancerules_homedir( authinfo, app )
+        homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
        
       
         network_name    = None
@@ -804,16 +804,18 @@ class ODOrchestrator(ODOrchestratorBase):
         network_mode = 'none'
         network_name = None
         network_disabled = network_config.get('network_disabled')
-        network_dns      = network_config.get('context_network_dns')
+        network_dns      = network_config.get('dns')
         # if network mode use conainer network 
         # bind the desktop container network to the application container
         if host_config.get('network_mode') == 'container':
             network_mode = 'container:' + desktop.id
+
         # if specific network exists
         # bind the specific network to the application container
-        if isinstance( network_config.get('context_network_name'), str)  :
-            network_name = network_config.get('context_network_name')
-            network_mode = network_config.get('context_network_name')
+        if isinstance( network_config.get('name'), str)  :
+            network_name = network_config.get('name')
+            network_mode = network_config.get('name')
+
         # if network_disabled is Tue 
         # bind the specific network to None
         if network_disabled is True :
@@ -869,12 +871,25 @@ class ODOrchestrator(ODOrchestratorBase):
         
         infra.startcontainer(appinstance.id)
         appinstance.message = 'starting'
-        appinstance.webhook = None  # by default no hook
+        # webhook is None if network_config.get('context_network_webhook') is None
+
+        appinstance.webhook = self.buildwebhookinstance(authinfo=authinfo, 
+                                                        userinfo=userinfo, 
+                                                        app=app,
+                                                        network_config=network_config, 
+                                                        network_name = network_name, 
+                                                        appinstance_id = appinstance_id  )
+
+        return appinstance
+
+    def buildwebhookinstance( self, authinfo, userinfo, app, network_config, network_name=None, appinstance_id=None ):
+
+        webhook = None
 
         # if context_network_webhook call request to webhook and replace all datas
-        context_network_webhook = network_config.get('context_network_webhook')
+        context_network_webhook = network_config.get('webhook')
         if isinstance( context_network_webhook, dict) : 
-            appinstance.webhook = {}
+            webhook = {}
             # if create exist 
             webhookstartcmd = context_network_webhook.get('create')
             if isinstance( webhookstartcmd, str) :
@@ -886,7 +901,7 @@ class ODOrchestrator(ODOrchestratorBase):
                                                 userinfo=userinfo, 
                                                 network_name=network_name, 
                                                 containerid=appinstance_id )
-                appinstance.webhook['create'] = webhookcmd
+                webhook['create'] = webhookcmd
 
             # if destroy exist 
             webhookstopcmd = context_network_webhook.get('destroy')
@@ -898,27 +913,44 @@ class ODOrchestrator(ODOrchestratorBase):
                                                 userinfo=userinfo, 
                                                 network_name=network_name, 
                                                 containerid=appinstance_id )
-                appinstance.webhook['destroy'] = webhookcmd
-
-        return appinstance
+                webhook['destroy'] = webhookcmd
+        return webhook
 
     def fillwebhook(self, mustachecmd, app, authinfo, userinfo, network_name, containerid ):
 
         if not isinstance(mustachecmd, str) :
             return None
         
+        sourcedict = {}
+
         # merge all dict data from app, authinfo, userinfo, and containerip
-        sourcedict  = app.copy()
+        # if add is a ODDekstop use to_dict to convert ODDesktop to dict 
+        # else app is a dict 
+        
+        # getnetworkbyname
+        if isinstance( app, ODApps ) :
+            sourcedict.update( app )
+            myinfra = self.createInfra( self.nodehostname )
+            network = myinfra.getnetworkbyname( network_name )
+            if network:
+                container_ip = myinfra.getDesktopIpAddr( containerid, network.id )
+                sourcedict.update( { 'container_ip': container_ip } )
+            myinfra.close()
+        
+        if isinstance(app, ODDesktop ):
+            sourcedict.update( app.to_dict().copy() )
+            # desktop_interface is a dict 
+            # { 
+            #   'eth0': {'mac': '56:c7:eb:dc:c0:b8', 'ips': '10.244.0.239'      }, 
+            #   'net1': {'mac': '2a:94:43:e0:f4:46', 'ips': '192.168.9.137'     }, 
+            #   'net2': {'mac': '1e:50:5f:b7:85:f6', 'ips': '161.105.208.143'   }
+            # }
+            for interface in app.desktop_interfaces.keys():
+                ipAddr = app.desktop_interfaces.get(interface).get('ips')
+                sourcedict.update( { interface: ipAddr } )
+
         sourcedict.update( authinfo.todict() )
         sourcedict.update( userinfo )
-      
-        # getnetworkbyname
-        myinfra = self.createInfra( self.nodehostname )
-        network = myinfra.getnetworkbyname( network_name )
-        if network:
-            container_ip =  myinfra.getDesktopIpAddr( containerid, network.id )
-            sourcedict.update( { 'container_ip': container_ip } )
-        myinfra.close()
 
         # merge all dict data from desktopwebhookdict, app, authinfo, userinfo, and containerip
         moustachedata = {}
@@ -967,6 +999,11 @@ class ODOrchestrator(ODOrchestratorBase):
         # add a new VNC Password to the command line
         vncPassword = self.mkvnc_password()
         command.extend('--vncpassword {}'.format(vncPassword).split(' '))
+
+
+        # always add env CUPS_SERVER and PULSE_SERVER
+        env.update( {   'PULSE_SERVER': '/tmp/.pulse.sock',
+                        'CUPS_SERVER' : '/tmp/.cups.sock' } )
 
         # compile a env list with the auth list  
         # translate auth environment to env 
@@ -1058,7 +1095,8 @@ class ODOrchestrator(ODOrchestratorBase):
                                         desktop_id = mydesktopid,
                                         status=status,
                                         ipAddr=ipAddr,
-                                        vncPassword=vncPassword )                
+                                        vncPassword=vncPassword,
+                                        websocketrouting=oc.od.settings.websocketrouting )      
             myinfra.close()
 
         except docker.errors.APIError as e:
@@ -1089,7 +1127,8 @@ class ODOrchestrator(ODOrchestratorBase):
                                 desktop_id = container.id,
                                 status=container.status,
                                 ipAddr=ipAddr,
-                                vncPassword=container.labels['vnc_password']
+                                vncPassword=container.labels['vnc_password'],
+                                websocketrouting=oc.od.settings.websocketrouting
                     )
         return myDesktop
 
@@ -1635,7 +1674,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         lastlogin_datetime = datetime.datetime.now()
         str_lastlogin_datetime = lastlogin_datetime.strftime("%Y-%m-%dT%H:%M:%S")
-        annotations = {'annotations':{'lastlogin_datetime': str_lastlogin_datetime } }
+        annotations = { 'lastlogin_datetime': str_lastlogin_datetime } 
         return annotations
 
     def read_pod_annotations_lastlogin_datetime(self, pod ):
@@ -1669,10 +1708,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if myPod is None :            
             self.logger.info( 'Pod name not found for user %s ',  userinfo.userid )
         else:
-            newlabel = {"metadata":  self.get_annotations_lastlogin_datetime() }
+            new_metadata = myPod.metadata
+            new_lastlogin_datetime = self.get_annotations_lastlogin_datetime()
+            # update the metadata ['lastlogin_datetime'] in pod
+            new_metadata.annotations['lastlogin_datetime'] = new_lastlogin_datetime['lastlogin_datetime']
             v1newPod = self.kubeapi.patch_namespaced_pod(   name=myPod.metadata.name, 
                                                             namespace=self.namespace, 
-                                                            body=newlabel )
+                                                            body=new_metadata )
             myDesktop = self.pod2desktop( v1newPod )
         return myDesktop
 
@@ -1747,6 +1789,35 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         for key in dict_secret.keys():
             raw_secrets.update( dict_secret[key] )
         return raw_secrets
+
+
+    def filldictcontextvalue( self, authinfo, userinfo, desktop, network_config, network_name=None, appinstance_id=None ):
+
+        # check if network_config is str, dict or list
+        if type( network_config ) is str :
+            fillvalue = self.fillwebhook(   mustachecmd=network_config, 
+                                            app=desktop, 
+                                            authinfo=authinfo, 
+                                            userinfo=userinfo, 
+                                            network_name=network_name, 
+                                            containerid=appinstance_id )
+            return fillvalue
+
+        if type( network_config ) is dict :
+            fillvalue = {}
+            for k in network_config.keys():
+                fillvalue[ k ] = self.filldictcontextvalue( authinfo, userinfo, desktop, network_config[ k ], network_name, appinstance_id )
+            return fillvalue    
+
+        if type( network_config ) is list :
+            fillvalue = [None] * len(network_config)
+            for i, item in enumerate(network_config):
+                fillvalue[ i ] = self.filldictcontextvalue( authinfo, userinfo, desktop, item, network_name, appinstance_id )
+            return fillvalue  
+    
+        # not used type
+        return network_config
+            
 
     '''
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
@@ -1996,6 +2067,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
 
 
+        # look for desktop rules
+        # apply network rules 
+        rules = oc.od.settings.desktoppolicies.get('rules')
+        network_config = self.applyappinstancerules_network( authinfo, rules )
+        fillednetworkconfig = self.filldictcontextvalue(authinfo=authinfo, 
+                                                        userinfo=userinfo, 
+                                                        desktop=None, 
+                                                        network_config=copy.deepcopy(network_config), 
+                                                        network_name = None, 
+                                                        appinstance_id = None )
+
         self.on_desktoplaunchprogress('Building data storage for your desktop')
         (volumes, volumeMounts) = self.build_desktopvolumes( authinfo, userinfo, **kwargs)
         list_volumes = list( volumes.values() )
@@ -2003,8 +2085,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.info( 'volumes=%s', volumes.values() )
         self.logger.info( 'volumeMounts=%s', volumeMounts.values() )
 
-        initContainers = []
+        # check if we have to build X509 certificat
+        # need to build certificat if websocketrouting us bridge 
+        # bridge can be a L2/L3 level like ipvlan, macvlan
+        # use multus config
+        websocketrouting = oc.od.settings.websocketrouting # set defautl value, can be overwritten 
+        websocketroute = None
+        if  fillednetworkconfig.get( 'websocketrouting' ) == 'bridge' :
+            # no filter if container ip addr use a bridged network interface
+            envlist.append( { 'name': 'DISABLE_REMOTEIP_FILTERING', 'value': 'enabled' })
 
+            # if we need to request an X509 certificat on the fly
+            external_dnsconfig = fillednetworkconfig.get( 'external_dns' )
+            if  type( external_dnsconfig ) is dict and \
+                type( external_dnsconfig.get( 'domain' ))   is str and \
+                type( external_dnsconfig.get( 'hostname' )) is str :
+                websocketrouting = fillednetworkconfig.get( 'websocketrouting' )
+                websocketroute = external_dnsconfig.get( 'hostname' ) + '.' + external_dnsconfig.get( 'domain' )
+                envlist.append( { 'name': 'USE_CERTBOT_CERTONLY',        'value': 'enabled' } )
+                envlist.append( { 'name': 'EXTERNAL_DESKTOP_HOSTNAME',   'value': external_dnsconfig.get( 'hostname' ) } )
+                envlist.append( { 'name': 'EXTERNAL_DESKTOP_DOMAIN',     'value': external_dnsconfig.get( 'domain' ) } )
+
+                labels['websocketrouting']  = websocketrouting
+                labels['websocketroute']    = websocketroute
+
+        initContainers = []
         if  oc.od.settings.desktopuseinitcontainer              is True and \
             type(oc.od.settings.desktopinitcontainercommand)    is list and \
             type(oc.od.settings.desktopinitcontainerimage)      is str  :
@@ -2025,6 +2130,28 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance( shareProcessNamespace, bool):
             shareProcessNamespace = False
 
+        shareProcessNamespace = False
+
+        # default empty dict annotations
+        annotations = {}
+        # add last login datetime to annotations for garbage collector
+        annotations.update( self.get_annotations_lastlogin_datetime() )
+        # Check if a network annotations exists 
+        network_annotations = network_config.get( 'annotations' )
+        if isinstance( network_annotations, dict):
+            annotations.update( network_annotations )
+
+
+        # set default dns configuration 
+        dnspolicy = oc.od.settings.desktopdnspolicy
+        dnsconfig = oc.od.settings.desktopdnsconfig
+
+        # overwrite default dns config by rules
+        if type(network_config.get('internal_dns')) is dict:
+            dnspolicy = 'None'
+            dnsconfig = network_config.get('internal_dns')
+
+
         # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2033,10 +2160,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'name': pod_name,
                 'namespace': self.namespace,
                 'labels': labels,
-                **self.get_annotations_lastlogin_datetime()
+                'annotations': annotations
             },
             'spec': {
-                'automountServiceAccountToken': False,  # disable service account 
+                'dnsPolicy' : dnspolicy,
+                'dnsConfig' : dnsconfig,
+                'automountServiceAccountToken': False,  # disable service account inside pod
                 'subdomain': self.endpoint_domain,
                 'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list_volumes,                    
@@ -2066,9 +2195,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.settings.desktopimagepullsecret:
             pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktopimagepullsecret } ]
 
-        if oc.od.settings.desktopuseprintercontainer is True and \
-           oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopprinteracl ) and \
-            type(oc.od.settings.desktopprinterimage) is str :
+        if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopprinteracl ) and \
+           type(oc.od.settings.desktopprinterimage) is str :
             # get the container sound name prefix with 'p' like sound
             container_printer_name = self.get_printercontainername( myuuid )
             pod_manifest['spec']['containers'].append( { 
@@ -2076,12 +2204,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'imagePullPolicy': oc.od.settings.desktopimagepullpolicy,
                                     'image': oc.od.settings.desktopprinterimage,                                    
                                     'env': envlist,
-                                    'volumeMounts': list_volumeMounts                                    
+                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ]                                    
                                 }   
             )
+            # pod_manifest['spec']['containers'][0] is the main oc.user container
+            # set env CUPS_SERVER to reach cupsd
+            pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock'}  )
         
-        if oc.od.settings.desktopusesoundcontainer is True and \
-           oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopsoundacl ) and \
+        if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopsoundacl ) and \
            type(oc.od.settings.desktopsoundimage) is str :
             # get the container sound name prefix with 's' like sound
             container_sound_name = self.get_soundcontainername( myuuid )
@@ -2091,22 +2221,50 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # this is a filter to reduce surface attack
             # the home directory of balloon user MUST belongs to balloon user 
             # else pulseaudio does not start
-            soundcontainerlist_volumeMounts = [ self.default_volumes_mount['tmp'] ]
 
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_sound_name,
                                     'imagePullPolicy': 'IfNotPresent',
                                     'image': oc.od.settings.desktopsoundimage,                                    
                                     'env': envlist,
-                                    'volumeMounts': soundcontainerlist_volumeMounts                                    
+                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ]                                    
                                 }   
             )
+            # pod_manifest['spec']['containers'][0] is the main oc.user container
+            # set env PULSE_SERVER to reach pulseaudio
+            pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock' } )
+
+        if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopfileracl ) and \
+           type(oc.od.settings.desktopfilerimage) is str :
+            # get the container sound name prefix with 'f' like sound
+            container_filter_name = self.get_filercontainername( myuuid )
+            # get the volume name created for homedir
+            volume_home_name = self.get_volumename( 'home', userinfo )
+            
+            # retrieve the home user volume name
+            # to set volumeMounts value
+            homedirvolume = None        # set default value
+            for v in list_volumeMounts:
+                if v.get('name') == volume_home_name:
+                    homedirvolume = v   # find homedirvolume is v
+                    break
+            
+            # if a volume exists
+            # use this volume as homedir to filer service 
+            if homedirvolume  :
+                pod_manifest['spec']['containers'].append( { 
+                                        'name': container_filter_name,
+                                        'imagePullPolicy': oc.od.settings.desktopimagepullpolicy,
+                                        'image': oc.od.settings.desktopfilerimage,                                    
+                                        'env': envlist,
+                                        'volumeMounts': [ homedirvolume ]                                    
+                                    }   
+                )
 
         # if metapply stop, do not restart the pod 
         if kwargs[ 'type' ] == self.x11servertype_embeded :
             pod_manifest['spec']['restartPolicy'] = 'Never'
 
-        self.logger.info( pod_manifest )
 
         # we are ready to create our Pod 
         myDesktop = None
@@ -2115,6 +2273,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         nEventCount = 0
         
         self.on_desktoplaunchprogress('Creating your desktop')
+        logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
         pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
 
         if not isinstance(pod, client.models.v1_pod.V1Pod ):
@@ -2164,7 +2323,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
         myDesktop = self.pod2desktop( myPod )
+        
+        # set desktop web hook
+        # webhook is None if network_config.get('context_network_webhook') is None
+        fillednetworkconfig = self.filldictcontextvalue(authinfo=authinfo, 
+                                                        userinfo=userinfo, 
+                                                        desktop=myDesktop, 
+                                                        network_config=network_config, 
+                                                        network_name = None, 
+                                                        appinstance_id = None )
 
+        myDesktop.webhook = fillednetworkconfig.get('webhook')
+        # describe how to reach the X11 websocket 
+        # define the default websocketrouting
+        
         return myDesktop
 
   
@@ -2308,7 +2480,32 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         desktop_container_id   = None
         desktop_container_name = None
-        
+        desktop_interfaces     = None
+
+        # read metadata annotations 'k8s.v1.cni.cncf.io/network-status'
+        network_status_json_string = myPod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
+        if isinstance( network_status_json_string, str ):
+            # k8s.v1.cni.cncf.io/network-status is set 
+            # load json formated string 
+            network_status_json = json.loads( network_status_json_string )
+            desktop_interfaces = {}
+            for interface in network_status_json :
+                name = interface.get('interface')
+                ips = interface.get('ips')
+                mac = interface.get('mac')
+                
+                # check if type is valid
+                if  not isinstance( ips, list ) or \
+                    not isinstance( name, str ) or \
+                    not isinstance( mac, str ) :
+                    # skipping bad data type
+                    continue
+
+                if len(ips) == 1:
+                    ips = ips[0]
+           
+                desktop_interfaces.update( { name : { 'mac': mac, 'ips': str(ips) } } )
+
         # get the container id for the desktop object
         for c in myPod.status.container_statuses:
             if c.name[0] == self.graphicalcontainernameprefix: # this is the graphical container
@@ -2318,6 +2515,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         internal_pod_fqdn = self.build_internalPodFQDN( myPod )
 
+        
         # Build the ODDesktop Object 
         myDesktop = oc.od.desktop.ODDesktop(    nodehostname=myPod.spec.node_name, 
                                                 name=myPod.metadata.name,
@@ -2328,7 +2526,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                 container_id=desktop_container_id,                                                   
                                                 container_name=desktop_container_name,
                                                 vncPassword=myPod.metadata.labels['vnc_password'],
-                                                fqdn = internal_pod_fqdn )
+                                                fqdn = internal_pod_fqdn,
+                                                desktop_interfaces = desktop_interfaces,
+                                                websocketrouting = myPod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
+                                                websocketroute = myPod.metadata.labels.get('websocketroute') )
         return myDesktop
 
     def countdesktop(self):        
