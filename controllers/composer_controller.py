@@ -284,7 +284,7 @@ class ComposerController(BaseController):
 
             desktop = oc.od.composer.finddesktop_quiet(authinfo=auth, userinfo=user, appname=appname) 
             # check desktop object
-            if desktop is None:                
+            if not isinstance(desktop, oc.od.desktop.ODDesktop):                
                 return Results.error('finddesktop_quiet return None object')
             if not hasattr(desktop, 'internaluri') :
                 return Results.error('finddesktop_quiet return invalid desktop object')
@@ -351,64 +351,69 @@ class ComposerController(BaseController):
 
         try:
             appname = args.get('app')
-            # read the user ip source address 
-            ipaddr = oc.cherrypy.getclientipaddr()
-            args[ 'usersourceipaddr' ] = ipaddr
+            
+            # read the user ip source address for accounting and log history data
+            webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
+            args[ 'WEBCLIENT_SOURCEIPADDR' ] = webclient_sourceipaddr
 
             # open a new desktop
             desktop = oc.od.composer.opendesktop( auth, user, args ) 
-            if desktop is None:                
+
+            # safe check for desktop type
+            if not isinstance(desktop, oc.od.desktop.ODDesktop):                
                 return Results.error('Desktop creation failed')
+
+            # safe check for futur desktop.internaluri usage 
             if not hasattr( desktop, 'internaluri') or desktop.internaluri is None:                
                 return Results.error('Desktop URI is None, creation failed')
             
-            # update internal dns entry
-            # only if we use an external direct access
-            # desktop_fqdn = services.internaldns.update_dns( desktop.id, desktop.ipAddr)
-            # logger.info('New entry is dns %s->%s ', desktop_fqdn, desktop.ipAddr ) 
-
-            # In kubernetes mode change the desktop.ipAddr
-            # to IpAddr.desktop.abcdesktop.svc.cluster.local
-            # example 
-            # If th Pod IPAddr is 10-1-1-85
-            # 10-1-1-85.desktop.abcdesktop.svc.cluster.local
-            # desktoptarget = self.build_desktop_internal_fqdn( desktop.ipAddr )
-
+            # build a jwt token with desktop.internaluri
             jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-            logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
-            logger.info('Service is running on node %s', str(desktop.nodehostname) )
+            # logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
+            # logger.info('Service is running on node %s', str(desktop.nodehostname) )
             
             # set cookie for a optimized load balacing http request
             # if loadbalancing support cookie persistance routing
             # cookie name is abcdesktop_host
-            # match the worker node hostname
+            # match the worker node hostname to recieve next http request on this node
             if isinstance(desktop.nodehostname, str):
                 oc.lib.setCookie( oc.od.settings.routehostcookiename, desktop.nodehostname, path='/' )
 
             # accounting data
             datadict={  **user,
-                        'provider': auth.providertype,
-                        'date': datetime.datetime.utcnow().isoformat(),
-                        'useragent': cherrypy.request.headers.get('User-Agent', None),
-                        'ipaddr': ipaddr,
-                        'node': desktop.nodehostname
+                        'provider':     auth.providertype,
+                        'date':         datetime.datetime.utcnow().isoformat(),
+                        'useragent':    cherrypy.request.headers.get('User-Agent', None),
+                        'ipaddr':       webclient_sourceipaddr,
+                        'node':         desktop.nodehostname,
+                        'type':         'desktop'
             } 
 
-            if appname :
+            if type(appname) is str:
                 datadict['type'] = 'metappli'
                 datadict['app']  = appname
-            else:
-                datadict['type'] = 'desktop'
+           
             services.datastore.addtocollection( databasename=user.userid, 
                                                 collectionname='loginHistory', 
                                                 datadict=datadict)
 
+            target = desktop.ipAddr
+            if desktop.websocketrouting is None:
+                desktop.websocketrouting = oc.od.settings.websocketrouting
+
+            if desktop.websocketrouting == 'bridge':
+                target = desktop.websocketroute
+            
+
             expire_in = services.jwtdesktop.exp() 
+
+            target_ip = self.get_target_ip_route( target, desktop.websocketrouting )
+
             return Results.success(result={
-                'target_ip'     :   self.get_target_ip_route(desktop.ipAddr),
+                'target_ip'     :   target_ip,
                 'vncpassword'   :   desktop.vncPassword,
-                'authorization' :   jwtdesktoptoken,                    # contains desktop.uri (ipaddr)   
-                'websocketrouting': oc.od.settings.websocketrouting,
+                'authorization' :   jwtdesktoptoken, # contains desktop.uri (ipaddr)   
+                'websocketrouting': desktop.websocketrouting,
                 'websockettcpport': oc.od.settings.desktopservicestcpport['x11server'],
                 'expire_in'     :   expire_in             
             })
@@ -421,7 +426,7 @@ class ComposerController(BaseController):
                 services.messageinfo.stop(user.userid) # Stop message info log
 
 
-    def get_target_ip_route(self, target_ip):  
+    def get_target_ip_route(self, target, websocketrouting ):  
         """[get_target_ip_route]
         
             return hostname how to reach the websocket from HTTP web browser to docker container
@@ -445,7 +450,7 @@ class ComposerController(BaseController):
         route = url.hostname
 
         # Now do the route
-        if oc.od.settings.websocketrouting == 'default_host_url':
+        if websocketrouting == 'default_host_url':
             try:
                 myhosturl = oc.od.settings.default_host_url
                 if myhosturl is None:
@@ -456,10 +461,10 @@ class ComposerController(BaseController):
             except Exception as e:
                 logger.error('failed: %s', e)
 
-        elif oc.od.settings.websocketrouting == 'bridge':
-            route = target_ip
+        elif websocketrouting == 'bridge':
+            route = target
 
-        elif oc.od.settings.websocketrouting == 'http_origin':
+        elif websocketrouting == 'http_origin':
             if http_origin is not None:
                 try:
                     # use the origin url to connect to
@@ -468,7 +473,7 @@ class ComposerController(BaseController):
                 except Exception as e:
                     logger.error('Errror: %s', e)
 
-        elif oc.od.settings.websocketrouting == 'http_host':
+        elif websocketrouting == 'http_host':
             try:
                 # use the origin url to connect to
                 url = urllib.parse.urlparse(http_host)
