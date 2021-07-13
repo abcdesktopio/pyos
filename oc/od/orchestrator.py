@@ -945,9 +945,10 @@ class ODOrchestrator(ODOrchestratorBase):
             #   'net1': {'mac': '2a:94:43:e0:f4:46', 'ips': '192.168.9.137'     }, 
             #   'net2': {'mac': '1e:50:5f:b7:85:f6', 'ips': '161.105.208.143'   }
             # }
-            for interface in app.desktop_interfaces.keys():
-                ipAddr = app.desktop_interfaces.get(interface).get('ips')
-                sourcedict.update( { interface: ipAddr } )
+            if isinstance(app.desktop_interfaces, dict ):
+                for interface in app.desktop_interfaces.keys():
+                    ipAddr = app.desktop_interfaces.get(interface).get('ips')
+                    sourcedict.update( { interface: ipAddr } )
 
         sourcedict.update( authinfo.todict() )
         sourcedict.update( userinfo )
@@ -2323,7 +2324,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
         myDesktop = self.pod2desktop( myPod )
-        
+
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
         fillednetworkconfig = self.filldictcontextvalue(authinfo=authinfo, 
@@ -2334,9 +2335,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                         appinstance_id = None )
 
         myDesktop.webhook = fillednetworkconfig.get('webhook')
-        # describe how to reach the X11 websocket 
-        # define the default websocketrouting
-        
+
         return myDesktop
 
   
