@@ -20,8 +20,13 @@ import ldap
 import ldap.filter
 from   ldap.controls import SimplePagedResultsControl
 from   distutils.version import LooseVersion
+
+# kerberos import
+import kerberos
+
 import platform
 import chevron  # for citrix All_Regions.ini
+
 
 # OAuth lib
 from requests_oauthlib import OAuth2Session
@@ -453,6 +458,11 @@ class ODAuthTool(cherrypy.Tool):
         
     def compiledcondition( self, condition, user, roles ):        
         def isPrimaryGroup(user, primaryGroupID):
+
+            # if user is not a dict return False
+            if not isinstance(user, dict):
+                return False
+
             # primary group id is uniqu for
             if user.get('primaryGroupID') == primaryGroupID:  
                 return True
@@ -483,7 +493,12 @@ class ODAuthTool(cherrypy.Tool):
             if type(groups) is not list: 
                 groups = [groups]
             for m in roles:
+                # 
+                if not isinstance( m, str):
+                    continue
                 for g in groups:
+                    if not isinstance( g, str):
+                        continue
                     logger.debug('isMemberOf %s, %s', m, g)
                     if m.lower().startswith(g.lower()):
                         return True
@@ -601,12 +616,47 @@ class ODAuthTool(cherrypy.Tool):
         return buildcompiledrules
 
 
+    def findproviderusingrules(self, manager):
+        provider = None # default value
+        managers = self.managers.get(manager)
+        if not isinstance(managers, ODExplicitAuthManager):
+            raise AuthenticationFailureError('No explicit authentication manager found')
+
+        providers = managers.providers
+        if not isinstance(providers, dict):
+            raise AuthenticationFailureError('No authentication provider found')
+
+        l = len( providers )
+        # if there is only one provider 
+        # return the only one 
+        if l == 1:
+            # return the first value in the dict
+            provider = providers[ next(iter(providers)) ] 
+            return provider
+
+        # there is more than one provider use rules 
+        rules = managers.getrules()
+        if not isinstance( rules, dict):
+            raise AuthenticationFailureError('No authentication provider can be selected, please defined rules entry')
+        
+        compiledrules = self.compiledrules( rules, None, None )
+        if len(compiledrules) > 0:
+            # return the first value in the dict, even if more value matches 
+            provider = next(iter(compiledrules.keys()))
+        return provider
     
     def login(self, provider, manager=None, **arguments):        
 
         try:
             auth = None
             response = AuthResponse(self)
+
+            if provider is None:
+                # no provider has been set 
+                # try to find a provider using the auth rules
+                provider = self.findproviderusingrules(manager)
+                if provider is None:
+                    raise AuthenticationFailureError('No authentication provider can be found')
 
             # look for an auth manager
             mgr = self.findmanager(provider, manager)
@@ -766,6 +816,7 @@ class ODAuthManagerBase(object):
         self.name = name
         self.providers = OrderedDict()
         self.initproviders(config)
+        self.rules = config.get('rules')
 
     def initproviders(self, config):
         for name,cfg in config.get('providers',{}).items():
@@ -793,6 +844,9 @@ class ODAuthManagerBase(object):
     
     def createprovider(self, name, config):
         return ODAuthProviderBase(self, name, config)
+
+    def getrules(self):
+        return self.rules
 
     def getprovider(self, name, raise_error=False):
         if not name: 
@@ -1070,8 +1124,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.domain = config.get('domain')
         self.kerberos_realm = config.get('kerberos_realm')
         self.kerberos_krb5_conf = config.get('krb5_conf')
+        # self.kerberos_service_identifier = config.get('krb5_service_identifier', '')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
-        self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit') # change to /usr/sbin/kinit on macOS
+        self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit')   # change to /usr/sbin/kinit on macOS
         # auth_protocol is a dict of auth protocol, will be injected inside the container
         self.auth_protocol = config.get('auth_protocol', { 'ntlm': False, 'cntlm': False, 'kerberos': False, 'citrix': False} )
         # if ldif is not set (None) 
@@ -1154,38 +1209,32 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def validate(self, userid, password, **params):
 
-        userdn = None
+        userdn = None   # set default value
+        conn   = None   # set default value
 
         if self.auth_type not in ['kerberos', 'bind']:
             raise AuthenticationError('auth_type must be kerberos or bind ')
 
         if self.auth_type == 'kerberos':
             # do kerberos auth 
-            if not self.krb5_validate( userid, password ):
+            # validate can raise exception 
+            conn = self.krb5_validate( userid, password )
+            if conn is False:
                raise AuthenticationError('kerberos auth failed')
+            userdn = userid + '@' + self.kerberos_realm
 
-            # run ldap query using the service account
-            # self.userid and self.password define the service account
-            if self.userid and self.password :
-                conn = self.getconnection( self.userid, self.password)
-                userdn = self.getuserdn(conn, userid)
-                # try:
-                #    userdn = self.getuserdn(conn, userid)
-                #finally:            
-                #    conn.unbind()
 
         # do bind ldap auth
         if self.auth_type == 'bind':
+            # do ldap bind auth 
             # validate can raise exception 
-            conn = self.bind_validate(userid, password)
+            conn = self.ldap_validate(userid, password)
             userdn = self.getuserdn(conn, userid)
-            # unbind done in finalize
-            # conn.unbind()
+            # unbind done in finalize conn.unbind() 
     
         return (userdn, conn)
 
     def authenticate(self, userid, password, **params):
-
         # validate can raise exception 
         # like invalid credentials
         (userdn, conn) = self.validate(userid, password)   
@@ -1194,9 +1243,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     'dn': userdn,
                     'environment': self.createauthenv(userid, password) }
         
-        return (    {   'userid': userid, 
-                        'password': password }, 
-                        AuthInfo( self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn) )
+        return (    { 'userid': userid, 'password': password }, 
+                    AuthInfo( self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn) )
 
     def krb5_validate(self, userid, password):
         if not isinstance(userid,str) or len(userid) < 1 :
@@ -1213,18 +1261,19 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if len(password) > 256 :
             raise AuthenticationError('password length must be less than 256 characters')
 
-        if not isinstance(self.kerberos_krb5_conf, str):
-            raise AuthenticationError('invalid krb5 configuration file')
+        service_principal = ''
+        default_realm = self.kerberos_realm
+        is_auth = False
+        
+        try:
+            is_auth = kerberos.checkPassword(userid, password, service_principal, default_realm )
+        except kerberos.KrbError as e:
+           raise AuthenticationError('Password validation failed ' + str(e) )
 
-        cmd = [ self.kerberos_kinit, userid]
-        my_env = os.environ.copy()
-        my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
-        process = subprocess.run(cmd, input=password.encode(),  env=my_env )
-        success = process.returncode
-        return not bool(success)
+        return is_auth
         
 
-    def bind_validate(self, userid, password):
+    def ldap_validate(self, userid, password):
         """[summary]
             Return LDAPObject instance by opening LDAP connection
 
@@ -1442,47 +1491,47 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def createauthenv(self, userid, password):
         default_authenv = {}
 
-        try: 
-            if self.auth_protocol.get('kerberos') is True:
-                try:
-                    dict_hash = self.generateKerberosKeytab( userid, password )
-                    if isinstance( dict_hash, dict ): 
-                        default_authenv.update( { 'kerberos' : {    'PRINCIPAL'   : userid,
-                                                                    'REALM' : self.kerberos_realm,
-                                                                    **dict_hash } } )
-                except Exception as e:
-                    pass
-            
-            if self.auth_protocol.get('ntlm') is True :
-                try:
-                    dict_hash = self.generateNTLMhash(password)
-                    if isinstance( dict_hash, dict ):
-                        default_authenv.update( { 'ntlm' : {    'NTLM_USER'   : userid,
-                                                                'NTLM_DOMAIN' : self.domain,
+        if not isinstance( self.auth_protocol, dict):
+            # nothing to do 
+            return default_authenv
+
+        if self.auth_protocol.get('kerberos') is True:
+            try:
+                dict_hash = self.generateKerberosKeytab( userid, password )
+                if isinstance( dict_hash, dict ): 
+                    default_authenv.update( { 'kerberos' : {    'PRINCIPAL'   : userid,
+                                                                'REALM' : self.kerberos_realm,
                                                                 **dict_hash } } )
-                except Exception as e:
-                        pass
+            except Exception as e:
+                pass
+        
+        if self.auth_protocol.get('ntlm') is True :
+            try:
+                dict_hash = self.generateNTLMhash(password)
+                if isinstance( dict_hash, dict ):
+                    default_authenv.update( { 'ntlm' : {    'NTLM_USER'   : userid,
+                                                            'NTLM_DOMAIN' : self.domain,
+                                                            **dict_hash } } )
+            except Exception as e:
+                    pass
 
-            if self.auth_protocol.get('cntlm') is True :
-                try:
-                    dict_hash = self.generateCNTLMhash( userid, password, self.domain)
-                    if isinstance( dict_hash, dict ):
-                        default_authenv.update( { 'cntlm' : {   'NTLM_USER'   : userid,
-                                                                'NTLM_DOMAIN' : self.domain,
-                                                                 **dict_hash } } )
-                except Exception as e:
-                        pass
+        if self.auth_protocol.get('cntlm') is True :
+            try:
+                dict_hash = self.generateCNTLMhash( userid, password, self.domain)
+                if isinstance( dict_hash, dict ):
+                    default_authenv.update( { 'cntlm' : {   'NTLM_USER'   : userid,
+                                                            'NTLM_DOMAIN' : self.domain,
+                                                            **dict_hash } } )
+            except Exception as e:
+                    pass
 
-            if self.auth_protocol.get('citrix') is True :
-                try:
-                    dict_hash = self.generateCitrixAllRegionsini ( userid, password, self.domain) 
-                    if isinstance( dict_hash, dict ):
-                        default_authenv.update( { 'citrix' : { **dict_hash } } )
-                except Exception as e:
-                        pass   
-
-        except Exception as e:
-            self.logger.error('Failed: %s', e)
+        if self.auth_protocol.get('citrix') is True :
+            try:
+                dict_hash = self.generateCitrixAllRegionsini ( userid, password, self.domain) 
+                if isinstance( dict_hash, dict ):
+                    default_authenv.update( { 'citrix' : { **dict_hash } } )
+            except Exception as e:
+                    pass   
 
         return default_authenv
     
