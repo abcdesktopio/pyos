@@ -694,9 +694,9 @@ def init_config_auth():
 
             if conncfg: 
                 cfg.update({    **conncfg,
-                                'basedn': conncfg.get('ldap_basedn'),
+                                'basedn':  conncfg.get('ldap_basedn'),
                                 'timeout': conncfg.get('ldap_timeout', 15),
-                                'secure': conncfg.get('ldap_protocol') == 'ldaps'
+                                'secure':  conncfg.get('ldap_protocol') == 'ldaps'
                 })
                 logger.debug(cfg)
 
