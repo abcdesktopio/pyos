@@ -207,7 +207,6 @@ class AuthController(BaseController):
         cherrypy.response.timeout = 180
         args = cherrypy.request.json
 
-        # services.auth.isauthenticated is False
 
         if not isinstance(args, dict):
             raise cherrypy.HTTPError(400)
@@ -215,7 +214,7 @@ class AuthController(BaseController):
         # Check if provider is set            
         if not args.get('provider'): 
             raise cherrypy.HTTPError(400)
-
+        
         # do login
         self.logger.info( 'event:start services.auth.login' )
         response = services.auth.login(**args)
@@ -320,24 +319,24 @@ class AuthController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def autologin(self, login=None, provider='anonymous', password=None):
+    def autologin(self, login=None, provider=None, password=None):
         self.logger.debug('')
 
         if oc.od.settings.services_http_request_denied.get(self.autologin.__name__) is True:
             raise cherrypy.HTTPError(400, 'request is denied by configfile')
 
-        #if not isinstance(login,str):
-        #    raise cherrypy.HTTPError(400, 'Bad request invalid login parameter')
+        if not isinstance(login,str):
+            raise cherrypy.HTTPError(400, 'Bad request invalid login parameter')
 
         # password is an optionnal value but must be a str if set
         if password is not None and not isinstance(password,str) :
             raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
 
-        if isinstance(provider,str) is False:
-            raise cherrypy.HTTPError(400, 'Bad request invalid provider parameter')
+        # if isinstance(provider,str) is False:
+        #    raise cherrypy.HTTPError(400, 'Bad request invalid provider parameter')
         
         # build a login dict arg object with provider set to AD
-        args_login = {  'manager':  None,
+        args_login = {  'manager':  'explicit',
                         'password': password,
                         'provider': provider,
                         'userid':   login,
