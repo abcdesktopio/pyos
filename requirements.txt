@@ -9,6 +9,7 @@ graypy
 iso8601
 jira==2.0.0
 kubernetes
+ldap3
 netaddr
 PyJWT==2.0.0
 pymongo==3.6.1
