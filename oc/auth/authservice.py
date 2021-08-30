@@ -15,11 +15,9 @@
 import logging
 import time
 
-# ldap import
 import ldap
-import ldap.filter
-from   ldap.controls import SimplePagedResultsControl
-from   distutils.version import LooseVersion
+import ldap3
+from ldap3 import Connection, Server, Tls, ReverseDnsSetting, SYNC, ALL
 
 # kerberos import
 import kerberos
@@ -618,14 +616,18 @@ class ODAuthTool(cherrypy.Tool):
 
     def findproviderusingrules(self, manager):
         provider = None # default value
+
+        # get explicit manager dict
         managers = self.managers.get(manager)
         if not isinstance(managers, ODExplicitAuthManager):
             raise AuthenticationFailureError('No explicit authentication manager found')
 
+        # get provider dict for explicit manager
         providers = managers.providers
         if not isinstance(providers, dict):
             raise AuthenticationFailureError('No authentication provider found')
 
+        # get the length of providers dict 
         l = len( providers )
         # if there is only one provider 
         # return the only one 
@@ -643,6 +645,14 @@ class ODAuthTool(cherrypy.Tool):
         if len(compiledrules) > 0:
             # return the first value in the dict, even if more value matches 
             provider = next(iter(compiledrules.keys()))
+        else:
+            # no provider found using rules
+            # use the default provider with attribut 'default':True 
+            for k in providers.keys():
+                if providers[k].is_default() is True:
+                    provider = k
+                    break
+                    
         return provider
     
     def login(self, provider, manager=None, **arguments):        
@@ -940,6 +950,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         policies = config.get('policies', {} )
         self.acls  = policies.get('acl', { 'permit': [ 'all' ] } ) 
         self.rules = policies.get('rules')
+        self.default = config.get('default', False )
        
     def authenticate(self, **params):
         raise NotImplementedError()
@@ -956,6 +967,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
 
     def finalize(self, auth, **params):
         return auth
+
+    def is_default( self ):
+        return self.default
 
 
 # Implement OAuth 2.0 AuthProvider
@@ -1084,19 +1098,12 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
     def authenticate(self, userid=None, password=None, **params):
         return ({}, AuthInfo( self.name, self.type, userid, data={ 'userid': userid }))
 
-    
-
-LDAP24API = LooseVersion(ldap.__version__) >= LooseVersion('2.4')
 
 @oc.logging.with_logger()
 class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
-    # Check if we're using the Python "ldap" 2.4 or greater API
-    
-    LDAP_PAGE_SIZE = 8  # LDAP PAGE QUERY
-
     class Query(object):
-        def __init__(self, basedn, scope=ldap.SCOPE_SUBTREE, filter=None, attrs=None ):
+        def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
             self.scope = scope
             self.basedn = basedn
             self.filter = filter
@@ -1107,9 +1114,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         super().__init__(manager, name, config)
         self.type = 'ldap'
 
-        logger.debug('LooseVersion:LDAP24API=%s', str(LDAP24API) )
 
-        self.auth_type  = config.get('auth_type', 'bind')
+        self.auth_type  = config.get('auth_type', 'SIMPLE').upper()
         serviceaccount = config.get('serviceaccount', { 'login':None, 'password':None } )
         if isinstance(serviceaccount,dict):
             self.userid = serviceaccount.get('login')
@@ -1142,7 +1148,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # query users
         self.user_query = self.Query(
             config.get('basedn'), 
-            config.get('scope', ldap.SCOPE_SUBTREE),
+            config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs'))
 
@@ -1199,7 +1205,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return True
 
     def finalize( self, auth, **params):
-        if isinstance( auth.conn , ldap.ldapobject.SimpleLDAPObject ):
+        if isinstance( auth.conn , ldap3.core.connection.Connection ):
             try:
                 auth.conn.unbind()
             except Exception as e:
@@ -1212,26 +1218,28 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         userdn = None   # set default value
         conn   = None   # set default value
 
-        if self.auth_type not in ['kerberos', 'bind']:
+        if self.auth_type not in ['KERBEROS', 'NTLM', 'SIMPLE' ]:
             raise AuthenticationError('auth_type must be kerberos or bind ')
 
-        if self.auth_type == 'kerberos':
-            # do kerberos auth 
-            # validate can raise exception 
+        if self.auth_type == 'KERBEROS':
+            # do ldap bind auth, can raise exception 
             conn = self.krb5_validate( userid, password )
-            if conn is False:
-               raise AuthenticationError('kerberos auth failed')
-            userdn = userid + '@' + self.kerberos_realm
 
 
-        # do bind ldap auth
-        if self.auth_type == 'bind':
-            # do ldap bind auth 
-            # validate can raise exception 
-            conn = self.ldap_validate(userid, password)
-            userdn = self.getuserdn(conn, userid)
+        # do bind ldap auth using text plain
+        if self.auth_type == 'SIMPLE':
+            # do ldap bind auth, can raise exception 
+            conn = self.simple_validate(userid, password)
+           
             # unbind done in finalize conn.unbind() 
     
+        # do bind ldap auth using text plain
+        if self.auth_type == 'NTLM':
+            # do ldap bind auth, can raise exception 
+            conn = self.ntlm_validate(userid, password)
+
+        userdn = self.getuserdn(conn, userid)
+
         return (userdn, conn)
 
     def authenticate(self, userid, password, **params):
@@ -1261,19 +1269,43 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if len(password) > 256 :
             raise AuthenticationError('password length must be less than 256 characters')
 
-        service_principal = ''
-        default_realm = self.kerberos_realm
-        is_auth = False
-        
-        try:
-            is_auth = kerberos.checkPassword(userid, password, service_principal, default_realm )
-        except kerberos.KrbError as e:
-           raise AuthenticationError('Password validation failed ' + str(e) )
+        # service_principal = ''
+        # default_realm = self.kerberos_realm
+        # try:
+        #     is_auth = kerberos.checkPassword(userid, password, service_principal, default_realm )
+        # except kerberos.KrbError as e:
+        #   raise AuthenticationError('Password validation failed ' + str(e) )
 
-        return is_auth
-        
+        krb5ccname = self.get_krb5ccname( userid )
+        kinit_result = self.run_kinit( krb5ccname, userid, password )
+        if not kinit_result :
+            self.remove_krb5ccname( krb5ccname )
+            raise AuthenticationError('kerberos kinit credentitial validation failed' )
 
-    def ldap_validate(self, userid, password):
+        conn = self.getconnection(userid, password, krb5ccname=krb5ccname )
+        
+        return conn
+
+    def ntlm_validate(self, userid, password):
+        if not isinstance(userid,str) or len(userid) < 1 :
+            raise AuthenticationError('user can not be an empty string')
+
+        if len(userid) > 256 :
+            raise AuthenticationError('user length must be less than 256 characters')
+
+        if not isinstance(password,str) or len(password) < 1 :
+            raise AuthenticationError('password can not be an empty string')
+
+        # ntlm password length Limit.
+        # Maximum number of characters supported for plain-text ntlm config is 127
+        if len(password) > 127 :
+            raise AuthenticationError('password length must be less than 127 characters')
+
+        conn = self.getconnection(userid, password)
+
+        return conn        
+
+    def simple_validate(self, userid, password):
         """[summary]
             Return LDAPObject instance by opening LDAP connection
 
@@ -1289,7 +1321,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             AuthenticationError: [description]
 
         Returns:
-            [conn]: [ldap.ldapobject.SimpleLDAPObject]
+            [conn]: [ldap3.core.connection.Connection ]
         """
 
         ''' validate userid and password, using bind to ldap server '''
@@ -1323,11 +1355,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def getuserinfo(self, authinfo, **params):        
         # uncomment this line may dump password in clear text 
         # logger.debug(locals())
-        token = authinfo.token
-        # uthinfo.conn is ldap.ldapobject.SimpleLDAPObject
+        # authinfo.conn is ldap3.core.connection.Connection 
         q = self.user_query
-        userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap.filter.filter_format(q.filter, [token]), q.attrs, **params)
-        if userinfo:
+        userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap.filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
+        if isinstance(userinfo, dict):
             # Add always userid entry, make sure this entry exists
             userinfo['userid'] = userinfo.get(self.useruidattr)
             # Add always name entry
@@ -1353,7 +1384,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         q = self.user_query
         result = self.search_one( authinfo.conn, q.basedn, q.scope, ldap.filter.filter_format(q.filter, [token]), ['memberOf'], **params)
         # return [dn.split(',',2)[0].split('=',2)[1] for dn in result['memberOf']] if result else []
-        memberOf = result.get('memberOf', [] )
+        memberOf = result.get('memberOf', [])
         if isinstance(memberOf, str):
              memberOf = [ memberOf ]    # always a list
         return memberOf
@@ -1361,57 +1392,50 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def getuserdnldapconnection(self, userid):
         # rewrite the userid with full dn
         # format cn=Hubert J. Farnsworth,ou=people,dc=planetexpress,dc=com
-        escape_userid = ldap.filter.escape_filter_chars(userid)
+        escape_userid = ldap3.filter.escape_filter_chars(userid)
         if len(escape_userid) != len( userid ):
-            self.logger.debug( 'WARNING ldap.filter.escape_filter_chars activated' )
+            self.logger.debug( 'WARNING ldap.filter.escape_filter_chars escaped' )
             self.logger.debug( 'value=%s escaped by ldap.filter.escape_filter_chars as value=%s', userid, escape_userid )
         return self.useridattr + '=' + escape_userid + ',' + self.users_ou
 
-    def getconnection(self, userid, password):
-        servers = self.servers.copy()
-        for i in range(len(self.servers)):
-            try:                
-                server = self.servers[i] 
-                self.logger.debug( 'ldap connecting to %s', server)
-                time_start = time.time()
-                conn = self.initconnection(server)
-                if userid:
-                    userdn = self.getuserdnldapconnection(userid)
-                    conn.simple_bind_s(userdn, password)
-                    time_done = time.time()
-                    elapsed = time_done - time_start
-                    self.logger.debug( 'ldap connected to %s in %d s', server, int(elapsed))
-                    return conn
-            # Only choose another LDAP server if SERVER_DOWN, TIMEOUT or TIMELIMIT_EXCEED
-            except (ldap.SERVER_DOWN, ldap.TIMEOUT, ldap.TIMELIMIT_EXCEEDED) as e:
-                servers.append(servers.pop(i))
-                self.logger.exception(e)
-            # else do not except the execption now
-            # the exception is excepted by caller 
-            # #  except Exception as e:
-            # #      logger.exception('')
-            # #      raise e
-            finally:
-                self.servers = servers
+    def getconnection(self, userid, password, krb5ccname=None ):
+        conn = None
+        try: 
+            serverpool = ldap3.ServerPool(self.servers, ldap3.ROUND_ROBIN, active=True, exhaust=True)
+            self.logger.debug( 'ldap bind using auth %s', self.auth_type)
 
-        raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
+            # do kerberos bind
+            if self.auth_type == 'KERBEROS': 
+                os.putenv( 'KRB5CCNAME', krb5ccname )
+                conn = Connection( serverpool, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS)
+                os.unsetenv('KRB5CCNAME')
 
-    def initconnection(self, server):
+            # do ntlm bind
+            if self.auth_type == 'NTLM':
+                # userid MUST be DOMAIN\\SAMAccountName format 
+                # call overwrited by bODAdAuthProvider:getconnection
+                conn = Connection( serverpool, user=userid, password=password, authentication=ldap3.NTLM )
+                
+            # do textplain simple_bind_s 
+            if self.auth_type == 'SIMPLE':
+                # get the dn to bind 
+                userdn = self.getuserdnldapconnection(userid)
+                conn = Connection( serverpool, user=userdn, password=password, authentication=ldap3.SIMPLE )
+
+            # bind to the ldap server
+            conn.bind()
+            
+            return conn
+
+        except (ldap3.core.exceptions.LDAPServerPoolError) as e:
+            raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
+    
+    def initserver(self, ldapserver ):
         protocol = 'ldaps' if self.secure else 'ldap'
-        ldap_url = protocol + '://' + server        
-        logger.info( 'ldap.initialize to %s', ldap_url)
-       
-        if self.tls_require_cert is False:
-            # TLS: hostname does not match CN peer cetificate
-            # if we use a VIP with bad CN for example
-            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
-
-        conn = ldap.initialize(ldap_url)        
-        conn.protocol_version = 3
-        conn.set_option(ldap.OPT_REFERRALS, 0)
-        conn.set_option(ldap.OPT_NETWORK_TIMEOUT, self.timeout)
-        conn.set_option(ldap.OPT_TIMEOUT, self.timeout)  
-        return conn
+        ldap_uri = protocol + '://' + ldapserver        
+        logger.info( 'ldap.initialize to %s', ldap_uri)  
+        server = Server(ldap_uri, get_info=ALL )
+        return server
 
     def search_all(self, basedn, scope, filter=None, attrs=None, **params):
         ldap_bind_userid     = params.get( 'userid', self.userid )
@@ -1424,34 +1448,27 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             conn.unbind()
 
     def search_one(self, conn, basedn, scope, filter=None, attrs=None, **params):                 
-        if not isinstance( conn, ldap.ldapobject.SimpleLDAPObject ):    
+        if not isinstance( conn, ldap3.core.connection.Connection ):    
             ldap_bind_userid     = params.get( 'userid', self.userid )
             ldap_bind_password   = params.get( 'password', self.password )  
             conn = self.getconnection(ldap_bind_userid, ldap_bind_password)
         return self.search(conn, basedn, scope, filter, attrs, True)
-
-        # try:
-        #    return self.search(conn, basedn, scope, filter, attrs, True)
-        # finally:
-        #     if ldap_bind_userid: 
-        #         conn.unbind()
 
     def search(self, conn, basedn, scope, filter=None, attrs=None, one=False):
         logger.debug(locals())
         withdn = attrs is not None and 'dn' in (a.lower() for a in attrs)
         entries = []
         time_start = time.time()
-        results = conn.search_s(basedn, scope, filter, attrs)
-        for dn, entry in results: 
-            if not dn: 
-                continue
-            for k,v in entry.items(): 
-                entry[k] = self.decodeValue(k,v)
-            if withdn: 
-                entry['dn'] = dn
-            if one: 
-                return entry
-            entries.append(entry)
+        results = conn.search( search_base=basedn, search_filter=filter, search_scope=scope, attributes=attrs)
+        if results:
+            for entry in conn.entries: 
+                data = {}
+                for k,v in entry.entry_attributes_as_dict.items():
+                    data[k] = self.decodeValue(k,v)
+                data['dn'] = entry.entry_dn
+                if one: 
+                    return data
+                entries.append(data)
         time_done = time.time()
         elapsed = time_done - time_start
         self.logger.info( 'ldap search_s %s %s take %d ', basedn, str(filter), int(elapsed) )
@@ -1464,7 +1481,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return self.getdn(conn, self.group_query, id)
 
     def getdn(self, conn, query, id):
-        result = self.search(conn, query.basedn, query.scope, ldap.filter.filter_format(query.filter, [id]), ['distinguishedName'], True)
+        result = self.search(conn, query.basedn, query.scope, ldap.filter.filter_format(query.filter, [id]), ['cn', 'distinguishedName'], True)
         return result['distinguishedName'] if result else None
 
     def decodeValue(self, name, value):
@@ -1535,55 +1552,39 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         return default_authenv
     
-    def _pagedAsyncSearch( self, conn, basedn, filter, attrlist, scope=ldap.SCOPE_SUBTREE, sizelimit=0):
-        logger.debug('_pagedAsyncSearch %s %s %s', basedn, filter, attrlist)
 
-        if conn is None:
-            raise RuntimeError('conn is not established')   
+    def paged_search( self, conn, basedn, filter, attrlist, scope=ldap3.SUBTREE, sizelimit=0):
+        entry_list = conn.extend.standard.paged_search(search_base = basedn,
+                                            search_filter = filter,
+                                            search_scope = scope,
+                                            attributes = attrlist,
+                                            paged_size = self.LDAP_PAGE_SIZE,
+                                            generator=True)
+        return entry_list
 
-        # Create the page control to work from
-        lc = self.create_controls(self.LDAP_PAGE_SIZE)
-        objArray = {}
-        while True:
-            try:
-                msgid = conn.search_ext( basedn, scope, filter, attrlist, serverctrls=[lc])
-            except ldap.LDAPError as e:
-                logger.error( '_pagedAsyncSearch:Could not pull LDAP results: %s', e)
-                return objArray
-            except ldap.TIMEOUT as e:
-                logger.error('_pagedAsyncSearch: LDAP TIMEOUT %s', e)
-                return objArray
 
-            # Pull the results from the search request
-            try:
-                rtype, rdata, rmsgid, serverctrls = conn.result3(msgid)
-            except ldap.LDAPError as e:
-                logger.error( '_pagedAsyncSearch: Could not pull LDAP results: %s', e)
-                return objArray
+   
+    def get_krb5ccname( self, principal ):
+        krb5ccname = '/tmp/' + oc.auth.namedlib.normalize_name( principal ) + '.krb5ccname'
+        return krb5ccname
 
-            # Each "rdata" is a tuple of the form (dn, attrs), where dn is
-            # a string containing the DN (distinguished name) of the entry,
-            # and attrs is a dictionary containing the attributes associated
-            # with the entry. The keys of attrs are strings, and the associated
-            # values are lists of strings.
-            # objArray[ dn ]=
-            for dn, attrs in rdata:
-                objArray[dn] = attrs
+    def remove_krb5ccname( self, krb5ccname ):
+        try :
+            os.unlink( krb5ccname )
+        except Exception as e:
+            self.logger.error('failed to delete tmp file: %s %s', krb5ccname, e)
 
-            # Get cookie for next request
-            pctrls = self.get_pctrls(serverctrls)
-            if not pctrls:
-                logger.warning('_pagedAsyncSearch Warning: Server ignores RFC 2696 control.')
-                break
 
-            # Ok, we did find the page control, yank the cookie from it and
-            # insert it into the control for our next search. If however there
-            # is no cookie, we are done!
-            cookie = self.set_cookie(lc, pctrls, self.LDAP_PAGE_SIZE)
-            if not cookie:
-                break
+    def run_kinit( self, krb5ccname, userid, password ):
 
-        return objArray
+        userPrincipalName = userid + '@' + self.kerberos_realm
+        cmd = [ self.kerberos_kinit, '-c', krb5ccname, userPrincipalName ]
+        my_env = os.environ.copy()
+        if self.kerberos_krb5_conf :
+            my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
+        process = subprocess.run(cmd, input=password.encode(),  env=my_env )
+        success = process.returncode
+        return not bool(success)
 
 
     def generateKerberosKeytab(self, principal, password ):
@@ -1788,7 +1789,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 @oc.logging.with_logger()
 class ODAdAuthProvider(ODLdapAuthProvider):
     INVALID_CHARS = ['"', '/', '[', ']', ':', ';', '|', '=', ',', '+', '*', '?', '<', '>'] #'\\'
-    DEFAULT_ATTRS = ['distinguishedName', 'dn', 'displayName', 'sAMAccountName', 'name', 'cn', 'homeDrive', 'homeDirectory', 'profilePath', 'memberOf', 'proxyAddresses', 'userPrincipalName', 'primaryGroupID']
+    DEFAULT_ATTRS = ['distinguishedName', 'displayName', 'sAMAccountName', 'name', 'cn', 'homeDrive', 'homeDirectory', 'profilePath', 'memberOf', 'proxyAddresses', 'userPrincipalName', 'primaryGroupID']
 
     def __init__(self, manager, name, config):
         super().__init__(manager, name, config)
@@ -1806,7 +1807,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         self.group_query.filter = config.get('group_filter', "(&(objectClass=group)(cn=%s))")
         self.recursive_search = config.get('recursive_search', False) is True
 
-
         if self.query_dcs:
             if not self.domain_fqdn: 
                 raise ValueError("Property 'domain_fqdn' not set, cannot query domain controllers list")
@@ -1823,7 +1823,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         # query sites
         self.printer_query = self.Query(
             basedn=config.get('printer_printerdn', 'OU=Applications,' + config.get('basedn') ),
-            scope=config.get('printer_scope', ldap.SCOPE_SUBTREE),
+            scope=config.get('printer_scope', ldap3.SUBTREE),
             filter=config.get('printer_filter', '(objectClass=printQueue)'),
             attrs=config.get('printer_attrs',
                                 [ 'cn', 'uNCName', 'location', 'driverName', 'driverVersion', 'name', 
@@ -1839,7 +1839,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         # query printer
         self.site_query = self.Query(
             basedn=config.get('site_subnetdn', 'CN=Subnets,CN=Sites,CN=Configuration,' + config.get('basedn') ),
-            scope=config.get('site_scope', ldap.SCOPE_SUBTREE),
+            scope=config.get('site_scope', ldap3.SUBTREE),
             filter=config.get('site_filter', '(objectClass=subnet)'),
             attrs=config.get('site_attrs',['cn', 'siteObject', 'location']) )
 
@@ -1915,18 +1915,23 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         if not self.recursive_search:
             return super().getroles(authinfo, **params)
 
-        ldap_bind_userid     = params.get( 'userid', self.userid )
-        ldap_bind_password   = params.get( 'password',self.password )        
+        # ldap_bind_userid   = None 
+        # ldap_bind_password = None 
+        #
+        #if not isinstance( authinfo.conn, ldap3.core.connection.Connection  ):    
+        #    ldap_bind_userid     = params.get( 'userid', self.userid )
+        #    ldap_bind_password   = params.get( 'password', self.password )  
+        #    conn = self.getconnection(ldap_bind_userid, ldap_bind_password)
+        #else:
+        #    conn = authinfo.conn
+
         
-        conn = self.getconnection(ldap_bind_userid, ldap_bind_password)
-        try:
-            userdn = self.getuserdn(conn, token)
-            if not userdn: 
-                return []
-            return [entry['cn'] for entry in self.search(conn, self.group_query.basedn, ldap.SCOPE_SUBTREE, '(member:1.2.840.113556.1.4.1941:=%s)' % userdn, ['cn'])]
-        finally:
-            if self.userid: 
-                conn.unbind()
+        userdn = self.getuserdn(authinfo.conn, token)
+        if not userdn: 
+            return []
+
+        return [entry['cn'] for entry in self.search(authinfo.conn, self.group_query.basedn, ldap3.SUBTREE, '(member:1.2.840.113556.1.4.1941:=%s)' % userdn, ['cn'])]
+    
 
     
     def issafeAdAuthusername(self, username):
@@ -2002,12 +2007,9 @@ class ODAdAuthProvider(ODLdapAuthProvider):
            logger.debug( 'dcslist has exprired' )
         return bReturn
 
-    def getconnection(self, userid, password):
-        if self.isdcslistexpired():
-            Thread(target=self.refreshdcs).start() # Start async refresh of DCs list
-
+    def getconnection(self, userid, password, krb5ccname=None ):
         adlogin = self.getadlogin(userid)
-        return super().getconnection(adlogin, password)
+        return super().getconnection(adlogin, password, krb5ccname=krb5ccname )
 
  
 
@@ -2026,7 +2028,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         try:
             # logger.debug('getconnection')
             conn = self.getconnection( userid, password )
-            result = self._pagedAsyncSearch(conn,self.printer_query.basedn, filter, self.printer_query.attrs)
+            result = self.paged_search(conn, self.printer_query.basedn, filter, self.printer_query.attrs)
             # logger.debug('result %s', result)
             len_printers = len(result)
             logger.info('query result count:%d %s %s ', len_printers, self.printer_query.basedn, filter )
@@ -2069,7 +2071,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             conn = self.getconnection( userid, password )
 
             logger.debug('_pagedAsyncSearch %s %s %s ', self.site_query.basedn, self.site_query.filter, self.site_query.attrs)            
-            result = self._pagedAsyncSearch(conn, self.site_query.basedn, self.site_query.filter, self.site_query.attrs )            
+            result = self.paged_search(conn, self.site_query.basedn, self.site_query.filter, self.site_query.attrs )            
             # logger.debug('_pagedAsyncSearch return len=%d', len( result ))
             for dn in result:
                 attrs = result[dn]
