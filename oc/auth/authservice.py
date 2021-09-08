@@ -532,7 +532,7 @@ class ODAuthTool(cherrypy.Tool):
             if result == condition.get( 'expected'):
                 compiled_result = True
 
-        memberOf = condition.get('memberOf')
+        memberOf = condition.get('memberOf') or condition.get('memberof')
         if type(memberOf) is str:
             result     = isMemberOf( roles, memberOf )
             if result == condition.get( 'expected'):
@@ -1402,29 +1402,38 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         conn = None
         try: 
             serverpool = ldap3.ServerPool(self.servers, ldap3.ROUND_ROBIN, active=True, exhaust=True)
-            self.logger.debug( 'ldap bind using auth %s', self.auth_type)
+            self.logger.debug( 'ldap bind on %s using auth %s', self.servers, self.auth_type)
 
             # do kerberos bind
             if self.auth_type == 'KERBEROS': 
                 os.putenv( 'KRB5CCNAME', krb5ccname )
+                self.logger.debug( 'create Connection object')
                 conn = Connection( serverpool, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS)
+                # bind to the ldap server
+                self.logger.debug( 'bind')
+                conn.bind()
                 os.unsetenv('KRB5CCNAME')
 
             # do ntlm bind
             if self.auth_type == 'NTLM':
                 # userid MUST be DOMAIN\\SAMAccountName format 
                 # call overwrited by bODAdAuthProvider:getconnection
+                self.logger.debug( 'create Connection object')
                 conn = Connection( serverpool, user=userid, password=password, authentication=ldap3.NTLM )
+                # bind to the ldap server
+                self.logger.debug( 'bind')
+                conn.bind()
                 
             # do textplain simple_bind_s 
             if self.auth_type == 'SIMPLE':
                 # get the dn to bind 
                 userdn = self.getuserdnldapconnection(userid)
+                self.logger.debug( 'create Connection object')
                 conn = Connection( serverpool, user=userdn, password=password, authentication=ldap3.SIMPLE )
+                # bind to the ldap server
+                self.logger.debug( 'bind')
+                conn.bind()
 
-            # bind to the ldap server
-            conn.bind()
-            
             return conn
 
         except (ldap3.core.exceptions.LDAPServerPoolError) as e:
@@ -1582,6 +1591,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         my_env = os.environ.copy()
         if self.kerberos_krb5_conf :
             my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
+        self.logger.info( 'run kinit command %s', cmd )
         process = subprocess.run(cmd, input=password.encode(),  env=my_env )
         success = process.returncode
         return not bool(success)
