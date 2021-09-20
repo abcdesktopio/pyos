@@ -217,7 +217,7 @@ class AuthController(BaseController):
         
         # do login
         self.logger.info( 'event:start services.auth.login' )
-        response = services.auth.login(**args)
+        response = services.auth.metalogin(**args)
         self.logger.info( 'event:stop services.auth.login' )
         if not response.success:    
             services.accounting.accountex('login', 'failed')
