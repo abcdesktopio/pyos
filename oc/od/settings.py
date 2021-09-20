@@ -679,26 +679,33 @@ def init_config_auth():
     global authprovider
     global authmanagers
 
+    def parse_provider_configref( authmanagers, provider_type ):
+        expcfg = pyutils.get_setting(authmanagers, provider_type )
+        if expcfg:
+            for name,cfg in expcfg.items(): 
+                cfgref = cfg.get('config_ref')
+                if cfgref is None: 
+                    continue
+                    
+                conncfg = gconfig.get(cfgref, {}).get(name, None)
+
+                if conncfg: 
+                    cfg.update({    **conncfg,
+                                    'basedn':  conncfg.get('ldap_basedn'),
+                                    'timeout': conncfg.get('ldap_timeout', 15),
+                                    'secure':  conncfg.get('ldap_protocol') == 'ldaps'
+                    })
+                    logger.debug(cfg)
+
+
     authprovider = gconfig.get('authprovider', {})    
     logger.debug(authprovider)
 
     authmanagers = gconfig.get('authmanagers', {})
-    expcfg = pyutils.get_setting(authmanagers, 'explicit.providers')
-    if expcfg:
-        for name,cfg in expcfg.items(): 
-            cfgref = cfg.get('config_ref')
-            if cfgref is None: 
-                continue
-                
-            conncfg = gconfig.get(cfgref, {}).get(name, None)
 
-            if conncfg: 
-                cfg.update({    **conncfg,
-                                'basedn':  conncfg.get('ldap_basedn'),
-                                'timeout': conncfg.get('ldap_timeout', 15),
-                                'secure':  conncfg.get('ldap_protocol') == 'ldaps'
-                })
-                logger.debug(cfg)
+    # load configref for explicit and metaexplicit providers
+    parse_provider_configref( authmanagers, 'explicit.providers')
+    parse_provider_configref( authmanagers, 'metaexplicit.providers')
 
 
 def getAuthProvider(name):
