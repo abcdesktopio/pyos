@@ -94,7 +94,7 @@ class ODOrchestratorBase(object):
         self.name = 'base'
   
     def get_graphicalcontainername( self, userid, container_name ):
-        if userid:
+        if isinstance( userid, str ):
             userid = userid + self.containernameseparator
         else:
             userid = ''
