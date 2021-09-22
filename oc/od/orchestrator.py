@@ -93,25 +93,41 @@ class ODOrchestratorBase(object):
         self._myinfra = None
         self.name = 'base'
   
-    def get_graphicalcontainername( self, container_name ):
-        return  self.graphicalcontainernameprefix   + \
-                self.containernameseparator         + \
-                oc.auth.namedlib.normalize_name( container_name )
+    def get_graphicalcontainername( self, userid, container_name ):
+        if userid:
+            userid = userid + self.containernameseparator
+        else:
+            userid = ''
 
-    def get_printercontainername( self, container_name ):
-        return  self.printercontainernameprefix     + \
-                self.containernameseparator         + \
-                oc.auth.namedlib.normalize_name( container_name )
+        return  oc.auth.namedlib.normalize_name( 
+                    self.graphicalcontainernameprefix   + \
+                    self.containernameseparator         + \
+                    userid                              + \
+                    container_name )
 
-    def get_soundcontainername( self, container_name ):
-        return  self.soundcontainernameprefix       + \
-                self.containernameseparator         + \
-                oc.auth.namedlib.normalize_name( container_name )
+    def get_printercontainername( self, userid, container_name ):
+        return  oc.auth.namedlib.normalize_name( 
+                    self.printercontainernameprefix     + \
+                    self.containernameseparator         + \
+                    userid                              + \
+                    self.containernameseparator         + \
+                    container_name )
 
-    def get_filercontainername( self, container_name ):
-        return  self.filercontainernameprefix       + \
-                self.containernameseparator         + \
-                oc.auth.namedlib.normalize_name( container_name )
+    def get_soundcontainername( self, userid, container_name ):
+        return  oc.auth.namedlib.normalize_name( 
+                    self.soundcontainernameprefix       + \
+                    self.containernameseparator         + \
+                    userid                              + \
+                    self.containernameseparator         + \
+                    container_name )
+
+    def get_filercontainername( self, userid, container_name ):
+        return  oc.auth.namedlib.normalize_name( 
+                    self.filercontainernameprefix       + \
+                    self.containernameseparator         + \
+                    userid                              + \
+                    self.containernameseparator         + \
+                    container_name )
 
     def get_normalized_username(self, name ):
         """[get_normalized_username]
@@ -1037,9 +1053,9 @@ class ODOrchestrator(ODOrchestratorBase):
         # this will change and run the app
         if type(appname) is str:
             labels.update( { 'type': self.x11servertype_embeded, 'appname':  appname } )
-            container_name  = self.get_graphicalcontainername( userinfo.userid + '-' + appname )
+            container_name  = self.get_graphicalcontainername( userinfo.userid, appname )
         else:
-            container_name  = self.get_graphicalcontainername( userinfo.userid )
+            container_name  = self.get_graphicalcontainername( userinfo.userid, x11desktoptype )
 
         # build storage volume or directory binding
         # callback_notify( 'Build volumes' )
@@ -1293,12 +1309,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, secret_type )
         return secret.read_credentials(userinfo)
 
-    def get_podname( self, pod_name ):
-        return oc.auth.namedlib.normalize_name(pod_name)        
+    def get_podname( self, userid, pod_uuid ):
+        return oc.auth.namedlib.normalize_name( userid + self.containernameseparator + pod_uuid)        
  
-    def get_name( self, container_name ):
-        return oc.auth.namedlib.normalize_name( container_name ) 
-
     def get_labelvalue( self, label_value):
         normalize_data = oc.auth.namedlib.normalize_label( label_value )
         no_accent_normalize_data = oc.lib.remove_accents( normalize_data )
@@ -2033,8 +2046,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             kwargs[ 'type' ]  = self.x11servertype
 
         myuuid = str(uuid.uuid4())
-        pod_name = self.get_podname( str(uuid.uuid4() ) ) 
-        container_name = self.get_graphicalcontainername( myuuid )         
+        pod_name = self.get_podname( userinfo.userid, myuuid ) 
+        container_name = self.get_graphicalcontainername( userinfo.userid, myuuid )         
 
         # envdict to envlist
         envlist = []
@@ -2199,7 +2212,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopprinteracl ) and \
            type(oc.od.settings.desktopprinterimage) is str :
             # get the container sound name prefix with 'p' like sound
-            container_printer_name = self.get_printercontainername( myuuid )
+            container_printer_name = self.get_printercontainername( userinfo.userid, myuuid )
             pod_manifest['spec']['containers'].append( { 
                                     'name': container_printer_name,
                                     'imagePullPolicy': oc.od.settings.desktopimagepullpolicy,
@@ -2215,7 +2228,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopsoundacl ) and \
            type(oc.od.settings.desktopsoundimage) is str :
             # get the container sound name prefix with 's' like sound
-            container_sound_name = self.get_soundcontainername( myuuid )
+            container_sound_name = self.get_soundcontainername( userinfo.userid, myuuid )
             # pulseaudio need only the shared volume 
             # /tmp for the unix socket 
             # /dev/shm for the share memory
@@ -2238,7 +2251,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopfileracl ) and \
            type(oc.od.settings.desktopfilerimage) is str :
             # get the container sound name prefix with 'f' like sound
-            container_filter_name = self.get_filercontainername( myuuid )
+            container_filter_name = self.get_filercontainername( userinfo.userid, myuuid )
             # get the volume name created for homedir
             volume_home_name = self.get_volumename( 'home', userinfo )
             
