@@ -45,7 +45,7 @@ from   oc.od.desktop import ODDesktop
 import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
-
+from oc.od.vnc_password import ODVncPassword
 
 logger = logging.getLogger(__name__)
 
@@ -147,9 +147,6 @@ class ODOrchestratorBase(object):
        if self._myinfra is not None:
             self._myinfra.close()
             self._myinfra = None
-
-    def mkvnc_password(self):
-        return oc.lib.randomStringwithDigitsAndSymbols(10)
    
     def resumedesktop(self, authinfo, userinfo, **kwargs):
         raise NotImplementedError('%s.desktop' % type(self))
@@ -442,7 +439,9 @@ class ODOrchestrator(ODOrchestratorBase):
             # This loop read the fisrt one containers and break
             for c in list_containers:                                
                 ipAddr = myInfra.getDesktopIpAddr( c.id, kwargs.get('defaultnetworknetuserid') )
-                myDesktop = oc.od.desktop.ODDesktop( nodehostname=self.nodehostname, ipAddr=ipAddr, status=c.status, desktop_id=c.id, container_id=c.id, vncPassword=c.labels['vnc_password'], websocketrouting=oc.od.settings.websocketrouting )
+                vnc_password = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
+                vnc_password.decrypt( c.labels['vnc_password'] )           
+                myDesktop = oc.od.desktop.ODDesktop( nodehostname=self.nodehostname, ipAddr=ipAddr, status=c.status, desktop_id=c.id, container_id=c.id, vncPassword=vnc_password.getplain(), websocketrouting=oc.od.settings.websocketrouting )
                 break   
         
         return myDesktop
@@ -543,7 +542,7 @@ class ODOrchestrator(ODOrchestratorBase):
            remove_volume_home = True
 
         myDesktop = self.findDesktopByUser(authinfo, userinfo, **args)
-        if type(myDesktop) is ODDesktop:
+        if isinstance(myDesktop, ODDesktop):
             status = self.removecontainer( myDesktop.id, remove_volume_home )
         return status
 
@@ -1014,8 +1013,8 @@ class ODOrchestrator(ODOrchestratorBase):
         container_name = None
         
         # add a new VNC Password to the command line
-        vncPassword = self.mkvnc_password()
-        command.extend('--vncpassword {}'.format(vncPassword).split(' '))
+        vncPassword =  ODVncPassword()
+        command.extend('--vncpassword {}'.format( vncPassword.getplain() ).split(' '))
 
 
         # always add env CUPS_SERVER and PULSE_SERVER
@@ -1047,7 +1046,7 @@ class ODOrchestrator(ODOrchestratorBase):
                     'access_userid':    userinfo.userid,
                     'access_username':  userinfo.name,
                     'type':             x11desktoptype,
-                    'vnc_password':     vncPassword }
+                    'vnc_password':     vncPassword.encrypt() }
 
         # if appname is set then create a metappli labels
         # this will change and run the app
@@ -1112,7 +1111,7 @@ class ODOrchestrator(ODOrchestratorBase):
                                         desktop_id = mydesktopid,
                                         status=status,
                                         ipAddr=ipAddr,
-                                        vncPassword=vncPassword,
+                                        vncPassword=vncPassword.getplain(),
                                         websocketrouting=oc.od.settings.websocketrouting )      
             myinfra.close()
 
@@ -1138,13 +1137,15 @@ class ODOrchestrator(ODOrchestratorBase):
         # get the container IpAddr
         # callback_notify( 'Getting desktop status' )
         myinfra = self.createInfra( self.nodehostname )
-        ipAddr = myinfra.getDesktopIpAddr( container.id, oc.od.settings.defaultnetworknetuserid  )                
+        ipAddr = myinfra.getDesktopIpAddr( container.id, oc.od.settings.defaultnetworknetuserid  )  
+        vnc_password = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
+        vnc_password.decrypt( container.labels['vnc_password'] )              
         myDesktop = ODDesktop(  nodehostname=self.nodehostname,
                                 container_id=container.id,
                                 desktop_id = container.id,
                                 status=container.status,
                                 ipAddr=ipAddr,
-                                vncPassword=container.labels['vnc_password'],
+                                vncPassword=vnc_password.getplain(),
                                 websocketrouting=oc.od.settings.websocketrouting
                     )
         return myDesktop
@@ -2021,14 +2022,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env      = kwargs.get('env', {} )
         appname  = kwargs.get('appname')
 
-        vncPassword = self.mkvnc_password()
-        args.extend('--vncpassword {}'.format(vncPassword).split(' '))
+        # add a new VNC Password to the command line
+        vnc_password =  ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
+        command.extend('--vncpassword {}'.format( vnc_password.getplain() ).split(' '))
     
         labels = {  'access_provider':  authinfo.provider,
                     'access_userid':    userinfo.userid,
                     'access_username':  self.get_labelvalue(userinfo.name),
                     'domain':           self.endpoint_domain,
-                    'vnc_password':     vncPassword,
+                    'vnc_password':     vnc_password.encrypt(),
                     'netpol/ocuser' :   'true' }
 
         # check if we run the desktop in metappli mode or desktop mode
@@ -2527,7 +2529,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         internal_pod_fqdn = self.build_internalPodFQDN( myPod )
 
-        
+        vnc_password = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
+        vnc_password.decrypt( myPod.metadata.labels['vnc_password'] )
         # Build the ODDesktop Object 
         myDesktop = oc.od.desktop.ODDesktop(    nodehostname=myPod.spec.node_name, 
                                                 name=myPod.metadata.name,
@@ -2537,7 +2540,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                 desktop_id=myPod.metadata.name, 
                                                 container_id=desktop_container_id,                                                   
                                                 container_name=desktop_container_name,
-                                                vncPassword=myPod.metadata.labels['vnc_password'],
+                                                vncPassword=vnc_password.getplain(),
                                                 fqdn = internal_pod_fqdn,
                                                 desktop_interfaces = desktop_interfaces,
                                                 websocketrouting = myPod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
