@@ -68,6 +68,7 @@ desktopusepodasapp      = False
 desktopimagepullpolicy  = 'IfNotPresent'
 desktopdnspolicy        = None
 desktopdnsconfig        = None
+desktopvnccypherkey     = 'abcdesktop'
 
 desktopauthproviderneverchange = True     # if user can change auth provider in the same session
 
@@ -435,6 +436,7 @@ def init_desktop():
     global desktopwaitportbin
     global desktopdnspolicy
     global desktopdnsconfig
+    global desktopvnccypherkey
  
 
 
@@ -450,6 +452,7 @@ def init_desktop():
                 desktopauthproviderneverchange = False # this allow a user to change auth provider on the fly
                 break
 
+    desktopvnccypherkey = gconfig.get('desktop.vnccypherkey', 'ABCDESKTOP01234567890123456789ABCDESKTOP' )
 
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,
