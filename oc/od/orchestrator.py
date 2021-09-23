@@ -2223,7 +2223,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
             # pod_manifest['spec']['containers'][0] is the main oc.user container
             # set env CUPS_SERVER to reach cupsd
-            pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock'}  )
+            # pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock'}  )
         
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopsoundacl ) and \
            type(oc.od.settings.desktopsoundimage) is str :
@@ -2246,7 +2246,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
             # pod_manifest['spec']['containers'][0] is the main oc.user container
             # set env PULSE_SERVER to reach pulseaudio
-            pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock' } )
+            # pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock' } )
 
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopfileracl ) and \
            type(oc.od.settings.desktopfilerimage) is str :
