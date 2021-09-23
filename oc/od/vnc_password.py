@@ -44,11 +44,10 @@ class ODVncPassword():
         self._vncpassword = oc.lib.randomStringwithDigitsAndSymbols( self._passlength )
         return self._vncpassword
 
-    # func to restore padding
     @staticmethod
     def repad(data):
         """[repad]
-
+            restore padding if need 
         Args:
             data ([str]): [string without base64 pad]
 
