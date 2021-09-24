@@ -17,8 +17,8 @@ import base64
 
 class ODVncPassword():
     """[ODVncPassword]
-        ODVncPassword class to obscur vnc password 
-        this is not a encrypt password
+        ODVncPassword class  obscurs vnc password 
+        this is not a encrypt password !
         the goal is only obscur vnc password 
     """
     def __init__(self, key, initvncpassword=None, passwordlen=10) -> None:
@@ -33,6 +33,9 @@ class ODVncPassword():
         self._passlength = passwordlen
         self._key = key
         self._vncpassword = initvncpassword
+        # make the key length more than passwordlen, for xor obscur data
+        while( len( self._key ) < passwordlen ):
+            self._key += self._key
 
     def make( self ):
         """[make]
@@ -47,7 +50,7 @@ class ODVncPassword():
     @staticmethod
     def repad(data):
         """[repad]
-            restore padding if need 
+            restore padding if need ( using modulo 4 )
         Args:
             data ([str]): [string without base64 pad]
 
@@ -67,11 +70,15 @@ class ODVncPassword():
         if self._vncpassword is None:
             self.make()
         bvncpassword = str.encode(self._vncpassword)
+        # the key must have the same len as password
         xorkey = self._key[ 0 : len(self._vncpassword) ]
         xorkey = str.encode( xorkey )
+        # do XOR
         xorcipher = strxor( bvncpassword, xorkey )
+        # encode b64
         ciphertextb64 = base64.b64encode( xorcipher )
         strencrypt = ciphertextb64.decode("utf-8")
+        # remove pad = for kuberntes naming 
         strencrypt = strencrypt.rstrip("=")
         return strencrypt
 
@@ -87,12 +94,17 @@ class ODVncPassword():
         Returns:
             [str]: [plain text data]
         """
+        # restor = pad if need
         ciphertextb64 = self.repad( ciphertext )
         ciphertextb64 = str.encode( ciphertextb64 )
+        # decode b64
         ciphertext =  base64.b64decode( ciphertextb64 )
+        # the key must have the same len as password
         xorkey = self._key[ 0 : len(ciphertext) ]
         xorkey = str.encode( xorkey )
+        # do XOR
         clearbytesdata = strxor( ciphertext, xorkey )
+        # convert to str
         self._vncpassword = clearbytesdata.decode("utf-8")
         return self._vncpassword
 
