@@ -2,6 +2,7 @@ import logging
 import oc.od.settings as settings
 import oc.od.infra
 import oc.od.orchestrator
+import oc.od.dockerwatcher
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,11 @@ class ODServices(object):
         self.apps = None
 
     def __del__(self):
-        if hasattr(self, dockerwatcher) and type(self.dockerwatcher) is oc.od.dockerwatcher.ODDockerWatcher:
+        if hasattr(self, 'dockerwatcher') and \
+            isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
             self.dockerwatcher.stop()
-        if hasattr(self, imagewatcher) and type(self.imagewatcher) is oc.od.imagewatcher.ODImageWatcher:
+        if hasattr(self, 'imagewatcher') and \
+            isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
             self.imagewatcher.stop()
 
     def init(self):
