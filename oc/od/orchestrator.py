@@ -1013,7 +1013,7 @@ class ODOrchestrator(ODOrchestratorBase):
         container_name = None
         
         # add a new VNC Password to the command line
-        vncPassword =  ODVncPassword()
+        vncPassword = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
         command.extend('--vncpassword {}'.format( vncPassword.getplain() ).split(' '))
 
 
