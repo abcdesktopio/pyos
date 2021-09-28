@@ -174,12 +174,10 @@ def removedesktop( authinfo, userinfo, args ):
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **args)
     removed_destop = myOrchestrator.removedesktop( authinfo, userinfo, args )
     
-    if myDesktop :
-        # if webrtc is enabled then 
-        # remove the entry stream and listening port on the janus gateway
-        if services.webrtc :
-            # remove the stream
-            services.webrtc.destroy_stream( myDesktop.name )
+    if myDesktop and isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
+        # if myDesktop has been found AND webrtc is a ODJanusCluster then 
+        # remove the entry stream and to free the listening port on the janus gateway
+        services.webrtc.destroy_stream( myDesktop.name )
     
     # remove the desktop
     return removed_destop
