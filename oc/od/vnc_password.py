@@ -48,7 +48,7 @@ class ODVncPassword():
         return self._vncpassword
 
     @staticmethod
-    def repad(data):
+    def repadb32(data):
         """[repad]
             restore padding if need ( using modulo 4 )
         Args:
@@ -57,7 +57,7 @@ class ODVncPassword():
         Returns:
             [str]: [string with base64 pad if need ]
         """
-        return data + "=" * (-len(data)%4)
+        return data + "=" * (-len(data)%8)
 
     def encrypt( self ):
         """[encrypt]
@@ -75,9 +75,9 @@ class ODVncPassword():
         xorkey = str.encode( xorkey )
         # do XOR
         xorcipher = strxor( bvncpassword, xorkey )
-        # encode b64
-        ciphertextb64 = base64.b64encode( xorcipher )
-        strencrypt = ciphertextb64.decode("utf-8")
+        # encode b32
+        ciphertextb32 = base64.b32encode( xorcipher )
+        strencrypt = ciphertextb32.decode("utf-8")
         # remove pad = for kuberntes naming 
         strencrypt = strencrypt.rstrip("=")
         return strencrypt
@@ -95,10 +95,10 @@ class ODVncPassword():
             [str]: [plain text data]
         """
         # restor = pad if need
-        ciphertextb64 = self.repad( ciphertext )
-        ciphertextb64 = str.encode( ciphertextb64 )
-        # decode b64
-        ciphertext =  base64.b64decode( ciphertextb64 )
+        ciphertextb32 = self.repadb32( ciphertext )
+        ciphertextb32 = str.encode( ciphertextb32 )
+        # decode b32
+        ciphertext =  base64.b32decode( ciphertextb32 )
         # the key must have the same len as password
         xorkey = self._key[ 0 : len(ciphertext) ]
         xorkey = str.encode( xorkey )
