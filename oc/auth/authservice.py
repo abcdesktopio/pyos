@@ -1371,6 +1371,7 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
 @oc.logging.with_logger()
 class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
+    DEFAULT_ATTRS = [ 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name', 'memberOf' ]
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
             self.scope = scope
@@ -1424,7 +1425,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('basedn'), 
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
-            config.get('attrs'))
+            config.get('attrs', ODLdapAuthProvider.DEFAULT_ATTRS ))
 
         # query groups
         self.group_query = self.Query(
@@ -1604,9 +1605,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap.filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
             if isinstance(userinfo, dict):
                 # Add always userid entry, make sure this entry exists
-                userinfo['userid'] = userinfo.get(self.useruidattr)
+                if userinfo.get('userid') is None:
+                    userinfo['userid'] = userinfo.get(self.useruidattr)
                 # Add always name entry
-                userinfo['name'] = userinfo.get(self.useridattr)
+                if userinfo.get('name') is None:
+                    userinfo['name'] = userinfo.get(self.useridattr)
         return userinfo
 
     def isinrole(self, token, role, **params):
