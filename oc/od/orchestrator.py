@@ -98,36 +98,51 @@ class ODOrchestratorBase(object):
             userid = userid + self.containernameseparator
         else:
             userid = ''
-
+        # must be no more than 63 characters
         return  oc.auth.namedlib.normalize_name( 
                     self.graphicalcontainernameprefix   + \
                     self.containernameseparator         + \
                     userid                              + \
-                    container_name )
+                    container_name )[0:62]
 
     def get_printercontainername( self, userid, container_name ):
+        if isinstance( userid, str ):
+            userid = userid + self.containernameseparator
+        else:
+            userid = ''
+        # must be no more than 63 characters
         return  oc.auth.namedlib.normalize_name( 
                     self.printercontainernameprefix     + \
                     self.containernameseparator         + \
                     userid                              + \
                     self.containernameseparator         + \
-                    container_name )
+                    container_name )[0:62]
 
     def get_soundcontainername( self, userid, container_name ):
+        if isinstance( userid, str ):
+            userid = userid + self.containernameseparator
+        else:
+            userid = ''
+        # must be no more than 63 characters
         return  oc.auth.namedlib.normalize_name( 
                     self.soundcontainernameprefix       + \
                     self.containernameseparator         + \
                     userid                              + \
                     self.containernameseparator         + \
-                    container_name )
+                    container_name )[0:62]
 
     def get_filercontainername( self, userid, container_name ):
+        if isinstance( userid, str ):
+            userid = userid + self.containernameseparator
+        else:
+            userid = ''
+        # must be no more than 63 characters
         return  oc.auth.namedlib.normalize_name( 
                     self.filercontainernameprefix       + \
                     self.containernameseparator         + \
                     userid                              + \
                     self.containernameseparator         + \
-                    container_name )
+                    container_name )[0:62]
 
     def get_normalized_username(self, name ):
         """[get_normalized_username]
