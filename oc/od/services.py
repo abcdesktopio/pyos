@@ -3,6 +3,8 @@ import oc.od.settings as settings
 import oc.od.infra
 import oc.od.orchestrator
 import oc.od.dockerwatcher
+import oc.od.imagewatcher
+
 
 logger = logging.getLogger(__name__)
 
