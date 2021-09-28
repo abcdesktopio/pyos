@@ -26,12 +26,15 @@ class ODServices(object):
         self.apps = None
 
     def __del__(self):
-        if hasattr(self, 'dockerwatcher') and \
-            isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
-            self.dockerwatcher.stop()
-        if hasattr(self, 'imagewatcher') and \
-            isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
-            self.imagewatcher.stop()
+        try:
+            if hasattr(self, 'dockerwatcher') and \
+                isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
+                self.dockerwatcher.stop()
+            if hasattr(self, 'imagewatcher') and \
+                isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
+                self.imagewatcher.stop()
+        except Exception as e:
+            logger.error( str(e) )
 
     def init(self):
         """init services 
