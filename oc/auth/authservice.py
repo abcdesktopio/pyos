@@ -1605,10 +1605,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap.filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
             if isinstance(userinfo, dict):
                 # Add always userid entry, make sure this entry exists
-                if userinfo.get('userid') is None:
+                if not isinstance( userinfo.get('userid'), str) :
                     userinfo['userid'] = userinfo.get(self.useruidattr)
                 # Add always name entry
-                if userinfo.get('name') is None:
+                if not isinstance( userinfo.get('name'), str) :
                     userinfo['name'] = userinfo.get(self.useridattr)
         return userinfo
 
