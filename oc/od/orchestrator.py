@@ -1325,8 +1325,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, secret_type )
         return secret.read_credentials(userinfo)
 
-    def get_podname( self, userid, pod_uuid ):
-        return oc.auth.namedlib.normalize_name( userid + self.containernameseparator + pod_uuid)        
+    def get_podname( self, authinfo, userinfo, pod_uuid ):
+        userid = userinfo.userid
+        if authinfo.provider == 'anonymous':
+            userid = 'anonymous'
+        return oc.auth.namedlib.normalize_name( userid + self.containernameseparator + pod_uuid)[0:252]       
  
     def get_labelvalue( self, label_value):
         normalize_data = oc.auth.namedlib.normalize_label( label_value )
@@ -2063,7 +2066,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             kwargs[ 'type' ]  = self.x11servertype
 
         myuuid = str(uuid.uuid4())
-        pod_name = self.get_podname( userinfo.userid, myuuid ) 
+        pod_name = self.get_podname( authinfo, userinfo, myuuid ) 
         container_name = self.get_graphicalcontainername( userinfo.userid, myuuid )         
 
         # envdict to envlist
