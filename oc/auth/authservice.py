@@ -775,11 +775,23 @@ class ODAuthTool(cherrypy.Tool):
 
         # do authenticate using service account
         # find user in metadirectory
-        claims, auth = provider_meta.authenticate( provider_meta.userid, provider_meta.password )  
-        userid = arguments.get( 'userid' )
+        try:
+           
+            claims, auth = provider_meta.authenticate( provider_meta.userid, provider_meta.password )  
+            userid = arguments.get( 'userid' )
+        except Exception as e:
+            # no authenticate 
+            logger.error( 'skipping metalogin, authenticate failed %s', str(e))
+            return self.login(provider, manager, **arguments)
 
-        metauser = provider_meta.getuserinfo( auth, **arguments ) 
-        
+        metauser = None
+        try:
+            metauser = provider_meta.getuserinfo( auth, **arguments ) 
+        except Exception as e:
+            # no metadirectory provider has been defined
+            logger.error( 'skipping metalogin, no metauser getuserinfo failed %s', str(e))
+            return self.login(provider, manager, **arguments)
+
         if metauser is None:
             # an error occurs in meta directory query
             return self.login(provider, manager, **arguments)
