@@ -1294,7 +1294,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return True if kubernetes is configured 
             call list_node() API  
         Returns:
-            [bool]: [if kubernetes is configured]
+            [bool]: [True if kubernetes is configured, else False]
         """
         bReturn = False
         try:
@@ -1326,6 +1326,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return secret.read_credentials(userinfo)
 
     def get_podname( self, authinfo, userinfo, pod_uuid ):
+        """[get_podname]
+            return a pod name from authinfo, userinfo and uuid 
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data 
+            pod_uuid ([str]): [uniqu uuid]
+
+        Returns:
+            [str]: [name of the user pod]
+        """
         userid = userinfo.userid
         if authinfo.provider == 'anonymous':
             userid = 'anonymous'
