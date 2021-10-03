@@ -14,11 +14,21 @@
 
 import logging
 import time
+import cherrypy
+import os
+import subprocess
+import uuid
+import time
+import mergedeep
+import copy
+import requests
+import json
+
 
 from ldap import filter as ldap_filter
 import ldap3
-from ldap3 import Connection, Server, Tls, ReverseDnsSetting, SYNC, ALL
-from ldap3.core.exceptions import *
+# from ldap3 import Server, Tls, ReverseDnsSetting, SYNC, ALL
+# from ldap3.core.exceptions import *
 
 
 # kerberos import
@@ -27,26 +37,15 @@ import gssapi
 import platform
 import chevron  # for citrix All_Regions.ini
 
-import mergedeep
-
 # OAuth lib
 from requests_oauthlib import OAuth2Session
-import requests
 
-import json
-import urllib.parse 
-import urllib.request
-
-import copy
 from threading import Thread, Lock
 from collections import OrderedDict
 
-import cherrypy
 from oc.cherrypy import getclientipaddr
 from netaddr import IPNetwork, IPAddress
-import os
-import subprocess
-import time
+
 
 import oc.logging
 import oc.pyutils as pyutils
@@ -55,8 +54,6 @@ import jwt
 import oc.auth.jwt
 import oc.od.acl
 
-import tempfile
-import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -1660,7 +1657,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', userid, krb5ccname )
                 # logger.debug(locals()) # uncomment this line may dump password in clear text 
                 cred_store = {'ccache':  krb5ccname }
-                conn = Connection( server_pool, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store )
+                conn = ldap3.Connection( server_pool, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store )
                 # bind to the ldap server
                 self.logger.debug( 'bind to the ldap server')
                 conn.bind()
@@ -1672,7 +1669,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # call overwrited by bODAdAuthProvider:getconnection
                 self.logger.info( 'create Connection object ldap3.NTLM as %s', userid )
                 # logger.debug(locals()) # uncomment this line may dump password in clear text 
-                conn = Connection( server_pool, user=userid, password=password, authentication=ldap3.NTLM, raise_exceptions=True  )
+                conn = ldap3.Connection( server_pool, user=userid, password=password, authentication=ldap3.NTLM, raise_exceptions=True  )
                 # bind to the ldap server
                 self.logger.debug( 'binding to the ldap server')
                 conn.bind()
@@ -1683,7 +1680,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 userdn = self.getuserdnldapconnection(userid)
                 # logger.debug(locals()) # uncomment this line may dump password in clear text 
                 self.logger.info( 'create Connection object ldap3.SIMPLE as %s', userdn )
-                conn = Connection( server_pool, user=userdn, password=password, authentication=ldap3.SIMPLE, raise_exceptions=True )
+                conn = ldap3.Connection( server_pool, user=userdn, password=password, authentication=ldap3.SIMPLE, raise_exceptions=True )
                 # bind to the ldap server
                 self.logger.debug( 'binding to the ldap server')
                 conn.bind()
@@ -1716,7 +1713,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     cred_store = {'ccache':  krb5ccname }
                     self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', userid, cred_store )
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
-                    conn = Connection( server, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store)
+                    conn = ldap3.Connection( server, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store)
                     # bind to the ldap server
                     self.logger.debug( 'bind to the ldap server')
                     conn.bind()
@@ -1728,7 +1725,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # call overwrited by bODAdAuthProvider:getconnection
                     self.logger.info( 'create Connection object ldap3.NTLM as %s', userid )
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
-                    conn = Connection( server, user=userid, password=password, authentication=ldap3.NTLM, raise_exceptions=True  )
+                    conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, raise_exceptions=True  )
                     # bind to the ldap server
                     self.logger.debug( 'binding to the ldap server')
                     conn.bind()
@@ -1739,7 +1736,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     userdn = self.getuserdnldapconnection(userid)
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'create Connection object ldap3.SIMPLE as %s', userdn )
-                    conn = Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, raise_exceptions=True )
+                    conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, raise_exceptions=True )
                     # bind to the ldap server
                     self.logger.debug( 'binding to the ldap server')
                     conn.bind()
@@ -1759,7 +1756,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         protocol = 'ldaps' if self.secure else 'ldap'
         ldap_uri = protocol + '://' + ldapserver        
         logger.info( 'ldap.initialize to %s', ldap_uri)  
-        server = Server(ldap_uri, get_info=ALL )
+        server = ldap3.Server(ldap_uri, get_info=ALL )
         return server
 
     def search_all(self, conn, basedn, scope, filter=None, attrs=None, **params):
@@ -1943,16 +1940,17 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                                             usage="initiate", 
                                                             overwrite=True )
         
-        # old code version with kinit subprocess
-        # userPrincipalName = userid + '@' + self.kerberos_realm
-        # cmd = [ self.kerberos_kinit, '-c', krb5ccname, userPrincipalName ]
-        # my_env = os.environ.copy()
-        # if self.kerberos_krb5_conf :
-        #    my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
-        # self.logger.info( 'run kinit command %s', cmd )
-        # process = subprocess.run(cmd, input=password.encode(),  env=my_env )
-        # success = process.returncode
-        # return result
+        ''' old code version with kinit subprocess
+            userPrincipalName = userid + '@' + self.kerberos_realm
+            cmd = [ self.kerberos_kinit, '-c', krb5ccname, userPrincipalName ]
+            my_env = os.environ.copy()
+            if self.kerberos_krb5_conf :
+               my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
+            self.logger.info( 'run kinit command %s', cmd )
+            process = subprocess.run(cmd, input=password.encode(),  env=my_env )
+            success = process.returncode
+            return result
+        '''
 
 
     def generateKerberosKeytab(self, principal, password ):
