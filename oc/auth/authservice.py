@@ -15,14 +15,13 @@
 import logging
 import time
 
-import ldap
+from ldap import filter as ldap_filter
 import ldap3
 from ldap3 import Connection, Server, Tls, ReverseDnsSetting, SYNC, ALL
 from ldap3.core.exceptions import *
 
 
 # kerberos import
-import kerberos
 import gssapi
 
 import platform
@@ -35,12 +34,10 @@ from requests_oauthlib import OAuth2Session
 import requests
 
 import json
-import urllib
 import urllib.parse 
 import urllib.request
 
 import copy
-import base64
 from threading import Thread, Lock
 from collections import OrderedDict
 
@@ -1602,7 +1599,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             userinfo = { self.useridattr: params.get( 'userid'), 'name': params.get( 'userid') }
         else: 
             q = self.user_query
-            userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap.filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
+            userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
             if isinstance(userinfo, dict):
                 # Add always userid entry, make sure this entry exists
                 if not isinstance( userinfo.get('userid'), str) :
@@ -1620,7 +1617,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             groupdn = self.getgroupdn(conn, role)
             if not groupdn: 
                 return False
-            filter = ldap.filter.filter_format('(&'+self.user_query.filter+'(memberOf=%s))', [token,groupdn])
+            filter = ldap_filter.filter_format('(&'+self.user_query.filter+'(memberOf=%s))', [token,groupdn])
             return self.search(conn, self.user_query.basedn, self.user_query.scope, filter, ['cn'], True) is not None
         finally:
             if ldap_bind_userid: 
@@ -1632,7 +1629,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         token = authinfo.token            
         q = self.user_query
-        result = self.search_one( authinfo.conn, q.basedn, q.scope, ldap.filter.filter_format(q.filter, [token]), ['memberOf'], **params)
+        result = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [token]), ['memberOf'], **params)
         # return [dn.split(',',2)[0].split('=',2)[1] for dn in result['memberOf']] if result else []
         memberOf = result.get('memberOf', [])
         if isinstance(memberOf, str):
@@ -1642,10 +1639,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def getuserdnldapconnection(self, userid):
         # rewrite the userid with full dn
         # format cn=Hubert J. Farnsworth,ou=people,dc=planetexpress,dc=com
-        escape_userid = ldap.filter.escape_filter_chars(userid)
+        escape_userid = ldap_filter.escape_filter_chars(userid)
         if len(escape_userid) != len( userid ):
-            self.logger.debug( 'WARNING ldap.filter.escape_filter_chars escaped' )
-            self.logger.debug( 'value=%s escaped by ldap.filter.escape_filter_chars as value=%s', userid, escape_userid )
+            self.logger.debug( 'WARNING ldap_filter.escape_filter_chars escaped' )
+            self.logger.debug( 'value=%s escaped by ldap_filter.escape_filter_chars as value=%s', userid, escape_userid )
         return self.usercnattr + '=' + escape_userid + ',' + self.users_ou
 
     def ___getconnection(self, userid, password ):
@@ -1818,7 +1815,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return self.getdn(conn, self.group_query, id)
 
     def getdn(self, conn, query, id):
-        result = self.search(conn, query.basedn, query.scope, ldap.filter.filter_format(query.filter, [id]), ['cn', 'distinguishedName'], True)
+        result = self.search(conn, query.basedn, query.scope, ldap_filter.filter_format(query.filter, [id]), ['cn', 'distinguishedName'], True)
         return result['distinguishedName'] if result else None
 
     def decodeValue(self, name, value):
@@ -2304,7 +2301,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             groupdn = self.getgroupdn(conn, role)
             if not groupdn: 
                 return False
-            filter = ldap.filter.filter_format('(&'+self.user_query.filter+'(memberOf:1.2.840.113556.1.4.1941:=%s))', [token,groupdn])
+            filter = ldap_filter.filter_format('(&'+self.user_query.filter+'(memberOf:1.2.840.113556.1.4.1941:=%s))', [token,groupdn])
             return self.search(conn, self.user_query.basedn, self.user_query.scope, filter, ['cn'], True) is not None
         finally:
             if self.userid: 
@@ -2558,7 +2555,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
     def getuserinfo(self, authinfo, **arguments):       
         
         userid = arguments.get( 'userid' )
-        filter = ldap.filter.filter_format( self.user_query.filter, [ userid ] )
+        filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
         usersinfo = self.search_all(    conn=authinfo.conn, 
                                         basedn=self.user_query.basedn, 
                                         scope=self.user_query.scope, 
