@@ -513,7 +513,7 @@ class ODAuthTool(cherrypy.Tool):
                 return False
 
             # primary group id is uniqu for
-            if user.get('primaryGroupID') == primaryGroupID:  
+            if str(user.get('primaryGroupID')) == str(primaryGroupID):  
                 return True
             return False
 
@@ -620,7 +620,7 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         primaryGroup = condition.get('primarygroupid')
-        if type(primaryGroup) is str:
+        if type(primaryGroup) is str or type(primaryGroup) is int:
             result = isPrimaryGroup( user, primaryGroup )
             if result == condition.get( 'expected'):
                 compiled_result = True
@@ -648,7 +648,9 @@ class ODAuthTool(cherrypy.Tool):
 
         results = []
         for condition in conditions :
-            results.append( self.compiledcondition(condition, user, roles) )
+            r = self.compiledcondition(condition, user, roles)
+            logger.debug('compiled_result=%s condition=%s', r, condition)
+            results.append( r )
             
         if len(results) == 0:
             return False
