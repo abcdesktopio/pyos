@@ -40,8 +40,9 @@ import chevron  # for citrix All_Regions.ini
 # OAuth lib
 from requests_oauthlib import OAuth2Session
 
-from threading import Thread, Lock
+from threading import Lock
 from collections import OrderedDict
+
 
 from oc.cherrypy import getclientipaddr
 from netaddr import IPNetwork, IPAddress
@@ -430,7 +431,7 @@ class ODAuthTool(cherrypy.Tool):
             if provider: 
                 return provider.manager
 
-        raise AuthenticationFailureError('Authentication manager not found: mangaer=%s provider=%s' % (managername,providername))
+        raise AuthenticationFailureError('Authentication manager not found: manager=%s provider=%s, check your configuration file' % (managername,providername))
 
     def getmanager(self, name, raise_error=False):
         if not name: 
@@ -474,7 +475,7 @@ class ODAuthTool(cherrypy.Tool):
         """
         mgr = self.getmanager( manager )
         if mgr: 
-            return mgr.providers.values()
+            return list(mgr.providers.values())
         return None
 
         
@@ -506,14 +507,15 @@ class ODAuthTool(cherrypy.Tool):
 
         
         
-    def compiledcondition( self, condition, user, roles ):        
+    def compiledcondition( self, condition, user, roles ):     
+
         def isPrimaryGroup(user, primaryGroupID):
             # if user is not a dict return False
             if not isinstance(user, dict):
                 return False
 
             # primary group id is uniqu for
-            if str(user.get('primaryGroupID')) == str(primaryGroupID):  
+            if user.get('primaryGroupID') == primaryGroupID:  
                 return True
             return False
 
@@ -620,10 +622,13 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         primaryGroup = condition.get('primarygroupid')
-        if type(primaryGroup) is str or type(primaryGroup) is int:
-            result = isPrimaryGroup( user, primaryGroup )
-            if result == condition.get( 'expected'):
-                compiled_result = True
+        if primaryGroup is not None:
+            if type(primaryGroup) is int:
+                result = isPrimaryGroup( user, primaryGroup )
+                if result == condition.get( 'expected'):
+                    compiled_result = True
+            else:
+                logger.error( 'invalid primarygroupid type int is expected, get %s', type(primaryGroup) )
 
         attribut_dict = condition.get('attibut')
         if type(attribut_dict) is dict:
@@ -748,11 +753,31 @@ class ODAuthTool(cherrypy.Tool):
             provider_name ([str]): [provider name]
             manager ([str], optional): [manager name]. Defaults to None.
         """
+
+        """
+        # Check if the user auth request contains a domain prefix 
+        # do not use the meta login process 
+        providers_list = self.listprovider( 'explicit' )
+        (domain,_) = ODAdAuthProvider.splitadlogin( arguments.get( 'userid') )
+        specified_provider = self.findproviderbydomainprefix( providers=providers_list, domain=domain ) 
+        if isinstance( specified_provider, ODAdAuthProvider):
+            # metadirectory can be an ODAdAuthProvider
+            # if the specified_provider is a metadirectory 
+            # do not use the specified_provider as auth provider
+            if specified_provider.name != 'metadirectory' :
+                # do not perform a metalogin
+                # run a login with the specified_provider 
+                return self.login( provider=specified_provider, manager=manager, **arguments)
+        """
+
+
+        # start metalogin check
         # managername and providername are hard coded
         # only one provider providername = 'metadirectory'
         managername  = 'metaexplicit'
         providername = 'metadirectory'
 
+        # check if metaexplicit manager exits in config
         try:
             # get manager name metaexplicit
             mgr_meta = self.findmanager( providername, managername )
@@ -761,6 +786,7 @@ class ODAuthTool(cherrypy.Tool):
             logger.info( 'skipping metalogin, no metaexplicit manager has been defined')
             return self.login(provider, manager, **arguments)
 
+        # check if metadirectory provider exits in config
         try:
             # get provider name metadirectory
             provider_meta = mgr_meta.getprovider( providername )
@@ -775,10 +801,11 @@ class ODAuthTool(cherrypy.Tool):
             logger.info( 'skipping metalogin, no metadirectory provider has been defined')
             return self.login(provider, manager, **arguments)
 
-        # do authenticate using service account
-        # find user in metadirectory
+
+        # 
+        # do authenticate using service account to the metadirectory provider
+        #
         try:
-           
             claims, auth = provider_meta.authenticate( provider_meta.userid, provider_meta.password )  
             userid = arguments.get( 'userid' )
         except Exception as e:
@@ -786,16 +813,20 @@ class ODAuthTool(cherrypy.Tool):
             logger.error( 'skipping metalogin, authenticate failed %s', str(e))
             return self.login(provider, manager, **arguments)
 
+        #
+        # find user in metadirectory entries if exists
+        #
         metauser = None
         try:
             metauser = provider_meta.getuserinfo( auth, **arguments ) 
         except Exception as e:
-            # no metadirectory provider has been defined
-            logger.error( 'skipping metalogin, no metauser getuserinfo failed %s', str(e))
+            # no user provider has been found
+            logger.error( 'skipping metalogin, no metauser getuserinfo  %s', str(e))
             return self.login(provider, manager, **arguments)
-
         if metauser is None:
+            # no user provider has been found
             # an error occurs in meta directory query
+            logger.error( 'skipping metalogin, no metauser found' )
             return self.login(provider, manager, **arguments)
        
         roles = provider_meta.getroles( auth, **arguments)
@@ -828,9 +859,11 @@ class ODAuthTool(cherrypy.Tool):
         new_provider = self.findproviderbydomainprefix( providers=providers_list, domain=new_domain ) 
 
         if new_provider is None:
-            logger.error( 'provder to authenticate %s is not defined', new_userid )
-            raise AuthenticationFailureError('Provider to authenticate %s is not defined', new_userid)
+            logger.error( 'provider %s to authenticate %s is not defined', new_domain, new_userid )
+            raise AuthenticationFailureError('Provider %s to authenticate %s is not defined' % (new_domain, new_userid) )
+            # return self.login(provider, manager, **arguments)
 
+        logger.info( 'metadirectory translating user auth')
         logger.info( 'metadirectory replay from provider %s->%s', provider_meta.name, new_provider.name )
         logger.info( 'metadirectory replay from user %s->%s', userid, new_userid )
         logger.info( 'metadirectory replay from domain %s->%s', provider_meta.domain, new_domain )
@@ -870,12 +903,14 @@ class ODAuthTool(cherrypy.Tool):
             provider [dict]: [provider dict]
             None if not found
         """
-       
-        if not isinstance(domain,str):
-            raise AuthenticationFailureError('No authentication provider can be found')
+        # sanity check
+        if not isinstance(domain,str): 
+            return None
+        # sanity check
+        if not isinstance(providers, list):
+            return None 
 
         domain = domain.upper()
-
         for provider in providers:
             if provider.domain.upper() == domain :
                 return provider
@@ -921,7 +956,7 @@ class ODAuthTool(cherrypy.Tool):
                 # can raise exception
                 # do everythings possible to find one provider
                 logger.debug( 'provider is None, login try to find a provider using a explicit manager')
-                provider = self.logintrytofindaprovider( manager )
+                provider = self.logintrytofindaprovider( 'explicit' )
                 
             # look for an auth manager
             mgr = self.findmanager(provider, manager)
@@ -1088,11 +1123,17 @@ class ODAuthManagerBase(object):
                     continue
                 logger.info( 'Adding provider name %s ', name )
                 provider = self.createprovider(name, cfg)
-                if provider is not None: 
-                    self.providers[name] = provider    
+                if isinstance( provider, ODAuthProviderBase): 
+                    self.add_provider( name, provider )
+
             except Exception as e:
                 logger.exception(e) 
 
+    def add_provider( self, name, provider ):
+        assert isinstance(name, str) , 'bad provider name parameter'
+        assert isinstance(provider, ODAuthProviderBase) , 'bad provider parameter'
+        self.providers[name] = provider  
+       
     def authenticate(self, provider, **arguments):
         return self.getprovider(provider, True).authenticate(**arguments)
 
@@ -1144,10 +1185,9 @@ class ODExplicitAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
         self.show_domains = config.get('show_domains', False)
-        self.default_domain = config.get('default_domain', None)
-
-        if self.default_domain not in self.providers:
-            self.default_domain = list(self.providers.values())[0].name if len(self.providers) else None
+        # default domain use de default provider property 
+        # set when add_provider call
+        self.default_domain = None  # not set 
 
     def createprovider(self, name, config):
         """[createprovider]
@@ -1155,17 +1195,39 @@ class ODExplicitAuthManager(ODAuthManagerBase):
 
         Args:
             name ([str]): [name of the provider]
-            config ([dict]): [configuration ]
+            config ([dict]): [provider configuration]
 
         Returns:
             [ODAdAuthProvider or ODLdapAuthProvider]: [if domain is set in config return ODAdAuthProvider else ODLdapAuthProvider]
         """
         # if domain is defined then create an active directory auth provider 
         # else create a LDAP auth provider
-        if config.get('domain'):
-            return ODAdAuthProvider(self, name, config)
+
+        provider = None 
+        if self.isActiveDirectory( config ):
+            provider = ODAdAuthProvider(self, name, config)
         else:
-            return ODLdapAuthProvider(self, name, config)
+            provider = ODLdapAuthProvider(self, name, config)
+        return provider
+
+    def isActiveDirectory( self, config ) -> bool:
+        """[isActiveDirectory]
+            True if config is an ActiveDirectory config else False
+        Args:
+            config ([dict]): [provider configuration]
+
+        Returns:
+            bool: [True if config is an ActiveDirectory config else False]
+        """
+        if config.get('domain'):
+            return True
+        else:
+            return False
+
+    def add_provider( self, name, provider ):
+        super().add_provider( name, provider)
+        if isinstance( provider, ODAdAuthProvider) and provider.is_default():
+            self.default_domain = provider.domain
 
     def getclientdata(self):
         data = super().getclientdata()
@@ -1180,12 +1242,7 @@ class ODExplicitAuthManager(ODAuthManagerBase):
 class ODExplicitMetaAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
-        self.show_domains = config.get('show_domains', False)
-        self.default_domain = config.get('default_domain', None)
-
-        if self.default_domain not in self.providers:
-            self.default_domain = list(self.providers.values())[0].name if len(self.providers) else None
-
+        
     def createprovider(self, name, config):
         """[createprovider]
             create an authnetification provider for meta directory
@@ -2177,6 +2234,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         self.useridattr = config.get('useridattr', 'sAMAccountName')
         self.domain_fqdn = config.get('domain_fqdn')
         self.domain = config.get('domain', self.domain_fqdn.split('.',1)[0] if self.domain_fqdn else self.name)
+        if not isinstance(self.domain, str) :
+            raise ValueError("Property domain must be set sa string for active directory")
+        else:
+            self.domain = self.domain.upper()
         self.query_dcs = config.get('query_dcs', False) is True
         self.dcs_list_maxage = config.get('dcs_list_maxage', 3600)
         self.dcs_list_lastupdated = 0
@@ -2531,7 +2592,11 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         default_attrs=ODAdAuthProvider.DEFAULT_ATTRS
         default_attrs.append( self.join_key_ldapattribut )
         self.user_query.attrs = default_attrs
-    
+        # add the join_attributkey as filter query
+        # user_filter_join_attributkey = '(' + self.join_attributkey + '=%s))' 
+        # self.user_query_join_attributkey = self.user_query
+        # self.user_query_join_attributkey.filter = self.user_query.filter.replace( '(sAMAccountName=%s)', user_filter_join_attributkey )
+
     def validate(self, userid, password, **params):
         """[validate]
             this is a meta directory do not perform a ldap bind using current credentials  
@@ -2568,6 +2633,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         
         userid = arguments.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
+        logger.info( 'meta ldapfilter %s', filter)
         usersinfo = self.search_all(    conn=authinfo.conn, 
                                         basedn=self.user_query.basedn, 
                                         scope=self.user_query.scope, 
@@ -2583,7 +2649,8 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         if len( usersinfo ) > 1:
             # too much user with the same SAMAccountName 
             # may be Forest SAMAccountName Meta 
-            logger.error( 'too much user %s in metadirectory %d, skipping meta query',  )
+            logger.error( 'too much user %s in metadirectory len %d, skipping meta query', userid, len( usersinfo ) )
+            logger.error( 'dump metadirectory %s', usersinfo )
             return None
 
         return usersinfo[0]
