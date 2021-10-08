@@ -211,14 +211,22 @@ class AuthController(BaseController):
         if not isinstance(args, dict):
             raise cherrypy.HTTPError(400)
 
-        # Check if provider is set            
-        if not args.get('provider'): 
-            raise cherrypy.HTTPError(400)
-        
         # do login
-        self.logger.info( 'event:start services.auth.login' )
-        response = services.auth.metalogin(**args)
-        self.logger.info( 'event:stop services.auth.login' )
+        # Check if provider is set   
+        provider = args.get('provider')         
+        if provider is None: 
+            # no provider set 
+            # use metalogin 
+            self.logger.info( 'no provider set, use metalogin' )
+            response = services.auth.metalogin(**args)
+        elif isinstance(provider, str ):
+            self.logger.info( 'provider set to %s, use login', args.get('provider') )
+            response = services.auth.login(**args)
+        else:
+            self.logger.info( 'ValueError provider excepet str get %s ', str(type(provider)) )
+            raise cherrypy.HTTPError(400, 'Bad provider parameter')
+
+        self.logger.info( 'login done' )
         if not response.success:    
             services.accounting.accountex('login', 'failed')
             raise cherrypy.HTTPError(401, response.reason)
