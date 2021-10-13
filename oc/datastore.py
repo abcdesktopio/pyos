@@ -75,6 +75,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
     # return None is not found or failure
     def getstoredvalue(self, databasename, key):
         obj = None
+        self.logger.debug( 'database=%s key=%s', databasename, key )
         try:            
             client = self.createclient()        
             collection = client[databasename][key]            
@@ -83,11 +84,12 @@ class ODMongoDatastoreClient(ODDatastoreClient):
                 if obj is not None:
                     data = obj.get(key, None)                 
                     client.close()
-                    return data            
+                    return data          
+            client.close()  
         except pymongo.errors.ConnectionFailure as e:
-            self.logger.error( str(e) )       
+            self.logger.error( 'getstoredvalue: ' + str(e) )       
         except Exception as e :            
-            self.logger.error( str(e) )       
+            self.logger.error( 'getstoredvalue: ' + str(e) )       
         
         return obj
 
@@ -101,13 +103,14 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             client.close()
             return True
         except pymongo.errors.ConnectionFailure as e :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'removestoredvalue ' + str(e) ) 
         except Exception as e :            
-            self.logger.error( str(e) ) 
+            self.logger.error( 'removestoredvalue ' + str(e) ) 
         
         return False
 
     def getcollection(self, databasename, collectionname, myfilter=None, limit=0):
+        self.logger.debug( 'database=%s collectionname=%s', databasename, collectionname )
         mycollection = []
         try:            
             client = self.createclient()        
@@ -122,13 +125,14 @@ class ODMongoDatastoreClient(ODDatastoreClient):
                     mycollection.append(obj)
             client.close()
         except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'getcollection ' + str(e) ) 
         except Exception  as e  :            
-            self.logger.error( str(e) ) 
+            self.logger.error( 'getcollection ' + str(e) ) 
 
         return mycollection
 
     def setstoredvalue(self, databasename, key, value):
+        self.logger.debug( 'database=%s key=%s value=%s', databasename, key, str(value) )
         datadict = value if isinstance(value, dict) else {key: value}
         try:            
             client = self.createclient()        
@@ -141,9 +145,9 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             client.close()
             return True
         except pymongo.errors.ConnectionFailure  as e :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'setstoredvalue ' + str(e) ) 
         except Exception  as e  :            
-            self.logger.error( str(e) ) 
+            self.logger.error( 'setstoredvalue ' + str(e) ) 
 
         return False
 
@@ -155,9 +159,9 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             client.close()
             return True
         except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( str(e) )     
+            self.logger.error( 'addtocollection ' + str(e) )     
         except Exception  as e  :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'addtocollection ' + str(e) ) 
 
         return False
 
@@ -170,10 +174,10 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             return True
 
         except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'updatestoredvalue ' + str(e) ) 
         
         except Exception  as e :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'updatestoredvalue ' + str(e) ) 
 
         return False
 
@@ -186,10 +190,10 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             return True
         
         except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'deletestoredvalue ' + str(e) ) 
                 
         except Exception as e :
-            self.logger.error( str(e) ) 
+            self.logger.error( 'deletestoredvalue ' + str(e) ) 
 
         return False
 
