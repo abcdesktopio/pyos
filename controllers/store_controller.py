@@ -28,6 +28,7 @@ class StoreController(BaseController):
 
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
+        self.wrapped_key = config_controller.get('wrapped_key', {} )
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -80,13 +81,22 @@ class StoreController(BaseController):
 
         if all([userid, key]):
             self.logger.debug('getstoredvalue userid:%s key:%s', str(userid), str(key) )
-            value = services.datastore.getstoredvalue(userid, key)
+            value = self.wrapped_get(userid, key)
         
         if value is None:
             return Results.error('value not found: userid = %s, key = %s' % (userid,key), 404)
         
         return Results.success(result=value)
 
+
+    def wrapped_get( self, userid, key ):
+
+        value = services.datastore.getstoredvalue(userid, key)
+        if value is None:
+            # return default wrapped value
+            value = self.wrapped_key.get( key )
+
+        return value
 
 
     @cherrypy.expose
