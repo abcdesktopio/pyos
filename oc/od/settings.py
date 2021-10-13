@@ -69,6 +69,8 @@ desktopimagepullpolicy  = 'IfNotPresent'
 desktopdnspolicy        = None
 desktopdnsconfig        = None
 desktopvnccypherkey     = 'abcdesktop'
+desktopdefaultcolor     = None
+desktopdefaultwallpaper = None
 
 desktopauthproviderneverchange = True     # if user can change auth provider in the same session
 
@@ -437,6 +439,8 @@ def init_desktop():
     global desktopdnspolicy
     global desktopdnsconfig
     global desktopvnccypherkey
+    global desktopdefaultcolor
+    global desktopdefaultwallpaper
  
 
 
@@ -528,7 +532,9 @@ def init_desktop():
     desktoppostponeapp              = gconfig.get('desktoppostponeapp')
     desktopdnspolicy                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktopdnsconfig                = gconfig.get('desktop.dnsconfig')
-    
+    desktopdefaultcolor             = gconfig.get('desktop.defaultcolor')
+    desktopdefaultwallpaper         = gconfig.get('desktop.defaultwallpaper')
+
     # add default env local vars if not set 
     desktopenvironmentlocal = gconfig.get(  'desktop.envlocal', 
             {   'DISPLAY'               : ':0.0',
@@ -539,6 +545,15 @@ def init_desktop():
                 'LOGNAME'	            : 'balloon',
                 'PULSE_SERVER'          : '/tmp/.pulse.sock',
                 'CUPS_SERVER'           : 'localhost:631'} )
+
+
+    if desktopdefaultcolor :
+        # add env value SET_DEFAULT_COLOR to default color value in hexa
+        desktopenvironmentlocal['SET_DEFAULT_COLOR'] = desktopdefaultcolor
+
+    if desktopdefaultwallpaper :
+        # add env value SET_DEFAULT_WALLPAPER to default wall paper file name in .wallpapers home directory
+        desktopenvironmentlocal['SET_DEFAULT_WALLPAPER'] = desktopdefaultwallpaper
 
     init_balloon()
 
@@ -643,7 +658,21 @@ def init_controllers():
     # by default manager controller is protected by filtering source ip address as local net 
     # local net is defined as list_local_subnet
     list_local_subnet = [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8', '169.254.0.0/16', '127.0.0.0/8' ]
-    controllers = gconfig.get(  'controllers', { 'manager': { 'permitip': list_local_subnet } } )
+    controllers = gconfig.get(  'controllers', \
+                                { 'manager':         { 'permitip':    list_local_subnet },
+                                  'StoreController': { 'wrapped_key': {} } 
+                                } )
+
+    if desktopdefaultcolor:
+        # wrapper for StoreController key value
+        # config use default 'color'  
+        controllers['StoreController']['wrapped_key'] = { 'color': None }
+
+    if desktopdefaultwallpaper :
+        # wrapper for StoreController key value
+        # config use default wallpaper 'img' 
+        controllers['StoreController']['wrapped_key'] = { 'img': None }
+
 
 def read_kubernetes_resource_limits( hostconfig ):
     """ [read_resource_limits]
