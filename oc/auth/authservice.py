@@ -745,6 +745,46 @@ class ODAuthTool(cherrypy.Tool):
                     
         return provider
     
+
+    def get_metalogin_manager_provider( self, managername='metaexplicit', providername='metadirectory' ):
+        # start metalogin check
+        # managername and providername are hard coded
+        # only one provider providername = 'metadirectory'
+        mgr_meta = None
+        provider_meta = None
+        # check if metaexplicit manager exits in config
+        try:
+            # get manager name metaexplicit
+            mgr_meta = self.findmanager( providername, managername )
+        except AuthenticationFailureError:
+            return (mgr_meta, provider_meta)
+
+        # check if metadirectory provider exits in config
+        try:
+            # get provider name metadirectory
+            provider_meta = mgr_meta.getprovider( providername )
+        except AuthenticationFailureError:
+           return (mgr_meta, provider_meta)
+
+        return (mgr_meta, provider_meta)
+        
+
+
+    def is_default_metalogin_provider( self ):
+        """[is_default_metalogin_provider]
+            check if the managername='metaexplicit' is defined and 
+                  if the providername='metadirectory' is defined and
+                         providername='metadirectory' as default property to True
+        Returns:
+            [bool]: [return True if the providername='metadirectory' is defined as default ]
+        """
+        ( mgr_meta, provider_meta ) = self.get_metalogin_manager_provider()
+        if isinstance( provider_meta, ODAdAuthMetaProvider ):
+            return provider_meta.is_default()
+        return False
+
+
+
     def metalogin(self, provider, manager=None, **arguments): 
         """[metalogin] 
             same as login but use meta directory to select user informations like DOMAIN\SAMAccountName 
@@ -774,33 +814,19 @@ class ODAuthTool(cherrypy.Tool):
         # start metalogin check
         # managername and providername are hard coded
         # only one provider providername = 'metadirectory'
-        managername  = 'metaexplicit'
-        providername = 'metadirectory'
-
-        # check if metaexplicit manager exits in config
-        try:
-            # get manager name metaexplicit
-            mgr_meta = self.findmanager( providername, managername )
-        except AuthenticationFailureError:
+        # managername  = 'metaexplicit'
+        # providername = 'metadirectory'
+        # check if metalogin manager and provider are defined
+        ( mgr_meta, provider_meta ) = self.get_metalogin_manager_provider()
+        if mgr_meta is None:
             # no metaexplicit manager has been defined
             logger.info( 'skipping metalogin, no metaexplicit manager has been defined')
             return self.login(provider, manager, **arguments)
 
-        # check if metadirectory provider exits in config
-        try:
-            # get provider name metadirectory
-            provider_meta = mgr_meta.getprovider( providername )
-        except AuthenticationFailureError:
+        if provider_meta is None: 
             # no metadirectory provider has been defined
             logger.info( 'skipping metalogin, no metadirectory provider has been defined')
             return self.login(provider, manager, **arguments)
-
-        if provider_meta is None:
-            # no meta directory has been defined
-            # use default login 
-            logger.info( 'skipping metalogin, no metadirectory provider has been defined')
-            return self.login(provider, manager, **arguments)
-
 
         # 
         # do authenticate using service account to the metadirectory provider

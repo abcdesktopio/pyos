@@ -214,10 +214,10 @@ class AuthController(BaseController):
         # do login
         # Check if provider is set   
         provider = args.get('provider')         
-        if provider is None: 
+        if provider is None or services.auth.is_default_metalogin_provider(): 
             # no provider set 
             # use metalogin 
-            self.logger.info( 'no provider set, use metalogin' )
+            self.logger.info( 'auth is using metalogin' )
             response = services.auth.metalogin(**args)
         elif isinstance(provider, str ):
             self.logger.info( 'provider set to %s, use login', args.get('provider') )
