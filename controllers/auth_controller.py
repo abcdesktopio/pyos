@@ -14,12 +14,15 @@
 
 import logging
 import cherrypy
+import chevron
 
 from oc.od.base_controller import BaseController
-from oc.cherrypy import Results 
+from oc.cherrypy import Results, getclientipaddr 
 from oc.od.services import services
 import oc.od.composer 
 import oc.lib
+import oc.od.settings
+
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,10 @@ class AuthController(BaseController):
 
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
+        f = open('redirect.mustache.html')
+        self.oauth_html_redirect_page = f.readlines()
+        f.close()
+
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -149,21 +156,12 @@ class AuthController(BaseController):
         #
         # empty html page to fix HTTP redirect cookie bug with safari
         loginScreencss_url = oc.od.settings.default_host_url + '/css/css-dist/loginScreen.css'
-        oauth_html_refresh_page = '<html dir="ltr" lang="en">\
-                    <head>\
-                    <title>abcdesktop.io</title>\
-                    <link rel="stylesheet" href="' + loginScreencss_url + '" type="text/css" />\
-                    <script type="text/javascript"> \
-                        var jwt_user_token="' +  jwt_user_token + '"; \
-                        var default_host_url="' +  oc.od.settings.default_host_url + '"; \
-                    </script> \
-                    <script type="text/javascript" src="/js/jwtstorage.js"></script> \
-                </head> \
-                <body>  \
-                    <div id="loginScreen">Reloading</div>\
-                </body>\
-            </html>'
-        
+        mustache_dict = {
+            'loginScreencss_url': loginScreencss_url,
+            'jwt_user_token': jwt_user_token,
+            'default_host_url' : oc.od.settings.default_host_url
+        }
+        oauth_html_refresh_page = chevron.render( self.oauth_html_redirect_page, mustache_dict )
         return oauth_html_refresh_page
 
     @cherrypy.expose
@@ -207,9 +205,24 @@ class AuthController(BaseController):
         cherrypy.response.timeout = 180
         args = cherrypy.request.json
 
-
         if not isinstance(args, dict):
             raise cherrypy.HTTPError(400)
+
+        # ipsource
+        ipsource = getclientipaddr()
+        if services.prelogin.enable and services.prelogin.request_match(ipsource):
+            userid = args.get('userid')
+            if not isinstance(userid, str):
+                self.logger.error( 'invalid auth parameters userid %s', type(userid) )
+                raise cherrypy.HTTPError(401, 'invalid auth parameters')
+            loginsessionid = args.get('loginsessionid')
+            if not isinstance(loginsessionid, str):
+                self.logger.error( 'invalid auth parameters loginsessionid %s', type(loginsessionid) )
+                raise cherrypy.HTTPError(401, 'invalid auth parameters')
+            prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
+            if not prelogin_verify:
+                self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
+                raise cherrypy.HTTPError(401, 'invalid auth request, verify failed')
 
         # do login
         # Check if provider is set   
@@ -322,7 +335,46 @@ class AuthController(BaseController):
             logger.error( e )
             return Results.error( message=str(e) )
         
-     
+
+    @cherrypy.expose
+    @cherrypy.tools.allow(methods=['POST','GET'])
+    # Pure HTTP Form request
+    def prelogin(self,userid=None):
+
+        ipsource = getclientipaddr()
+
+        if not services.prelogin.enable:
+            self.logger.error('prelogin is disabled, but request ask for prelogin from %s', ipsource)
+            raise cherrypy.HTTPError(400, 'Configuration file error')
+
+        self.logger.debug('prelogin request from ip source %s', ipsource)
+        if not services.prelogin.request_match( ipsource ):
+            self.logger.error('prelogin invalid network source error')
+            raise cherrypy.HTTPError(400, 'Invalid network source error')
+
+        # if http request has services.prelogin.http_attribut
+        # use services.prelogin.http_attribut value has userid
+        if isinstance( services.prelogin.http_attribut, str) :
+            http_userid = cherrypy.request.headers.get(services.prelogin.http_attribut)
+            if isinstance( http_userid, str ):
+                userid = http_userid
+        
+        if userid is None:
+            self.logger.error('prelogin invalid userid')
+            raise cherrypy.HTTPError(400, 'invalid user request')
+
+        self.logger.debug('prelogin request for user %s', userid)
+
+        html_data = services.prelogin.prelogin_html( userid )
+        if html_data is None:
+            self.logger.error('prelogin_html failed')
+            raise cherrypy.HTTPError(400, 'Configuration file error, invalid prelogin_url')
+
+        cherrypy.response.headers['Content-Type'] = 'text/html;charset=utf-8'
+        return html_data.encode('utf-8')
+  
+        
+
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
