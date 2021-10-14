@@ -42,7 +42,7 @@ class ODDesktopKeyManager(object):
         f.close()
        
 
-    def generatekey(self, length=1024):
+    def generatekey(self, length=2048):
         key = rsa.generate(length)
         return key
 
@@ -73,7 +73,7 @@ class ODDesktopKeyManager(object):
         return data
 
 
-    def encode( self, length=1024 ):
+    def encode( self, length=2048 ):
         key = self.generatekey( length )
         jwt = self.storekey( key )
         return jwt
