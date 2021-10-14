@@ -75,6 +75,12 @@ desktopdefaultwallpaper = None
 desktopauthproviderneverchange = True     # if user can change auth provider in the same session
 
 
+# 
+prelogin_url                = None
+prelogin_http_attribut      = None
+prelogin_enable             = False
+prelogin_network_list       = []
+
 # printer container
 desktopprinterimage         = None
 desktopprinteracl           = {}
@@ -319,6 +325,20 @@ def init_printercupsdict():
     printercupsembeddedList         = gconfig.get(  'printer.cupsPrinterEmbeddedList', 
                                                     []
                                       )
+
+def init_prelogin():
+    global prelogin_url
+    global prelogin_user_attribut
+    global prelogin_enable
+    global prelogin_network_list
+
+    prelogin_enable         = gconfig.get(  'auth.prelogin_enable', False )
+    prelogin_url            = gconfig.get(  'auth.prelogin_url' )
+    prelogin_user_attribut  = gconfig.get(  'auth.prelogin_http_attribut' )
+    prelogin_network_list   = gconfig.get(  'auth.prelogin_network_list', [] )
+
+
+
 
 
 def init_websocketrouting():
@@ -887,6 +907,9 @@ def init():
 
     # init jira bugtracker
     init_jira()
+
+    # init prelogin
+    init_prelogin()
 
     # init_controllers
     init_controllers()
