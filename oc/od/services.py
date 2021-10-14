@@ -24,6 +24,7 @@ class ODServices(object):
         self.dockerwatcher = None
         self.imagewatcher = None
         self.apps = None
+        self.prelogin = None
 
     def __del__(self):
         try:
@@ -54,6 +55,7 @@ class ODServices(object):
         self.init_locator()
         self.init_keymanager()
         self.init_webrtc()
+        self.init_prelogin()
 
 
     def init_webrtc(self):
@@ -127,6 +129,16 @@ class ODServices(object):
         import oc.sharecache
         self.sharecache = oc.sharecache.ODMemcachedSharecache(settings.memconnectionstring)
 
+    def init_prelogin(self):
+        logger.info('')
+        import oc.auth.prelogin
+        self.prelogin = oc.auth.prelogin.ODPrelogin(    prelogin_enable=settings.prelogin_enable,
+                                                        prelogin_url=settings.prelogin_url,
+                                                        prelogin_network_list=settings.prelogin_network_list,
+                                                        base_url=settings.default_host_url,
+                                                        memcache_connection_string=settings.memconnectionstring,
+                                                        http_attribut=settings.prelogin_user_attribut )
+
     def init_messageinfo(self):
         logger.info('')
         import oc.od.messageinfo
@@ -153,13 +165,11 @@ class ODServices(object):
 
     def init_dockerwatcher( self ):
         logger.info('')
-        import oc.od.dockerwatcher
         self.dockerwatcher = oc.od.dockerwatcher.ODDockerWatcher()
         self.dockerwatcher.start()
 
     def init_imagewatcher( self ):
         logger.info('')
-        import oc.od.imagewatcher
         self.imagewatcher = oc.od.imagewatcher.ODImageWatcher()
         self.imagewatcher.start()
 
