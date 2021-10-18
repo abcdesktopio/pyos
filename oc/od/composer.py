@@ -99,10 +99,10 @@ def opendesktop(authinfo, userinfo, args ):
     desktop = finddesktop( authinfo, userinfo, app )
     desktoptype = 'desktopmetappli' if app else 'desktop' 
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
-        services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop')  
+        services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop') 
+        logger.info('Warm start, reconnecting to running desktop') 
         # if the desktop exists resume the connection
         services.accounting.accountex( desktoptype, 'resumed')
-        logger.info("Container %s available, resuming", userinfo.userid)
         resumedesktop( authinfo, userinfo ) # update last connection datetime
     else:
         # create a new desktop
