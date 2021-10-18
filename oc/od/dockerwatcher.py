@@ -3,6 +3,7 @@ import logging
 import threading
 import logging
 import oc.logging
+import oc.od.services
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,18 @@ class ODDockerWatcher:
         logger.debug('new image event from docker event %s', event)
         event_action = event.get('Action') 
         event_attributes = event.get('Actor').get('Attributes')
+
+
         if event_action == 'pull' or event_action == 'tag':
             image_name = event_attributes.get('name')
             if event_attributes.get('oc.type') == 'app' and image_name is not None :
-                newapp = oc.od.services.services.apps.add_image( image_name )
-                if (newapp):
-                    self.logger.debug( 'new image added %s', newapp )
-                else:
-                    self.logger.debug( 'Skipping image %s', newapp )
-        if event_action == 'delete': 
+                oc.od.services.services.apps.cached_applist(True)
+                # newapp = oc.od.services.services.apps.add_image( image_name )
+                # if (newapp):
+                #     self.logger.debug( 'new image added %s', newapp )
+                # else:
+                #    self.logger.debug( 'Skipping image %s', newapp )
+        elif event_action == 'delete' :
             # delete is after event_action == 'untag' 
             # name is the image id
             # example
@@ -43,7 +47,8 @@ class ODDockerWatcher:
             # 'time': 1614588892, 
             # 'timeNano': 1614588892647421832}
             image_id = event.get('id')
-            oc.od.services.services.apps.del_image( image_sha_id=image_id )
+            # oc.od.services.services.apps.del_image( image_sha_id=image_id )
+            oc.od.services.services.apps.cached_applist(True)
 
     def event_network( self, client, event ):
         self.logger.debug('new network event from docker event %s', event)
