@@ -39,13 +39,13 @@ from kubernetes.stream.ws_client import ERROR_CHANNEL
 from kubernetes.client.rest import ApiException
 
 import oc.lib
-
+import oc.od.infra
 import oc.od.acl
 from   oc.od.desktop import ODDesktop
 import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
-from oc.od.vnc_password import ODVncPassword
+from   oc.od.vnc_password import ODVncPassword
 
 logger = logging.getLogger(__name__)
 
@@ -751,7 +751,7 @@ class ODOrchestrator(ODOrchestratorBase):
         lang            = language + '.UTF-8'  
 
          # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist  
-        env = { 'DISPLAY': '0.0',
+        env = { 'DISPLAY': ':0.0',
                 'PULSE_SERVER': '/tmp/.pulse.sock',
                 'CUPS_SERVER': '/tmp/.cups.sock' }
         # update env dict from configuration file
@@ -957,8 +957,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # if add is a ODDekstop use to_dict to convert ODDesktop to dict 
         # else app is a dict 
         
-        # getnetworkbyname
-        if isinstance( app, ODApps ) :
+        if isinstance( app, dict ) :
             sourcedict.update( app )
             myinfra = self.createInfra( self.nodehostname )
             network = myinfra.getnetworkbyname( network_name )
@@ -966,7 +965,6 @@ class ODOrchestrator(ODOrchestratorBase):
                 container_ip = myinfra.getDesktopIpAddr( containerid, network.id )
                 sourcedict.update( { 'container_ip': container_ip } )
             myinfra.close()
-        
         if isinstance(app, ODDesktop ):
             sourcedict.update( app.to_dict().copy() )
             # desktop_interface is a dict 
@@ -980,6 +978,7 @@ class ODOrchestrator(ODOrchestratorBase):
                     ipAddr = app.desktop_interfaces.get(interface).get('ips')
                     sourcedict.update( { interface: ipAddr } )
 
+        # Complete with user data
         sourcedict.update( authinfo.todict() )
         sourcedict.update( userinfo )
 
@@ -1272,7 +1271,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size') } }
             self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
 
-            if oc.od.settings.desktopusepodasapp :
+            if oc.od.settings.desktopusepodasapp is True:
                 self.default_volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
                 self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
             else:
@@ -1862,44 +1861,44 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return network_config
             
 
-    '''
+    """
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
         assert type(myDesktop) is ODDesktop, "myDesktop invalid type %r" % type(myDesktop)
         
-        # connnect to the dockerd 
-        myPod = self.findPodByUser( authinfo, userinfo )
-
-        # get the container id for the desktop object
-        for c in myPod.spec.containers:
-            if c.name[0] == self.graphicalcontainernameprefix: # this is the graphical container
-                break
-
-        # desktop = infra.getcontainer( myDesktop.container_id )
+        if oc.od.settings.usepodasapp is False:
+            # create app as a docker container 
+            return super().createappinstance( myDesktop, app, authinfo, userinfo, userargs, **kwargs )
+        
+        # create app as a pod 
+        desktop = infra.getcontainer( myDesktop.container_id )
 
         # get volunebind from the running x11 container
-        volumebind = c.volume_mounts
+        volumebind = desktop.attrs["HostConfig"]["Binds"]
+
+        rules = app.get('rules') 
 
         # apply network rules 
-        (network_disabled, context_network_name, context_network_dns) = self.applyappinstancerules_network( authinfo, app )
+        network_config = self.applyappinstancerules_network( authinfo, rules )
+
         # apply homedir rules
-        homedir_disabled = self.applyappinstancerules_homedir( authinfo, app )
+        homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
        
       
         network_name    = None
-        display         = oc.od.settings.desktopenvironmentlocal.get('DISPLAY', ':0.0')
-        pulse_server    = oc.od.settings.desktopenvironmentlocal.get('PULSE_SERVER', '/tmp/.pulse.sock')
-        cups_server     = oc.od.settings.desktopenvironmentlocal.get('CUPS_SERVER', '/tmp/.cups.sock')
+        # read locale language from USER AGENT
         language        = userinfo.get('locale', 'en_US')
-        lang            = language + '.UTF-8'    
+        lang            = language + '.UTF-8'  
 
-        # copy a env dict from configuration file
-        env = oc.od.settings.desktopenvironmentlocal.copy()
-
-        env.update ( {  'DISPLAY'       : display,
-                        'PULSE_SERVER'  : pulse_server,
-                        'CUPS_SERVER'   : cups_server,
-                        'LANGUAGE'	    : language,
+         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist  
+        env = { 'DISPLAY': ':0.0',
+                'PULSE_SERVER': '/tmp/.pulse.sock',
+                'CUPS_SERVER': '/tmp/.cups.sock' }
+        # update env dict from configuration file
+        env.update(oc.od.settings.desktopenvironmentlocal)
+        
+        # update env with user's lang value 
+        env.update ( {  'LANGUAGE'	    : language,
                         'LANG'		    : lang,
                         'LC_ALL'        : lang,
                         'LC_PAPER'	    : lang,
@@ -1910,11 +1909,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         'LC_TELEPHONE'  : lang,
                         'LC_NUMERIC'    : lang,                                       
                         'LC_IDENTIFICATION' : lang,
-                        'PARENT_ID' 	: desktop.id, 
+                        'PARENT_ID' 	    : desktop.id, 
                         'PARENT_HOSTNAME'   : self.nodehostname
         } )
 
-      
+        # Add specific vars      
         timezone = kwargs.get('timezone')
         if type(timezone) is str and len(timezone) > 1:     env['TZ'] = timezone
         if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
@@ -1935,63 +1934,80 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes = self.build_volumefromvolumebind(volumebind)
         command = '/composer/appli-docker-entrypoint.sh'
         
-        # network_mode (str) – One of:
-        #   bridge Create a new network stack for the container on on the
-        #   bridge network.
-        #   none No networking for this container.
-        #   container:<name|id> Reuse another container’s network stack.
-        #   host Use the host network stack.
-        # Warning: if desktopusex11unixsocket is set then aclnetworkname is not
-        # used
-        if oc.od.settings.desktopsharednetworkstack:
-            network_mode = 'container:' + desktop.id    # by default
-        if context_network_name :
-            network_name = context_network_name
-            network_mode = context_network_name
-        if network_disabled :
-            network_mode = 'none'
-            network_name = None
-        
-        extra_hosts = {}
-        try:
-            host_imagelabel = app.get('oc.extra_hosts')
-            if host_imagelabel is not None:
-                extra_hosts = json.loads(host_imagelabel)
-        except Exception as e:
-            self.logger.warning('Failed to parse extra_hosts: %s', e)
-
-        # “container: <_name-or-ID_>"
-        # Join another (“shareable”) container’s IPC namespace.
-        if oc.od.settings.desktopusershareipcnamespace == 'shareable':
-            ipc_mode = 'container:' + desktop.id
-        else:
-            ipc_mode = None
-
-       
         # container name
         # DO NOT USE TOO LONG NAME for container name  
         # filter can failed or retrieve invalid value in case userid + app.name + uuid
         # limit length is not defined but take care 
-        _containername = userinfo.get('name','name') + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
+        _containername = self.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
         containername =  oc.auth.namedlib.normalize_name( _containername )
 
-        host_config = {
-                'auto_remove'   : oc.od.settings.desktopcontainer_autoremove,
+        # build the host config
+        # first load the default hostconfig from od.config for all containers
+        # create a new host_config dict
+        # 
+        # host_config = applicationhostconfig from configuration file
+        # host_config.update( application hostconfig entry )
+        # host_config.update( user rules entry )
+        # host_config.update( volume )
+        #
+        # read the default applicationhostconfig from configuration file
+        host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
+        self.logger.info('default application hostconfig=%s', host_config )
+
+        # load the specific hostconfig from the app object
+        host_config.update( app.get('host_config'))
+        self.logger.info('updated app values hostconfig=%s', host_config )
+
+        # container: <_name-or-ID_>
+        # Join another ("shareable") container's IPC namespace.
+        ipc_mode = None
+        if host_config.get('ipc_mode') == 'shareable' and oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':  
+           ipc_mode = 'container:' + desktop.id
+
+        # share pid name space
+        pid_mode = None
+        if host_config.get('pid_mode') is True :     
+            pid_mode = 'container:' + desktop.id
+
+
+        # set network config default value 
+        network_mode = 'none'
+        network_name = None
+        network_disabled = network_config.get('network_disabled')
+        network_dns      = network_config.get('dns')
+        # if network mode use conainer network 
+        # bind the desktop container network to the application container
+        if host_config.get('network_mode') == 'container':
+            network_mode = 'container:' + desktop.id
+
+        # if specific network exists
+        # bind the specific network to the application container
+        if isinstance( network_config.get('name'), str)  :
+            network_name = network_config.get('name')
+            network_mode = network_config.get('name')
+
+        # if network_disabled is Tue 
+        # bind the specific network to None
+        if network_disabled is True :
+            network_mode = 'none'
+            network_name = None
+      
+
+        # set abcdesktop requirements and specific context running 
+        # 'binds'    : volumebind
+        # 'ipc_mode' : ipc_mode
+        # 'pid_mode' : pid_mode
+        host_config.update( {
                 'binds'         : volumebind,
-                'extra_hosts'   : extra_hosts,
                 'ipc_mode'      : ipc_mode,
                 'network_mode'  : network_mode,
-                'pid_mode'      : pid_mode,
-                'dns'           : context_network_dns,
-                'security_opt'  : oc.od.settings.desktopsecurityopt,
-                'cap_add'       : oc.od.settings.desktopcapabilities.get('add'),
-                'cap_drop'      : oc.od.settings.desktopcapabilities.get('drop')
-        }
+                'dns'           : network_dns,
+                'pid_mode'      : pid_mode
+        } )
 
-        # set shm_size if image require
-        if app.get('shm_size') :   host_config.update(  { 'shm_size' : app.get('shm_size') } )
-        # set mem_limit if image require
-        if app.get('mem_limit') :  host_config.update(  { 'mem_limit' : app.get('mem_limit') } )
+         # dump host config berfore create   
+        self.logger.info('application hostconfig=%s', host_config )
+
 
         appinfo = infra.createcontainer(
             image = app['id'],
@@ -2002,17 +2018,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             network_disabled = network_disabled,
             labels = {                
                 'access_type'           : authinfo.provider,
-                'access_username'       : userinfo.get('name'),
+                'access_username'       : self.get_normalized_username( userinfo.get('name') ),
                 'access_userid'         : userinfo.userid,
                 'access_parent_id'      : desktop.id,
                 'access_parent_hostname': self.nodehostname
             },
             volumes = volumes,
             host_config = host_config,
-            network_name = network_name
+            network_name = network_name,
         )
 
-        if type(appinfo) is not dict :
+        if not isinstance( appinfo, dict) :
             return None
 
         appinstance_id = appinfo.get('Id')
@@ -2024,9 +2040,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return None
         
         infra.startcontainer(appinstance.id)
+        appinstance.message = 'starting'
+        # webhook is None if network_config.get('context_network_webhook') is None
+
+        appinstance.webhook = self.buildwebhookinstance(authinfo=authinfo, 
+                                                        userinfo=userinfo, 
+                                                        app=app,
+                                                        network_config=network_config, 
+                                                        network_name = network_name, 
+                                                        appinstance_id = appinstance_id  )
+
         return appinstance
-    '''
-    
+    """
     def createdesktop(self, authinfo, userinfo, **kwargs):
         """createdesktop for the user
             create the user pod 
