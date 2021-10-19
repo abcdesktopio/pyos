@@ -1788,6 +1788,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             # ldap3.core.exceptions.LDAPBindError: - invalidCredentials
             raise e
 
+        except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult  as e:
+            self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server_pool, str(e) )
+
         except ldap3.core.exceptions.LDAPExceptionError as e:
             self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server_pool, str(e) )
 
@@ -1799,6 +1802,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         for server in self.servers:
             try: 
                 server = ldap3.Server( server, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod )
+                # , get_info=ldap3.ALL
                 self.logger.debug( 'ldap starting bind on %s using auth %s', server, self.auth_type)
             
                 # do kerberos bind
@@ -1843,6 +1847,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.error( 'ldap3.core.exceptions.LDAPBindError to the ldap server %s %s', server, str(e) )
                 # ldap3.core.exceptions.LDAPBindError: - invalidCredentials
                 raise e
+
+            except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult  as e:
+                self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server_pool, str(e) )
 
             except ldap3.core.exceptions.LDAPExceptionError as e:
                 self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server, str(e) )
