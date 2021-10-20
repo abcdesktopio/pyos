@@ -38,23 +38,31 @@ class AuthController(BaseController):
     '''
         Description: Authentification Controller 
     '''
+    redirect_page_local_filename = 'redirect.mustache.html'
 
     def __init__(self, config_controller=None):
         self.logger.info( 'config_controller=%s', config_controller )
         super().__init__(config_controller)
+        self.oauth_html_redirect_page = self.load_local_file(filename=AuthController.redirect_page_local_filename)
+
+    def load_local_file( self, filename ):
+        data = None
         try:
-            self.logger.info( 'Loading local file redirect.mustache.html' )
-            f = open('redirect.mustache.html', encoding='utf-8' )
-            self.logger.info( 'Reading file redirect.mustache.html' )
-            self.oauth_html_redirect_page = f.readlines()
+            self.logger.info( 'Loading local file %s',filename )
+            f = open(filename, encoding='utf-8' )
+            self.logger.info( 'Reading file %s', filename )
+            data = f.readlines()
             f.close()
-            self.logger.info( 'dump redirect.mustache.html file' )
-            self.logger.info( self.oauth_html_redirect_page )
+            self.logger.info( 'dump %s file', filename )
+            self.logger.info( data )
         except Exception as e:
-            self.logger.error( 'redirect.mustache.html file is missing')
+            self.logger.error( '** WARNING ** %s file is missing', filename)
             self.logger.error( 'http auth request will failed')
-            self.logger.error( 'ADD file redirect.mustache.html')
+            self.logger.error( 'ADD file %s', filename)
             self.logger.error( e )
+        return data
+
+
 
 
     @cherrypy.expose
