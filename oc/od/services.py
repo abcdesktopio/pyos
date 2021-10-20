@@ -35,10 +35,7 @@ class ODServices(object):
                 isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
                 self.imagewatcher.stop()
         except Exception as e:
-            try:
-                logger.error( str(e) )
-            except Exception as e:
-                pass
+            pass
 
     def init(self):
         """init services 
