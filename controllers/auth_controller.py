@@ -20,7 +20,7 @@ from oc.od.base_controller import BaseController
 from oc.cherrypy import Results, getclientipaddr 
 from oc.od.services import services
 import oc.od.composer 
-import oc.lib
+from oc.lib import removeCookie
 import oc.od.settings
 
 
@@ -42,13 +42,19 @@ class AuthController(BaseController):
     def __init__(self, config_controller=None):
         self.logger.info( 'config_controller=%s', config_controller )
         super().__init__(config_controller)
-        self.logger.info( 'Loading local file redirect.mustache.html' )
-        f = open('redirect.mustache.html', encoding='utf-8' )
-        self.logger.info( 'Reading file redirect.mustache.html' )
-        self.oauth_html_redirect_page = f.readlines()
-        f.close()
-        self.logger.info( 'dump redirect.mustache.html file' )
-        self.logger.info( self.oauth_html_redirect_page )
+        try:
+            self.logger.info( 'Loading local file redirect.mustache.html' )
+            f = open('redirect.mustache.html', encoding='utf-8' )
+            self.logger.info( 'Reading file redirect.mustache.html' )
+            self.oauth_html_redirect_page = f.readlines()
+            f.close()
+            self.logger.info( 'dump redirect.mustache.html file' )
+            self.logger.info( self.oauth_html_redirect_page )
+        except Exception as e:
+            self.logger.error( 'redirect.mustache.html file is missing')
+            self.logger.error( 'http auth request will failed')
+            self.logger.error( 'ADD file redirect.mustache.html')
+            self.logger.error( e )
 
 
     @cherrypy.expose
@@ -132,8 +138,8 @@ class AuthController(BaseController):
             if oc.od.composer.removedesktop(auth, user, args) is False:
                 bReturn = Results.error( message='removedesktop failed' )
 
-            # Always remove removeCookie
-            oc.lib.removeCookie( oc.od.settings.routehostcookiename )
+            # Always removeCookie routehostcookiename
+            removeCookie( oc.od.settings.routehostcookiename )
 
             # Always call logout auth services 
             services.auth.logout() 
