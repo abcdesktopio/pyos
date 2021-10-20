@@ -919,17 +919,14 @@ class ODAuthTool(cherrypy.Tool):
         
     def findproviderbydomainprefix( self, providers, domain ):
         """[summary]
-            find a provider using the DOMAIN activeDesktop as name
-            return the provider object for this domain name
+            find a provider using the DOMAIN ActiveDirectory domain name
+            return the provider object for this domain
         Args:
             providers ([list]): [list of provider]
-            domain ([str]): [ActiveDirectory DOMAIN]
-
-        Raises:
-            AuthenticationFailureError: [ if login is not a str ]
+            domain ([str]): [ActiveDirectory DOMAIN NAME]
 
         Returns:
-            provider [dict]: [provider dict]
+            provider [ODAdAuthProvider]: [provider type ODAdAuthProvider]
             None if not found
         """
         # sanity check
@@ -940,17 +937,27 @@ class ODAuthTool(cherrypy.Tool):
             return None 
 
         domain = domain.upper()
-        for provider in providers:
-            if provider.domain.upper() == domain :
-                return provider
+        provider = None
 
-        return None
+        for p in providers:
+            if p.domain.upper() == domain :
+                logger.info( 'provider.name %s match for domain=%s', provider.name, domain) 
+                provider = p
+                break   
+        
+        return provider
 
     def finddefaultprovider( self, providers):
-        default_provider = None
-        for provider in providers:
-            if provider.default is True:
-                default_provider = provider 
+        """[finddefaultprovider]
+                return a provider with default property set to True, None if not found or not set
+        Args:
+            providers ([provider]): [description]
+
+        Returns:
+            [provider]: [the default provider, None is not set]
+        """
+        m = list( filter(lambda p: p.is_default(), providers.values()))
+        default_provider = m[0] if len(m)>0 else None
         return default_provider
 
 
@@ -971,6 +978,7 @@ class ODAuthTool(cherrypy.Tool):
             provider = self.finddefaultprovider( providers=providers )
             if provider is None:
                 raise AuthenticationFailureError('No authentication provider can be found')
+        return provider
 
 
 
@@ -1094,11 +1102,7 @@ class ODAuthTool(cherrypy.Tool):
 
         # do authenticate 
         response = self.login( provider=target_provider.name, manager=None, **arguments)
-
         return response
-
-
-        
 
     def authenticate(self, provider,  manager=None, **arguments):
         return self.findmanager(provider, manager).authenticate(provider, **arguments)
@@ -1147,20 +1151,25 @@ class ODAuthManagerBase(object):
 
     def initproviders(self, config):
         for name,cfg in config.get('providers',{}).items():
+            if not cfg.get('enabled', True): 
+                continue
+            logger.info( 'Adding provider name %s ', name )
+            provider = self.createprovider(name, cfg)
             try:
-                if not cfg.get('enabled', True): 
-                    continue
-                logger.info( 'Adding provider name %s ', name )
-                provider = self.createprovider(name, cfg)
-                if isinstance( provider, ODAuthProviderBase): 
-                    self.add_provider( name, provider )
-
+                # add only instance ODAuthProviderBase or herited
+                self.add_provider( name, provider )    
             except Exception as e:
                 logger.exception(e) 
 
     def add_provider( self, name, provider ):
+        """[add_provider]
+            add a provider object ODAuthProviderBase in providers dict
+        Args:
+            name ([str]): [key of the providers dict]
+            provider ([ODAuthProviderBase]): [ODAuthProviderBase]
+        """
         assert isinstance(name, str) , 'bad provider name parameter'
-        assert isinstance(provider, ODAuthProviderBase) , 'bad provider parameter'
+        assert isinstance(provider, ODAuthProviderBase) , 'bad provider parameters'
         self.providers[name] = provider  
        
     def authenticate(self, provider, **arguments):
@@ -1182,13 +1191,27 @@ class ODAuthManagerBase(object):
         return self.rules
 
     def getprovider(self, name, raise_error=False):
-        if not name: 
+        """[getprovider]
+            return a provider from name 
+        Args:
+            name ([str]): [name of the provider]
+            raise_error (bool, optional): [raise error an exception if not exist]. Defaults to False.
+
+        Raises:
+            AuthenticationFailureError: ['Invalid authentication provider name']
+            AuthenticationFailureError: ['Undefined authentication provider']
+
+        Returns:
+            [type]: [description]
+        """
+        if not isinstance(name, str) : 
             if raise_error: 
                 raise AuthenticationFailureError('Invalid authentication provider name')
             return None
         
         pdr = self.providers.get(name)
-        if not pdr: 
+        # pdr is an instance of ODAuthProviderBase
+        if pdr is None: 
             if raise_error: 
                 raise AuthenticationFailureError('Undefined authentication provider: %s' % name)
             return None
@@ -1214,9 +1237,16 @@ class ODExplicitAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
         self.show_domains = config.get('show_domains', False)
-        # default domain use de default provider property 
-        # set when add_provider call
-        self.default_domain = None  # not set 
+        # look for a default provider
+        m = list( filter(lambda p: p.is_default(), self.providers.values()))
+        # if multiple provider has default property set to True, choose the first one
+        self.default_domain = m[0].name if len(m) > 0 else None
+
+        # else:
+        #    self.default_domain 
+        #    # no default provider has been defined, use the first one, 
+        #    # None is the list is empty
+        #    self.default_domain = list(self.providers.values())[0].name if len(self.providers) else None
 
     def createprovider(self, name, config):
         """[createprovider]
@@ -1255,6 +1285,7 @@ class ODExplicitAuthManager(ODAuthManagerBase):
 
     def add_provider( self, name, provider ):
         super().add_provider( name, provider)
+        # check the default domain 
         if isinstance( provider, ODAdAuthProvider) and provider.is_default():
             self.default_domain = provider.domain
 
@@ -1265,7 +1296,7 @@ class ODExplicitAuthManager(ODAuthManagerBase):
         return data
 
     def authenticate(self, provider, userid=None, password=None, **params):
-        return self.getprovider(provider, True).authenticate(userid, password)
+        return self.getprovider(name=provider, raise_error=True).authenticate(userid, password)
 
 
 class ODExplicitMetaAuthManager(ODAuthManagerBase):
@@ -1714,8 +1745,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             groupdn = self.getgroupdn(conn, role)
             if not groupdn: 
                 return False
-            filter = ldap_filter.filter_format('(&'+self.user_query.filter+'(memberOf=%s))', [token,groupdn])
-            return self.search(conn, self.user_query.basedn, self.user_query.scope, filter, ['cn'], True) is not None
+            group_ldap_filter = ldap_filter.filter_format('(&'+self.user_query.filter+'(memberOf=%s))', [token,groupdn])
+            return self.search(conn, self.user_query.basedn, self.user_query.scope, group_ldap_filter, ['cn'], True) is not None
         finally:
             if ldap_bind_userid: 
                 conn.unbind()
