@@ -40,10 +40,15 @@ class AuthController(BaseController):
     '''
 
     def __init__(self, config_controller=None):
+        self.logger.info( 'config_controller=%s', config_controller )
         super().__init__(config_controller)
+        self.logger.info( 'Loading local file redirect.mustache.html' )
         f = open('redirect.mustache.html')
+        self.logger.info( 'Reading file redirect.mustache.html' )
         self.oauth_html_redirect_page = f.readlines()
         f.close()
+        self.logger.info( 'dump redirect.mustache.html file' )
+        self.logger.info( self.oauth_html_redirect_page )
 
 
     @cherrypy.expose
