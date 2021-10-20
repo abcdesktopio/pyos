@@ -27,19 +27,23 @@ class ODServices(object):
         self.prelogin = None
 
     def __del__(self):
-        try:
-            if hasattr(self, 'dockerwatcher') and \
-                isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
+
+        # stop thread dockerwatcher if instance exists
+        if hasattr(self, 'dockerwatcher') and isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
+            try:
                 self.dockerwatcher.stop()
-            if hasattr(self, 'imagewatcher') and \
-                isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
+            except Exception as e:
+                pass
+
+        # stop thread imagewatcher if instance exists
+        if hasattr(self, 'imagewatcher') and isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
+            try:
                 self.imagewatcher.stop()
-        except Exception as e:
-            pass
+            except Exception as e:
+                pass
 
     def init(self):
-        """init services 
-           call all services init() methods
+        """[init services call all services init() methods]
         """
         self.init_messageinfo()
         self.init_accounting()
@@ -64,7 +68,7 @@ class ODServices(object):
             self.webrtc = oc.od.janus.ODJanusCluster( settings.webrtc_server )
 
     def init_keymanager(self):
-        """ decode arg params query string in metappli mode 
+        """[decode arg params query string in metappli mode ]
         """
         import oc.auth.keymanager
         # key manager use the same parameter as jwt_config_desktop
