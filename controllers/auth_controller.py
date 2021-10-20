@@ -43,7 +43,7 @@ class AuthController(BaseController):
         self.logger.info( 'config_controller=%s', config_controller )
         super().__init__(config_controller)
         self.logger.info( 'Loading local file redirect.mustache.html' )
-        f = open('redirect.mustache.html')
+        f = open('redirect.mustache.html', encoding='utf-8' )
         self.logger.info( 'Reading file redirect.mustache.html' )
         self.oauth_html_redirect_page = f.readlines()
         f.close()
