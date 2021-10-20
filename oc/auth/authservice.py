@@ -420,6 +420,7 @@ class ODAuthTool(cherrypy.Tool):
         else:
             # for another class extended 
             cls = oc.pyutils.get_class(config.get('class', name))
+        logger.info( 'createmanager name=%s %s', name, cls )
         return cls(name, config)
  
     def findmanager(self, providername, managername=None):
@@ -457,11 +458,13 @@ class ODAuthTool(cherrypy.Tool):
         Returns:
             [ODAuthProviderBase]: [instance of  ODAuthProviderBase]
         """
+        provider = None
         for mgr in self.managers.values():
             for pdr in mgr.providers.values():
                 if pdr.name == name: 
-                    return pdr
-        return None
+                    provider = pdr
+        logger.info( 'findprovider name=%s %s', name, str(type(provider)))
+        return provider
 
 
     def listprovider( self, manager):
