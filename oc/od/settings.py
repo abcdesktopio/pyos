@@ -686,12 +686,12 @@ def init_controllers():
     if desktopdefaultcolor:
         # wrapper for StoreController key value
         # config use default 'color'  
-        controllers['StoreController']['wrapped_key'] = { 'color': None }
+        controllers['StoreController']['wrapped_key'].update( { 'color': str(desktopdefaultcolor) } )
 
     if desktopdefaultwallpaper :
         # wrapper for StoreController key value
         # config use default wallpaper 'img' 
-        controllers['StoreController']['wrapped_key'] = { 'img': None }
+        controllers['StoreController']['wrapped_key'].update( { 'backgroundType': 'img' } )
 
 
 def read_kubernetes_resource_limits( hostconfig ):
