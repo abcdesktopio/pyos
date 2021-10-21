@@ -2273,7 +2273,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'imagePullPolicy': oc.od.settings.desktopimagepullpolicy,
                                     'image': oc.od.settings.desktopprinterimage,                                    
                                     'env': envlist,
-                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ]                                    
+                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                                    'resources': oc.od.settings.desktopkubernetesresourcelimits                                    
                                 }   
             )
             # pod_manifest['spec']['containers'][0] is the main oc.user container
@@ -2296,7 +2297,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'imagePullPolicy': 'IfNotPresent',
                                     'image': oc.od.settings.desktopsoundimage,                                    
                                     'env': envlist,
-                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ]                                    
+                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                                    'resources': oc.od.settings.desktopkubernetesresourcelimits                                    
                                 }   
             )
             # pod_manifest['spec']['containers'][0] is the main oc.user container
