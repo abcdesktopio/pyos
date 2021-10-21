@@ -19,6 +19,9 @@ class ODDockerWatcher:
             self.abcnetworks[ mynetwork.id ] = mynetwork
         client.close()
 
+        #
+        self.thead_event = None
+
     def event_image( self, client, event ):
         logger.debug('new image event from docker event %s', event)
         event_action = event.get('Action') 
@@ -169,5 +172,10 @@ class ODDockerWatcher:
 
     def stop(self):
         self.logger.debug('stoping watcher thread')
-        self.events.close() # this will stop the thread self.thead_event
-        self.thead_event.join() 
+        if isinstance( self.thead_event, threading.Thread ):
+            if self.thead_event.is_alive() :
+                self.events.close() # this will stop the thread self.thead_event
+                self.thead_event.join()
+            else:
+                self.logger.debug('thread watcher is not alive')
+            
