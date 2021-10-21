@@ -113,7 +113,7 @@ class Tools(object):
             controller = _class(config_controllers.get( _class.__name__))
             controller.root = parent
             controller.logger = logging.getLogger(_class.__module__ + '.' + _class.__name__)
-            setattr(parent, re.match(class_filter, _class.__name__).group(1).lower(), controller) 
+            setattr(parent, re.match(class_filter, _class.__name__).group(1).lower(), controller)
 
     '''
     @staticmethod
