@@ -43,27 +43,24 @@ class AuthController(BaseController):
     def __init__(self, config_controller=None):
         self.logger.info( 'config_controller=%s', config_controller )
         super().__init__(config_controller)
-        self.oauth_html_redirect_page = self.load_local_file(filename=AuthController.redirect_page_local_filename)
+        try:
+            self.oauth_html_redirect_page = self.load_local_file(filename=AuthController.redirect_page_local_filename)
+        except Exception as e:
+            self.logger.error( 'FATAL ERROR %s file is missing', AuthController.redirect_page_local_filename)
+            self.logger.error( 'http auth request will failed')
+            self.logger.error( e )
+            raise ValueError( 'missing file ' + AuthController.redirect_page_local_filename)
 
     def load_local_file( self, filename ):
-        data = None
-        try:
-            self.logger.info( 'Loading local file %s',filename )
-            f = open(filename, encoding='utf-8' )
-            self.logger.info( 'Reading file %s', filename )
-            data = f.readlines()
-            f.close()
-            self.logger.info( 'dump %s file', filename )
-            self.logger.info( data )
-        except Exception as e:
-            self.logger.error( '** WARNING ** %s file is missing', filename)
-            self.logger.error( 'http auth request will failed')
-            self.logger.error( 'ADD file %s', filename)
-            self.logger.error( e )
+        data = None    
+        self.logger.info( 'Loading local file %s',filename )
+        f = open(filename, encoding='utf-8' )
+        self.logger.info( 'Reading file %s', filename )
+        data = f.readlines()
+        f.close()
+        self.logger.info( 'dumping data %s file', filename )
+        self.logger.info( data )
         return data
-
-
-
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
