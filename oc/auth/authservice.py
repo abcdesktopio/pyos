@@ -941,7 +941,7 @@ class ODAuthTool(cherrypy.Tool):
 
         for p in providers:
             if p.domain.upper() == domain :
-                logger.info( 'provider.name %s match for domain=%s', provider.name, domain) 
+                logger.info( 'provider.name %s match for domain=%s', p.name, domain) 
                 provider = p
                 break   
         
