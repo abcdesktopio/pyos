@@ -27,14 +27,12 @@ class ODServices(object):
         self.prelogin = None
 
     def __del__(self):
-
         # stop thread dockerwatcher if instance exists
         if hasattr(self, 'dockerwatcher') and isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
             try:
                 self.dockerwatcher.stop()
             except Exception as e:
                 pass
-
         # stop thread imagewatcher if instance exists
         if hasattr(self, 'imagewatcher') and isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
             try:
@@ -184,7 +182,6 @@ def init_infra():
 
        find configuration docker and kubernetex
     """
-
     logger.info('')
 
     #
@@ -213,12 +210,10 @@ def init_infra():
 
     if stack_mode != detected_stack_mode:
         logger.warning('Configuration mismatch : stack mode is %s, detected stack mode is %s', stack_mode, detected_stack_mode)
-
         if stack_mode == 'standalone':
             # kubernetes is installed and configuration ask to use dockerd only
             # Allow it       
             pass
-
         elif stack_mode == 'kubernetes':             
             if detected_stack_mode == 'standalone' :
                 # can not run a kubernetes config on docker only without kubernetes installed
