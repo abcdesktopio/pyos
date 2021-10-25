@@ -195,9 +195,6 @@ class ODCherryWatcher(plugins.SimplePlugin):
         # if oc.od.services.services.dockerwatcher exists, stop it
         if type(oc.od.services.services.dockerwatcher) is oc.od.dockerwatcher.ODDockerWatcher:
             oc.od.services.services.dockerwatcher.stop()
-        # if oc.od.services.services.imagewatcher exists, stop it
-        if type(oc.od.services.services.imagewatcher) is oc.od.imagewatcher.ODImageWatcher:
-            oc.od.services.services.imagewatcher.stop()
 
 
 def run_server():   
