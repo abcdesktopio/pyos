@@ -4,11 +4,11 @@
         <link rel="stylesheet" href="{{ loginScreencss_url }}" type="text/css" />
         <script type="text/javascript">
             var jwt_user_token="{{ jwt_user_token }}";
-            var default_host_url="{{ oc.od.settings.default_host_url }}";
+            var default_host_url="{{ default_host_url }}";
         </script> 
         <script type="text/javascript" src="/js/jwtstorage.js"></script>
     </head> 
     <body>
-        <div id="loginScreen">Reloading page to {{ oc.od.settings.default_host_url }}</div>
+        <div id="loginScreen">Reloading page to {{ default_host_url }}</div>
     </body>
 </html>
