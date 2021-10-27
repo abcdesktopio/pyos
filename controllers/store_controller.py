@@ -89,11 +89,13 @@ class StoreController(BaseController):
         return Results.success(result=value)
 
 
+
     def wrapped_get( self, userid, key ):
         self.logger.debug('')
         value = services.datastore.getstoredvalue(userid, key)
         if value is None:
             # return default wrapped value
+            # for {"status": 200, "result": "img", "message": "ok"}
             value = self.wrapped_key.get( key )
             self.logger.debug('wrapped_get result %s:%s->%s', userid, key, value )
 
