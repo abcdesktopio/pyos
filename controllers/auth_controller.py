@@ -56,7 +56,7 @@ class AuthController(BaseController):
         self.logger.info( 'Loading local file %s',filename )
         f = open(filename, encoding='utf-8' )
         self.logger.info( 'Reading file %s', filename )
-        data = f.readlines()
+        data = f.read()
         f.close()
         self.logger.info( 'dumping data %s file', filename )
         self.logger.info( data )
@@ -171,10 +171,9 @@ class AuthController(BaseController):
         # However, if request 2 returns a HTTP 200 with a Refresh header (the "meta refresh" redirect), cookies are set properly by request 3.
         #
         # empty html page to fix HTTP redirect cookie bug with safari
-        loginScreencss_url = oc.od.settings.default_host_url + '/css/css-dist/loginScreen.css'
         mustache_dict = {
-            'loginScreencss_url': loginScreencss_url,
-            'jwt_user_token': jwt_user_token,
+            'loginScreencss_url': oc.od.settings.default_host_url + '/css/css-dist/loginScreen.css',
+            'jwt_user_token': str(jwt_user_token),
             'default_host_url' : oc.od.settings.default_host_url
         }
         oauth_html_refresh_page = chevron.render( self.oauth_html_redirect_page, mustache_dict )
