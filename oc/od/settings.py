@@ -557,7 +557,13 @@ def init_desktop():
                 'HOME' 		            : '/home/balloon',
                 'LOGNAME'	            : 'balloon',
                 'PULSE_SERVER'          : '/tmp/.pulse.sock',
-                'CUPS_SERVER'           : 'localhost:631'} )
+                'CUPS_SERVER'           : '/tmp/.cups.sock'} )
+
+    # if app is a pod then force X11 to listen on tcp port
+    if desktopusepodasapp:
+        desktopenvironmentlocal['X11LISTEN'] = 'tcp'
+
+
 
     init_balloon()
 
