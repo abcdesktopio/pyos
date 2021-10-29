@@ -5,6 +5,7 @@ cryptography
 dnspython
 docker>=5.0.0
 GeoIP
+gssapi
 graypy
 iso8601
 jira==2.0.0
