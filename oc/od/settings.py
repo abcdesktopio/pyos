@@ -33,7 +33,7 @@ menuconfig   = {}  # default menu config
 
 # User balloon define
 # Balloon is the default user used inside container
-balloon_defaulthomedirectory = None
+balloon_homedirectory = None
 balloon_uid = 4096  # default user id
 balloon_gid = 4096  # default group id
 balloon_name = 'balloon'
@@ -217,8 +217,8 @@ def getballoon_gid():
     """
     return balloon_gid
 
-def getballoon_defaulthomedirectory():
-    return balloon_defaulthomedirectory
+def getballoon_homedirectory():
+    return balloon_homedirectory
 
 def getdesktop_homedirectory_type():
     return desktophomedirectorytype
@@ -581,13 +581,13 @@ def init_menuconfig():
 def init_balloon():
     global balloon_uid
     global balloon_gid
-    global balloon_defaulthomedirectory
+    global balloon_homedirectory
     global balloon_name
 
     balloon_name = gconfig.get('desktop.username', 'balloon')
     balloon_uid = gconfig.get('desktop.userid', 4096)
     balloon_gid = gconfig.get('destkop.groupid', 4096)
-    balloon_defaulthomedirectory = gconfig.get('desktop.userhomedirectory', '/home/balloon')
+    balloon_homedirectory = gconfig.get('desktop.userhomedirectory', '/home/balloon')
 
 def init_config_memcached():
     global stack_mode
