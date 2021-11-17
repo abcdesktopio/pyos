@@ -1419,7 +1419,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
 
         # Check if token type is OAuth2Session
         if not isinstance(oauthsession,OAuth2Session) :
-            raise ExternalAuthError( message='authinfo is an invalid oauthsession object')
+            raise ExternalAuthError( message='authinfo is an invalid token oauthsession object')
 
         userinfo = None
         if self.userinfo_auth is True and oauthsession.authorized is True:
@@ -1788,7 +1788,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', userid, krb5ccname )
                 # logger.debug(locals()) # uncomment this line may dump password in clear text 
                 cred_store = {'ccache':  krb5ccname }
-                conn = ldap3.Connection( server_pool, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store )
+                kerberos_principal_name = self.get_kerberos_principal( userid )
+                # If you specify user=, it is expected to be a Kerberos principal (though it appears you can omit the domain). 
+                # If there is a credential for that user in the collection, it will be used.
+                self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', kerberos_principal_name, krb5ccname )
+                conn = ldap3.Connection( server_pool, user=kerberos_principal_name, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store )
                 # bind to the ldap server
                 self.logger.debug( 'bind to the ldap server')
                 conn.bind()
@@ -1890,13 +1894,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
-    def initserver(self, ldapserver ):
-        protocol = 'ldaps' if self.secure else 'ldap'
-        ldap_uri = protocol + '://' + ldapserver        
-        logger.info( 'ldap.initialize to %s', ldap_uri)  
-        server = ldap3.Server(ldap_uri, get_info=ALL )
-        return server
-
     def search_all(self, conn, basedn, scope, filter=None, attrs=None, **params):
         """[summary]
 
@@ -2058,9 +2055,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.error('failed to delete tmp file: %s %s', krb5ccname, e)
 
 
+    def get_kerberos_principal( self, userid ):
+        # A kerberos principal is normally your username followed by your Kerberos realm
+        return userid + '@' + self.kerberos_realm
+
     def run_kinit( self, krb5ccname, userid, password ):
-        userid = userid + '@' + self.kerberos_realm
-        user = gssapi.Name(base=userid, name_type=gssapi.NameType.user)
+        kerberos_principal = self.get_kerberos_principal( userid )
+        user = gssapi.Name(base=kerberos_principal, name_type=gssapi.NameType.user)
         bpass = password.encode('utf-8')
         
         # KRB5CCNAME = b"MEMORY:%userid%"
