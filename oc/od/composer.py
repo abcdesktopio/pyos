@@ -26,12 +26,15 @@ from oc.od.services import services
 from oc.od.infra import ODError  # Desktop Infrastructure Class lib
 from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 
-import distutils.util
-import docker # only for type
+
 import json
-import requests
+
 import subprocess
 import threading
+
+from docker.models.images               import Image
+from docker.models.containers           import Container    # only for type
+from kubernetes.client.models.v1_pod    import V1Pod        # only for type
 
 
 logger = logging.getLogger(__name__)
@@ -351,7 +354,7 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     if oc.od.settings.desktopusedbussystem :
         env.update( {'OD_DBUS_SYSTEM_BUS': str(oc.od.settings.desktopusedbussystem) } )
     
-    if type(app) is docker.models.images.Image:
+    if type(app) is Image:
         pass
 
     return env
@@ -380,10 +383,10 @@ def createDesktopArguments( authinfo, userinfo, args ):
         'args'  : [],
             # set the getdesktop_homedirectory_type
             # can be volume or nfs 
-        'desktophomedirectorytype': settings.getdesktop_homedirectory_type(),
+        'homedirectory_type': settings.getdesktop_homedirectory_type(),
             # set the homedir for balloon running inside the docker container 
             # by default /home/balloon
-        'balloon_defaulthomedirectory': settings.getballoon_defaulthomedirectory(),
+        'balloon_homedirectory': settings.getballoon_homedirectory(),
             # set the uid for balloon running inside the docker container
             # by default 4096
         'balloon_uid': settings.getballoon_uid(),  
@@ -481,7 +484,6 @@ def openapp( auth, user={}, kwargs={} ):
     logger.debug('')
     
     appname  = kwargs.get('image')        # name of the image
-    pod_name = kwargs.get('pod_name')     # pod_name can be none or example docker native mode
     userargs = kwargs.get('args')         # get arguments for apps for example a file name
 
     # new Orchestrator Object
@@ -493,6 +495,7 @@ def openapp( auth, user={}, kwargs={} ):
 
     myOrchestrator.nodehostname = myDesktop.nodehostname
 
+    kwargs[ 'homedirectory_type' ] = settings.getdesktop_homedirectory_type()
 
     # Check limit apps counter
     max_app_counter = oc.od.settings.desktoppolicies.get('max_app_counter', -1)
@@ -534,14 +537,15 @@ def openapp( auth, user={}, kwargs={} ):
     services.accounting.accountex('api', 'openapp')
 
     appinstance = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
-    if type(appinstance) is not docker.models.containers.Container :
-        raise ODError('Failed to run application')
-    logger.info('Container %s is started', appinstance.id)
+    if not isinstance(appinstance, Container) and not isinstance(appinstance, V1Pod ):
+        raise ODError('Failed to run application return %s', type(appinstance) )
+
+    logger.info('app %s is started', appinstance.id)
 
     runwebhook( appinstance )
    
     # default return value
-    openapp_dict =  { 'container_id': appinstance.id, 'state': appinstance.status }
+    openapp_dict =  { 'container_id': appinstance.id, 'state': appinstance.message }
     return openapp_dict
 
 def callwebhook(webhookcmd, messageinfo=None, timeout=60):
