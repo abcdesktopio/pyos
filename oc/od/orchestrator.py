@@ -20,6 +20,7 @@ import docker
 import oc.lib 
 import oc.auth.namedlib
 import os
+import binascii
 
 import time
 import datetime
@@ -48,6 +49,10 @@ from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and Aut
 from   oc.od.vnc_password import ODVncPassword
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_PULSE_TCP_PORT = 4713
+DEFAULT_CUPS_TCP_PORT  = 631
 
 @oc.logging.with_logger()
 class ODOrchestratorBase(object):
@@ -87,6 +92,7 @@ class ODOrchestratorBase(object):
         self.desktoplaunchprogress = oc.pyutils.Event()        
         self.x11servertype          = 'x11server'        
         self.x11servertype_embeded  = 'x11serverembeded' 
+        self.applicationtype        = 'application'     
         self.printerservertype      = 'cupsserver'
         self.soundservertype        = 'pulseserver'
         self.endpoint_domain        = 'desktop'
@@ -169,7 +175,7 @@ class ODOrchestratorBase(object):
     def createdesktop(self, authinfo, userinfo, **kwargs):
         raise NotImplementedError('%s.createdesktop' % type(self))
 
-    def build_desktopvolumes( self, authinfo, userinfo, **kwargs):
+    def build_desktopvolumes( self, authinfo, userinfo, rules, **kwargs):
         raise NotImplementedError('%s.build_desktopvolumes' % type(self))
 
     def findDesktopByUser( self, authinfo, userinfo, **kwargs ):
@@ -355,17 +361,16 @@ class ODOrchestratorBase(object):
         nCount = 1
         bListen = { 'x11server': False, 'spawner': False }
         while nCount < 42:
-           time.sleep( 1 )
-           # check if WebSockifyListening id listening on tcp port 6081
-           if bListen['x11server'] is False:
+            # check if WebSockifyListening id listening on tcp port 6081
+            if bListen['x11server'] is False:
                 messageinfo = 'Starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
                 bListen['x11server'] = self.waitForServiceListening( desktop, port=oc.od.settings.desktopservicestcpport['x11server'] )
                 self.logger.info('service:x11server return %s', str(bListen['x11server']))
                 nCount += 1
 
-           # check if spawner is ready 
-           if bListen['x11server'] is True:
+            # check if spawner is ready 
+            if bListen['x11server'] is True:
                 messageinfo = 'Starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
                 bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktopservicestcpport['spawner'] )
@@ -374,8 +379,12 @@ class ODOrchestratorBase(object):
                     callback_notify('Desktop services are ready after %d s' % (nCount) )              
                     return True
                 nCount += 1
+            # wait one second    
+            time.sleep(1)
         
+        # Can not chack process status     
         self.logger.warning('waitForDesktopProcessReady not ready services status: %s', bListen )
+
         return False
 
       
@@ -398,6 +407,20 @@ class ODOrchestratorBase(object):
         else:
             return False
 
+    @staticmethod
+    def generate_xauthkey():
+        # generate key, xauth requires 128 bit hex encoding
+        # xauth add ${HOST}:0 . $(xxd -l 16 -p /dev/urandom)
+        key = binascii.b2a_hex(os.urandom(15))
+        return key.decode( 'utf-8' )
+
+    @staticmethod
+    def generate_pulseaudiocookie():
+        # generate key, PULSEAUDIO requires PA_NATIVE_COOKIE_LENGTH 256
+        # use cat /etc/pulse/cookie | openssl rc4 -K "$PULSEAUDIO_COOKIE" -nopad -nosalt > ~/.config/pulse/cookie
+        # use os.urandom(24) as key 
+        key = binascii.b2a_hex(os.urandom(24))
+        return key.decode( 'utf-8' )
 
 @oc.logging.with_logger()
 class ODOrchestrator(ODOrchestratorBase):
@@ -511,7 +534,7 @@ class ODOrchestrator(ODOrchestratorBase):
         self.logger.info('get cached userinfo are not supported in docker mode')
         return {} 
 
-    def build_desktopvolumes( self, authinfo, userinfo, **kwargs):
+    def build_desktopvolumes( self, authinfo, userinfo, rules, **kwargs):
         self.logger.debug('')
         volumes = []
         volumesbind = []
@@ -536,12 +559,12 @@ class ODOrchestrator(ODOrchestratorBase):
         #    volumesbind.append('/dev/shm:/dev/shm')
 
         # if home is volume, create a volume or reuse the volume
-        if kwargs.get('desktophomedirectorytype') == 'volume':        
+        if kwargs.get('homedirectory_type') == 'volume':        
             # Map the home directory
             myvol = self.createvolume('home', userinfo, authinfo, removeifexist=False)        
             if myvol is not None:
-                volumes.append( kwargs.get('balloon_defaulthomedirectory') )
-                volumesbind.append(myvol.name + ':' + kwargs.get('balloon_defaulthomedirectory') )                
+                volumes.append( kwargs.get('balloon_homedirectory') )
+                volumesbind.append(myvol.name + ':' + kwargs.get('balloon_homedirectory') )                
         
         self.logger.debug('end')
         return (volumes, volumesbind)
@@ -648,29 +671,30 @@ class ODOrchestrator(ODOrchestratorBase):
         return volume
 
     def applyappinstancerules_homedir( self, authinfo, rules ):
-        homedir_disabled        = False      # by default all application share the user homedir
+        homedir_enabled = False      # by default application do not share the user homedir
 
         # Check if there is a specify rules to start this application
         if type(rules) is dict  :
             # Check if there is a homedir rule
             rule_homedir =  rules.get('homedir')
             if type(rule_homedir) is dict:
-                # read the default rule first 
-                rule_homedir_default = rule_homedir.get('default', True )
-                if rule_homedir_default is False:
-                        homedir_disabled = True
+
+                # read the default rule first and them apply specific rules
+                homedir_enabled = rule_homedir.get('default', False )
+                
                 # list user context tag 
                 # check if user auth tag context exist
                 if authinfo.data and type( authinfo.data.get('labels') ) is dict :
                     for kn in rule_homedir.keys():
+                        ka = None
                         for ka in authinfo.data.get('labels') :
                             if kn == ka :
                                 if type(rule_homedir.get(kn)) is bool:
-                                    homedir_disabled = not rule_homedir.get(kn)
+                                    homedir_enabled = rule_homedir.get(kn)
                                 break
-                        if kn == ka :
-                                break
-        return homedir_disabled        
+                        if kn == ka :   # double break 
+                            break
+        return homedir_enabled
 
     def applyappinstancerules_network( self, authinfo, rules ):
         """[applyappinstancerules_network]
@@ -715,12 +739,13 @@ class ODOrchestrator(ODOrchestratorBase):
                 # check if user auth tag context exist
                 if authinfo.data and type( authinfo.data.get('labels') ) is dict :
                     for kn in rule_network.keys():
+                        ka = None
                         for ka in authinfo.data.get('labels') :
                             if kn == ka :
                                 network_config.update ( rule_network.get(kn) )
                                 break
                         if kn == ka :
-                                break
+                            break
 
         return network_config
     
@@ -741,7 +766,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # apply network rules 
         network_config = self.applyappinstancerules_network( authinfo, rules )
 
-        # apply homedir rules
+        # apply volumes rules
         homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
        
       
@@ -750,12 +775,8 @@ class ODOrchestrator(ODOrchestratorBase):
         language        = userinfo.get('locale', 'en_US')
         lang            = language + '.UTF-8'  
 
-         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist  
-        env = { 'DISPLAY': ':0.0',
-                'PULSE_SERVER': '/tmp/.pulse.sock',
-                'CUPS_SERVER': '/tmp/.cups.sock' }
-        # update env dict from configuration file
-        env.update(oc.od.settings.desktopenvironmentlocal)
+        # load env dict from configuration file
+        env = oc.od.settings.desktopenvironmentlocal.copy()
         
         # update env with user's lang value 
         env.update ( {  'LANGUAGE'	    : language,
@@ -775,11 +796,8 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # Add specific vars      
         timezone = kwargs.get('timezone')
-        if type(timezone) is str and len(timezone) > 1:     env['TZ'] = timezone
+        if type(timezone) is str and len(timezone) > 0:     env['TZ'] = timezone
         if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
-        if app.get('uniquerunkey'):                         env['APPUNIQUERUNKEY'] = app.get('uniquerunkey') 
-        if oc.od.settings.desktopusedbussession :           env['OD_DBUS_SESSION_BUS'] = oc.od.settings.desktopusedbussession
-        if oc.od.settings.desktopusedbussystem :            env['OD_DBUS_SYSTEM_BUS'] = oc.od.settings.desktopusedbussystem
         if hasattr(authinfo, 'data'):                       env.update(authinfo.data.get('environment', {}))
 
         if homedir_disabled is True:
@@ -787,9 +805,9 @@ class ODOrchestrator(ODOrchestratorBase):
             for v in volumebind:
                 arv = v.split(':')
                 if len(arv) > 1:
-                    if arv[1].startswith(oc.od.settings.balloon_defaulthomedirectory):
+                    if arv[1].startswith(oc.od.settings.balloon_homedirectory):
                         volumebind.remove(v)
-                        break # only one balloon_defaulthomedirectory in volumebind
+                        break # only one balloon_homedirectory in volumebind
 
         volumes = self.build_volumefromvolumebind(volumebind)
         command = '/composer/appli-docker-entrypoint.sh'
@@ -1030,11 +1048,6 @@ class ODOrchestrator(ODOrchestratorBase):
         vncPassword = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
         command.extend('--vncpassword {}'.format( vncPassword.getplain() ).split(' '))
 
-
-        # always add env CUPS_SERVER and PULSE_SERVER
-        env.update( {   'PULSE_SERVER': '/tmp/.pulse.sock',
-                        'CUPS_SERVER' : '/tmp/.cups.sock' } )
-
         # compile a env list with the auth list  
         # translate auth environment to env 
         # env exist only in docker mode
@@ -1047,19 +1060,12 @@ class ODOrchestrator(ODOrchestratorBase):
         # convert the dict env to a list of string key=value
         envlist = ['%s=%s' % kv for kv in env.items()]
 
-        # if appname is None then create a desktop
-        # set value as default type x11servertype
-        # update labels values next
-        # x11desktoptype can be :
-        #   self.x11servertype 
-        #       or
-        #   self.x11servertype_embeded
-        x11desktoptype = self.x11servertype
-
+        # if appname is None then create a desktop with x11servertype
+        # if appname id not None then create a desktop with self.x11servertype_embeded
         labels = {  'access_provider':  authinfo.provider,
                     'access_userid':    userinfo.userid,
                     'access_username':  userinfo.name,
-                    'type':             x11desktoptype,
+                    'type':             self.x11servertype,
                     'vnc_password':     vncPassword.encrypt() }
 
         # if appname is set then create a metappli labels
@@ -1068,11 +1074,11 @@ class ODOrchestrator(ODOrchestratorBase):
             labels.update( { 'type': self.x11servertype_embeded, 'appname':  appname } )
             container_name  = self.get_graphicalcontainername( userinfo.userid, appname )
         else:
-            container_name  = self.get_graphicalcontainername( userinfo.userid, x11desktoptype )
+            container_name  = self.get_graphicalcontainername( userinfo.userid, self.x11servertype )
 
         # build storage volume or directory binding
         # callback_notify( 'Build volumes' )
-        volumes, volumebind = self.build_desktopvolumes(authinfo, userinfo, **kwargs)
+        volumes, volumebind = self.build_desktopvolumes(authinfo, userinfo, rules={}, **kwargs)
         myDesktop = None
         
         try:
@@ -1271,12 +1277,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size') } }
             self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
 
-            if oc.od.settings.desktopusepodasapp is True:
-                self.default_volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
-                self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
-            else:
-                self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
-                self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
+            # if oc.od.settings.desktopusepodasapp is True:
+            #   self.default_volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/run/abcdesktop/pods/tmp' } }
+            #    self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
+            #    self.default_volumes['home']      = { 'name': 'home', 'hostPath': { 'path': '/var/run/abcdesktop/pods/home' } }
+            #    self.default_volumes_mount['home']= { 'name': 'home', 'mountPath': '/home/balloon', 'subPathExpr': '$(POD_NAME)' }
+            # else:
+            self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
+            self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
         except Exception as e:
             self.bConfigure = False
@@ -1341,6 +1349,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return oc.auth.namedlib.normalize_name( userid + self.containernameseparator + pod_uuid)[0:252]       
  
     def get_labelvalue( self, label_value):
+        """[get_labelvalue]
+
+        Args:
+            label_value ([str]): [label_value name]
+
+        Returns:
+            [str]: [return normalized label name]
+        """
         normalize_data = oc.auth.namedlib.normalize_label( label_value )
         no_accent_normalize_data = oc.lib.remove_accents( normalize_data )
         return no_accent_normalize_data
@@ -1384,47 +1400,27 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     ]
     ''' 
 
-    def build_desktopvolumes( self, authinfo, userinfo, **kwargs):
+    def build_desktopvolumes( self, authinfo, userinfo, rules={}, **kwargs):
         
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
     
+        #
+        # Set localtime to server time
+        # 
         if oc.od.settings.desktopuselocaltime is True:
             volumes['localtime']       = { 'name': 'localtime', 'hostPath': { 'path': '/etc/localtime' } }
             volumes_mount['localtime'] = { 'name': 'localtime', 'mountPath' : '/etc/localtime' }
         
         #
-        # add dedicated tmp volume for /tmp/ X11 unix socket support
-        # volumes['tmp']       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' }
-        # volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
-        # volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
+        # tmp volume is shared between all container inside the desktop pod
         # 
-        # default_tmp_volumes can be
-        #    if oc.od.settings.desktopusepodasapp :
-        #        self.default_tmp_volumes       = { 'name': 'tmp',  'hostPath': { 'path': '/var/abcdesktop/pods/tmp' } }
-        #        self.default_tmp_volumes_mount = { 'name': 'tmp',  'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
-        #    else
-        #        self.default_tmp_volumes       = { 'name': 'tmp',  'emptyDir': { 'sizeLimit': '8Gi' } }
-        #        self.default_tmp_volumes_mount = { 'name': 'tmp',  'mountPath': '/tmp' }
-        #
         volumes['tmp']       = self.default_volumes['tmp']
         volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
 
-
-        # if shm_size is set to a value or if ipc_mode = 'shareable' 
-        # then create a dedicated shm memory volume for kubernetes
-        # See this issue https://docs.openshift.com/container-platform/3.6/dev_guide/shared_memory.html
-        # POSIX shared memory requires that a tmpfs be mounted at /dev/shm. 
-        if  oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable' or \
-            oc.od.settings.desktophostconfig.get('shm_size') is not None :
-            # if ipc_mode = 'shareable' then
-            # application does not use own shm memory but the pod share memory 
-            # The containers in a pod do not share their mount namespaces so we use volumes 
-            # to provide the same /dev/shm into each container in a pod. 
-            volumes['shm']       = self.default_volumes['shm']
-            volumes_mount['shm'] = self.default_volumes_mount['shm']
-
-
+        #
+        # mount secret in /var/secrets/abcdesktop
+        #
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         for secret_auth_name in mysecretdict.keys():
             # https://kubernetes.io/docs/concepts/configuration/secret
@@ -1439,12 +1435,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
             volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
 
+
         #
         # if type is self.x11servertype then keep user home dir data
         # else do not use the default home dir to metapplimode
-        if  kwargs[ 'type' ]  == self.x11servertype and \
-            oc.od.settings.getdesktop_homedirectory_type() == 'persistentVolumeClaim':
-            
+        homedir_enabled = True
+
+        # if the pod or container is not an x11servertype
+        if kwargs.get('type') != self.x11servertype:
+            homedir_enabled = self.applyappinstancerules_homedir( authinfo, rules )
+        
+        if  homedir_enabled and kwargs.get('homedirectory_type') == 'persistentVolumeClaim':
             self.on_desktoplaunchprogress('Building home dir data storage')
             volume_home_name = self.get_volumename( 'home', userinfo )
             # Map the home directory
@@ -1456,76 +1457,74 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             subpath_name = oc.auth.namedlib.normalize_name( userinfo.name )
             volumes_mount['home'] = {   'name'      : volume_home_name,                                 # home + userid
-                                        'mountPath' : oc.od.settings.getballoon_defaulthomedirectory(), # /home/balloon
+                                        'mountPath' : oc.od.settings.getballoon_homedirectory(), # /home/balloon
                                         'subPath'   : subpath_name                                      # userid
             }
             self.logger.debug( 'volume mount : %s %s', 'home', volumes_mount['home'] )
             self.logger.debug( 'volumes      : %s %s', 'home', volumes['home'] )
 
-       
-        rules = oc.od.settings.desktoppolicies.get('rules', {} )
-        mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo,  rules.get('volumes') )
-        for mountvol in mountvols:                        
-        
-            fstype = mountvol.fstype
-            volume_name = self.get_volumename( mountvol.name, userinfo )
-            # mount the remote home dir as a flexvol
-            # WARNING ! if the flexvol mount failed, pod will starts 
-            # abcdesktop/cifs always respond a success
-            # in case of failure access right is denied                
-            # the flexvolume driver abcdesktop/cifs MUST be deploy on each node
+        if isinstance( rules, dict ):
+            mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo, rules=rules.get('volumes') )
+            for mountvol in mountvols:
+                fstype = mountvol.fstype
+                volume_name = self.get_volumename( mountvol.name, userinfo )
+                # mount the remote home dir as a flexvol
+                # WARNING ! if the flexvol mount failed, pod will starts 
+                # abcdesktop/cifs always respond a success
+                # in case of failure access right is denied                
+                # the flexvolume driver abcdesktop/cifs MUST be deploy on each node
 
-            # Flex volume use kubernetes secret                    
-            # Kubernetes secret as already been created by prepareressource function 
-            # Read the secret and use it
+                # Flex volume use kubernetes secret                    
+                # Kubernetes secret as already been created by prepareressource function call 
+                # Read the secret and use it
 
-            driver_type =  self.namespace + '/' + fstype
+                driver_type =  self.namespace + '/' + fstype
 
-            self.on_desktoplaunchprogress('Building flexVolume storage data for driver ' + driver_type )
+                self.on_desktoplaunchprogress('Building flexVolume storage data for driver ' + driver_type )
 
-            secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype )
+                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype )
+                
+                # read the container mount point from the secret
+                # for example /home/balloon/U             
+                # Read data from secret    
+                secret_name         = secret.get_name( userinfo )
+                secret_dict_data    = secret.read_data( userinfo )
+                mountPath           = secret_dict_data.get( 'mountPath')
+                networkPath         = secret_dict_data.get( 'networkPath' )
+                
+                # Check if the secret contains valid datas 
+                if mountPath is None :
+                    self.logger.error( 'Invalid value for mountPath read from secret' )
+                    continue
+
+                if networkPath is None:
+                    self.logger.error( 'Invalid value for networkPath read from secret' )
+                    continue
+
+                volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }                        
+
+                # Default mount options
+                mountOptions =  'uid=' + str( oc.od.settings.getballoon_uid() ) + ',' + \
+                                'gid=' + str( oc.od.settings.getballoon_gid() )
+                                
+                # if a volume mountOptions exists, concat the mountvol.mountOptions
+                if type(mountvol.mountOptions) is str and len(mountvol.mountOptions) > 0:
+                    mountOptions = mountOptions +  ',' + mountvol.mountOptions
+                self.logger.info( 'flexvolume: read secret %s to mount %s', secret_name, networkPath )
+
+                volumes[mountvol.name] = { 'name': volume_name,
+                                            'flexVolume' : {
+                                                'driver': driver_type,
+                                                'fsType': fstype,
+                                                'secretRef' : { 'name': secret_name },
+                                                'options'   : { 'networkPath':  networkPath, 
+                                                                'mountOptions': mountOptions }
+                                            }
+                }
+
+                self.logger.debug( 'volume mount : %s %s', mountvol.name, volumes_mount[mountvol.name] )
+                self.logger.debug( 'volumes      : %s %s', mountvol.name, volumes[mountvol.name] )
             
-            # read the container mount point from the secret
-            # for example /home/balloon/U             
-            # Read data from secret    
-            secret_name         = secret.get_name( userinfo )
-            secret_dict_data    = secret.read_data( userinfo )
-            mountPath           = secret_dict_data.get( 'mountPath')
-            networkPath         = secret_dict_data.get( 'networkPath' )
-            
-            # Check if the secret contains valid datas 
-            if mountPath is None :
-                self.logger.error( 'Invalid value for mountPath read from secret' )
-                continue
-
-            if networkPath is None:
-                self.logger.error( 'Invalid value for networkPath read from secret' )
-                continue
-
-            volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }                        
-
-            # Default mount options
-            mountOptions =  'uid=' + str( oc.od.settings.getballoon_uid() ) + ',' + \
-                            'gid=' + str( oc.od.settings.getballoon_gid() )
-                            
-            # if a volume mountOptions exists, concat the mountvol.mountOptions
-            if type(mountvol.mountOptions) is str and len(mountvol.mountOptions) > 0:
-                mountOptions = mountOptions +  ',' + mountvol.mountOptions
-            self.logger.info( 'flexvolume: read secret %s to mount %s', secret_name, networkPath )
-
-            volumes[mountvol.name] = { 'name': volume_name,
-                                        'flexVolume' : {
-                                            'driver': driver_type,
-                                            'fsType': fstype,
-                                            'secretRef' : { 'name': secret_name },
-                                            'options'   : { 'networkPath':  networkPath, 
-                                                            'mountOptions': mountOptions }
-                                        }
-            }
-
-            self.logger.debug( 'volume mount : %s %s', mountvol.name, volumes_mount[mountvol.name] )
-            self.logger.debug( 'volumes      : %s %s', mountvol.name, volumes[mountvol.name] )
-        
         self.logger.debug('volumes end')        
         return (volumes, volumes_mount)
 
@@ -1545,7 +1544,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # read https://github.com/kubernetes-client/python/blob/master/examples/pod_exec.py
         #   
         try:            
-          
             resp = stream( self.kubeapi.connect_get_namespaced_pod_exec, 
                                                                 name=desktop.name, 
                                                                 namespace=self.namespace, 
@@ -1603,7 +1601,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #grace_period_seconds = 0
             delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy )
             # delete_options = client.V1DeleteOptions(propagation_policy = propagation_policy, grace_period_seconds=grace_period_seconds )
-            
             
             v1status = self.kubeapi.delete_namespaced_pod(  name=pod_name, 
                                                             namespace=self.namespace, 
@@ -1861,28 +1858,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return network_config
             
 
-    """
+    
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
         assert type(myDesktop) is ODDesktop, "myDesktop invalid type %r" % type(myDesktop)
         
-        if oc.od.settings.usepodasapp is False:
+        if oc.od.settings.desktopusepodasapp is False:
             # create app as a docker container 
             return super().createappinstance( myDesktop, app, authinfo, userinfo, userargs, **kwargs )
         
-        # create app as a pod 
-        desktop = infra.getcontainer( myDesktop.container_id )
 
-        # get volunebind from the running x11 container
-        volumebind = desktop.attrs["HostConfig"]["Binds"]
+        rules = app.get('rules' )
 
-        rules = app.get('rules') 
+        (volumebind, volumeMounts) = self.build_desktopvolumes( authinfo, userinfo, rules, **kwargs)
+        list_volumes = list( volumebind.values() )
+        list_volumeMounts = list( volumeMounts.values() )
+        self.logger.info( 'volumes=%s', volumebind.values() )
+        self.logger.info( 'volumeMounts=%s', volumeMounts.values() )
+
+        
 
         # apply network rules 
-        network_config = self.applyappinstancerules_network( authinfo, rules )
+        # network_config = self.applyappinstancerules_network( authinfo, rules )
 
         # apply homedir rules
-        homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
+        # homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
        
       
         network_name    = None
@@ -1890,12 +1890,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         language        = userinfo.get('locale', 'en_US')
         lang            = language + '.UTF-8'  
 
-         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist  
-        env = { 'DISPLAY': ':0.0',
-                'PULSE_SERVER': '/tmp/.pulse.sock',
-                'CUPS_SERVER': '/tmp/.cups.sock' }
-        # update env dict from configuration file
-        env.update(oc.od.settings.desktopenvironmentlocal)
+        # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist  
+        desktop_ip_addr = myDesktop.desktop_interfaces.get('eth0').get('ips')
+        env = oc.od.settings.desktopenvironmentlocal.copy()
+        env.update( {   'DISPLAY': desktop_ip_addr + ':0',
+                        'XAUTH_KEY': myDesktop.xauthkey,
+                        'PULSEAUDIO_COOKIE': myDesktop.pulseaudio_cookie,
+                        'PULSE_SERVER': desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT),
+                        'CUPS_SERVER':  desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT) 
+                    } 
+        )
         
         # update env with user's lang value 
         env.update ( {  'LANGUAGE'	    : language,
@@ -1909,149 +1913,182 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         'LC_TELEPHONE'  : lang,
                         'LC_NUMERIC'    : lang,                                       
                         'LC_IDENTIFICATION' : lang,
-                        'PARENT_ID' 	    : desktop.id, 
+                        'PARENT_ID' 	    : myDesktop.id, 
                         'PARENT_HOSTNAME'   : self.nodehostname
-        } )
+                    } 
+        )
 
         # Add specific vars      
         timezone = kwargs.get('timezone')
         if type(timezone) is str and len(timezone) > 1:     env['TZ'] = timezone
         if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
-        if app.get('uniquerunkey'):                         env['APPUNIQUERUNKEY'] = app.get('uniquerunkey') 
-        if oc.od.settings.desktopusedbussession :           env['OD_DBUS_SESSION_BUS'] = oc.od.settings.desktopusedbussession
-        if oc.od.settings.desktopusedbussystem :            env['OD_DBUS_SYSTEM_BUS'] = oc.od.settings.desktopusedbussystem
         if hasattr(authinfo, 'data'):                       env.update(authinfo.data.get('environment', {}))
 
-        if homedir_disabled is True:
-            # remove home dir set by image context metadata
-            for v in volumebind:
-                arv = v.split(':')
-                if len(arv) > 1:
-                    if arv[1].startswith(oc.od.settings.balloon_defaulthomedirectory):
-                        volumebind.remove(v)
-                        break # only one balloon_defaulthomedirectory in volumebind
+
+        # envdict to envlist
+        envlist = []
+        for k, v in env.items():
+            # need to convert v as str : kubernetes supports ONLY string type to env value
+            envlist.append( { 'name': k, 'value': str(v) } )
+
+        envlist.append( { 'name': 'NODE_NAME',      'valueFrom': { 'fieldRef': { 'fieldPath':'spec.nodeName' } } } )
+        envlist.append( { 'name': 'POD_NAME',       'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.name' } } } )
+        envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
+        envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
+
+        # if homedir_disabled is True:
+        #    # remove home dir set by image context metadata
+        #    for v in volumebind:
+        #        arv = v.split(':')
+        #        if len(arv) > 1:
+        #            if arv[1].startswith(oc.od.settings.balloon_homedirectory):
+        #                volumebind.remove(v)
+        #                break # only one balloon_homedirectory in volumebind
 
         volumes = self.build_volumefromvolumebind(volumebind)
-        command = '/composer/appli-docker-entrypoint.sh'
+        command = [ '/composer/appli-docker-entrypoint.sh' ]
         
+
+        labels = {  'access_provider':  authinfo.provider,
+                    'access_userid':    userinfo.userid,
+                    'access_username':  self.get_labelvalue(userinfo.name),
+                    'type':             self.applicationtype
+        }
+
         # container name
         # DO NOT USE TOO LONG NAME for container name  
         # filter can failed or retrieve invalid value in case userid + app.name + uuid
         # limit length is not defined but take care 
-        _containername = self.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
-        containername =  oc.auth.namedlib.normalize_name( _containername )
+        _app_pod_name = self.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
+        app_pod_name =  oc.auth.namedlib.normalize_name( _app_pod_name )
 
-        # build the host config
-        # first load the default hostconfig from od.config for all containers
-        # create a new host_config dict
-        # 
-        # host_config = applicationhostconfig from configuration file
-        # host_config.update( application hostconfig entry )
-        # host_config.update( user rules entry )
-        # host_config.update( volume )
-        #
-        # read the default applicationhostconfig from configuration file
-        host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
-        self.logger.info('default application hostconfig=%s', host_config )
-
-        # load the specific hostconfig from the app object
-        host_config.update( app.get('host_config'))
-        self.logger.info('updated app values hostconfig=%s', host_config )
-
-        # container: <_name-or-ID_>
-        # Join another ("shareable") container's IPC namespace.
-        ipc_mode = None
-        if host_config.get('ipc_mode') == 'shareable' and oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':  
-           ipc_mode = 'container:' + desktop.id
-
-        # share pid name space
-        pid_mode = None
-        if host_config.get('pid_mode') is True :     
-            pid_mode = 'container:' + desktop.id
-
-
-        # set network config default value 
-        network_mode = 'none'
-        network_name = None
-        network_disabled = network_config.get('network_disabled')
-        network_dns      = network_config.get('dns')
-        # if network mode use conainer network 
-        # bind the desktop container network to the application container
-        if host_config.get('network_mode') == 'container':
-            network_mode = 'container:' + desktop.id
-
-        # if specific network exists
-        # bind the specific network to the application container
-        if isinstance( network_config.get('name'), str)  :
-            network_name = network_config.get('name')
-            network_mode = network_config.get('name')
-
-        # if network_disabled is Tue 
-        # bind the specific network to None
-        if network_disabled is True :
-            network_mode = 'none'
-            network_name = None
-      
-
-        # set abcdesktop requirements and specific context running 
-        # 'binds'    : volumebind
-        # 'ipc_mode' : ipc_mode
-        # 'pid_mode' : pid_mode
-        host_config.update( {
-                'binds'         : volumebind,
-                'ipc_mode'      : ipc_mode,
-                'network_mode'  : network_mode,
-                'dns'           : network_dns,
-                'pid_mode'      : pid_mode
-        } )
-
-         # dump host config berfore create   
-        self.logger.info('application hostconfig=%s', host_config )
-
-
-        appinfo = infra.createcontainer(
-            image = app['id'],
-            name  =  containername,
-            command = command,
-            environment = env,
-            user = oc.od.settings.getballoon_name(),
-            network_disabled = network_disabled,
-            labels = {                
-                'access_type'           : authinfo.provider,
-                'access_username'       : self.get_normalized_username( userinfo.get('name') ),
-                'access_userid'         : userinfo.userid,
-                'access_parent_id'      : desktop.id,
-                'access_parent_hostname': self.nodehostname
+        '''  # define pod_manifest
+        pod_manifest = {
+            'apiVersion': 'v1',
+            'kind': 'Pod',
+            'metadata': {
+                'name': app_pod_name,
+                'namespace': self.namespace,
+                'labels': labels
             },
-            volumes = volumes,
-            host_config = host_config,
-            network_name = network_name,
-        )
+            'spec': {
+                'affinity': { 
+                    'nodeAffinity': {
+                        'preferredDuringSchedulingIgnoredDuringExecution': [ 
+                            {   'weight': 1,
+                                'preference': { 
+                                    'matchExpressions': [ 
+                                        {   'key': 'kubernetes.io/hostname',
+                                            'operator': 'In',
+                                            'values': [ myDesktop.hostname ] 
+                                        }
+                                    ] 
+                                }
+                            }
+                        ]
+                    }
+                },
+                'automountServiceAccountToken': False,  # disable service account inside pod
+                'subdomain': self.endpoint_domain,
+                # 'volumes': list_volumes,                    
+                'nodeSelector': oc.od.settings.desktopnodeselector, 
+                'containers': [ { 
+                                    'imagePullPolicy': 'IfNotPresent',
+                                    'image': app['id'],
+                                    'name': app_pod_name,
+                                    'command': command,
+                                    'env': envlist,
+                                    # 'volumeMounts': list_volumeMounts,
+                                    'restartPolicy' : 'OnFailure',
+                                    'securityContext': { 
+                                             # permit sudo command inside the container False by default 
+                                            'allowPrivilegeEscalation': oc.od.settings.desktopallowPrivilegeEscalation,
+                                            # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]  
+                                            'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
+                                                              'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
+                                    },
+                                    'resources': oc.od.settings.desktopkubernetesresourcelimits
+                                }                                                             
+                ],
+            }
+        }
+        '''
 
-        if not isinstance( appinfo, dict) :
-            return None
+        pod_manifest = {
+            'apiVersion': 'v1',
+            'kind': 'Pod',
+            'metadata': {
+                'name': app_pod_name,
+                'namespace': self.namespace,
+                'labels': labels
+            },
+            'spec': {
+                'restartPolicy' : 'Never',
+                'affinity': { 
+                    'nodeAffinity': {
+                        'preferredDuringSchedulingIgnoredDuringExecution': [ 
+                            {   'weight': 1,
+                                'preference': { 
+                                    'matchExpressions': [ 
+                                        {   'key': 'kubernetes.io/hostname',
+                                            'operator': 'In',
+                                            'values': [ myDesktop.hostname ] 
+                                        }
+                                    ] 
+                                }
+                            }
+                        ]
+                    }
+                },
+                'automountServiceAccountToken': False,  # disable service account inside pod
+                'subdomain': self.endpoint_domain,
+                'volumes': list_volumes,                    
+                'nodeSelector': oc.od.settings.desktopnodeselector, 
+                'containers': [ { 
+                                    'imagePullPolicy': 'IfNotPresent',
+                                    'image': app['id'],
+                                    'name': app_pod_name,
+                                    'command': command,
+                                    'env': envlist,
+                                    'volumeMounts': list_volumeMounts,
+                                    'securityContext': { 
+                                             # permit sudo command inside the container False by default 
+                                            'allowPrivilegeEscalation': oc.od.settings.desktopallowPrivilegeEscalation,
+                                            # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]  
+                                            'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
+                                                              'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
+                                    },
+                                    'resources': oc.od.settings.desktopkubernetesresourcelimits
+                                }                                                             
+                ],
+            }
+        }
 
-        appinstance_id = appinfo.get('Id')
-        if appinstance_id is None:
-            return None
+        if oc.od.settings.desktopimagepullsecret:
+            pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktopimagepullsecret } ]
 
-        appinstance = infra.getcontainer(appinstance_id)
-        if appinstance is None:
-            return None
-        
-        infra.startcontainer(appinstance.id)
-        appinstance.message = 'starting'
+        logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
+        pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
+
+        if not isinstance(pod, client.models.v1_pod.V1Pod ):
+            raise ValueError( 'Invalid create_namespaced_pod type')
+
+        appinstance = pod
+        # add compatible attribute for docker container
+        appinstance.message = pod.status.phase   
+        appinstance.id = pod.metadata.name       
+        appinstance.webhook = None
+
         # webhook is None if network_config.get('context_network_webhook') is None
-
-        appinstance.webhook = self.buildwebhookinstance(authinfo=authinfo, 
-                                                        userinfo=userinfo, 
-                                                        app=app,
-                                                        network_config=network_config, 
-                                                        network_name = network_name, 
-                                                        appinstance_id = appinstance_id  )
+        # appinstance.webhook = self.buildwebhookinstance(authinfo=authinfo, 
+        #                                                userinfo=userinfo, 
+        #                                                app=app,
+        #                                                network_config=network_config, 
+        #                                                network_name = network_name, 
+        #                                                appinstance_id = appinstance_id  )
 
         return appinstance
-    """
+
     def createdesktop(self, authinfo, userinfo, **kwargs):
         """createdesktop for the user
             create the user pod 
@@ -2078,13 +2115,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # add a new VNC Password to the command line
         vnc_password =  ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
         command.extend('--vncpassword {}'.format( vnc_password.getplain() ).split(' '))
-    
+
+        # generate XAUTH key
+        xauth_key = self.generate_xauthkey()
+        env[ 'XAUTH_KEY' ] = xauth_key    
+
+        # generate PULSEAUDIO cookie
+        pulseaudio_cookie = self.generate_pulseaudiocookie()
+        env[ 'PULSEAUDIO_COOKIE' ] = pulseaudio_cookie    
+
+        # build label dictionnary
         labels = {  'access_provider':  authinfo.provider,
                     'access_userid':    userinfo.userid,
                     'access_username':  self.get_labelvalue(userinfo.name),
                     'domain':           self.endpoint_domain,
                     'vnc_password':     vnc_password.encrypt(),
-                    'netpol/ocuser' :   'true' }
+                    'netpol/ocuser' :   'true',
+                    'xauthkey':         xauth_key, 
+                    'pulseaudio_cookie': pulseaudio_cookie  }
 
         # check if we run the desktop in metappli mode or desktop mode
         if type(appname) is str :
@@ -2135,7 +2183,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
         envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
 
-
         # look for desktop rules
         # apply network rules 
         rules = oc.od.settings.desktoppolicies.get('rules')
@@ -2148,7 +2195,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                         appinstance_id = None )
 
         self.on_desktoplaunchprogress('Building data storage for your desktop')
-        (volumes, volumeMounts) = self.build_desktopvolumes( authinfo, userinfo, **kwargs)
+
+        (volumes, volumeMounts) = self.build_desktopvolumes( authinfo, userinfo, rules=rules,  **kwargs)
         list_volumes = list( volumes.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumes.values() )
@@ -2188,7 +2236,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                         'name':             init_name,
                                         'image':            oc.od.settings.desktopinitcontainerimage,
                                         'command':          oc.od.settings.desktopinitcontainercommand,
-                                        'volumeMounts':     list_volumeMounts
+                                        'volumeMounts':     list_volumeMounts,
+                                        'env': envlist
             } )
             self.logger.debug( 'initContainers is %s', initContainers)
 
@@ -2264,6 +2313,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.settings.desktopimagepullsecret:
             pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktopimagepullsecret } ]
 
+
+        # Add printer servive 
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopprinteracl ) and \
            type(oc.od.settings.desktopprinterimage) is str :
             # get the container sound name prefix with 'p' like sound
@@ -2281,6 +2332,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # set env CUPS_SERVER to reach cupsd
             # pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock'}  )
         
+        # Add sound servive 
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopsoundacl ) and \
            type(oc.od.settings.desktopsoundimage) is str :
             # get the container sound name prefix with 's' like sound
@@ -2305,6 +2357,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # set env PULSE_SERVER to reach pulseaudio
             # pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock' } )
 
+
+        # Add filer servive 
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopfileracl ) and \
            type(oc.od.settings.desktopfilerimage) is str :
             # get the container sound name prefix with 'f' like sound
@@ -2597,6 +2651,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                 container_name=desktop_container_name,
                                                 vncPassword=vnc_password.getplain(),
                                                 fqdn = internal_pod_fqdn,
+                                                xauthkey = myPod.metadata.labels.get('xauthkey'),
+                                                pulseaudio_cookie = myPod.metadata.labels.get('pulseaudio_cookie'),
                                                 desktop_interfaces = desktop_interfaces,
                                                 websocketrouting = myPod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
                                                 websocketroute = myPod.metadata.labels.get('websocketroute') )
