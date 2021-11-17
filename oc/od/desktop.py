@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODDesktop(object):
 
-    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None ):
+    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None  ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
@@ -37,6 +37,10 @@ class ODDesktop(object):
         self._desktop_interfaces    = desktop_interfaces
         self._websocketroute        = websocketroute
         self._websocketrouting      = websocketrouting
+        self._xauthkey              = xauthkey
+        self._pulseaudio_cookie     = pulseaudio_cookie
+
+
 
     # id is the container id in docker mode
     # id is the pod id in kubernetes node
@@ -67,6 +71,15 @@ class ODDesktop(object):
     @property
     def fqdn(self):
         return self._fqdn
+
+    @property
+    def xauthkey(self):
+        return self._xauthkey
+
+    @property
+    def pulseaudio_cookie(self):
+        return self._pulseaudio_cookie
+
 
     @property
     def internaluri(self):
