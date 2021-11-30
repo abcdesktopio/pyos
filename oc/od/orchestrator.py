@@ -42,11 +42,11 @@ from kubernetes.client.rest import ApiException
 import oc.lib
 import oc.od.infra
 import oc.od.acl
-from   oc.od.desktop import ODDesktop
 import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
+from   oc.od.desktop        import ODDesktop
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
-from   oc.od.vnc_password import ODVncPassword
+from   oc.od.vnc_password   import ODVncPassword
 
 logger = logging.getLogger(__name__)
 
@@ -175,8 +175,8 @@ class ODOrchestratorBase(object):
     def createdesktop(self, authinfo, userinfo, **kwargs):
         raise NotImplementedError('%s.createdesktop' % type(self))
 
-    def build_desktopvolumes( self, authinfo, userinfo, rules, **kwargs):
-        raise NotImplementedError('%s.build_desktopvolumes' % type(self))
+    def build_volumes( self, authinfo, userinfo, volume_type, rules, **kwargs):
+        raise NotImplementedError('%s.build_volumes' % type(self))
 
     def findDesktopByUser( self, authinfo, userinfo, **kwargs ):
         raise NotImplementedError('%s.findDesktopByUser' % type(self))
@@ -477,9 +477,8 @@ class ODOrchestrator(ODOrchestratorBase):
             # This loop read the fisrt one containers and break
             for c in list_containers:                                
                 ipAddr = myInfra.getDesktopIpAddr( c.id, kwargs.get('defaultnetworknetuserid') )
-                vnc_password = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
-                vnc_password.decrypt( c.labels['vnc_password'] )           
-                myDesktop = oc.od.desktop.ODDesktop( nodehostname=self.nodehostname, ipAddr=ipAddr, status=c.status, desktop_id=c.id, container_id=c.id, vncPassword=vnc_password.getplain(), websocketrouting=oc.od.settings.websocketrouting )
+                clear_vnc_password = c.labels['vnc_password']     
+                myDesktop = oc.od.desktop.ODDesktop( nodehostname=self.nodehostname, ipAddr=ipAddr, status=c.status, desktop_id=c.id, container_id=c.id, vncPassword=clear_vnc_password, websocketrouting=oc.od.settings.websocketrouting )
                 break   
         
         return myDesktop
@@ -534,7 +533,7 @@ class ODOrchestrator(ODOrchestratorBase):
         self.logger.info('get cached userinfo are not supported in docker mode')
         return {} 
 
-    def build_desktopvolumes( self, authinfo, userinfo, rules, **kwargs):
+    def build_volumes( self, authinfo, userinfo, volume_type, rules, **kwargs):
         self.logger.debug('')
         volumes = []
         volumesbind = []
@@ -575,11 +574,13 @@ class ODOrchestrator(ODOrchestratorBase):
 
     def removedesktop(self, authinfo, userinfo, args={}):
         status = None
-        remove_volume_home = False
-        if userinfo.name == 'Anonymous':
-           remove_volume_home = True
+        remove_volume_home = args.get( 'remove_volume_home', False ) 
 
-        myDesktop = self.findDesktopByUser(authinfo, userinfo, **args)
+        if userinfo.name == 'Anonymous':
+            # by default remove Anonymous home directory
+            remove_volume_home = True
+
+        myDesktop = self.findDesktopByUser(authinfo, userinfo)
         if isinstance(myDesktop, ODDesktop):
             status = self.removecontainer( myDesktop.id, remove_volume_home )
         return status
@@ -628,7 +629,7 @@ class ODOrchestrator(ODOrchestratorBase):
         myinfra = self.createInfra( self.nodehostname )
         return myinfra.execincontainer( desktop.id, command)
 
-    def execincontainer( self, containerid, command):
+    def execininstance( self, container, command):
         """exec command in container
 
         Args:
@@ -639,10 +640,12 @@ class ODOrchestrator(ODOrchestratorBase):
             (dict): Dictionary of values returned by the endpoint, 
                     stdout entry
         """
+        containerid = container.container_id
         myinfra = self.createInfra( self.nodehostname )
         return myinfra.execincontainer( containerid, command)
 
-    def getappinstance( self, app, userid):        
+    def getappinstance( self, authinfo, userinfo, app ):        
+        userid = userinfo.userid
         self.logger.debug( "app=%s, userid=%s", app['name'], userid )
         myinfra = self.createInfra( self.nodehostname )
         container = myinfra.findRunningContainerforUserandImage( userid, app['uniquerunkey'])
@@ -751,6 +754,7 @@ class ODOrchestrator(ODOrchestratorBase):
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
+        assert type(app)       is dict,      "app       invalid type %r" % type(app)
         assert type(myDesktop) is ODDesktop, "myDesktop invalid type %r" % type(myDesktop)
         
         # connnect to the dockerd 
@@ -767,7 +771,7 @@ class ODOrchestrator(ODOrchestratorBase):
         network_config = self.applyappinstancerules_network( authinfo, rules )
 
         # apply volumes rules
-        homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
+        homedir_enabled = self.applyappinstancerules_homedir( authinfo, rules )
        
       
         network_name    = None
@@ -778,7 +782,11 @@ class ODOrchestrator(ODOrchestratorBase):
         # load env dict from configuration file
         env = oc.od.settings.desktopenvironmentlocal.copy()
         
-        # update env with user's lang value 
+        # update env with 
+        #     * user's lang value 
+        #     * XAUTH_KEY
+        #     * PARENT_ID
+        #     * PARENT_HOSTNAME
         env.update ( {  'LANGUAGE'	    : language,
                         'LANG'		    : lang,
                         'LC_ALL'        : lang,
@@ -791,7 +799,8 @@ class ODOrchestrator(ODOrchestratorBase):
                         'LC_NUMERIC'    : lang,                                       
                         'LC_IDENTIFICATION' : lang,
                         'PARENT_ID' 	    : desktop.id, 
-                        'PARENT_HOSTNAME'   : self.nodehostname
+                        'PARENT_HOSTNAME'   : self.nodehostname,
+                        'XAUTH_KEY':          myDesktop.xauthkey
         } )
 
         # Add specific vars      
@@ -800,7 +809,7 @@ class ODOrchestrator(ODOrchestratorBase):
         if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
         if hasattr(authinfo, 'data'):                       env.update(authinfo.data.get('environment', {}))
 
-        if homedir_disabled is True:
+        if homedir_enabled is False:
             # remove home dir set by image context metadata
             for v in volumebind:
                 arv = v.split(':')
@@ -1044,9 +1053,9 @@ class ODOrchestrator(ODOrchestratorBase):
         appname  = kwargs.get('appname')
         container_name = None
         
-        # add a new VNC Password to the command line
-        vncPassword = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
-        command.extend('--vncpassword {}'.format( vncPassword.getplain() ).split(' '))
+        # add a new VNC Password to env var
+        vnc_password = ODVncPassword()
+        env['VNC_PASSWORD'] = vnc_password.getplain()
 
         # compile a env list with the auth list  
         # translate auth environment to env 
@@ -1066,7 +1075,8 @@ class ODOrchestrator(ODOrchestratorBase):
                     'access_userid':    userinfo.userid,
                     'access_username':  userinfo.name,
                     'type':             self.x11servertype,
-                    'vnc_password':     vncPassword.encrypt() }
+                    'vnc_password':     vnc_password.getplain()
+        }
 
         # if appname is set then create a metappli labels
         # this will change and run the app
@@ -1078,7 +1088,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # build storage volume or directory binding
         # callback_notify( 'Build volumes' )
-        volumes, volumebind = self.build_desktopvolumes(authinfo, userinfo, rules={}, **kwargs)
+        volumes, volumebind = self.build_volumes(authinfo, userinfo, volume_type='container_desktop', rules={}, **kwargs)
         myDesktop = None
         
         try:
@@ -1131,7 +1141,7 @@ class ODOrchestrator(ODOrchestratorBase):
                                         desktop_id = mydesktopid,
                                         status=status,
                                         ipAddr=ipAddr,
-                                        vncPassword=vncPassword.getplain(),
+                                        vncPassword=vnc_password.getplain(),
                                         websocketrouting=oc.od.settings.websocketrouting )      
             myinfra.close()
 
@@ -1157,15 +1167,13 @@ class ODOrchestrator(ODOrchestratorBase):
         # get the container IpAddr
         # callback_notify( 'Getting desktop status' )
         myinfra = self.createInfra( self.nodehostname )
-        ipAddr = myinfra.getDesktopIpAddr( container.id, oc.od.settings.defaultnetworknetuserid  )  
-        vnc_password = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
-        vnc_password.decrypt( container.labels['vnc_password'] )              
+        ipAddr = myinfra.getDesktopIpAddr( container.id, oc.od.settings.defaultnetworknetuserid )           
         myDesktop = ODDesktop(  nodehostname=self.nodehostname,
                                 container_id=container.id,
                                 desktop_id = container.id,
                                 status=container.status,
                                 ipAddr=ipAddr,
-                                vncPassword=vnc_password.getplain(),
+                                vncPassword=container.labels['vnc_password'],
                                 websocketrouting=oc.od.settings.websocketrouting
                     )
         return myDesktop
@@ -1265,6 +1273,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # volumemount_tmp_path = {'mountPath': '/tmp',       'name': 'tmp', 'subPathExpr': '$(POD_NAME)'}
             # self.volume
             # no pods
+
             self.default_volumes = {}
             self.default_volumes_mount  = {}
             
@@ -1370,7 +1379,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return strlogs
 
         try:
-            myDesktop = self.pod2desktop( myPod )
+            myDesktop = self.pod2desktop( pod=myPod )
             pod_name = myPod.metadata.name  
             container_name = myDesktop.container_name
             strlogs = self.kubeapi.read_namespaced_pod_log( name=pod_name, namespace=self.namespace, container=container_name, pretty='true' )
@@ -1400,7 +1409,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     ]
     ''' 
 
-    def build_desktopvolumes( self, authinfo, userinfo, rules={}, **kwargs):
+    def build_volumes( self, authinfo, userinfo, volume_type, rules={}, **kwargs):
         
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
@@ -1415,8 +1424,28 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # tmp volume is shared between all container inside the desktop pod
         # 
-        volumes['tmp']       = self.default_volumes['tmp']
-        volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
+        if volume_type in [ 'pod_desktop', 'container_desktop', 'container_app' ] :
+            volumes['tmp']       = self.default_volumes['tmp']
+            volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
+
+
+        #
+        # mount secret in /var/secrets/abcdesktop
+        #
+        if volume_type in [ 'pod_desktop', 'container_desktop' ] :
+            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
+            for secret_auth_name in mysecretdict.keys():
+                # https://kubernetes.io/docs/concepts/configuration/secret
+                # create an entry eq: 
+                # /var/secrets/abcdesktop/vnc
+                secretmountPath = oc.od.settings.desktopsecretsrootdirectory + mysecretdict[secret_auth_name]['type'] 
+                # mode is 644 -> rw-r--r--
+                # Owing to JSON limitations, you must specify the mode in decimal notation.
+                # 644 in decimal equal to 420
+                volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+                volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+
+
 
         #
         # mount secret in /var/secrets/abcdesktop
@@ -1544,14 +1573,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # read https://github.com/kubernetes-client/python/blob/master/examples/pod_exec.py
         #   
         try:            
-            resp = stream( self.kubeapi.connect_get_namespaced_pod_exec, 
-                                                                name=desktop.name, 
-                                                                namespace=self.namespace, 
-                                                                command=command,                                                                
-                                                                container=desktop.container_name,
-                                                                stderr=True, stdin=False,
-                                                                stdout=True, tty=False,
-                                                                _preload_content=False              #  need a client object websocket
+            resp = stream(  self.kubeapi.connect_get_namespaced_pod_exec, 
+                            name=desktop.name, 
+                            namespace=self.namespace, 
+                            command=command,                                                                
+                            container=desktop.container_name,
+                            stderr=True, stdin=False,
+                            stdout=True, tty=False,
+                            _preload_content=False              #  need a client object websocket
             )
             resp.run_forever(timeout) 
             err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
@@ -1607,6 +1636,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                             body=delete_options, 
                                                             propagation_policy=propagation_policy )
                                                             # grace_period_seconds=grace_period_seconds )
+            # TO DO 
+            # add remove_volume_home
+
         except ApiException as e:
                 self.logger.error( str(e) )
         return v1status
@@ -1631,9 +1663,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if userinfo.name == 'Anonymous':
             # by default remove Anonymous home directory
             remove_volume_home = True
-        myPod =  self.findPodByUser(authinfo, userinfo, args)
+        myPod =  self.findPodByUser(authinfo, userinfo )
         if myPod :
-            statusPod    = self.removePod( myPod, remove_volume_home )
+            statusPod = self.removePod( myPod, remove_volume_home )
             self.removesecrets( authinfo, userinfo )
         return statusPod
             
@@ -1754,7 +1786,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             v1newPod = self.kubeapi.patch_namespaced_pod(   name=myPod.metadata.name, 
                                                             namespace=self.namespace, 
                                                             body=new_metadata )
-            myDesktop = self.pod2desktop( v1newPod )
+            myDesktop = self.pod2desktop( pod=v1newPod, userinfo=userinfo )
         return myDesktop
 
     def getsecretuserinfo(self, authinfo, userinfo):
@@ -1810,14 +1842,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret_dict[mysecret.metadata.name] = { 'type': mysecret.type, 'data': mysecret.data }
                 if isinstance( mysecret.data, dict):
                     for mysecretkey in mysecret.data:
-                        b64data = mysecret.data[mysecretkey]
-                        data = oc.od.secret.ODSecret.b64todata( b64data )
+                        data = oc.od.secret.ODSecret.read_data( mysecret, mysecretkey )
                         secret_dict[mysecret.metadata.name]['data'][mysecretkey] = data 
 
         except ApiException as e:
             self.logger.error("Exception %s", str(e) )
     
-
         return secret_dict
 
     def get_auth_env_dict( self, authinfo, userinfo ):
@@ -1856,31 +1886,131 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     
         # not used type
         return network_config
-            
+
+    def findRunningPodforUserandImage( self, authinfo, userinfo, app):
+        self.logger.info('')
+
+        myrunningPodList = []
+        access_userid = userinfo.userid
+        access_provider = authinfo.provider
+        try: 
+            field_selector = ''
+            label_selector = 'access_userid=' + access_userid + ',type=' + self.applicationtype
+                             
+            uniquerunkey = app.get('uniquerunkey')
+            if uniquerunkey:
+                label_selector += ',uniquerunkey=' + uniquerunkey
+
+            if oc.od.settings.desktopauthproviderneverchange is True:
+                label_selector += ',access_provider='  + access_provider
+
+            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector, field_selector=field_selector)
+
+            if len(myPodList.items)> 0:
+                for myPod in myPodList.items:
+                    myPhase = myPod.status.phase
+                    # keep only Running pod
+                    if myPod.metadata.deletion_timestamp is not None:
+                       myPhase = 'Terminating'
+                    if myPhase != 'Running':                        
+                       continue # This pod is Terminating or not Running, skip it   
+                    myrunningPodList.append(myPod)
+                    
+        except ApiException as e:
+            self.logger.info("Exception when calling list_namespaced_pod: %s", str(e))
+        
+        return myrunningPodList
+
+
+    def getappinstance( self, authinfo, userinfo, app ):    
+        pod = None    
+        userid = userinfo.userid 
+        self.logger.debug( "app=%s, userid=%s", app['name'], userid )
+        
+        podlist = self.findRunningPodforUserandImage( authinfo, userinfo, app)
+
+        if len(podlist) > 0:
+            pod = podlist[0]
+            pod.id = pod.metadata.name
+
+        return pod
+
+
+    def execininstance( self, pod, command):
+       
+        self.logger.info('')
+        result = { 'ExitCode': -1, 'stdout':None }
+        timeout=5
+        # calling exec and wait for response.
+        # exec_command = [
+        #    '/bin/sh',
+        #        '-c',
+        #        'echo This message goes to stderr >&2; echo This message goes to stdout']
+        # str connect_get_namespaced_pod_exec(name, namespace, command=command, container=container, stderr=stderr, stdin=stdin, stdout=stdout, tty=tty)     
+        #
+        # Todo
+        # read https://github.com/kubernetes-client/python/blob/master/examples/pod_exec.py
+        #   
+        try:            
+            resp = stream(  self.kubeapi.connect_get_namespaced_pod_exec,
+                                name=pod.metadata.name, 
+                                namespace=self.namespace, 
+                                command=command,
+                                stderr=True, stdin=False,
+                                stdout=True, tty=False,
+                                _preload_content=False )
+            resp.run_forever(timeout=timeout) 
+            if resp.returncode is None:
+                # A None value indicates that the process hasn't terminated yet.
+                # do not wait 
+                result = { 'ExitCode': None, 'stdout': None, 'status': 'Success' }
+                resp.close()
+            else:
+                err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
+                pod_exec_result = yaml.load(err, Loader=yaml.BaseLoader )  
+                result['stdout'] = resp.read_stdout(timeout=timeout)
+                # should be like:
+                # {"metadata":{},"status":"Success"}
+                if isinstance(pod_exec_result, dict):
+                    if pod_exec_result.get('status') == 'Success':
+                        result['status'] = pod_exec_result.get('status')
+                        result['ExitCode'] = 0
+                    exit_code = pod_exec_result.get('ExitCode')
+                    if exit_code is not None:
+                        result['ExitCode'] = exit_code
+                resp.close()
+
+        except Exception as e:
+            self.logger.error( 'command exec failed %s', str(e)) 
+
+        return result
+
+
+
+
 
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
         assert type(myDesktop) is ODDesktop, "myDesktop invalid type %r" % type(myDesktop)
+        assert type(app)       is dict,      "app       invalid type %r" % type(app)
         
-        if oc.od.settings.desktopusepodasapp is False:
+
+        if app.get('run_inside_pod') is False:
             # create app as a docker container 
             return super().createappinstance( myDesktop, app, authinfo, userinfo, userargs, **kwargs )
-        
 
         rules = app.get('rules' )
+        network_config = self.applyappinstancerules_network( authinfo, rules )
 
-        (volumebind, volumeMounts) = self.build_desktopvolumes( authinfo, userinfo, rules, **kwargs)
+        (volumebind, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_application', rules=rules, **kwargs)
         list_volumes = list( volumebind.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumebind.values() )
         self.logger.info( 'volumeMounts=%s', volumeMounts.values() )
 
-        
-
         # apply network rules 
         # network_config = self.applyappinstancerules_network( authinfo, rules )
-
         # apply homedir rules
         # homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
        
@@ -1894,10 +2024,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         desktop_ip_addr = myDesktop.desktop_interfaces.get('eth0').get('ips')
         env = oc.od.settings.desktopenvironmentlocal.copy()
         env.update( {   'DISPLAY': desktop_ip_addr + ':0',
+                        'CONTAINER_IP_ADDR': desktop_ip_addr,   # CONTAINER_IP_ADDR is used by ocrun node js command 
                         'XAUTH_KEY': myDesktop.xauthkey,
                         'PULSEAUDIO_COOKIE': myDesktop.pulseaudio_cookie,
                         'PULSE_SERVER': desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT),
-                        'CUPS_SERVER':  desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT) 
+                        'CUPS_SERVER':  desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
+                        # 'NO_AT_BRIDGE': 1
                     } 
         )
         
@@ -1952,7 +2084,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         labels = {  'access_provider':  authinfo.provider,
                     'access_userid':    userinfo.userid,
                     'access_username':  self.get_labelvalue(userinfo.name),
-                    'type':             self.applicationtype
+                    'type':             self.applicationtype,
+                    'uniquerunkey':     app['uniquerunkey']
         }
 
         # container name
@@ -1962,57 +2095,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         _app_pod_name = self.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
         app_pod_name =  oc.auth.namedlib.normalize_name( _app_pod_name )
 
-        '''  # define pod_manifest
-        pod_manifest = {
-            'apiVersion': 'v1',
-            'kind': 'Pod',
-            'metadata': {
-                'name': app_pod_name,
-                'namespace': self.namespace,
-                'labels': labels
-            },
-            'spec': {
-                'affinity': { 
-                    'nodeAffinity': {
-                        'preferredDuringSchedulingIgnoredDuringExecution': [ 
-                            {   'weight': 1,
-                                'preference': { 
-                                    'matchExpressions': [ 
-                                        {   'key': 'kubernetes.io/hostname',
-                                            'operator': 'In',
-                                            'values': [ myDesktop.hostname ] 
-                                        }
-                                    ] 
-                                }
-                            }
-                        ]
-                    }
-                },
-                'automountServiceAccountToken': False,  # disable service account inside pod
-                'subdomain': self.endpoint_domain,
-                # 'volumes': list_volumes,                    
-                'nodeSelector': oc.od.settings.desktopnodeselector, 
-                'containers': [ { 
-                                    'imagePullPolicy': 'IfNotPresent',
-                                    'image': app['id'],
-                                    'name': app_pod_name,
-                                    'command': command,
-                                    'env': envlist,
-                                    # 'volumeMounts': list_volumeMounts,
-                                    'restartPolicy' : 'OnFailure',
-                                    'securityContext': { 
-                                             # permit sudo command inside the container False by default 
-                                            'allowPrivilegeEscalation': oc.od.settings.desktopallowPrivilegeEscalation,
-                                            # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]  
-                                            'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
-                                                              'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
-                                    },
-                                    'resources': oc.od.settings.desktopkubernetesresourcelimits
-                                }                                                             
-                ],
-            }
-        }
-        '''
+        host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
+        self.logger.info('default application hostconfig=%s', host_config )
+
+        # load the specific hostconfig from the app object
+        host_config.update( app.get('host_config'))
+        self.logger.info('updated app values hostconfig=%s', host_config )
+
+        # default empty dict annotations
+        annotations = {}
+        # Check if a network annotations exists 
+        network_annotations = network_config.get( 'annotations' )
+        if isinstance( network_annotations, dict):
+            annotations.update( network_annotations )
+  
+        # note 'shareProcessNamespace' is always False
 
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2020,7 +2117,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'metadata': {
                 'name': app_pod_name,
                 'namespace': self.namespace,
-                'labels': labels
+                'labels': labels,
+                'annotations': annotations
             },
             'spec': {
                 'restartPolicy' : 'Never',
@@ -2076,17 +2174,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         appinstance = pod
         # add compatible attribute for docker container
         appinstance.message = pod.status.phase   
-        appinstance.id = pod.metadata.name       
-        appinstance.webhook = None
+        appinstance.id = pod.metadata.name    
 
+
+         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
-        # appinstance.webhook = self.buildwebhookinstance(authinfo=authinfo, 
-        #                                                userinfo=userinfo, 
-        #                                                app=app,
-        #                                                network_config=network_config, 
-        #                                                network_name = network_name, 
-        #                                                appinstance_id = appinstance_id  )
+        fillednetworkconfig = self.filldictcontextvalue(authinfo=authinfo, 
+                                                        userinfo=userinfo, 
+                                                        desktop=myDesktop, 
+                                                        network_config=network_config, 
+                                                        network_name = None, 
+                                                        appinstance_id = None )
 
+        appinstance.webhook = fillednetworkconfig.get('webhook')
+   
+       
         return appinstance
 
     def createdesktop(self, authinfo, userinfo, **kwargs):
@@ -2112,9 +2214,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env      = kwargs.get('env', {} )
         appname  = kwargs.get('appname')
 
-        # add a new VNC Password to the command line
-        vnc_password =  ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
-        command.extend('--vncpassword {}'.format( vnc_password.getplain() ).split(' '))
+        # add a new VNC Password to env var
+        vnc_password = ODVncPassword()
+        vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
+        vnc_secret.create( authinfo, userinfo, data={ 'password' : vnc_password.getplain() } )
 
         # generate XAUTH key
         xauth_key = self.generate_xauthkey()
@@ -2129,7 +2232,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'access_userid':    userinfo.userid,
                     'access_username':  self.get_labelvalue(userinfo.name),
                     'domain':           self.endpoint_domain,
-                    'vnc_password':     vnc_password.encrypt(),
                     'netpol/ocuser' :   'true',
                     'xauthkey':         xauth_key, 
                     'pulseaudio_cookie': pulseaudio_cookie  }
@@ -2196,7 +2298,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.on_desktoplaunchprogress('Building data storage for your desktop')
 
-        (volumes, volumeMounts) = self.build_desktopvolumes( authinfo, userinfo, rules=rules,  **kwargs)
+        (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', rules=rules,  **kwargs)
         list_volumes = list( volumes.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumes.values() )
@@ -2447,7 +2549,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
-        myDesktop = self.pod2desktop( myPod )
+        myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
 
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
@@ -2464,7 +2566,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
   
     
-    def findPodByUser(self, authinfo, userinfo, args=None ):
+    def findPodByUser(self, authinfo, userinfo ):
         """find a kubernetes pod for the user ( userinfo )
            if args is None, filter add always type=self.x11servertype
            if args is { 'pod_name'=name } add filter metadata.name=name without type selector
@@ -2481,25 +2583,28 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             V1Pod: kubernetes.client.models.v1_pod.V1Pod or None if not found
         """
         self.logger.info('')
-        logger.info('')
+
         access_userid = userinfo.userid
         access_provider = authinfo.provider
-        pod_name = None
-        if type(args) is dict:
-            pod_name = args.get( 'pod_name' )
+
         try: 
             field_selector = ''
-            label_selector = 'access_userid='    + access_userid     
+            label_selector = 'access_userid='    + access_userid + ',type=' + self.x11servertype
         
             if oc.od.settings.desktopauthproviderneverchange is True:
                 label_selector += ',' + 'access_provider='  + access_provider   
 
+            #
+            # pod_name = None
+            # if type(args) is dict:
+            #     pod_name = args.get( 'pod_name' )
             # if pod_name is set, don't care about the type
             # type can be type=self.x11servertype or type=self.x11embededservertype
-            if type( pod_name ) is str :
-                field_selector =  'metadata.name=' + pod_name
-            else :    
-                label_selector += ',type=' + self.x11servertype
+            # if type( pod_name ) is str :
+            #    field_selector =  'metadata.name=' + pod_name
+            # else :    
+            #    label_selector += ',type=' + self.x11servertype
+            #
 
             myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector, field_selector=field_selector)
 
@@ -2569,11 +2674,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if type(appname) is str and len(appname) > 0  :
             myPod = self.findPodAppByUser( authinfo, userinfo, appname )
         else :
-            myPod = self.findPodByUser( authinfo, userinfo, kwargs)
+            myPod = self.findPodByUser( authinfo, userinfo )
 
         if myPod is not None :
             self.logger.info( 'Pod is found %s ', myPod.metadata.name )
-            myDesktop = self.pod2desktop( myPod )
+            myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
         return myDesktop
 
     def build_internalPodFQDN( self, myPod ):
@@ -2594,10 +2699,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             defaultFQDN = myPod.metadata.name + '.' + myPod.spec.subdomain + '.' + oc.od.settings.kubernetes_default_domain
         return defaultFQDN
 
-    def pod2desktop( self, myPod ):
+    def pod2desktop( self, pod, userinfo=None ):
         """pod2Desktop convert a Pod to Desktop Object
         Args:
             myPod ([V1Pod): kubernetes.client.models.v1_pod.V1Pod
+            userinfo ([]): userinfo set to None by default
+                           to obtain vnc_password, defined userinfo context 
         Returns:
             [ODesktop]: oc.od.desktop.ODDesktop Desktop Object
         """
@@ -2606,7 +2713,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         desktop_interfaces     = None
 
         # read metadata annotations 'k8s.v1.cni.cncf.io/network-status'
-        network_status_json_string = myPod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
+        network_status_json_string = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
         if isinstance( network_status_json_string, str ):
             # k8s.v1.cni.cncf.io/network-status is set 
             # load json formated string 
@@ -2630,32 +2737,39 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 desktop_interfaces.update( { name : { 'mac': mac, 'ips': str(ips) } } )
 
         # get the container id for the desktop object
-        for c in myPod.status.container_statuses:
+        for c in pod.status.container_statuses:
             if c.name[0] == self.graphicalcontainernameprefix: # this is the graphical container
                 desktop_container_id = c.container_id
                 desktop_container_name = c.name
                 break
 
-        internal_pod_fqdn = self.build_internalPodFQDN( myPod )
+        internal_pod_fqdn = self.build_internalPodFQDN( pod )
 
-        vnc_password = ODVncPassword(key=oc.od.settings.desktopvnccypherkey)
-        vnc_password.decrypt( myPod.metadata.labels['vnc_password'] )
+        # read the vnc password from kubernetes secret
+        vnc_password = None
+        if userinfo :     
+            vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
+            vnc_secret_password = vnc_secret.read( userinfo )  
+            if isinstance( vnc_secret_password, client.models.v1_secret.V1Secret ):
+                vnc_password = oc.od.secret.ODSecret.read_data( vnc_secret_password, 'password' )
+
+        
         # Build the ODDesktop Object 
-        myDesktop = oc.od.desktop.ODDesktop(    nodehostname=myPod.spec.node_name, 
-                                                name=myPod.metadata.name,
-                                                hostname=myPod.spec.hostname,
-                                                ipAddr=myPod.status.pod_ip, 
-                                                status=myPod.status.phase, 
-                                                desktop_id=myPod.metadata.name, 
+        myDesktop = oc.od.desktop.ODDesktop(    nodehostname=pod.spec.node_name, 
+                                                name=pod.metadata.name,
+                                                hostname=pod.spec.hostname,
+                                                ipAddr=pod.status.pod_ip, 
+                                                status=pod.status.phase, 
+                                                desktop_id=pod.metadata.name, 
                                                 container_id=desktop_container_id,                                                   
                                                 container_name=desktop_container_name,
-                                                vncPassword=vnc_password.getplain(),
+                                                vncPassword=vnc_password,
                                                 fqdn = internal_pod_fqdn,
-                                                xauthkey = myPod.metadata.labels.get('xauthkey'),
-                                                pulseaudio_cookie = myPod.metadata.labels.get('pulseaudio_cookie'),
+                                                xauthkey = pod.metadata.labels.get('xauthkey'),
+                                                pulseaudio_cookie = pod.metadata.labels.get('pulseaudio_cookie'),
                                                 desktop_interfaces = desktop_interfaces,
-                                                websocketrouting = myPod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
-                                                websocketroute = myPod.metadata.labels.get('websocketroute') )
+                                                websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
+                                                websocketroute = pod.metadata.labels.get('websocketroute') )
         return myDesktop
 
     def countdesktop(self):        
@@ -2673,7 +2787,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             
     def isgarbagable( self, pod, expirein, force=False ):
         bReturn = False
-        myDesktop = self.pod2desktop( pod )
+        myDesktop = self.pod2desktop( pod=pod )
         if force is False:
             nCount = self.userconnectcount( myDesktop )
             if nCount < 0: # if something wrong do not garbage this pod
