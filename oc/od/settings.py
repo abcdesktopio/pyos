@@ -64,7 +64,6 @@ desktopimage            = None
 desktopnodeselector     = None
 desktopimagepullsecret  = None
 desktoppolicies         = {}
-desktopusepodasapp      = False
 desktopimagepullpolicy  = 'IfNotPresent'
 desktopdnspolicy        = None
 desktopdnsconfig        = None
@@ -448,7 +447,7 @@ def init_desktop():
     global desktopuselocaltime
     global desktoppolicies
     global desktoppostponeapp
-    global desktopusepodasapp
+
     global desktopimagepullpolicy
     global desktopkubernetesresourcelimits
     global desktopwebhookencodeparams
@@ -471,7 +470,7 @@ def init_desktop():
                 desktopauthproviderneverchange = False # this allow a user to change auth provider on the fly
                 break
 
-    desktopvnccypherkey = gconfig.get('desktop.vnccypherkey', 'ABCDESKTOP01234567890123456789ABCDESKTOP' )
+    desktopvnccypherkey = gconfig.get('desktop.vnccypherkey', 'DEAF2ccF1c4A6A4Bd3171cbe2DC5DbC0' )
 
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,
@@ -533,7 +532,6 @@ def init_desktop():
     # is an array 
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
     desktopinitcontainercommand     = gconfig.get('desktop.initcontainercommand')
-    desktopusepodasapp              = gconfig.get('desktop.usepodasapp', False )
     defaultbackgroundcolors         = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
 
     desktophomedirectorytype        = gconfig.get('desktop.homedirectorytype', 'volume')
@@ -557,13 +555,8 @@ def init_desktop():
                 'HOME' 		            : '/home/balloon',
                 'LOGNAME'	            : 'balloon',
                 'PULSE_SERVER'          : '/tmp/.pulse.sock',
-                'CUPS_SERVER'           : '/tmp/.cups.sock'} )
-
-    # if app is a pod then force X11 to listen on tcp port
-    if desktopusepodasapp:
-        desktopenvironmentlocal['X11LISTEN'] = 'tcp'
-
-
+                'CUPS_SERVER'           : '/tmp/.cups.sock',
+                'X11LISTEN'             : 'tcp '} )
 
     init_balloon()
 
