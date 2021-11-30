@@ -303,6 +303,7 @@ class ODApps:
         legacyfileextensions = labels.get('oc.legacyfileextensions')
         usedefaultapplication = labels.get('oc.usedefaultapplication')
         execmode = labels.get('oc.execmode')
+        run_inside_pod = labels.get('oc.run_inside_pod', False)
        
         if usedefaultapplication is not None:
             usedefaultapplication = json.loads(usedefaultapplication)
@@ -359,7 +360,8 @@ class ODApps:
                 'fileextensions': fileextensionslist,
                 'legacyfileextensions': legacyfileextensionslist,
                 'host_config' : host_config,
-                'secrets_requirement' : secrets_requirement
+                'secrets_requirement' : secrets_requirement,
+                'run_inside_pod' : run_inside_pod
             }
 
         return myapp
