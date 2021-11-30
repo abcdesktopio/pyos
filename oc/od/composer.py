@@ -160,7 +160,7 @@ def logdesktop( authinfo, userinfo ):
     myOrchestrator = selectOrchestrator()    
     return myOrchestrator.logs( authinfo, userinfo )
 
-def removedesktop( authinfo, userinfo, args ):
+def removedesktop( authinfo, userinfo ):
     """removedesktop
 
     Args:
@@ -174,8 +174,8 @@ def removedesktop( authinfo, userinfo, args ):
     myOrchestrator = selectOrchestrator()    
 
     # webrtc look for the desktop
-    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **args)
-    removed_destop = myOrchestrator.removedesktop( authinfo, userinfo, args )
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
+    removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
     
     if myDesktop and isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
         # if myDesktop has been found AND webrtc is a ODJanusCluster then 
@@ -183,7 +183,7 @@ def removedesktop( authinfo, userinfo, args ):
         services.webrtc.destroy_stream( myDesktop.name )
     
     # remove the desktop
-    return removed_destop
+    return removed_desktop
 
 def finddesktop_quiet( authinfo, userinfo, appname=None ):
 
@@ -421,7 +421,6 @@ def createdesktop( authinfo, userinfo, args  ):
     """
     logger.info('Starting desktop creation')
     app = None
-
     
     myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, args )
    
@@ -521,10 +520,10 @@ def openapp( auth, user={}, kwargs={} ):
     # Check if the image is has the uniquerunkey Label set
     if app.get('uniquerunkey'):
         logger.debug('the app %s has an uniqu key property set', appname )
-        appinstance = myOrchestrator.getappinstance(app, user.userid)            
+        appinstance = myOrchestrator.getappinstance(auth, user, app )            
         if appinstance is not None:
-            logger.debug('Another container %s with the same uniquerunkey %s is running for userid %s', appinstance.id, app.get('uniquerunkey'), user.userid)
-            cmd,result = launchappprocess(myOrchestrator, appinstance, userargs)
+            logger.debug('Another container with the same uniquerunkey %s is running for userid %s', app.get('uniquerunkey'), user.userid)
+            cmd,result = launchappprocess(myOrchestrator, app, appinstance, userargs)
             services.accounting.accountex('container', 'reused')
             services.accounting.accountex('image', app['name'] )
             return {
@@ -587,7 +586,7 @@ def notify_user( access_userid, access_type, method, data ):
     myOrchestrator = selectOrchestrator()  
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
     cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
-    myOrchestrator.execincontainer(myDesktop.container_id, cmd)
+    myOrchestrator.execininstance(myDesktop, cmd)
     
 
 def getapp(authinfo, name):
@@ -597,12 +596,11 @@ def getapp(authinfo, name):
     return app
 
 
-def launchappprocess(orchestrator, appinstance, userargs):
-    app = appinstance.app
+def launchappprocess(orchestrator, app, appinstance, userargs):
     cmd = [ app['path'],  app['args'], userargs ]
-    result = orchestrator.execincontainer(appinstance.id, cmd)
+    result = orchestrator.execininstance(appinstance, cmd)
     if type(result) is not dict:
-        raise ODError('execincontainer error')
+        raise ODError('execininstance error')
     return (cmd, result)
 
 def garbagecollector( expirein, force=False ):
