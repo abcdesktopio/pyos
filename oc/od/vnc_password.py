@@ -11,17 +11,18 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-import oc.lib
-from Crypto.Util.strxor import strxor
 import base64
+import oc.lib
+from os import urandom
+# from Crypto.Cipher import AES
+# from hashlib import pbkdf2_hmac
+
 
 class ODVncPassword():
     """[ODVncPassword]
-        ODVncPassword class  obscurs vnc password 
-        this is not a encrypt password !
-        the goal is only obscur vnc password 
+        ODVncPassword class  
     """
-    def __init__(self, key, initvncpassword=None, passwordlen=10) -> None:
+    def __init__(self, key=None, defaultvncpassword=None) -> None:
         """[__init__]
             init ODVncPassword class
         Args:
@@ -29,13 +30,19 @@ class ODVncPassword():
             initvncpassword ([str], optional): [default vnc password value]. Defaults to None.
             passwordlen (int, optional): [len of the vnc password if it does not exist]. Defaults to 10.
         """
-        super().__init__()
-        self._passlength = passwordlen
+        #
+        # passlength must respect len(labels) <= 63 chars for kubernetes
+        # 35 is the max len
+        self._passlength = 15
         self._key = key
-        self._vncpassword = initvncpassword
-        # make the key length more than passwordlen, for xor obscur data
-        while( len( self._key ) < passwordlen ):
-            self._key += self._key
+        if key is None:
+            # key length use password length
+            self._key = oc.lib.randomStringwithHexa( 32 )
+        self._vncpassword = defaultvncpassword
+
+
+    def get_key( self ):
+        return self._key
 
     def make( self ):
         """[make]
@@ -50,37 +57,49 @@ class ODVncPassword():
     @staticmethod
     def repadb32(data):
         """[repad]
-            restore padding if need ( using modulo 4 )
+            restore padding for base32 if need ( using modulo 8 )
         Args:
-            data ([str]): [string without base64 pad]
+            data ([str]): [string without base32 pad]
 
         Returns:
-            [str]: [string with base64 pad if need ]
+            [str]: [string with base32 pad if need ]
         """
         return data + "=" * (-len(data)%8)
+
+
+    def getcypherkey(self):
+        ciphertextb32 = base64.b32encode( self._key )
+        strencrypt = ciphertextb32.decode("utf-8")
+        return strencrypt
+
 
     def encrypt( self ):
         """[encrypt]
             only obscuring
-            encrypt is not to encrypt, 
-            use simple xor to obscur data
+            
         Returns:
-            [str]: [xor encrypted password base64 formated]
+            [str]: [ base 32 str]
         """
         if self._vncpassword is None:
             self.make()
+
+        # convert _vncpassword as bytes
         bvncpassword = str.encode(self._vncpassword)
-        # the key must have the same len as password
-        xorkey = self._key[ 0 : len(self._vncpassword) ]
-        xorkey = str.encode( xorkey )
-        # do XOR
-        xorcipher = strxor( bvncpassword, xorkey )
-        # encode b32
-        ciphertextb32 = base64.b32encode( xorcipher )
-        strencrypt = ciphertextb32.decode("utf-8")
-        # remove pad = for kuberntes naming 
-        strencrypt = strencrypt.rstrip("=")
-        return strencrypt
+        bs = AES.block_size
+        salt = urandom(bs - len(b'Salted__'))
+        pbk = pbkdf2_hmac('sha256', self._key, salt, 10000, 48)
+        key = pbk[:32]
+        iv = pbk[32:48]
+
+        # create cipher
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        result = (b'Salted__' + salt)
+        chunk = bvncpassword[:1024*bs]
+        padding_length = (bs - len(chunk) % bs) or bs
+        chunk += (padding_length * chr(padding_length)).encode()
+        result += cipher.encrypt(chunk)
+        b32result = base64.b32encode( result )
+        return b32result
 
     def decrypt( self, ciphertext ):
         """[decrypt]
@@ -94,18 +113,25 @@ class ODVncPassword():
         Returns:
             [str]: [plain text data]
         """
+
+        """
         # restor = pad if need
-        ciphertextb32 = self.repadb32( ciphertext )
-        ciphertextb32 = str.encode( ciphertextb32 )
+        ciphertextb32 = str.encode( ciphertext )
         # decode b32
         ciphertext =  base64.b32decode( ciphertextb32 )
-        # the key must have the same len as password
-        xorkey = self._key[ 0 : len(ciphertext) ]
-        xorkey = str.encode( xorkey )
-        # do XOR
-        clearbytesdata = strxor( ciphertext, xorkey )
-        # convert to str
-        self._vncpassword = clearbytesdata.decode("utf-8")
+        iv = ciphertext[:16]
+        # create cipher
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        result = (b'Salted__' + salt)
+
+        cipher.decrypt( enc[16:] )
+        b32result = base64.b32encode( result )
+        return b32result
+      
+        msg = cipher.decrypt(ciphertext)
+        
+        self._vncpassword = msg.decode("utf-8")
+        """
         return self._vncpassword
 
     def getplain( self ):
