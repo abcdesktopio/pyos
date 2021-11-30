@@ -55,11 +55,12 @@ class BaseController(object):
                else raise WebAppError('User is not identified') 
                or   raise WebAppError('User is not authenticated')
           '''
-          if not services.auth.isidentified:
-               raise WebAppError('User is not identified')
-
+          
           if not services.auth.isauthenticated:
                raise WebAppError('User is not authenticated')
+          
+          if not services.auth.isidentified:
+               raise WebAppError('User is not identified')
 
           user = services.auth.user
           auth = services.auth.auth
