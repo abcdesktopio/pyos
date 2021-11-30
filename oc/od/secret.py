@@ -11,7 +11,7 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-
+import logging
 import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
@@ -23,6 +23,7 @@ from kubernetes.client.rest import ApiException
 import base64
 import json
 
+logger = logging.getLogger(__name__)
 
 def selectSecret( namespace, kubeapi, prefix, secret_type):
     """[selectSecret]
@@ -45,6 +46,7 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
     secret_cls_dict = { 'cifs':    ODSecretCIFS,
                         'webdav':  ODSecretWEBDAV,
                         'ldif':    ODSecretLDIF,
+                        'vnc':     ODSecretVNC,
                         'citrix':  ODSecretCitrix }
     # get the class from the secret_type
     secret_cls = secret_cls_dict.get( secret_type, ODSecret )
@@ -59,7 +61,7 @@ def list_secretype():
     Returns:
         [list]: [list of supported secret type]
     """
-    return [ 'cifs', 'webdav', 'ldif', 'citrix' ]
+    return [ 'cifs', 'webdav', 'ldif', 'citrix', 'vnc' ]
 
 
 @oc.logging.with_logger()
@@ -114,8 +116,8 @@ class ODSecret():
         b = base64.b64decode( s )
         try:
             b = b.decode('utf-8')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error( 'failed to decode b64 str %s', str(e))
         return b
 
     @staticmethod
@@ -127,6 +129,16 @@ class ODSecret():
     def bytestob64( s ):        
         b = base64.b64encode( s ).decode('ascii')
         return b
+
+    @staticmethod
+    def read_data( secret, key):
+        data = None
+        try:
+            b64data = secret.data.get(key)
+            data = oc.od.secret.ODSecret.b64todata( b64data )
+        except Exception as e:
+            logger.error( 'failed to read secret key %s %s', str(key), e)
+        return data 
 
     def _create_dict(self, authinfo, userinfo,  arguments):       
        
@@ -171,7 +183,7 @@ class ODSecret():
             secret_name = self.get_name( userinfo )
             mysecret = self.kubeapi.read_namespaced_secret( name=secret_name, namespace=self.namespace )
         except ApiException as e:
-            self.logger.debug('secret name %s can not be read: error %s', secret_name, e ) 
+            self.logger.error('secret name %s can not be read: error %s', str(secret_name), e ) 
         return mysecret
       
     def delete( self, userinfo ):
@@ -182,10 +194,20 @@ class ODSecret():
             secret_name = self.get_name( userinfo )
             v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
         except ApiException as e:
-            self.logger.debug('secret name %s can not be deleted: error %s', secret_name, e ) 
+            self.logger.error('secret name %s can not be deleted %s', str(secret_name), e ) 
         return v1status
 
     def create(self, authinfo, userinfo, data ):
+        """[create secret]
+
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data 
+            data ([dict]): [dictionnary key value]
+
+        Returns:
+            [client.models.v1_secret.V1Secret ]: [kubernetes V1Secrets]
+        """
         self.logger.debug('')
         mysecret = None
         op = None
@@ -193,7 +215,8 @@ class ODSecret():
         # sanity check 
         readsecret = self.read(userinfo)
         try:
-            if type( readsecret ) is client.models.v1_secret.V1Secret :
+            # if the secret already exists, patch it with new data
+            if isinstance( readsecret, client.models.v1_secret.V1Secret) :
                 # a secret already exists, patch it with new data 
                 # it may contains obsolete value, for example if the password has changed
                 op = 'patch' # operation is used for log message
@@ -205,7 +228,7 @@ class ODSecret():
         except Exception as e:
             self.logger.error( 'Failed to %s secret type=%s %s', str(op), str(self.secret_type), str(e) )
         
-        if type( mysecret ) is client.models.v1_secret.V1Secret :
+        if isinstance( mysecret, client.models.v1_secret.V1Secret) :
             self.logger.info( '%s secret type=%s name=%s done', str(op), self.secret_type, mysecret.metadata.name )
 
         return mysecret
@@ -216,6 +239,11 @@ class ODSecretLDIF( ODSecret ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='ldif'
 
+class ODSecretVNC( ODSecret ):
+    ''' Create a secret used for vnc password '''
+    def __init__( self, namespace, kubeapi, prefix=None, secret_type='vnc' ):
+        super().__init__( namespace, kubeapi, prefix, secret_type)
+        self.access_type='vnc'
 
 class ODSecretCitrix( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
