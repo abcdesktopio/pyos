@@ -126,7 +126,7 @@ class ODVolumeActiveDirectory(ODVolumeHostPath):
         if type(authinfo.get('claims')) is dict:
             self.domainpassword         = authinfo.claims.get('password')
         
-        self.mountOptions           = None  
+        self.mountOptions           = ''  
         self._containertarget       = None
         
 
@@ -140,7 +140,7 @@ class ODVolumeActiveDirectory(ODVolumeHostPath):
 
 @oc.logging.with_logger()
 class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):    
-    def __init__(self, authinfo, userinfo, name, homeDrive, networkPath, mountOptions='vers=1.0' ):    
+    def __init__(self, authinfo, userinfo, name, homeDrive, networkPath, mountOptions='' ):    
         super().__init__(authinfo, userinfo, name)
         self._fstype       = 'cifs'
         self._type         = 'flexvol'
@@ -149,10 +149,16 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
         self.networkPath   = networkPath
         self.mountOptions  = mountOptions
         entry              = homeDrive
-        if len(self.homeDrive) == 2 and self.homeDrive[1]==':' : # for example U: 
-            # remove the char ':' from the string 'U:' to get the char 'U'
-            entry =  self.homeDrive[0:1] 
-        self._containertarget  = '/home/balloon/' + entry
+
+        if isinstance( self.homeDrive, str ):
+            # remove the last char if it is ':'
+            l = len(self.homeDrive) - 1
+            if l>0 :
+                if self.homeDrive[l-1] == ':':
+                    entry =  self.homeDrive[0:l] 
+                    self._containertarget  = '/home/balloon/' + entry
+            else:
+                self._containertarget  = '/home/balloon/' + self.homeDrive
 
     def is_mountable( self ):
         return all( [ super().is_mountable(), self.homeDrive, self.networkPath, self._containertarget ] )
@@ -187,7 +193,7 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
                         mountwebdavpoint = oc.od.settings.getmount_remotewebdav_point(sAMAccountName)
                         mountwebdavdirname = '/home/balloon/' + oc.od.settings.webdaventryname
         '''
-
+    '''
     def mount_command(self):
 
         username=oc.auth.namedlib.normalize_shell_variable(self.domainlogin),
@@ -202,3 +208,4 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
                     self.remotewebdav_url,
                     self._mountpoint]
         return command
+    '''
