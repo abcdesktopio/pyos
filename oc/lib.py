@@ -41,6 +41,10 @@ def randomStringwithDigitsAndSymbols(stringLength=10):
     return ''.join(random.choice(password_characters) for i in range(stringLength))
 
 
+def randomStringwithHexa(stringLength=10):
+    # password_characters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(string.hexdigits) for i in range(stringLength))
+
 def remove_accents(input_str):
     """[remove_accents]
         remove accents in string and set to lower case
