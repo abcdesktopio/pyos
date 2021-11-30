@@ -335,18 +335,6 @@ class ComposerController(BaseController):
             logger.error( e )
             return Results.error( message=str(e) )
         
-    def removedesktop(self, auth, user, args ):  
-        logger.debug('')              
-        services.accounting.accountex('desktop', 'remove')
-        try:
-            (auth, user ) = self.validate_env()
-            remove = oc.od.composer.removedesktop(auth, user, args)
-            return Results.success(result=remove)
-        except Exception as e:
-            logger.error( e )
-            return Results.error( message=str(e) )
-        
-
     def _launchdesktop(self, auth, user, args):
 
         try:
