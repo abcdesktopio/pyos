@@ -188,7 +188,7 @@ class ODPrinterControl:
         command = ' '.join([command, *[a for a in args if a]])
         logger.debug(command)
 
-        result = self.orchestrator.execincontainer( self.desktop.container_id, command )
+        result = self.orchestrator.execininstance( self.desktop, command )
 
         if type(result) is dict:
             if result.get('ExitCode') == 0:
