@@ -134,13 +134,13 @@ class AuthController(BaseController):
 
         """
         bReturn = None
-        args = cherrypy.request.json
+        
         if services.auth.isidentified:
             bReturn = None
             user = services.auth.user
             auth = services.auth.auth  
             # remove the pod/container          
-            if oc.od.composer.removedesktop(auth, user, args) is False:
+            if oc.od.composer.removedesktop(auth, user) is False:
                 bReturn = Results.error( message='removedesktop failed' )
 
             # Always removeCookie routehostcookiename
