@@ -1436,8 +1436,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
             for secret_auth_name in mysecretdict.keys():
                 # https://kubernetes.io/docs/concepts/configuration/secret
-                # create an entry eq: 
-                # /var/secrets/abcdesktop/vnc
+                # create an entry /var/secrets/abcdesktop/vnc
                 secretmountPath = oc.od.settings.desktopsecretsrootdirectory + mysecretdict[secret_auth_name]['type'] 
                 # mode is 644 -> rw-r--r--
                 # Owing to JSON limitations, you must specify the mode in decimal notation.
@@ -2738,10 +2737,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # get the container id for the desktop object
         for c in pod.status.container_statuses:
-            if c.name[0] == self.graphicalcontainernameprefix: # this is the graphical container
-                desktop_container_id = c.container_id
-                desktop_container_name = c.name
-                break
+            if hasattr( c, 'name')      and \
+               isinstance(c.name, str)  and \
+               c.name[0] == self.graphicalcontainernameprefix: # this is the graphical container
+                    desktop_container_id = c.container_id
+                    desktop_container_name = c.name
+                    break
 
         internal_pod_fqdn = self.build_internalPodFQDN( pod )
 
