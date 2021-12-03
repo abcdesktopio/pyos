@@ -422,6 +422,14 @@ class ODOrchestratorBase(object):
         key = binascii.b2a_hex(os.urandom(24))
         return key.decode( 'utf-8' )
 
+    @staticmethod
+    def generate_spawnercookie():
+        # generate key, SPAWNER 
+        # use cat /etc/pulse/cookie | openssl rc4 -K "$PULSEAUDIO_COOKIE" -nopad -nosalt > ~/.config/pulse/cookie
+        # use os.urandom(24) as key 
+        key = binascii.b2a_hex(os.urandom(24))
+        return key.decode( 'utf-8' )
+
 @oc.logging.with_logger()
 class ODOrchestrator(ODOrchestratorBase):
     
@@ -1602,28 +1610,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return result
 
 
-    def removePod( self, myPod, remove_volume_home=False ):
+    def removePod( self, myPod ):
         ''' remove kubernetes pod '''
         v1status = None
         try:
-            #   The Kubernetes propagation_policy to apply
-            #   to the delete. Default 'Foreground' means that child Pods to the Job will be deleted
+            #   The Kubernetes propagation_policy is 'Foreground'
+            #   Default 'Foreground' means that child Pods to the Job will be deleted
             #   before the Job is marked as deleted.
             
             pod_name = myPod.metadata.name                
             self.logger.info( 'pod_name %s', pod_name)              
             self.nodehostname = myPod.spec.node_name
 
-            # myinfra = self.createInfra()
-            # self.stopContainerApps( myinfra, userinfo )
-
-            # read the volume entry
-            # podvolumes = None
-            # try:
-            #     podvolumes = myPod.spec.volumes
-            # except Exception:
-            #     pass
-                
             # propagation_policy='Background'
             propagation_policy = 'Foreground'
             #grace_period_seconds = 0
@@ -1635,8 +1633,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                             body=delete_options, 
                                                             propagation_policy=propagation_policy )
                                                             # grace_period_seconds=grace_period_seconds )
-            # TO DO 
-            # add remove_volume_home
 
         except ApiException as e:
                 self.logger.error( str(e) )
@@ -1654,17 +1650,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def removedesktop(self, authinfo, userinfo, args={} ):
         ''' remove kubernetes pod for a give user '''
-        ''' remove kubernetes secrets too '''
+        ''' then remove kubernetes user's secrets '''
         statusPod = None
         self.logger.debug('')
-        # by default do not remove user home directory
-        remove_volume_home = args.get( 'remove_volume_home', False ) 
-        if userinfo.name == 'Anonymous':
-            # by default remove Anonymous home directory
-            remove_volume_home = True
+
+        # get the user's pod
         myPod =  self.findPodByUser(authinfo, userinfo )
         if myPod :
-            statusPod = self.removePod( myPod, remove_volume_home )
+            statusPod = self.removePod( myPod )
             self.removesecrets( authinfo, userinfo )
         return statusPod
             
@@ -2226,6 +2219,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         pulseaudio_cookie = self.generate_pulseaudiocookie()
         env[ 'PULSEAUDIO_COOKIE' ] = pulseaudio_cookie    
 
+        spawner_cookie = self.generate_spawnercookie()
+        env[ 'SPAWNER_COOKIE' ] = spawner_cookie 
+
         # build label dictionnary
         labels = {  'access_provider':  authinfo.provider,
                     'access_userid':    userinfo.userid,
@@ -2415,6 +2411,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktopimagepullsecret } ]
 
 
+        # by default remove Anonymous home directory at stop 
+        # or if oc.od.settings.desktopremovehomedirectory
+        if oc.od.settings.desktopremovehomedirectory or userinfo.name == 'Anonymous':
+            pod_manifest['spec']['containers'][0]['lifecycle'] = {
+                                                                'preStop': {
+                                                                    #  "rm -rf " + oc.od.settings.getballoon_homedirectory()
+                                                                    'exec': { 'command':  [ "/bin/bash", "-c", "rm -rf " + oc.od.settings.getballoon_homedirectory() + "/*" ] }
+                                                                }
+                                                            } 
         # Add printer servive 
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopprinteracl ) and \
            type(oc.od.settings.desktopprinterimage) is str :
