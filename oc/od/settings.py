@@ -121,6 +121,8 @@ defaultnetworknetuserid = None  # id of the default netuser network
 desktopwebhookencodeparams = False  # url encode webhook params 
 desktopwebhookdict         = {}     # addtional dict data
 
+desktopremovehomedirectory = False # remove data homedirectory
+
 # String to route (container target_ip) or (public host url) default is
 # public host 
 websocketrouting = None
@@ -457,6 +459,8 @@ def init_desktop():
     global desktopdnspolicy
     global desktopdnsconfig
     global desktopvnccypherkey
+
+    global desktopremovehomedirectory # for demo
  
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
@@ -504,6 +508,7 @@ def init_desktop():
                                         }
     '''
 
+    desktopremovehomedirectory = gconfig.get('desktop.removehomedirectory')
 
     # check if desktophostconfig contains permit value
     applicationhostconfig = filter_hostconfig( applicationhostconfig )
