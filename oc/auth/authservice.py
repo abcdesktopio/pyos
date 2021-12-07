@@ -307,7 +307,7 @@ class ODAuthTool(cherrypy.Tool):
         authcache = None
         
         # by default user token use Authorization HTTP Header
-        token = cherrypy.request.headers.get('Authorization', None)
+        token = cherrypy.request.headers.get('ABCAuthorization', None)
         if isinstance(token, str):
             if token.startswith( 'Bearer '):
                 # remove the 'Bearer ')
