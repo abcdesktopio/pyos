@@ -168,6 +168,7 @@ class API(object):
     def version(self):
         """
             return the pyos build information as json format
+            load json data file version.json in current directory
         """
         data = { 'date': 'undefined', 'commit': 'undefined' }
         try:
