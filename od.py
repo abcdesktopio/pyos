@@ -171,10 +171,12 @@ class API(object):
         """
         data = { 'date': 'undefined', 'commit': 'undefined' }
         try:
-            with open('version.json') as json_file:
-                data = json.load(json_file)
+            # The input encoding should be UTF-8, UTF-16 or UTF-32.
+            json_file = open('version.json')
+            data = json.load(json_file)
+            json_file.close()
         except Exception as e:
-            logger.error( str(e))
+            logger.error( e )
         return data
 
     @cherrypy.expose
@@ -193,7 +195,7 @@ class ODCherryWatcher(plugins.SimplePlugin):
     def stop(self):
         logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
         # if oc.od.services.services.dockerwatcher exists, stop it
-        if type(oc.od.services.services.dockerwatcher) is oc.od.dockerwatcher.ODDockerWatcher:
+        if isinstance( oc.od.services.services.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher):
             oc.od.services.services.dockerwatcher.stop()
 
 
