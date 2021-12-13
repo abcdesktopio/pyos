@@ -175,7 +175,7 @@ class ODOrchestratorBase(object):
     def createdesktop(self, authinfo, userinfo, **kwargs):
         raise NotImplementedError('%s.createdesktop' % type(self))
 
-    def build_volumes( self, authinfo, userinfo, volume_type, rules, **kwargs):
+    def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs):
         raise NotImplementedError('%s.build_volumes' % type(self))
 
     def findDesktopByUser( self, authinfo, userinfo, **kwargs ):
@@ -446,7 +446,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
         Parameters:            
             authinfo (): user authentification data
-            userinfo (): user informat                            ions 
+            userinfo (): user informations 
 
         Returns:
             findDesktopByUser(authinfo, userinfo, **kwargs ): full completed ODDesktop object
@@ -541,7 +541,18 @@ class ODOrchestrator(ODOrchestratorBase):
         self.logger.info('get cached userinfo are not supported in docker mode')
         return {} 
 
-    def build_volumes( self, authinfo, userinfo, volume_type, rules, **kwargs):
+    def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs):
+        """[build_volumes]
+
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data 
+            volume_type ([str]): 'container_desktop' 'pod_desktop', 'container_app', 'pod_application'
+            rules (dict, optional): [description]. Defaults to {}.
+
+        Returns:
+            [type]: [description]
+        """
         self.logger.debug('')
         volumes = []
         volumesbind = []
@@ -1096,7 +1107,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # build storage volume or directory binding
         # callback_notify( 'Build volumes' )
-        volumes, volumebind = self.build_volumes(authinfo, userinfo, volume_type='container_desktop', rules={}, **kwargs)
+        volumes, volumebind = self.build_volumes(authinfo, userinfo, volume_type='container_desktop', secrets_requirement=None, rules={}, **kwargs)
         myDesktop = None
         
         try:
@@ -1417,7 +1428,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     ]
     ''' 
 
-    def build_volumes( self, authinfo, userinfo, volume_type, rules={}, **kwargs):
+    def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
+        """[build_volumes]
+
+        Args:
+            authinfo ([type]): [description]
+            userinfo ([type]): [description]
+            volume_type ([str]): 'container_desktop' 'pod_desktop', 'container_app', 'pod_application'
+            rules (dict, optional): [description]. Defaults to {}.
+
+        Returns:
+            [type]: [description]
+        """
         
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
@@ -1441,9 +1463,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # mount secret in /var/secrets/abcdesktop
         #
         if volume_type in [ 'pod_desktop', 'container_desktop' ] :
+            # Add VNC password
             mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
             for secret_auth_name in mysecretdict.keys():
-                # https://kubernetes.io/docs/concepts/configuration/secret
                 # create an entry /var/secrets/abcdesktop/vnc
                 secretmountPath = oc.od.settings.desktopsecretsrootdirectory + mysecretdict[secret_auth_name]['type'] 
                 # mode is 644 -> rw-r--r--
@@ -1464,6 +1486,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # /var/secrets/abcdesktop/ntlm
             # /var/secrets/abcdesktop/cntlm
             # /var/secrets/abcdesktop/kerberos
+
+            # only mount secrets_requirement
+            if isinstance( secrets_requirement, list ):
+                if secret_auth_name not in secrets_requirement:
+                    continue
+                                
+
             secretmountPath = oc.od.settings.desktopsecretsrootdirectory + mysecretdict[secret_auth_name]['type'] 
             # mode is 644 -> rw-r--r--
             # Owing to JSON limitations, you must specify the mode in decimal notation.
@@ -1995,7 +2024,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         rules = app.get('rules' )
         network_config = self.applyappinstancerules_network( authinfo, rules )
 
-        (volumebind, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_application', rules=rules, **kwargs)
+        (volumebind, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_application', secrets_requirement=app.secrets_requirement, rules=rules, **kwargs)
         list_volumes = list( volumebind.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumebind.values() )
@@ -2293,7 +2322,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.on_desktoplaunchprogress('Building data storage for your desktop')
 
-        (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', rules=rules,  **kwargs)
+        (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=None, rules=rules,  **kwargs)
         list_volumes = list( volumes.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumes.values() )
@@ -2414,12 +2443,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # by default remove Anonymous home directory at stop 
         # or if oc.od.settings.desktopremovehomedirectory
         if oc.od.settings.desktopremovehomedirectory or userinfo.name == 'Anonymous':
-            pod_manifest['spec']['containers'][0]['lifecycle'] = {
-                                                                'preStop': {
-                                                                    #  "rm -rf " + oc.od.settings.getballoon_homedirectory()
-                                                                    'exec': { 'command':  [ "/bin/bash", "-c", "rm -rf " + oc.od.settings.getballoon_homedirectory() + "/*" ] }
-                                                                }
-                                                            } 
+            pod_manifest['spec']['containers'][0]['lifecycle'] = {  
+                'preStop': {
+                    'exec': { 'command':  [ "/bin/bash", "-c", "rm -rf " + oc.od.settings.getballoon_homedirectory() + "/*" ] }
+                }   
+        }
+         
         # Add printer servive 
         if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktopprinteracl ) and \
            type(oc.od.settings.desktopprinterimage) is str :
