@@ -44,23 +44,13 @@ class AuthController(BaseController):
         self.logger.info( 'config_controller=%s', config_controller )
         super().__init__(config_controller)
         try:
-            self.oauth_html_redirect_page = self.load_local_file(filename=AuthController.redirect_page_local_filename)
+            self.oauth_html_redirect_page = oc.lib.load_local_file(filename=AuthController.redirect_page_local_filename)
         except Exception as e:
             self.logger.error( 'FATAL ERROR %s file is missing', AuthController.redirect_page_local_filename)
             self.logger.error( 'http auth request will failed')
             self.logger.error( e )
             raise ValueError( 'missing file ' + AuthController.redirect_page_local_filename)
 
-    def load_local_file( self, filename ):
-        data = None    
-        self.logger.info( 'Loading local file %s',filename )
-        f = open(filename, encoding='utf-8' )
-        self.logger.info( 'Reading file %s', filename )
-        data = f.read()
-        f.close()
-        self.logger.info( 'dumping data %s file', filename )
-        self.logger.info( data )
-        return data
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -244,11 +234,11 @@ class AuthController(BaseController):
         provider = args.get('provider')         
         if provider is None or services.auth.is_default_metalogin_provider(): 
             # no provider set 
-            # use metalogin 
-            self.logger.info( 'auth is using metalogin' )
+            # use metalogin provider by default
+            self.logger.info( 'auth is using metalogin provider' )
             response = services.auth.metalogin(**args)
         elif isinstance(provider, str ):
-            self.logger.info( 'provider set to %s, use login', args.get('provider') )
+            self.logger.info( 'provider set to %s, use login provider', args.get('provider') )
             response = services.auth.login(**args)
         else:
             self.logger.info( 'ValueError provider excepet str get %s ', str(type(provider)) )
