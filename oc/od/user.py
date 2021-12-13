@@ -93,6 +93,7 @@ def whoami(auth, user):
 
     # check if auth and user are correct type class
     if type(auth) is not oc.auth.authservice.AuthInfo or type(user) is not oc.auth.authservice.AuthUser :
+        # user does not exist
         return userinfo
 
     userinfo['provider'] = auth.provider
