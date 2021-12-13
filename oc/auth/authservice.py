@@ -33,7 +33,7 @@ import ldap3
 
 # kerberos import
 import gssapi
-
+import base64
 import platform
 import chevron  # for citrix All_Regions.ini
 
@@ -54,6 +54,7 @@ import oc.od.resolvdns
 import jwt
 import oc.auth.jwt
 import oc.od.acl
+import oc.lib
 
 
 logger = logging.getLogger(__name__)
@@ -303,33 +304,58 @@ class AuthCache(object):
 @oc.logging.with_logger()
 class ODAuthTool(cherrypy.Tool):
 
+    """   @staticmethod
+    def is_kerberos_request():
+        # Attempts to authenticate the user if a token was provided
+
+        negotiate = cherrypy.request.headers.get('Authorization')
+
+        if isinstance(negotiate, str) and negotiate.startswith('Negotiate '):
+            in_token = base64.b64decode(negotiate[10:])
+
+            creds = None
+            ctx = gssapi.SecurityContext(creds=creds, usage='accept')
+
+            out_token = ctx.step(in_token)
+
+            if ctx.complete:
+                username = str(ctx.initiator_name)
+                logger.debug( 'Negotiate auth -> ' + username )
+                return username, out_token
+
+        return None, None 
+    """
+
     def parse_auth_request(self):
-        authcache = None
+        """[parse_auth_request]
+            parse a http request
+            check if the http request contains the authorization header 'ABCAuthorization'
+            add decode jwt data
+            return empty AuthCache in case of jwt.exceptions.DecodeError 
+            can raise Exception
+        Returns:
+            [AuthCache]: [return an authcahe can be empty or contains decoded data]
+        """
+        authcache = AuthCache() # empty Auth
         
         # by default user token use Authorization HTTP Header
         token = cherrypy.request.headers.get('ABCAuthorization', None)
-        if isinstance(token, str):
-            if token.startswith( 'Bearer '):
-                # remove the 'Bearer ')
-                # len( 'Bearer ') = 7
-                token = token[7:]
+        if isinstance(token, str) and token.startswith( 'Bearer '):
+            # remove the 'Bearer ' : len( 'Bearer ') = 7
+            token = token[7:] 
+            # if there is some data to decode
+            if len(token) > 0 : 
+                try:
+                    # get the dict decoded token
+                    # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
+                    decoded_token = self.jwt.decode( token )
 
-        if token is not None:
-            try:
-                # get the dict decoded token
-                # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
-                decoded_token = self.jwt.decode( token )
-
-                # read user, roles, auth
-                # Build a cache data to store value from decoded token 
-                # into object class AuthCache
-                authcache = AuthCache( decoded_token )
-                authcache.markAuthDoneFromPreviousToken()
-            except jwt.exceptions.DecodeError as e:
-                authcache = AuthCache()
-        else:
-            # empty auth 
-            authcache = AuthCache()
+                    # read user, roles, auth
+                    # Build a cache data to store value from decoded token into an AuthCache object
+                    authcache = AuthCache( decoded_token )
+                    authcache.markAuthDoneFromPreviousToken()
+                except jwt.exceptions.DecodeError as e:
+                    logger.error( e )
         return authcache
 
     @property
@@ -1538,7 +1564,15 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if self.auth_protocol.get('ldif') is None:
             self.auth_protocol['ldif'] = True
 
-        self.citrix_all_regions  = config.get('citrix_all_regions' )
+        # citrix template file 
+        self.citrix_all_regions = None
+        if self.auth_protocol.get('citrix'):
+            self.citrix_all_regions = oc.lib.load_local_file( config.get('citrix_all_regions.ini' ) )
+            if isinstance( self.citrix_all_regions, str):
+                logger.info( 'provider %s has enabled citrix, mustache file %s', name, config.get('citrix_all_regions.ini') )
+            else:
+                logger.error( 'provider %s has disabled citrix, invalid entry citrix_all_regions.ini', name)
+
         self.exec_timeout = config.get('exec_timeout', 10)
         self.tls_require_cert = config.get( 'tls_require_cert', False)
         self.join_key_ldapattribut = config.get( 'join_key_ldapattribut' )
@@ -1654,16 +1688,24 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if not isinstance(userid,str) or len(userid) < 1 :
             raise AuthenticationError('user can not be an empty string')
 
-        if len(userid) > 256 :
-            raise AuthenticationError('user length must be less than 256 characters')
+        # Limit the size of strings that are accepted. As an absolute limit any
+        # user login can be no longer than 104 characters. See [1].
+        # password can be no longer than 128 characters. See [2].
+        #
+        # [1] - https://technet.microsoft.com/en-us/library/bb726984.aspx
+        # [2] - https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/ntlm-user-authentication
+        #
+
+        if len(userid) >= 104 :
+            raise AuthenticationError('user login can be no longer than 104 characters')
 
         if not isinstance(password,str) or len(password) < 1 :
             raise AuthenticationError('password can not be an empty string')
 
         # ntlm password length Limit.
-        # Maximum number of characters supported for plain-text ntlm config is 127
-        if len(password) > 127 :
-            raise AuthenticationError('password length must be less than 127 characters')
+        # Maximum number of characters supported for plain-text ntlm config is 128
+        if len(password) > 128 :
+            raise AuthenticationError('password can be no longer than 128 characters')
 
         if self.auth_only is True:
             raise AuthenticationError('auth_only is set to True, but ldap.bind need to complete auth')
@@ -2015,7 +2057,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         if self.auth_protocol.get('citrix') is True :
             try:
-                dict_hash = self.generateCitrixAllRegionsini ( userid, password, self.domain) 
+                dict_hash = self.generateCitrixAllRegionsini( username=userid, password=password, domain=self.domain) 
                 if isinstance( dict_hash, dict ):
                     default_authenv.update( { 'citrix' : { **dict_hash } } )
             except Exception as e:
@@ -2232,12 +2274,26 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         return hashes
 
-    def generateCitrixAllRegionsini(self, user, password, domain ):
+    def generateCitrixAllRegionsini(self, username, password, domain ):
+        """[generateCitrixAllRegionsini]
+            Fill a template data to generate the All_Regions.ini user file
+        Args:
+            username ([str]): [user name]
+            password ([str]): [password in clear text format]
+            domain   ([str]): [domain name]
+
+        Returns:
+            [dict]: [All_Regions.ini hash dict]
+        """
         hashes = {}
+        # citrix_all_regions contains mustache template file data
         if isinstance(self.citrix_all_regions, str) :
             # read https://www.citrix.com/content/dam/citrix/en_us/documents/downloads/citrix-receiver/linux-oem-guide-13-1.pdf
+            # These settings handle passwords stored on the client machine.
             self.logger.debug('Generating file All_Regions.ini for citrix-receiver')
-            data = chevron.render( self.citrix_all_regions, {'user': user, 'password': password, 'domain': domain })
+            # fill data with dict entries
+            data = chevron.render( self.citrix_all_regions, {'username': username, 'password': password, 'domain': domain })
+            # return the All_Regions.ini hash dict
             hashes = { 'All_Regions.ini' : data }
         return hashes
 
