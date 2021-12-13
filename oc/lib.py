@@ -125,6 +125,24 @@ def removeCookie(name, path='/'):
     cherrypy.response.cookie[name]['expires'] = 0
     cherrypy.response.cookie[name]['path'] = path
 
+
+def load_local_file( filename ):
+    """[load_local_file]
+        load file utf-8 text data 
+    Args:
+        filename ([str]): [filename]
+
+    Returns:
+        [str]: [file content]
+        if filename is None, return None
+    """
+    data = None    
+    if isinstance(filename, str) :
+        f = open(filename, encoding='utf-8' )
+        data = f.read()
+        f.close()
+    return data
+
 '''
 def _bytesTostr( b ):
     str = b
