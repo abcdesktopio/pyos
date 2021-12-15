@@ -148,17 +148,13 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
         self.homeDrive     = homeDrive
         self.networkPath   = networkPath
         self.mountOptions  = mountOptions
-        entry              = homeDrive
 
         if isinstance( self.homeDrive, str ):
             # remove the last char if it is ':'
-            l = len(self.homeDrive) - 1
-            if l>0 :
-                if self.homeDrive[l-1] == ':':
-                    entry =  self.homeDrive[0:l] 
-                    self._containertarget  = '/home/balloon/' + entry
+            if self.homeDrive[-1] == ':':
+                self._containertarget  = '/home/balloon/' + self.homeDrive[0:-1] 
             else:
-                self._containertarget  = '/home/balloon/' + self.homeDrive
+                self._containertarget  = '/home/balloon/' + self.homeDrive 
 
     def is_mountable( self ):
         return all( [ super().is_mountable(), self.homeDrive, self.networkPath, self._containertarget ] )
