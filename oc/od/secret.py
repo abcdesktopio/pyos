@@ -43,11 +43,13 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
     # secret_cls_dict is a dict of class 
     # key   : is the class name equal to the secret_type
     # value : is the class object 
-    secret_cls_dict = { 'cifs':    ODSecretCIFS,
-                        'webdav':  ODSecretWEBDAV,
-                        'ldif':    ODSecretLDIF,
-                        'vnc':     ODSecretVNC,
-                        'citrix':  ODSecretCitrix }
+    secret_cls_dict = { 'cifs':             ODSecretCIFS,                # use NTLM auth for compatibility cifs use by default cifs_ntlm
+                        'cifs_ntlm':        ODSecretCIFS,                # use NTLM auth
+                        'cifs_kerberos' :   ODSecretCIFSKerberos,        # use KERBEROS auth
+                        'webdav':           ODSecretWEBDAV,
+                        'ldif':             ODSecretLDIF,
+                        'vnc':              ODSecretVNC,
+                        'citrix':           ODSecretCitrix }
     # get the class from the secret_type
     secret_cls = secret_cls_dict.get( secret_type, ODSecret )
     # instance the class
@@ -61,8 +63,7 @@ def list_secretype():
     Returns:
         [list]: [list of supported secret type]
     """
-    return [ 'cifs', 'webdav', 'ldif', 'citrix', 'vnc' ]
-
+    return [ 'cifs', 'cifs_kerberos', 'webdav', 'ldif', 'citrix', 'vnc' ]
 
 @oc.logging.with_logger()
 class ODSecret():
@@ -251,6 +252,7 @@ class ODSecretCitrix( ODSecret ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='auth'
 
+
 class ODSecretRemoteFileSystemDriver( ODSecret ):
     """[class ODSecretRemoteFileSystemDriver]
         Create a secret used by for Remote File System driver 
@@ -262,6 +264,7 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix, secret_type ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='driver'
+        self.authprotocol='ntlm'
 
     def read_credentials( self, userinfo ):
         self.logger.info('')
@@ -299,9 +302,10 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
         ## Mount values are set to data dict 
 
         # Default secret 
-        mydict_secret = {   'username'  :  ODSecret.strtob64( userid ),
-                            'password'  :  ODSecret.strtob64( password ),
-                            'data'      :  ODSecret.strtob64( str_dict_data)                      
+        mydict_secret = {   'username'      :   ODSecret.strtob64( userid ),
+                            'password'      :   ODSecret.strtob64( password ),
+                            'data'          :   ODSecret.strtob64( str_dict_data),
+                            'authprotocol'  :   ODSecret.strtob64( self.authprotocol)                       
         }
 
         # append domain only if set 
@@ -311,12 +315,80 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
         return mydict_secret
 
 
+class ODSecretRemoteFileSystemDriverUsingKerberosAuth( ODSecret ):
+    """[class ODSecretRemoteFileSystemDriver]
+        Create a secret used by for Remote File System driver 
+    Args:
+        ODSecret ([ODSecret]): [ODSecret class]
+
+    """
+
+    def __init__( self, namespace, kubeapi, prefix, secret_type ):
+        super().__init__( namespace, kubeapi, prefix, secret_type)
+        self.access_type='driver'
+        self.authprotocol='kerberos'
+
+    def read_credentials( self, userinfo ):
+        self.logger.info('')
+        credentials = {}
+        mysecret = self.read( userinfo )
+        if mysecret is None:
+            self.logger.error('read secret return None, credentials failed')
+            return credentials
+
+        credentials['principal'] = ODSecret.b64tostr( mysecret.data.get('principal') )
+        credentials['realm']     = ODSecret.b64tostr( mysecret.data.get('realm') )
+        credentials['krb5_conf'] = ODSecret.b64tostr( mysecret.data.get('krb5_conf') )
+        credentials['keytab']    = ODSecret.b64tobytes( mysecret.data.get('keytab') )
+
+        return credentials
+    
+    def read_data( self, arguments ):
+        mysecret = self.read( arguments )
+        if mysecret is None:
+            self.logger.error('read secret return None, data failed')
+            return {}
+        data = mysecret.data
+        data = data.get('data')
+        if data :
+             return json.loads( ODSecret.b64tostr( data ) )
+        return {} 
+
+    def _create_dict(self, authinfo, userinfo, arguments):       
+        # Value must exists
+        principal   = authinfo.data['environment']['kerberos']['PRINCIPAL']    # Exception if not set
+        realm       = authinfo.data['environment']['kerberos']['REALM']
+        keytab      = authinfo.data['environment']['kerberos']['keytab'] 
+        krb5_conf   = authinfo.data['environment']['kerberos']['krb5_conf'] 
+
+        str_dict_data   = json.dumps( arguments )
+        
+        ## Driver use values
+        ## cifsPrincipalBase64="$(jq --raw-output -e '.["kubernetes.io/secret/principal"]' <<< "$json" 2>/dev/null)"
+	    ## cifsKeytabBase64="$(jq --raw-output -e '.["kubernetes.io/secret/keytab"]' <<< "$json" 2>/dev/null)"
+	    ## cifsRealmBase64="$(jq --raw-output -e '.["kubernetes.io/secret/realm"]' <<< "$json" 2>/dev/null)"
+        ## Mount values are set to data dict 
+
+        # Default secret 
+        mydict_secret = {   'principal' :   ODSecret.strtob64( principal ),
+                            'realm'     :   ODSecret.strtob64( realm ),
+                            'keytab'    :   ODSecret.bytestob64( keytab ),
+                            'krb5_conf' :   ODSecret.strtob64( krb5_conf ),
+                            'data'      :   ODSecret.strtob64( str_dict_data),
+                            'authprotocol': ODSecret.strtob64( self.authprotocol)                        
+        }
+
+        return mydict_secret
+
 class ODSecretCIFS( ODSecretRemoteFileSystemDriver ):
     ''' Create a secret used for CIFS driver ''' 
     def __init__( self, namespace, kubeapi, prefix, secret_type='cifs' ):
         super().__init__( namespace, kubeapi, prefix, secret_type )
 
-
+class ODSecretCIFSKerberos( ODSecretRemoteFileSystemDriverUsingKerberosAuth ):
+    ''' Create a secret used for CIFS driver ''' 
+    def __init__( self, namespace, kubeapi, prefix, secret_type='cifs' ):
+        super().__init__( namespace, kubeapi, prefix, secret_type )
 
 class ODSecretWEBDAV( ODSecretRemoteFileSystemDriver ):
     ''' Create a secret used for WEBDAV driver ''' 
