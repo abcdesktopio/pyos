@@ -2102,6 +2102,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return userid + '@' + self.kerberos_realm
 
     def run_kinit( self, krb5ccname, userid, password ):
+        exported_cred = None
         kerberos_principal = self.get_kerberos_principal( userid )
         user = gssapi.Name(base=kerberos_principal, name_type=gssapi.NameType.user)
         bpass = password.encode('utf-8')
@@ -2109,18 +2110,21 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # KRB5CCNAME = b"MEMORY:%userid%"
         # KRB5CCNAME = b"FILE:/tmp/krb5cc_1000"
 
-
         # this section code can raise gssapi.exceptions.GSSError
         req_creds = gssapi.raw.acquire_cred_with_password(user, bpass, usage='initiate')
         
         if isinstance( req_creds, gssapi.raw.AcquireCredResult):
             krb5ccname = str.encode(krb5ccname) # convert krb5ccname from str to bytes
             # context = gssapi.SecurityContext(name=server_name, creds=creds, usage='initiate')
-            store_cred_result = gssapi.raw.store_cred_into( {b'ccache': krb5ccname}, 
-                                                            req_creds.creds, 
+            store_cred_result = gssapi.raw.store_cred_into( store={b'ccache': krb5ccname},
+                                                            creds=req_creds.creds,
                                                             usage="initiate", 
                                                             overwrite=True )
-        
+            logger.debug( 'store_cred_into %s %s', krb5ccname, store_cred_result.usage )
+            exported_cred = gssapi.raw.export_cred(req_creds.creds)
+
+        return exported_cred
+
         ''' old code version with kinit subprocess
             userPrincipalName = userid + '@' + self.kerberos_realm
             cmd = [ self.kerberos_kinit, '-c', krb5ccname, userPrincipalName ]
@@ -2213,7 +2217,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 kbr5conf_file =  open( self.kerberos_krb5_conf )
                 krb5conf = kbr5conf_file.read() 
                 kbr5conf_file.close()
-                keytab = { 'keytab' : keytabdata, 'krb5.conf': krb5conf }  
+                keytab = { 'keytab' : keytabdata, 'krb5_conf': krb5conf }
             except Exception as e:
                 self.logger.error('read keytab file %s error: %s', koutputfilename, str(e))
         else:
@@ -2359,7 +2363,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         self.domain_fqdn = config.get('domain_fqdn')
         self.domain = config.get('domain', self.domain_fqdn.split('.',1)[0] if self.domain_fqdn else self.name)
         if not isinstance(self.domain, str) :
-            raise ValueError("Property domain must be set sa string for active directory")
+            raise ValueError("Property domain must be set as string for active directory")
         else:
             self.domain = self.domain.upper()
         self.query_dcs = config.get('query_dcs', False) is True
