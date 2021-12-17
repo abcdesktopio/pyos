@@ -1534,7 +1534,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 fstype = mountvol.fstype
                 volume_name = self.get_volumename( mountvol.name, userinfo )
                 # mount the remote home dir as a flexvol
-                # WARNING ! if the flexvol mount failed, pod will starts 
+                # WARNING ! if the flexvol mount failed, the pod must start
                 # abcdesktop/cifs always respond a success
                 # in case of failure access right is denied                
                 # the flexvolume driver abcdesktop/cifs MUST be deploy on each node
@@ -1744,17 +1744,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Create flexvolume secrets
         rules = oc.od.settings.desktoppolicies.get('rules')
         if rules is not None:
-          mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo,  rules.get('volumes') )
-          for mountvol in mountvols:  
-              # use as a volume defined and the volume is mountable
-              fstype = mountvol.fstype # Get the fstype: for example 'cifs' or 'webdav'          
-              # Flex volume use kubernetes secret, add mouting path
-              arguments = { 'mountPath': mountvol.containertarget, 'networkPath': mountvol.networkPath }
-              # Build the kubernetes secret 
-              secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype)
-              auth_secret = secret.create( authinfo, userinfo, arguments )
-              if auth_secret is None:
-                 self.logger.error( 'Failed to build auth secret fstype=%s', fstype )
+            mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo,  rules.get('volumes') )
+            for mountvol in mountvols:
+                # use as a volume defined and the volume is mountable
+                fstype = mountvol.fstype # Get the fstype: for example 'cifs' or 'cifskerberos' or 'webdav'
+                # Flex volume use kubernetes secret, add mouting path
+                arguments = { 'mountPath': mountvol.containertarget, 'networkPath': mountvol.networkPath }
+                # Build the kubernetes secret
+                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype)
+                auth_secret = secret.create( authinfo, userinfo, arguments )
+                if auth_secret is None:
+                    self.logger.error( 'Failed to build auth secret fstype=%s', fstype )
 
 
     def get_annotations_lastlogin_datetime(self):
@@ -2024,7 +2024,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         rules = app.get('rules' )
         network_config = self.applyappinstancerules_network( authinfo, rules )
 
-        (volumebind, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_application', secrets_requirement=app.secrets_requirement, rules=rules, **kwargs)
+        (volumebind, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_application', secrets_requirement=app.get('secrets_requirement'), rules=rules, **kwargs)
         list_volumes = list( volumebind.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumebind.values() )
