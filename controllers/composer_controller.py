@@ -348,8 +348,11 @@ class ComposerController(BaseController):
             desktop = oc.od.composer.opendesktop( auth, user, args ) 
 
             # safe check for desktop type
-            if not isinstance(desktop, oc.od.desktop.ODDesktop):                
-                return Results.error('Desktop creation failed')
+            if not isinstance(desktop, oc.od.desktop.ODDesktop):   
+                if isinstance(desktop, str):     
+                    return Results.error(desktop)
+                else:
+                    return Results.error('Desktop creation failed')
 
             # safe check for futur desktop.internaluri usage 
             if not hasattr( desktop, 'internaluri') or desktop.internaluri is None:                
