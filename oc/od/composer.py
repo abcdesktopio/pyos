@@ -116,6 +116,8 @@ def opendesktop(authinfo, userinfo, args ):
         else:
             services.accounting.accountex( desktoptype, 'createfailed')
             logger.error('Cannot create a new desktop') 
+            if isinstance( desktop, str) :
+                return desktop
             return None
             
     return desktop
@@ -473,7 +475,10 @@ def createdesktop( authinfo, userinfo, args  ):
         logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
         services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
     else:
-        messageinfo.push('createDesktop error - myOrchestrator.createDesktop return None')
+        if isinstance( myDesktop, str ):
+            messageinfo.push(myDesktop)
+        else:
+            messageinfo.push('createDesktop error - myOrchestrator.createDesktop return None')
     return myDesktop
 
 
