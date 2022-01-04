@@ -564,8 +564,7 @@ class ODAuthTool(cherrypy.Tool):
                 logger.warning('invalid value type boolean %s, bool is expected in rule', type(value) )
                 return False  
 
-            if value is True: return True
-            return False
+            return value
 
         def isMemberOf(roles, groups) :
             if type(roles) is not list:  
@@ -982,7 +981,7 @@ class ODAuthTool(cherrypy.Tool):
         Returns:
             [provider]: [the default provider, None is not set]
         """
-        m = list( filter(lambda p: p.is_default(), providers.values()))
+        m = list( filter(lambda p: p.is_default(), providers ))
         default_provider = m[0] if len(m)>0 else None
         return default_provider
 
@@ -2102,7 +2101,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return userid + '@' + self.kerberos_realm
 
     def run_kinit( self, krb5ccname, userid, password ):
-        exported_cred = None
+        store_cred_result = None
         kerberos_principal = self.get_kerberos_principal( userid )
         user = gssapi.Name(base=kerberos_principal, name_type=gssapi.NameType.user)
         bpass = password.encode('utf-8')
@@ -2121,9 +2120,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                                             usage="initiate", 
                                                             overwrite=True )
             logger.debug( 'store_cred_into %s %s', krb5ccname, store_cred_result.usage )
-            exported_cred = gssapi.raw.export_cred(req_creds.creds)
+            # exported_cred = gssapi.raw.export_cred(req_creds.creds)
 
-        return exported_cred
+        return store_cred_result
 
         ''' old code version with kinit subprocess
             userPrincipalName = userid + '@' + self.kerberos_realm
@@ -2323,7 +2322,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             if ret!=0:
                 raise RuntimeError('Command cntml returned error code: %s' % ret)
 
-            # Output is :
+            # Output of is cntlm_command is :
             # Password: 
             # PassLM          24996FE06B4235F061EEE95D1308178F
             # PassNT          11C803BC30FD15CCA7D19566C0F2940C
