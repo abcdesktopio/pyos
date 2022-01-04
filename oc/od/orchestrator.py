@@ -2540,42 +2540,81 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.on_desktoplaunchprogress('Create Pod failed.' )
             raise ValueError( 'Invalid create_namespaced_pod type')
 
+        number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
         self.on_desktoplaunchprogress('Watching for events from services')
+        object_type = None
+        message = ''
+        number_of_container_started = 0
 
         w = watch.Watch()                 
-        for event in w.stream(  self.kubeapi.list_namespaced_pod, 
+        # for event in w.stream(  self.kubeapi.list_namespaced_pod, 
+        #                        namespace=self.namespace, 
+        #                        field_selector='metadata.name=' + pod_name ):  
+        #      out = self.kubeapi.core_api.list_namespaced_event(self.namespace, field_selector=f'involvedObject.name={pod_name}')    
+        for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
-                                field_selector='metadata.name=' + pod_name ):                        
-            event_type = event.get('type')
-            if event_type is None:
-                # nothing to do 
+                                field_selector=f'involvedObject.name={pod_name}' ):   
+
+            '''
+            const (
+                FailedToKillPod                = "FailedKillPod"
+                FailedToCreatePodContainer     = "FailedCreatePodContainer"
+                FailedToMakePodDataDirectories = "Failed"
+                NetworkNotReady                = "NetworkNotReady"
+            )
+
+            const (
+                CreatedContainer        = "Created"
+                StartedContainer        = "Started"
+                FailedToCreateContainer = "Failed"
+                FailedToStartContainer  = "Failed"
+                KillingContainer        = "Killing"
+                PreemptContainer        = "Preempting"
+                BackOffStartContainer   = "BackOff"
+                ExceededGracePeriod     = "ExceededGracePeriod"
+            )           
+            '''              
+
+            event_object = event.get('object')
+            # event_object must be an V1Event 
+            # else skip it 
+            if not isinstance(event_object, client.models.v1_event.V1Event ):
                 continue
 
-            self.logger.info('count=%d event_type=%s ', nEventCount, event['type'] )
-            self.on_desktoplaunchprogress('{} event received', event_type.lower() )
+             # // Valid values for event types (new types could be added in future)
+            # const (
+            #    // Information only and will not cause any problems
+            #    EventTypeNormal string = "Normal"
+            #    // These events are to warn that something might go wrong
+            #    EventTypeWarning string = "Warning"
+            # )
+            object_type    = event.get('object').type
+            object_reason  = event.get('object').reason
+            object_message = event.get('object').message
+            message = f"{object_type} {object_reason} {object_message}"
+            self.logger.info(message)
+            self.on_desktoplaunchprogress( message )
 
-            nEventCount +=1
-            if nEventCount > nMaxEvent:                            
+            if object_type == 'Normal' and object_reason == 'Started' :
+                number_of_container_started = number_of_container_started +1
+                if number_of_container_started >= number_of_container_to_start:
+                    self.logger.info(f'number_of_container_started {number_of_container_started}/{number_of_container_to_start}')
+                    w.stop()
+                    continue
+
+            if object_type == 'Warning':
+                self.logger.error(message)
                 w.stop()  
+                continue
             
-            if event_type == 'ADDED':
-                self.logger.info('event type ADDED received')
-                # the pod has been added
-                # wait for next MODIFIED event type
-                
-            if event_type == 'MODIFIED':
-                self.logger.info('event type MODIFIED received')
-                # pod_event = w.unmarshal_event( data=event['object'], return_type=type(pod) )
+            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)  
+            if myPod.status.phase != 'Pending' :
+                self.logger.info(f'{myPod.status.phase} != Pending')
+                w.stop()                           
 
-            pod_event = event.get('object')
-            
-            if type(pod_event) == type(pod) :                            
-                self.on_desktoplaunchprogress('Install process can take up to 10 s. Status is {}:{}', pod_event.status.phase, event_type.lower() )
-                if pod_event.status.phase != 'Pending' :
-                    self.logger.info('Stop event')
-                    w.stop()                          
-
-        self.logger.debug( "%d/%d", nEventCount, nMaxEvent )
+        # if on error occurs
+        if object_type == 'Warning':
+            return message
         
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
         self.on_desktoplaunchprogress('Your desktop phase is {}.', myPod.status.phase.lower() )
