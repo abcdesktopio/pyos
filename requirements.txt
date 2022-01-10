@@ -8,7 +8,7 @@ GeoIP
 graypy
 iso8601
 jira==2.0.0
-kubernetes
+kubernetes==12.0.1
 ldap3
 netaddr
 PyJWT==2.0.0
