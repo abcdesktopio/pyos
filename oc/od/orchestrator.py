@@ -2553,9 +2553,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         message = ''
         number_of_container_started = 0
 
-
-        self.on_desktoplaunchprogress( 'WATCH 1' )
-
         w = watch.Watch()                 
         # for event in w.stream(  self.kubeapi.list_namespaced_pod, 
         #                        namespace=self.namespace, 
@@ -2635,9 +2632,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if object_type == 'Warning':
             return message
 
-
-        self.on_desktoplaunchprogress( 'WATCH 2' )
-        self.logger.info('WATCH 2')
         # waiting for a valid ip addr
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
@@ -2661,20 +2655,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # pod_event = w.unmarshal_event( data=event['object'], return_type=type(pod) )
 
             pod_event = event.get('object')
-            self.logger.info('WATCH 3')
             if type(pod_event) == type(pod) :  
                 self.on_desktoplaunchprogress('Your %s is %s', pod_event.kind, event_type.lower() )           
-                self.logger.info('WATCH 4')
                 if pod_event.status.pod_ip is not None:
-                    self.logger.info('WATCH 5')
                     self.on_desktoplaunchprogress('Your pod gets an ip %s from network plugin', pod_event.status.pod_ip ) 
                     w.stop()    
                 else:
-                    self.logger.info('WATCH 6')
                     self.logger.info('Your pod has NO ip adress ')
                     self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')   
-                                
-        self.logger.info('WATCH 7')
         #
         #    myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
         #    if myPod.status.pod_ip is None:
