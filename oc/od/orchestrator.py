@@ -427,9 +427,8 @@ class ODOrchestratorBase(object):
         return key.decode( 'utf-8' )
 
     @staticmethod
-    def generate_spawnercookie():
-        # generate key, SPAWNER 
-        # use cat /etc/pulse/cookie | openssl rc4 -K "$PULSEAUDIO_COOKIE" -nopad -nosalt > ~/.config/pulse/cookie
+    def generate_broadcastcookie():
+        # generate key, SPAWNER and BROADCAT service
         # use os.urandom(24) as key 
         key = binascii.b2a_hex(os.urandom(24))
         return key.decode( 'utf-8' )
@@ -1285,6 +1284,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.namespace = oc.od.settings.namespace
             self.bConfigure = True
             self.name = 'kubernetes'
+            self.createpod_timeout=30   # createpod_timeout timeout - time before disconnecting stream for watch
 
             # defined remapped tmp volume
             # if app is a pod use a specifed path in /var/abcdesktop/pods
@@ -2051,6 +2051,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env.update( {   'DISPLAY': desktop_ip_addr + ':0',
                         'CONTAINER_IP_ADDR': desktop_ip_addr,   # CONTAINER_IP_ADDR is used by ocrun node js command 
                         'XAUTH_KEY': myDesktop.xauthkey,
+                        'BROADCAST_COOKIE': myDesktop.broadcast_coookie,
                         'PULSEAUDIO_COOKIE': myDesktop.pulseaudio_cookie,
                         'PULSE_SERVER': desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT),
                         'CUPS_SERVER':  desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
@@ -2252,8 +2253,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         pulseaudio_cookie = self.generate_pulseaudiocookie()
         env[ 'PULSEAUDIO_COOKIE' ] = pulseaudio_cookie    
 
-        spawner_cookie = self.generate_spawnercookie()
-        env[ 'SPAWNER_COOKIE' ] = spawner_cookie 
+        # generate BROADCAST cookie
+        broadcast_cookie = self.generate_broadcastcookie()
+        env[ 'BROADCAST_COOKIE' ] = broadcast_cookie 
 
         # build label dictionnary
         labels = {  'access_provider':  authinfo.provider,
@@ -2262,7 +2264,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'domain':           self.endpoint_domain,
                     'netpol/ocuser' :   'true',
                     'xauthkey':         xauth_key, 
-                    'pulseaudio_cookie': pulseaudio_cookie  }
+                    'pulseaudio_cookie': pulseaudio_cookie,
+                    'broadcast_cookie':  broadcast_cookie }
 
         # check if we run the desktop in metappli mode or desktop mode
         if type(appname) is str :
@@ -2280,7 +2283,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         myuuid = str(uuid.uuid4())
         pod_name = self.get_podname( authinfo, userinfo, myuuid ) 
-        container_name = self.get_graphicalcontainername( userinfo.userid, myuuid )         
+        container_graphical_name = self.get_graphicalcontainername( userinfo.userid, myuuid )         
 
         # envdict to envlist
         envlist = []
@@ -2422,7 +2425,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'containers': [ { 
                                     'imagePullPolicy': 'IfNotPresent',
                                     'image': image,
-                                    'name': container_name,
+                                    'name': container_graphical_name,
                                     'command': command,
                                     'args': args,
                                     'env': envlist,
@@ -2550,6 +2553,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         message = ''
         number_of_container_started = 0
 
+
+        self.on_desktoplaunchprogress( 'WATCH 1' )
+
         w = watch.Watch()                 
         # for event in w.stream(  self.kubeapi.list_namespaced_pod, 
         #                        namespace=self.namespace, 
@@ -2557,76 +2563,122 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #      out = self.kubeapi.core_api.list_namespaced_event(self.namespace, field_selector=f'involvedObject.name={pod_name}')    
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
-                                field_selector=f'involvedObject.name={pod_name}' ):   
-
-            '''
-            const (
-                FailedToKillPod                = "FailedKillPod"
-                FailedToCreatePodContainer     = "FailedCreatePodContainer"
-                FailedToMakePodDataDirectories = "Failed"
-                NetworkNotReady                = "NetworkNotReady"
-            )
-
-            const (
-                CreatedContainer        = "Created"
-                StartedContainer        = "Started"
-                FailedToCreateContainer = "Failed"
-                FailedToStartContainer  = "Failed"
-                KillingContainer        = "Killing"
-                PreemptContainer        = "Preempting"
-                BackOffStartContainer   = "BackOff"
-                ExceededGracePeriod     = "ExceededGracePeriod"
-            )           
-            '''              
-
-            event_object = event.get('object')
-            # event_object must be an V1Event 
-            # else skip it 
-            if not isinstance(event_object, client.models.v1_event.V1Event ):
+                                timeout_seconds=self.createpod_timeout,
+                                field_selector=f'involvedObject.name={pod_name}' ):  
+            if not isinstance(event, dict ):
+                self.logger.error( 'event type is %s, and should be a dict, skipping event', type( event ))
                 continue
 
-             # // Valid values for event types (new types could be added in future)
-            # const (
-            #    // Information only and will not cause any problems
-            #    EventTypeNormal string = "Normal"
-            #    // These events are to warn that something might go wrong
-            #    EventTypeWarning string = "Warning"
-            # )
-            object_type    = event.get('object').type
-            object_reason  = event.get('object').reason
-            object_message = event.get('object').message
-            if isinstance(object_message, str) and len(object_message)>0:
-                 message = f"{object_type} {object_message}"     
+            event_object = event.get('object')
+            if not isinstance(event_object, client.models.v1_event.V1Event ):
+                self.logger.error( 'event_object type is %s  skipping event', type( event_object ))
+                continue
+
+            self.logger.info(event_object)
+
+            # Valid values for event types (new types could be added in future)
+            #    EventTypeNormal string = "Normal"      // Information only and will not cause any problems
+            #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
+            object_type = event_object.type
+            if isinstance(event_object.message, str) and len(event_object.message)>0:
+                message = f"{object_type} {event_object.message}"     
             else:
-                message = f"{object_type} {object_reason}"
+                message = f"{object_type} {event_object.reason}"
                 
             self.logger.info(message)
             self.on_desktoplaunchprogress( message )
 
-            if object_type == 'Normal' and object_reason == 'Started' :
-                number_of_container_started = number_of_container_started +1
+            if object_type == 'Normal' and event_object.reason == 'Started' :
+                # one container has started 
+                # w.stop()
+                # self.on_desktoplaunchprogress( 'read_namespaced_pod name=' + pod_name )
+                # self.logger.info('read_namespaced_pod name=' + pod_name )
+                number_of_container_started += 1
                 if number_of_container_started >= number_of_container_to_start:
-                    self.logger.info(f'number_of_container_started {number_of_container_started}/{number_of_container_to_start}')
                     w.stop()
                     continue
+
+                myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)  
+                # check if the graphical container is started
+                for c in myPod.status.container_statuses:
+                    # look for the ontainer_graphical_name
+                    if c.name == container_graphical_name:
+                        self.on_desktoplaunchprogress(  c.name + ' is starting' )
+                        if c.started is True :
+                            # the graphical container is ready 
+                            # self.on_desktoplaunchprogress( '%s is started', container_graphical_name )
+                            w.stop()
 
             if object_type == 'Warning':
                 self.logger.error(message)
                 w.stop()  
-                continue
             
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)  
-            if myPod.status.phase != 'Pending' :
-                self.logger.info(f'{myPod.status.phase} != Pending')
-                w.stop()                           
+            # myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
+            # self.logger.debug(f'Pod phase is {myPod.status.phase}')
+            # phase:
+            # 
+            # Value	Description
+            # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. 
+            #           This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
+            # Running	The Pod has been bound to a node, and all of the containers have been created. 
+            #           At least one container is still running, or is in the process of starting or restarting.
+            # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
+            # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure. 
+            #           That is, the container either exited with non-zero status or was terminated by the system.
+            # Unknown	For some reason the state of the Pod could not be obtained. 
+            #           This phase typically occurs due to an error in communicating with the node where the Pod should be running. 
+            # if myPod.status.phase != 'Pending' :
+            #    self.logger.info(f'{myPod.status.phase} != Pending')
+            #    w.stop()                     
 
         # if on error occurs
         if object_type == 'Warning':
             return message
-        
-        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
-        self.on_desktoplaunchprogress('Your desktop phase is {}.', myPod.status.phase.lower() )
-        
+
+
+        self.on_desktoplaunchprogress( 'WATCH 2' )
+        self.logger.info('WATCH 2')
+        # waiting for a valid ip addr
+        w = watch.Watch()                 
+        for event in w.stream(  self.kubeapi.list_namespaced_pod, 
+                                namespace=self.namespace, 
+                                timeout_seconds=self.createpod_timeout,
+                                field_selector='metadata.name=' + pod_name ):                        
+            event_type = event.get('type')
+            if event_type is None:
+                # nothing to do 
+                continue
+            
+            if event_type == 'ADDED':
+                event_object = event.get('object')
+                kind = event_object.kind
+                
+                # the pod has been added
+                # wait for next MODIFIED event type
+                
+            if event_type == 'MODIFIED':
+                self.logger.info('event type MODIFIED received')
+                # pod_event = w.unmarshal_event( data=event['object'], return_type=type(pod) )
+
+            pod_event = event.get('object')
+            
+            if type(pod_event) == type(pod) :  
+                self.on_desktoplaunchprogress('Your %s is %s', pod_event.kind, event_type.lower() )           
+            
+                if pod_event.status.pod_ip is not None:
+                    self.on_desktoplaunchprogress('Your pod gets an ip %s from network plugin', pod_event.status.pod_ip ) 
+                    w.stop()    
+                else:
+                    self.logger.info('Pod has NO ip adress ' + pod_event.status.pod_ip)
+                    self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')               
+
+        #
+        #    myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
+        #    if myPod.status.pod_ip is None:
+        #          self.on_desktoplaunchprogress('Wainting for an ip address from the network plugin' )
+        #          time.sleep( 1 )
+
+        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
@@ -2849,6 +2901,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                 fqdn = internal_pod_fqdn,
                                                 xauthkey = pod.metadata.labels.get('xauthkey'),
                                                 pulseaudio_cookie = pod.metadata.labels.get('pulseaudio_cookie'),
+                                                broadcast_cookie = pod.metadata.labels.get('broadcast_cookie'),
                                                 desktop_interfaces = desktop_interfaces,
                                                 websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
                                                 websocketroute = pod.metadata.labels.get('websocketroute') )
