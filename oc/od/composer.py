@@ -466,11 +466,11 @@ def createdesktop( authinfo, userinfo, args  ):
     myDesktop = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo,  **myCreateDesktopArguments )
 
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
             messageinfo.push('Webhooking network services')
         else:
             messageinfo.push('Starting network services, it will take a while.')
-        logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
         messageinfo.push('Network services started.')
         logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
