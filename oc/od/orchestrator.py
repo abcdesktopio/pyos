@@ -13,6 +13,7 @@
 #
 
 import logging
+from unicodedata import lookup
 from oc.od.apps import ODApps
 import oc.logging
 import oc.od.settings
@@ -28,7 +29,6 @@ import iso8601
 
 import yaml
 import json
-import distutils.util
 import uuid
 import chevron
 import requests
@@ -360,6 +360,8 @@ class ODOrchestratorBase(object):
         # check if supervisor has stated all processs
         nCount = 1
         bListen = { 'x11server': False, 'spawner': False }
+        # loop
+        # wait for a listen dict { 'x11server': True, 'spawner': True }
         while nCount < 42:
             # check if WebSockifyListening id listening on tcp port 6081
             if bListen['x11server'] is False:
@@ -370,15 +372,17 @@ class ODOrchestratorBase(object):
                 nCount += 1
 
             # check if spawner is ready 
-            if bListen['x11server'] is True:
+            if bListen['spawner'] is False:
                 messageinfo = 'Starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
                 bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktopservicestcpport['spawner'] )
                 self.logger.info('service:spawner return %s', str(bListen['spawner']))  
-                if bListen['spawner'] is True:                          
-                    callback_notify('Desktop services are ready after %d s' % (nCount) )              
-                    return True
                 nCount += 1
+
+            if bListen['x11server'] is True and bListen['spawner'] is True:                       
+                callback_notify('Desktop services are ready after %d s' % (nCount) )              
+                return True
+
             # wait one second    
             time.sleep(1)
         
@@ -2591,7 +2595,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             object_type    = event.get('object').type
             object_reason  = event.get('object').reason
             object_message = event.get('object').message
-            message = f"{object_type} {object_reason} {object_message}"
+            if isinstance(object_message, str) and len(object_message)>0:
+                 message = f"{object_type} {object_message}"     
+            else:
+                message = f"{object_type} {object_reason}"
+                
             self.logger.info(message)
             self.on_desktoplaunchprogress( message )
 
