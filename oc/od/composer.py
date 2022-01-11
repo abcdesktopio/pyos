@@ -470,6 +470,7 @@ def createdesktop( authinfo, userinfo, args  ):
             messageinfo.push('Webhooking network services')
         else:
             messageinfo.push('Starting network services, it will take a while.')
+        logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
         messageinfo.push('Network services started.')
         logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
