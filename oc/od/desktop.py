@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODDesktop(object):
 
-    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None  ):
+    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None  ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
@@ -40,6 +40,7 @@ class ODDesktop(object):
         self._websocketrouting      = websocketrouting
         self._xauthkey              = xauthkey
         self._pulseaudio_cookie     = pulseaudio_cookie
+        self._broadcast_cookie      = broadcast_cookie
 
 
 
@@ -80,6 +81,10 @@ class ODDesktop(object):
     @property
     def pulseaudio_cookie(self):
         return self._pulseaudio_cookie
+
+    @property
+    def broadcast_cookie(self):
+        return self._broadcast_cookie
 
 
     @property
