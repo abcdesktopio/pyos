@@ -2661,17 +2661,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # pod_event = w.unmarshal_event( data=event['object'], return_type=type(pod) )
 
             pod_event = event.get('object')
-            
+            self.logger.info('WATCH 3')
             if type(pod_event) == type(pod) :  
                 self.on_desktoplaunchprogress('Your %s is %s', pod_event.kind, event_type.lower() )           
-            
+                self.logger.info('WATCH 4')
                 if pod_event.status.pod_ip is not None:
+                    self.logger.info('WATCH 5')
                     self.on_desktoplaunchprogress('Your pod gets an ip %s from network plugin', pod_event.status.pod_ip ) 
                     w.stop()    
                 else:
-                    self.logger.info('Pod has NO ip adress ' + pod_event.status.pod_ip)
-                    self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')               
-
+                    self.logger.info('WATCH 6')
+                    self.logger.info('Your pod has NO ip adress ')
+                    self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')   
+                                
+        self.logger.info('WATCH 7')
         #
         #    myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
         #    if myPod.status.pod_ip is None:
