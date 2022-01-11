@@ -116,9 +116,12 @@ class ODSecret():
     def b64todata( s ):    
         b = base64.b64decode( s )
         try:
+            # try to decode as utf8
             b = b.decode('utf-8')
         except Exception as e:
-            logger.error( 'failed to decode b64 str %s', str(e))
+            # logger.error( 'failed to decode b64 str %s', str(e))
+            # don't care if decode as utf8 has failed, it should not be a utf8
+            pass
         return b
 
     @staticmethod
