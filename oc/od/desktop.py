@@ -14,6 +14,7 @@
 
 import logging
 import oc.logging
+import json
 logger = logging.getLogger(__name__)
 
 
@@ -180,5 +181,9 @@ class ODDesktop(object):
             'websocketroute' : self._websocketroute,
             'websocketrouting' : self._websocketrouting
         }
+
+    def to_json(self):
+        my_dict = self.to_dict()
+        return json.dumps(my_dict, sort_keys=True, indent=4)
 
     
