@@ -2586,13 +2586,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.on_desktoplaunchprogress( message )
 
             if object_type == 'Normal' and event_object.reason == 'Started' :
-                # one container has started 
-                # w.stop()
-                # self.on_desktoplaunchprogress( 'read_namespaced_pod name=' + pod_name )
-                # self.logger.info('read_namespaced_pod name=' + pod_name )
+
+
+                # add number_of_container_started counter 
                 number_of_container_started += 1
+                # if the number of container to start is expected, all containers should be started 
                 if number_of_container_started >= number_of_container_to_start:
-                    w.stop()
+                    w.stop() # do not wait any more
                     continue
 
                 myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)  
@@ -2600,79 +2600,57 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 for c in myPod.status.container_statuses:
                     # look for the ontainer_graphical_name
                     if c.name == container_graphical_name:
-                        self.on_desktoplaunchprogress(  c.name + ' is starting' )
                         if c.started is True :
+                            self.logger.debug( c.name + ' is started' )
+                            self.on_desktoplaunchprogress(  c.name + ' is started' )
+                        if c.ready is True :
                             # the graphical container is ready 
-                            # self.on_desktoplaunchprogress( '%s is started', container_graphical_name )
+                            # do not wait for other containers
+                            self.logger.debug( c.name + ' is ready' )
+                            self.on_desktoplaunchprogress(  c.name + ' is ready' )
                             w.stop()
 
-            if object_type == 'Warning':
-                self.logger.error(message)
-                w.stop()  
-            
-            # myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
-            # self.logger.debug(f'Pod phase is {myPod.status.phase}')
-            # phase:
-            # 
-            # Value	Description
-            # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. 
-            #           This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
-            # Running	The Pod has been bound to a node, and all of the containers have been created. 
-            #           At least one container is still running, or is in the process of starting or restarting.
-            # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
-            # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure. 
-            #           That is, the container either exited with non-zero status or was terminated by the system.
-            # Unknown	For some reason the state of the Pod could not be obtained. 
-            #           This phase typically occurs due to an error in communicating with the node where the Pod should be running. 
-            # if myPod.status.phase != 'Pending' :
-            #    self.logger.info(f'{myPod.status.phase} != Pending')
-            #    w.stop()                     
 
-        # if on error occurs
         if object_type == 'Warning':
-            return message
+                return message
 
         # waiting for a valid ip addr
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                 namespace=self.namespace, 
                                 timeout_seconds=self.createpod_timeout,
-                                field_selector='metadata.name=' + pod_name ):                        
+                                field_selector='metadata.name=' + pod_name ):   
+            # event must be a dict, else continue
+            if not isinstance(event,dict):
+                self.logger.error( 'event type is %s, and should be a dict, skipping event', type( event ))
+                continue
+
+            # event dict must contain a type 
             event_type = event.get('type')
             if event_type is None:
-                # nothing to do 
                 continue
-            
-            if event_type == 'ADDED':
-                event_object = event.get('object')
-                kind = event_object.kind
-                
-                # the pod has been added
-                # wait for next MODIFIED event type
-                
-            if event_type == 'MODIFIED':
-                self.logger.info('event type MODIFIED received')
-                # pod_event = w.unmarshal_event( data=event['object'], return_type=type(pod) )
 
-            pod_event = event.get('object')
+            # event dict must contain a object 
+            pod_event = event.get('object', {} )
+        
+
             if type(pod_event) == type(pod) :  
                 self.on_desktoplaunchprogress('Your %s is %s', pod_event.kind, event_type.lower() )           
                 if pod_event.status.pod_ip is not None:
-                    self.on_desktoplaunchprogress('Your pod gets an ip %s from network plugin', pod_event.status.pod_ip ) 
+                    self.on_desktoplaunchprogress('Your pod gets an ip address from network plugin') 
                     w.stop()    
                 else:
-                    self.logger.info('Your pod has NO ip adress ')
+                    self.logger.info('Your pod has NO ip address, waiting for network plugin')
                     self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')   
-        #
-        #    myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)            
-        #    if myPod.status.pod_ip is None:
-        #          self.on_desktoplaunchprogress('Wainting for an ip address from the network plugin' )
-        #          time.sleep( 1 )
+    
 
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
+
+
+
 
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
