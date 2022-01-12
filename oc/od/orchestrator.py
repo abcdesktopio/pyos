@@ -2553,11 +2553,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         message = ''
         number_of_container_started = 0
 
+        # watch list_namespaced_event
         w = watch.Watch()                 
-        # for event in w.stream(  self.kubeapi.list_namespaced_pod, 
-        #                        namespace=self.namespace, 
-        #                        field_selector='metadata.name=' + pod_name ):  
-        #      out = self.kubeapi.core_api.list_namespaced_event(self.namespace, field_selector=f'involvedObject.name={pod_name}')    
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
                                 timeout_seconds=self.createpod_timeout,
@@ -2570,8 +2567,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if not isinstance(event_object, client.models.v1_event.V1Event ):
                 self.logger.error( 'event_object type is %s  skipping event', type( event_object ))
                 continue
-
-            self.logger.info(event_object)
 
             # Valid values for event types (new types could be added in future)
             #    EventTypeNormal string = "Normal"      // Information only and will not cause any problems
@@ -2586,10 +2581,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.on_desktoplaunchprogress( message )
 
             if object_type == 'Normal' and event_object.reason == 'Started' :
-
-
                 # add number_of_container_started counter 
                 number_of_container_started += 1
+
                 # if the number of container to start is expected, all containers should be started 
                 if number_of_container_started >= number_of_container_to_start:
                     w.stop() # do not wait any more
@@ -2610,11 +2604,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             self.on_desktoplaunchprogress(  c.name + ' is ready' )
                             w.stop()
 
-
         if object_type == 'Warning':
-                return message
+            return message
 
-        # waiting for a valid ip addr
+        # watch list_namespaced_pod waiting for a valid ip addr
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                 namespace=self.namespace, 
@@ -2631,13 +2624,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 continue
 
             # event dict must contain a object 
-            pod_event = event.get('object', {} )
-        
+            pod_event = event.get('object')
 
-            if type(pod_event) == type(pod) :  
+            # if podevent type is pod
+            if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
                 self.on_desktoplaunchprogress('Your %s is %s', pod_event.kind, event_type.lower() )           
                 if pod_event.status.pod_ip is not None:
                     self.on_desktoplaunchprogress('Your pod gets an ip address from network plugin') 
+                    # pod data object is complete, stop reading event
                     w.stop()    
                 else:
                     self.logger.info('Your pod has NO ip address, waiting for network plugin')
@@ -2648,9 +2642,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
-
-
-
 
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
