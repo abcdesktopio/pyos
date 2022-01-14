@@ -2580,6 +2580,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.info(message)
             self.on_desktoplaunchprogress( message )
 
+            if object_type == 'Warning':
+                w.stop()
+                continue
+
             if object_type == 'Normal' and event_object.reason == 'Started' :
                 # add number_of_container_started counter 
                 number_of_container_started += 1
