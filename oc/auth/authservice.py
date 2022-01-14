@@ -1928,7 +1928,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 raise e
 
             except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult  as e:
-                self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server_pool, str(e) )
+                self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server, str(e) )
 
             except ldap3.core.exceptions.LDAPExceptionError as e:
                 self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server, str(e) )
