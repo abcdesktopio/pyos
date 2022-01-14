@@ -44,7 +44,7 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
     # key   : is the class name equal to the secret_type
     # value : is the class object 
     secret_cls_dict = { 'cifs':             ODSecretCIFS,                # use NTLM auth for compatibility cifs use by default cifs_ntlm
-                        'cifs_ntlm':        ODSecretCIFS,                # use NTLM auth
+                        'cifs_ntlm':        ODSecretCIFS,                # use NTLM auth 
                         'cifs_kerberos' :   ODSecretCIFSKerberos,        # use KERBEROS auth
                         'webdav':           ODSecretWEBDAV,
                         'ldif':             ODSecretLDIF,
