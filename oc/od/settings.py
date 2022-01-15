@@ -38,6 +38,9 @@ balloon_uid = 4096  # default user id
 balloon_gid = 4096  # default group id
 balloon_name = 'balloon'
 
+
+DEFAULT_SHM_SIZE = '64M' # default size of shared memeory
+
 defaultdomainname = None  # default local domain name to build fqdn
 
 # use for X509 Certificat
@@ -476,11 +479,12 @@ def init_desktop():
 
     desktopvnccypherkey = gconfig.get('desktop.vnccypherkey', 'DEAF2ccF1c4A6A4Bd3171cbe2DC5DbC0' )
 
+    default_shm_size = DEFAULT_SHM_SIZE
     desktophostconfig = gconfig.get('desktop.host_config',
                                     {   'auto_remove'   : True,
                                         'ipc_mode'      : 'shareable',
                                         'pid_mode'      : True,
-                                        'shm_size'      : '2G'
+                                        'shm_size'      : default_shm_size
                                     })
 
     # check if desktophostconfig contains permit value
@@ -488,10 +492,10 @@ def init_desktop():
 
     #
     # if ipc_mode = 'shareable' and shm_size is not set 
-    # then set a shm_size value to max value '2G'
+    # then set a shm_size value to max value default_shm_size
     if desktophostconfig.get('ipc_mode') == 'shareable' and \
        desktophostconfig.get('shm_size') is None:
-            desktophostconfig['shm_size'] = '2g'
+            desktophostconfig['shm_size'] = default_shm_size
 
 
     applicationhostconfig = gconfig.get(    'desktop.application_config',
