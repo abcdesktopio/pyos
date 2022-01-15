@@ -822,7 +822,8 @@ class ODOrchestrator(ODOrchestratorBase):
                         'LC_IDENTIFICATION' : lang,
                         'PARENT_ID' 	    : desktop.id, 
                         'PARENT_HOSTNAME'   : self.nodehostname,
-                        'XAUTH_KEY':          myDesktop.xauthkey
+                        'XAUTH_KEY':          myDesktop.xauthkey,
+                        'BROACAST_COOKIE'   : myDesktop.broadcast_cookie
         } )
 
         # Add specific vars      
@@ -1306,7 +1307,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # to provide the same /dev/shm into each container in a pod. 
             # read https://docs.openshift.com/container-platform/3.6/dev_guide/shared_memory.html
             # 
-            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size') } }
+            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size','64M') } }
             self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
 
             # if oc.od.settings.desktopusepodasapp is True:
@@ -1459,24 +1460,34 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # tmp volume is shared between all container inside the desktop pod
         # 
         if volume_type in [ 'pod_desktop', 'container_desktop', 'container_app' ] :
+            # set tmp volume
             volumes['tmp']       = self.default_volumes['tmp']
             volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
+
+        #
+        # shm volume is shared between all container inside the desktop pod
+        # 
+        if volume_type in [ 'pod_desktop' ] :
+            # set shm memory volume
+            volumes['shm']       = self.default_volumes['shm']
+            volumes_mount['shm'] = self.default_volumes_mount['shm'] 
 
 
         #
         # mount secret in /var/secrets/abcdesktop
-        #
-        if volume_type in [ 'pod_desktop', 'container_desktop' ] :
+        # always add vnc secret for 'pod_desktop'
+        if volume_type in [ 'pod_desktop'  ] :
             # Add VNC password
             mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
-            for secret_auth_name in mysecretdict.keys():
-                # create an entry /var/secrets/abcdesktop/vnc
-                secretmountPath = oc.od.settings.desktopsecretsrootdirectory + mysecretdict[secret_auth_name]['type'] 
-                # mode is 644 -> rw-r--r--
-                # Owing to JSON limitations, you must specify the mode in decimal notation.
-                # 644 in decimal equal to 420
-                volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
-                volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+            # the should only be one secret type vnc
+            secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
+            # create an entry /var/secrets/abcdesktop/vnc
+            secretmountPath = oc.od.settings.desktopsecretsrootdirectory + mysecretdict[secret_auth_name]['type'] 
+            # mode is 644 -> rw-r--r--
+            # Owing to JSON limitations, you must specify the mode in decimal notation.
+            # 644 in decimal equal to 420
+            volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+            volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
 
 
 
@@ -1495,8 +1506,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if isinstance( secrets_requirement, list ):
                 if secret_auth_name not in secrets_requirement:
                     continue
-                                
-
+            self.logger.debug( 'adding secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
             secretmountPath = oc.od.settings.desktopsecretsrootdirectory + mysecretdict[secret_auth_name]['type'] 
             # mode is 644 -> rw-r--r--
             # Owing to JSON limitations, you must specify the mode in decimal notation.
@@ -2329,7 +2339,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.on_desktoplaunchprogress('Building data storage for your desktop')
 
-        (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=None, rules=rules,  **kwargs)
+        secrets_requirement = None # default value add all secret if no filter 
+        # get all secrets
+        mysecretdict = self.list_dict_secret_data( authinfo, userinfo )
+        # by default give the abcdesktop/kerberos and abcdesktop/cntlm secrets inside the pod, if exist
+        secrets_type_requirement = oc.od.settings.desktoppolicies.get('secrets_requirement')
+        if isinstance( secrets_type_requirement, list ):
+            # list the secret entry by requirement type 
+            secrets_requirement = ['abcdesktop/vnc'] # always add the vnc passwork in the secret list 
+            for secretdictkey in mysecretdict.keys():
+                if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
+                    secrets_requirement.append( secretdictkey )
+
+        (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=secrets_requirement, rules=rules,  **kwargs)
         list_volumes = list( volumes.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumes.values() )
