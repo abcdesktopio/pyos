@@ -1867,7 +1867,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             # ldap3.core.exceptions.LDAPBindError: - invalidCredentials
             raise e
 
-        except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult  as e:
+        except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult as e:
             self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server_pool, str(e) )
 
         except ldap3.core.exceptions.LDAPExceptionError as e:
