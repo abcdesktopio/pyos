@@ -1467,10 +1467,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # shm volume is shared between all container inside the desktop pod
         # 
-        if volume_type in [ 'pod_desktop' ] :
-            # set shm memory volume
-            volumes['shm']       = self.default_volumes['shm']
-            volumes_mount['shm'] = self.default_volumes_mount['shm'] 
+        if volume_type in [ 'pod_desktop', 'container_desktop' ] \
+            and oc.od.settings.desktophostconfig.get('shm_size'):
+                # set shm memory volume
+                volumes['shm']       = self.default_volumes['shm']
+                volumes_mount['shm'] = self.default_volumes_mount['shm'] 
 
 
         #
@@ -2343,7 +2344,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # get all secrets
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo )
         # by default give the abcdesktop/kerberos and abcdesktop/cntlm secrets inside the pod, if exist
-        secrets_type_requirement = oc.od.settings.desktoppolicies.get('secrets_requirement')
+        secrets_type_requirement = oc.od.settings.desktophostconfig.get('secrets_requirement')
         if isinstance( secrets_type_requirement, list ):
             # list the secret entry by requirement type 
             secrets_requirement = ['abcdesktop/vnc'] # always add the vnc passwork in the secret list 
