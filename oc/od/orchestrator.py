@@ -823,7 +823,7 @@ class ODOrchestrator(ODOrchestratorBase):
                         'PARENT_ID' 	    : desktop.id, 
                         'PARENT_HOSTNAME'   : self.nodehostname,
                         'XAUTH_KEY':          myDesktop.xauthkey,
-                        'BROACAST_COOKIE'   : myDesktop.broadcast_cookie
+                        'BROADCAST_COOKIE'   : myDesktop.broadcast_cookie
         } )
 
         # Add specific vars      
