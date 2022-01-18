@@ -43,7 +43,7 @@ class ODPrelogin:
 
     def update_prelogin_mustache_data(self):
         logger.debug( 'prelogin_mustache_data update cache read %s',  self.prelogin_url )
-        r = requests.get(self.prelogin_url, allow_redirects=False)
+        r = requests.get(self.prelogin_url, allow_redirects=False, verify=False )
         self.mustache_data = r.content.decode('utf-8')
         # logger.debug( self.mustache_data  )
 
