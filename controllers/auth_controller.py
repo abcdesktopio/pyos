@@ -346,16 +346,16 @@ class AuthController(BaseController):
     # Pure HTTP Form request
     def prelogin(self,userid=None):
 
-        ipsource = getclientipaddr()
-        self.logger.debug('prelogin from ip source %s', ipsource )
-
         if not services.prelogin.enable:
             self.logger.error('prelogin is disabled, but request ask for prelogin from %s', ipsource)
             raise cherrypy.HTTPError(400, 'Configuration file error, service is disabled')
 
+
+        ipsource = getclientipaddr()
         self.logger.debug('prelogin request from ip source %s', ipsource)
+
         if not services.prelogin.request_match( ipsource ):
-            self.logger.error('prelogin invalid network source error')
+            self.logger.error('prelogin invalid network source error ipsource=%s', str(ipsource))
             raise cherrypy.HTTPError(400, 'Invalid network source error')
 
         # if http request has services.prelogin.http_attribut
