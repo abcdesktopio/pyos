@@ -44,13 +44,11 @@ class WebRTCController(BaseController):
         if services.webrtc is None:
             return Results.error( message='no WebRTC configuration found')
         
-        appname = None
-        args = cherrypy.request.json
-        if type(args) is dict:
-            appname = args.get('app')
+        appname = cherrypy.request.json.get('app')
 
         desktop = oc.od.composer.finddesktop_quiet( authinfo=auth, userinfo=user, appname=appname ) 
         if desktop is None:                
+            logger.error( 'asking for a rtp_stream but desktop is not found')
             return Results.error( message='desktop not found')
         
         try:
