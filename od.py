@@ -156,7 +156,7 @@ class API(object):
         # do not trace the response if cherrypy.response.notrace is set
         if hasattr(cherrypy.response, 'notrace'):
             return
-        
+
         message = str(cherrypy.request.result) if hasattr(cherrypy.request, 'result') else str(cherrypy.response.body)
         # message = message.encode("ascii","ignore")
         logger.info('%s %s', cherrypy.request.path_info, message)
