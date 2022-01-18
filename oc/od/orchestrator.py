@@ -1307,7 +1307,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # to provide the same /dev/shm into each container in a pod. 
             # read https://docs.openshift.com/container-platform/3.6/dev_guide/shared_memory.html
             # 
-            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size','64M') } }
+            self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size','64Mi') } }
             self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
 
             # if oc.od.settings.desktopusepodasapp is True:
@@ -2659,12 +2659,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if pod_event.status.pod_ip is not None:
                     self.on_desktoplaunchprogress('Your pod gets an ip address from network plugin') 
                     # pod data object is complete, stop reading event
-                    w.stop()    
+
+                    # if pod_event.status
+                    self.logger.error( 'pod_event.status.phase %s', pod_event.status.phase )
+                    if pod_event.status.phase != 'Pending' :
+                        w.stop()    
                 else:
                     self.logger.info('Your pod has NO ip address, waiting for network plugin')
                     self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')   
     
-
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
         self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
 
