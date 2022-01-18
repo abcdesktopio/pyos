@@ -111,7 +111,7 @@ class ODDockerWatcher:
             self.logger.error(str(e))
 
     def event_die( self, client, event ):
-        self.logger.debug('new die event from docker event %s', event)
+        self.logger.debug('new die event from docker event')
         try:
             attributes = event.get('Actor').get('Attributes')
             access_userid   = attributes.get('access_userid')
