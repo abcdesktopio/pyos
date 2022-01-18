@@ -347,10 +347,11 @@ class AuthController(BaseController):
     def prelogin(self,userid=None):
 
         ipsource = getclientipaddr()
+        self.logger.debug('prelogin from ip source %s', ipsource )
 
         if not services.prelogin.enable:
             self.logger.error('prelogin is disabled, but request ask for prelogin from %s', ipsource)
-            raise cherrypy.HTTPError(400, 'Configuration file error')
+            raise cherrypy.HTTPError(400, 'Configuration file error, service is disabled')
 
         self.logger.debug('prelogin request from ip source %s', ipsource)
         if not services.prelogin.request_match( ipsource ):
