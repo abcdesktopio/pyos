@@ -2652,7 +2652,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             # event dict must contain a object 
             pod_event = event.get('object')
-
             # if podevent type is pod
             if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
                 self.on_desktoplaunchprogress('Your %s is %s', pod_event.kind, event_type.lower() )           
@@ -2669,7 +2668,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')   
     
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
-        self.logger.info( 'myPod.metadata.name is %s, ipAddr is %s', myPod.metadata.name, myPod.status.pod_ip)
+        self.logger.info( 'myPod.metadata.name is %s, %s ipAddr is %s', myPod.metadata.name, myPod.status.phase, myPod.status.pod_ip)
+        if myPod.status.phase != 'Running':
+            return 'Your pod does not start, status ' + str(myPod.status.phase) 
+        else:
+           self.on_desktoplaunchprogress('Your pod is running.')   
+
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
 
