@@ -147,7 +147,7 @@ class AuthController(BaseController):
         
         return bReturn
             
-    def build_redirecthtmlpage(self,jwt_user_token):
+    def build_redirecthtmlpage(self, base_url, jwt_user_token):
         # do not use cherrypy.HTTPRedirect
         # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
         # Safari does not support Sending browser cookies during a 302 redirect correctly
@@ -162,9 +162,10 @@ class AuthController(BaseController):
         #
         # empty html page to fix HTTP redirect cookie bug with safari
         mustache_dict = {
-            'loginScreencss_url': oc.od.settings.default_host_url + '/css/css-dist/loginScreen.css',
+            'loginScreencss_url': '../../css/css-dist/loginScreen.css',
             'jwt_user_token': str(jwt_user_token),
-            'default_host_url' : oc.od.settings.default_host_url
+            'default_host_url' : '/' 
+            # oc.od.settings.default_host_url
         }
         oauth_html_refresh_page = chevron.render( self.oauth_html_redirect_page, mustache_dict )
         return oauth_html_refresh_page
@@ -215,7 +216,8 @@ class AuthController(BaseController):
 
         # ipsource
         ipsource = getclientipaddr()
-        if services.prelogin.enable and services.prelogin.request_match(ipsource):
+        http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
+        if services.prelogin.enable and ( services.prelogin.request_match(ipsource) or http_attribut_to_force_auth_prelogin ) :
             userid = args.get('userid')
             if not isinstance(userid, str):
                 self.logger.error( 'invalid auth parameters userid %s', type(userid) )
@@ -224,8 +226,12 @@ class AuthController(BaseController):
             if not isinstance(loginsessionid, str):
                 self.logger.error( 'invalid auth parameters loginsessionid %s', type(loginsessionid) )
                 raise cherrypy.HTTPError(401, 'invalid auth parameters')
+            if len(loginsessionid) != services.prelogin.len_sessionid() :
+                self.logger.error( 'invalid auth parameters loginsessionid' )
+                raise cherrypy.HTTPError(401, 'invalid auth parameters')
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
+                # todo: black list the ip source ?
                 self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
                 raise cherrypy.HTTPError(401, 'invalid auth request, verify failed')
 
@@ -370,7 +376,7 @@ class AuthController(BaseController):
 
         self.logger.debug('prelogin request for user %s', userid)
 
-        html_data = services.prelogin.prelogin_html( userid )
+        html_data = services.prelogin.prelogin_html( userid=userid )
         if html_data is None:
             self.logger.error('prelogin_html failed')
             raise cherrypy.HTTPError(400, 'Configuration file error, invalid prelogin_url')
