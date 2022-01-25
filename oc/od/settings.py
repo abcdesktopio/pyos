@@ -94,6 +94,10 @@ desktopsoundacl             = {}
 desktopfilerimage          = None
 desktopfileracl            = {}
 
+# secretstorage container
+desktopsecretstorageimage   = None
+desktopsecretstorageacl     = {}
+
 # init container 
 desktopuseinitcontainer     = False
 desktopinitcontainerimage   = None
@@ -117,6 +121,7 @@ desktopservicestcpport = { 'x11server': 6081, 'spawner': 29786, 'broadcast': 297
 default_server_ipaddr   = None  # THIS IS NOT THE BINDING IP ADDR 
 default_host_url        = None  # default FQDN host name to reach the web site
 default_host_url_is_securised = False  # is default_host_url securized https
+default_host_accesscontrol_allow_origin = None # host_accesscontrol_allow_origin
 
 defaultnetworknetuser   = None  # name of the default netuser network by default netuser
 defaultnetworknetuserid = None  # id of the default netuser network
@@ -191,7 +196,8 @@ list_hostconfigkey = [
         'storage_opt',
         'sysctls',
         'tmpfs',
-        'ulimits'
+        'ulimits',
+        'secrets_requirement'   # custom for abcdesktop 
         ]
 
 
@@ -285,12 +291,14 @@ def init_defaulthostfqdn():
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
     global default_server_ipaddr            # default ip addr to fake real ip source in geoip
+    global default_host_url_accesscontrol_allow_origin # to allow more than one fqdn 
     global routehostcookiename              # name of the cookie with the hostname value for an efficient LoadBalacing
     global services_http_request_denied     # denied http request uri
 
+
     # Use for reserve proxy
     default_host_url = gconfig.get('default_host_url')
-    if default_host_url is None:
+    if not isinstance( default_host_url, str):
         logger.warning('Invalid default_host_url in config file')
         logger.warning('Use Host HTTP header to redirect url, this is a security Warning')
         logger.warning('Use this config only on private network, not on public Internet')
@@ -298,6 +306,15 @@ def init_defaulthostfqdn():
         logger.info('default_host_url: %s', default_host_url)
 
     default_host_url_is_securised = default_host_url.lower().startswith('https')
+
+    default_host_url_accesscontrol_allow_origin = gconfig.get('default_host_url_accesscontrol_allow_origin', [default_host_url] )
+    if not isinstance( default_host_url_accesscontrol_allow_origin, list):
+        logger.error('Invalid default_host_url_accesscontrol_allow_origin list in config file')
+        default_host_url_accesscontrol_allow_origin = [ default_host_url ]
+
+    if len( default_host_url_accesscontrol_allow_origin ) == 0:
+        default_host_url_accesscontrol_allow_origin = [ default_host_url ]
+        logger.warning('use default_host_url_accesscontrol_allow_origin list as %s', default_host_url_accesscontrol_allow_origin )
 
     default_server_ipaddr = gconfig.get('server.default.ipaddr')
     if default_server_ipaddr is None: 
@@ -334,11 +351,13 @@ def init_prelogin():
     global prelogin_user_attribut
     global prelogin_enable
     global prelogin_network_list
+    global prelogin_http_attribut_to_force_auth_prelogin
 
     prelogin_enable         = gconfig.get(  'auth.prelogin_enable', False )
     prelogin_url            = gconfig.get(  'auth.prelogin_url' )
     prelogin_user_attribut  = gconfig.get(  'auth.prelogin_http_attribut' )
     prelogin_network_list   = gconfig.get(  'auth.prelogin_network_list', [] )
+    prelogin_http_attribut_to_force_auth_prelogin = gconfig.get( 'auth.prelogin_http_attribut_to_force_auth_prelogin' )
 
 
 
@@ -437,6 +456,8 @@ def init_desktop():
     global desktopsoundacl
     global desktopfilerimage
     global desktopfileracl
+    global desktopsecretstorageimage
+    global desktopsecretstorageacl
     global desktopuseinitcontainer
     global desktopinitcontainercommand
     global desktopinitcontainerimage
@@ -527,6 +548,8 @@ def init_desktop():
     desktopprinteracl       = gconfig.get('desktop.printeracl', { 'permit': [ 'all' ] })
     desktopfilerimage       = gconfig.get('desktop.filerimage')
     desktopfileracl         = gconfig.get('desktop.fileracl', { 'permit': [ 'all' ] })
+    desktopsecretstorageimage = gconfig.get('desktop.secretstorageimage')
+    desktopsecretstorageacl = gconfig.get('desktop.secretstorageacl', { 'permit': [ 'all' ] })
     desktopsoundimage       = gconfig.get('desktop.soundimage')
     desktopsoundacl         = gconfig.get('desktop.soundacl', { 'permit': [ 'all' ] })
     desktoppolicies         = gconfig.get('desktop.policies', {} )
