@@ -225,10 +225,10 @@ class AuthController(BaseController):
             loginsessionid = args.get('loginsessionid')
             if not isinstance(loginsessionid, str):
                 self.logger.error( 'invalid auth parameters loginsessionid %s', type(loginsessionid) )
-                raise cherrypy.HTTPError(401, 'invalid auth parameters')
+                raise cherrypy.HTTPError(401, 'invalid auth parameters, request must use a prelogin session')
             if len(loginsessionid) != services.prelogin.len_sessionid() :
                 self.logger.error( 'invalid auth parameters loginsessionid' )
-                raise cherrypy.HTTPError(401, 'invalid auth parameters')
+                raise cherrypy.HTTPError(401, 'invalid auth parameters, request must use a prelogin session')
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
                 # todo: black list the ip source ?
