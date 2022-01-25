@@ -147,7 +147,7 @@ class AuthController(BaseController):
         
         return bReturn
             
-    def build_redirecthtmlpage(self, base_url, jwt_user_token):
+    def build_redirecthtmlpage(self, jwt_user_token):
         # do not use cherrypy.HTTPRedirect
         # READ  https://stackoverflow.com/questions/4694089/sending-browser-cookies-during-a-302-redirect
         # Safari does not support Sending browser cookies during a 302 redirect correctly
