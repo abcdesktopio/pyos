@@ -725,7 +725,7 @@ class ODAuthTool(cherrypy.Tool):
                 if compiled_result is True:
                     k = rules.get(name).get('label')
                     if k is not None:
-                        buildcompiledrules[ k ] = rules.get('load')
+                        buildcompiledrules[ k ] = rules.get(name).get('load', 'true')
             except Exception as e:
                 self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
             
