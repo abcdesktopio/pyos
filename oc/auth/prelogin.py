@@ -11,15 +11,15 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODPrelogin:
 
-    def __init__(self, prelogin_enable, prelogin_url, prelogin_network_list, base_url, memcache_connection_string, http_attribut=None):
+    def __init__(self, prelogin_enable, prelogin_url, prelogin_network_list, memcache_connection_string, http_attribut=None, http_attribut_to_force_auth_prelogin=None):
         self.maxlogintimeout = 120
         self.mustache_data = None
         self.prelogin_url = prelogin_url
-        self.base_url = base_url
         self.memcache = oc.sharecache.ODMemcachedSharecache( memcache_connection_string )
         self.enable = prelogin_enable
         self.network_list = prelogin_network_list
         self.http_attribut = http_attribut
+        self.http_attribut_to_force_auth_prelogin = http_attribut_to_force_auth_prelogin
 
         # check configuration value prelogin_url 
         if self.enable and not isinstance( self.prelogin_url, str):
@@ -51,6 +51,9 @@ class ODPrelogin:
     def prelogin_verify( self, sessionid, userid ):
         if not isinstance(sessionid, str) or not isinstance(userid, str):
             return False
+        if len( sessionid ) != self.len_sessionid():
+            logger.error( 'invalid sessionid prelogin_verify, bad sessionid' )
+            return False
         self.memcacheclient = self.memcache.createclient()
         cacheduserid = self.memcacheclient.get( key=sessionid )
         # do not delete key, to permit reload
@@ -59,11 +62,14 @@ class ODPrelogin:
         logger.debug( 'prelogin_verify %s %s', str(cacheduserid), str(userid) )
         return userid == cacheduserid
 
+    def len_sessionid( self ):
+        return len( str( uuid.uuid4() ) )
+
     def prelogin_html( self, userid ):
         sessionid = str( uuid.uuid4() )
         # prelogindict is a dict with values to fill 
         # the prelogin_url mustache template
-        prelogindict = { 'base_url': self.base_url,
+        prelogindict = { 'base_url': '../..',
                          'loginsessionid': sessionid, 
                          'cuid': userid }
 
