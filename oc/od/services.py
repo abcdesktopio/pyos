@@ -134,9 +134,9 @@ class ODServices(object):
         self.prelogin = oc.auth.prelogin.ODPrelogin(    prelogin_enable=settings.prelogin_enable,
                                                         prelogin_url=settings.prelogin_url,
                                                         prelogin_network_list=settings.prelogin_network_list,
-                                                        base_url=settings.default_host_url,
                                                         memcache_connection_string=settings.memconnectionstring,
-                                                        http_attribut=settings.prelogin_user_attribut )
+                                                        http_attribut=settings.prelogin_user_attribut,
+                                                        http_attribut_to_force_auth_prelogin=settings.prelogin_http_attribut_to_force_auth_prelogin)
 
     def init_messageinfo(self):
         logger.info('')
