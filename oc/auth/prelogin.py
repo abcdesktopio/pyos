@@ -49,17 +49,21 @@ class ODPrelogin:
 
 
     def prelogin_verify( self, sessionid, userid ):
+        logger.info( 'prelogin_verify starting' )
         if not isinstance(sessionid, str) or not isinstance(userid, str):
+            logger.error( 'prelogin_verify invalid sessionid or userid type' )
             return False
+        self.len_sessionid()
         if len( sessionid ) != self.len_sessionid():
-            logger.error( 'invalid sessionid prelogin_verify, bad sessionid' )
+            logger.error( 'prelogin_verify bad sessionid params invalid len(sessionid)=%d, expected len %d', len(sessionid), self.len_sessionid() )
             return False
         self.memcacheclient = self.memcache.createclient()
+        logger.info( 'prelogin_verify asking cached data key=%s ', sessionid )
         cacheduserid = self.memcacheclient.get( key=sessionid )
-        # do not delete key, to permit reload
+        # do not delete key, to permit reload from user's web browser
         # delete occurs in expired timeout value
-        self.memcacheclient.delete( key=sessionid, noreply=True )
-        logger.debug( 'prelogin_verify %s %s', str(cacheduserid), str(userid) )
+        # self.memcacheclient.delete( key=sessionid, noreply=True )
+        logger.info( 'prelogin_verify compare %s == %s', str(cacheduserid), str(userid) )
         return userid == cacheduserid
 
     def len_sessionid( self ):
@@ -84,7 +88,10 @@ class ODPrelogin:
 
         # set data to memcached
         self.memcacheclient = self.memcache.createclient()
-        self.memcacheclient.set( key=sessionid, val=userid, time=self.maxlogintimeout )
+        logger.info( 'prelogin_html setting key=%s value=%s timeout=%d', sessionid, userid, self.maxlogintimeout )
+        bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxlogintimeout )
+        if not isinstance( bset, bool) or bset == False:
+            logger.error( 'memcacheclient:set failed to set data key=%s value=%s ', sessionid, userid )
         html_data = chevron.render( self.mustache_data, prelogindict )
         logger.debug( html_data )
         return html_data
