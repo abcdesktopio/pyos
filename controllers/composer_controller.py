@@ -444,10 +444,7 @@ class ComposerController(BaseController):
         # Now do the route
         if websocketrouting == 'default_host_url':
             try:
-                myhosturl = oc.od.settings.default_host_url
-                if myhosturl is None:
-                    myhosturl = http_origin
-                logger.debug('Use %s', myhosturl)
+                myhosturl = oc.od.settings.default_host_url or http_origin
                 url = urllib.parse.urlparse(myhosturl)
                 route = url.hostname
             except Exception as e:
