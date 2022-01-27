@@ -16,6 +16,8 @@ import logging
 import cherrypy
 import chevron
 
+import urllib.parse
+
 from oc.od.base_controller import BaseController
 from oc.cherrypy import Results, getclientipaddr 
 from oc.od.services import services
@@ -222,13 +224,24 @@ class AuthController(BaseController):
             if not isinstance(userid, str):
                 self.logger.error( 'invalid auth parameters userid %s', type(userid) )
                 raise cherrypy.HTTPError(401, 'invalid auth parameters')
+
+            # read the provider name
+            provider_name = args.get('provider')
+            # look for a provider object using the provider name
+            if isinstance(provider_name, str):
+                provider = services.auth.findprovider( provider_name )
+                # if the provider exists and is a ODAdAuthProvider
+                if isinstance( provider, oc.auth.authservice.ODAdAuthProvider ):
+                    # look for a provider object using the provider name
+                    # add the domain ad prefix
+                    userid = provider.getadlogin(userid)
+                    self.logger.info( 'userid rewrite as %s', userid )
+
             loginsessionid = args.get('loginsessionid')
             if not isinstance(loginsessionid, str):
                 self.logger.error( 'invalid auth parameters loginsessionid %s', type(loginsessionid) )
                 raise cherrypy.HTTPError(401, 'invalid auth parameters, request must use a prelogin session')
-            if len(loginsessionid) != services.prelogin.len_sessionid() :
-                self.logger.error( 'invalid auth parameters loginsessionid' )
-                raise cherrypy.HTTPError(401, 'invalid auth parameters, request must use a prelogin session')
+
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
                 # todo: black list the ip source ?
@@ -345,7 +358,6 @@ class AuthController(BaseController):
         except Exception as e:
             logger.error( e )
             return Results.error( message=str(e) )
-        
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
@@ -370,12 +382,17 @@ class AuthController(BaseController):
             if isinstance( http_userid, str ):
                 userid = http_userid
         
-        if userid is None:
-            self.logger.error('prelogin invalid userid')
-            raise cherrypy.HTTPError(400, 'invalid user request')
+        if not isinstance( userid, str) or len(userid) == 0:
+            self.logger.error('prelogin invalid userid parameter format')
+            raise cherrypy.HTTPError(400, 'invalid userid request parameter')
 
-        self.logger.debug('prelogin request for user %s', userid)
+        # if the param id url quoted
+        # always decode it 
+        self.logger.info('prelogin request raw param userid=%s', userid)
+        userid = urllib.parse.unquote(userid)
+        self.logger.info('prelogin decoded param userid=%s', userid)
 
+        # build html response
         html_data = services.prelogin.prelogin_html( userid=userid )
         if html_data is None:
             self.logger.error('prelogin_html failed')
