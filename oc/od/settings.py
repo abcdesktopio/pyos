@@ -81,6 +81,7 @@ prelogin_url                = None
 prelogin_http_attribut      = None
 prelogin_enable             = False
 prelogin_network_list       = []
+prelogin_http_attribut_to_force_auth_prelogin = None
 
 # printer container
 desktopprinterimage         = None
