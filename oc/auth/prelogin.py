@@ -63,7 +63,9 @@ class ODPrelogin:
         # do not delete key, to permit reload from user's web browser
         # delete occurs in expired timeout value
         # self.memcacheclient.delete( key=sessionid, noreply=True )
+        userid = userid.upper()
         logger.info( 'prelogin_verify compare %s == %s', str(cacheduserid), str(userid) )
+        # cacheduserid use only upper case
         return userid == cacheduserid
 
     def len_sessionid( self ):
@@ -88,6 +90,7 @@ class ODPrelogin:
 
         # set data to memcached
         self.memcacheclient = self.memcache.createclient()
+        userid = userid.upper() # always cache data in upper case only 
         logger.info( 'prelogin_html setting key=%s value=%s timeout=%d', sessionid, userid, self.maxlogintimeout )
         bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxlogintimeout )
         if not isinstance( bset, bool) or bset == False:
