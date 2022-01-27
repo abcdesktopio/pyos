@@ -485,9 +485,10 @@ class ODAuthTool(cherrypy.Tool):
             [ODAuthProviderBase]: [instance of  ODAuthProviderBase]
         """
         provider = None
+        name = name.upper()
         for mgr in self.managers.values():
             for pdr in mgr.providers.values():
-                if pdr.name == name: 
+                if pdr.name.upper() == name: 
                     provider = pdr
         logger.info( 'findprovider name=%s %s', name, str(type(provider)))
         return provider
