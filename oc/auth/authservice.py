@@ -1547,7 +1547,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.servers = config.get('servers', []) 
         self.timeout = config.get('timeout', 20)
         self.connect_timeout = config.get('connect_timeout', 2)
-        self.secure = config.get('secure', False) is True
+        self.use_ssl = config.get('secure', False) is True
+        self.port = config.get('port') # if port is None ldap3.Server use default port 389 and 636
         self.useridattr = config.get('useridattr', 'cn')
         self.usercnattr = config.get('usercnattr', 'cn') 
         self.useruidattr = config.get('useruidattr', 'uid')
@@ -1576,7 +1577,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.exec_timeout = config.get('exec_timeout', 10)
         self.tls_require_cert = config.get( 'tls_require_cert', False)
         self.join_key_ldapattribut = config.get( 'join_key_ldapattribut' )
-        self.krb5cctype = config.get('krb5cctype', 'MEMORY')
+        self.krb5cctype = config.get('krb5cctype', 'MEMORY').upper()
         self.ldap_ipmod = config.get('ldap_ip_mode', ldap3.IP_V4_PREFERRED )
 
         # query users
@@ -1878,12 +1879,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     
 
     def getconnection(self, userid, password ):
+        self.logger.info( 'ldap getconnection auth userid=%s', userid )
         conn = None
         for server in self.servers:
             try: 
-                server = ldap3.Server( server, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod )
-                # , get_info=ldap3.ALL
-                self.logger.debug( 'ldap starting bind on %s using auth %s', server, self.auth_type)
+                self.logger.info( 'ldap getconnection:server server=%s use_ssl=%s auth_type=%s', str(server), str(self.use_ssl), self.auth_type )
+                server = ldap3.Server( server, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, use_ssl=self.use_ssl, port=self.port)
             
                 # do kerberos bind
                 if self.auth_type == 'KERBEROS': 
@@ -1894,10 +1895,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     cred_store = {'ccache':  krb5ccname }
                     self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', userid, cred_store )
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
+                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS', str(server), userid )
                     conn = ldap3.Connection( server, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store)
                     # bind to the ldap server
-                    self.logger.debug( 'bind to the ldap server')
+                    self.logger.info( 'binding to the ldap server')
                     conn.bind()
+                    self.logger.info( 'bind done')
                     # os.unsetenv('KRB5CCNAME')
 
                 # do ntlm bind
@@ -1906,10 +1909,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # call overwrited by bODAdAuthProvider:getconnection
                     self.logger.info( 'create Connection object ldap3.NTLM as %s', userid )
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
+                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.NTLM', str(server), userid )
                     conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, raise_exceptions=True  )
                     # bind to the ldap server
-                    self.logger.debug( 'binding to the ldap server')
+                    self.logger.info( 'binding to the ldap server')
                     conn.bind()
+                    self.logger.info( 'bind done')
                     
                 # do textplain simple_bind_s 
                 if self.auth_type == 'SIMPLE':
@@ -1917,10 +1922,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     userdn = self.getuserdnldapconnection(userid)
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'create Connection object ldap3.SIMPLE as %s', userdn )
+                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s  authentication=ldap3.SIMPLE', str(server), userdn )
                     conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, raise_exceptions=True )
                     # bind to the ldap server
-                    self.logger.debug( 'binding to the ldap server')
+                    self.logger.info( 'binding to the ldap server')
                     conn.bind()
+                    self.logger.info( 'bind done')
                 return conn
 
             except ldap3.core.exceptions.LDAPBindError as e:
@@ -2092,7 +2099,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def remove_krb5ccname( self, krb5ccname ):
         if krb5ccname.startswith( 'FILE:'):
             try :
-                    os.unlink( krb5ccname )
+                os.unlink( krb5ccname )
             except Exception as e:
                 self.logger.error('failed to delete tmp file: %s %s', krb5ccname, e)
 
