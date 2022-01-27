@@ -75,6 +75,7 @@ class ODPrelogin:
         sessionid = str( uuid.uuid4() )
         # prelogindict is a dict with values to fill 
         # the prelogin_url mustache template
+        userid = userid.upper()
         prelogindict = { 'base_url': '../..',
                          'loginsessionid': sessionid, 
                          'cuid': userid }
