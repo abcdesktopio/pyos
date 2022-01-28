@@ -1900,6 +1900,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 is_supported = True
             if 'NTLM' in supported_sasl_mechanisms:
                 is_supported = True
+        if self.auth_type == 'SIMPLE': 
+            if 'PLAIN' in supported_sasl_mechanisms:
+                is_supported = True
         return is_supported
 
 
@@ -1914,9 +1917,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 c.open()  # establish connection without performing any bind (equivalent to ANONYMOUS bind)
                 
                 self.logger.info( 'supported_sasl_mechanisms by %s return %s', server_name, server.info.supported_sasl_mechanisms )
-                # 
-                #    [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM' ]
-                # 
+                # read https://ldap3.readthedocs.io/en/latest/bind.html
+                # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
+
                 # do kerberos bind
                 if self.auth_type == 'KERBEROS': 
                     if not self.verify_auth_is_supported_by_ldap_server( server.info.supported_sasl_mechanisms ):
