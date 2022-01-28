@@ -1926,9 +1926,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # replace env by cred_store argument
                     # os.putenv( 'KRB5CCNAME', krb5ccname )
                     cred_store = {'ccache':  krb5ccname }
-                    self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', userid, cred_store )
-                    # logger.debug(locals()) # uncomment this line may dump password in clear text 
-                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS', server_name, userid )
+                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME=%s', server_name, userid, cred_store )
                     # Connection read_only=True
                     conn = ldap3.Connection( server, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
 
@@ -1938,7 +1936,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
                     # userid MUST be DOMAIN\\SAMAccountName format 
                     # call overwrited by bODAdAuthProvider:getconnection
-                    self.logger.info( 'create Connection object ldap3.NTLM as %s', userid )
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.NTLM', str(server), userid )
                     conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, read_only=True, raise_exceptions=True  )
