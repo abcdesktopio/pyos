@@ -1931,7 +1931,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     cred_store = {'ccache':  krb5ccname }
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME=%s', server_name, userid, cred_store )
                     # Connection read_only=True
-                    conn = ldap3.Connection( server, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
+                    conn = ldap3.Connection( server, user=userid, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
 
                 # do ntlm bind
                 if self.auth_type == 'NTLM':
