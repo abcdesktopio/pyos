@@ -1877,6 +1877,26 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
+    def verify_auth_is_supported_by_ldap_server( self, supported_sasl_mechanisms )
+        # from https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/a98c1f56-8246-4212-8c4e-d92da1a9563b
+        # The SASL mechanisms supported by a Microsoft DC are exposed as strings in the supportedSASLMechanisms attribute of the rootDSE.
+        # Windows 2000 operating system support GSSAPI, GSS-SPNEGO
+        # Windows Server 2003 operating system and later support GSSAPI, GSS-SPNEGO, EXTERNAL, DIGEST-MD5
+        # Active Directory supports Kerberos (see [MS-KILE]) and NTLM (see [MS-NLMP]) when using GSS-SPNEGO.
+        # Active Directory supports Kerberos when using GSSAPI;
+        is_supported = False
+        if self.auth_type == 'KERBEROS': 
+            if 'GSS-SPNEGO' in supported_sasl_mechanisms:
+                is_supported = True
+            if 'GSS-GSSAPI' in supported_sasl_mechanisms:
+                is_supported = True
+        if self.auth_type == 'NTLM': 
+            if 'GSS-SPNEGO' in supported_sasl_mechanisms:
+                is_supported = True
+            if 'NTLM' in supported_sasl_mechanisms:
+                is_supported = True
+        return is_supported
+
 
     def getconnection(self, userid, password ):
         self.logger.info( 'ldap getconnection auth userid=%s', userid )
@@ -1887,14 +1907,15 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, use_ssl=self.use_ssl, port=self.port, get_info='ALL')
                 c = ldap3.Connection(server)
                 c.open()  # establish connection without performing any bind (equivalent to ANONYMOUS bind)
-                self.logger.info( 'supported_sasl_mechanisms %s %s', server_name, server.info.supported_sasl_mechanisms )
+                
+                self.logger.info( 'supported_sasl_mechanisms by %s return %s', server_name, server.info.supported_sasl_mechanisms )
                 # 
-                #    0:'GSS-SPNEGO'
-                #    1:'GSSAPI'
-                #    2:'NTLM'
+                #    [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM' ]
                 # 
                 # do kerberos bind
                 if self.auth_type == 'KERBEROS': 
+                    if not self.verify_auth_is_supported_by_ldap_server( server.info.supported_sasl_mechanisms ):
+                        self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
                     # krb5ccname must already exist 
                     krb5ccname = self.get_krb5ccname( userid )
                     # replace env by cred_store argument
@@ -1908,6 +1929,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
                 # do ntlm bind
                 if self.auth_type == 'NTLM':
+                    if not self.verify_auth_is_supported_by_ldap_server( server.info.supported_sasl_mechanisms ):
+                        self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
                     # userid MUST be DOMAIN\\SAMAccountName format 
                     # call overwrited by bODAdAuthProvider:getconnection
                     self.logger.info( 'create Connection object ldap3.NTLM as %s', userid )
