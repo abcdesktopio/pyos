@@ -1878,12 +1878,17 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
     def verify_auth_is_supported_by_ldap_server( self, supported_sasl_mechanisms ):
+        #
         # from https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/a98c1f56-8246-4212-8c4e-d92da1a9563b
+        #
         # The SASL mechanisms supported by a Microsoft DC are exposed as strings in the supportedSASLMechanisms attribute of the rootDSE.
         # Windows 2000 operating system support GSSAPI, GSS-SPNEGO
         # Windows Server 2003 operating system and later support GSSAPI, GSS-SPNEGO, EXTERNAL, DIGEST-MD5
         # Active Directory supports Kerberos (see [MS-KILE]) and NTLM (see [MS-NLMP]) when using GSS-SPNEGO.
         # Active Directory supports Kerberos when using GSSAPI;
+        #
+        # DIGEST-MD5 is implemented even if it is deprecated and moved to historic (RFC6331, July 2011) 
+        # because it is “insecure and unsuitable for use in protocols” (as stated by the RFC).
         is_supported = False
         if self.auth_type == 'KERBEROS': 
             if 'GSS-SPNEGO' in supported_sasl_mechanisms:
