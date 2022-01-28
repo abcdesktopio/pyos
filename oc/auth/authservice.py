@@ -1890,6 +1890,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # DIGEST-MD5 is implemented even if it is deprecated and moved to historic (RFC6331, July 2011) 
         # because it is “insecure and unsuitable for use in protocols” (as stated by the RFC).
         is_supported = False
+        if not isinstance( supported_sasl_mechanisms, list ):
+            return is_supported
         if self.auth_type == 'KERBEROS': 
             if 'GSS-SPNEGO' in supported_sasl_mechanisms:
                 is_supported = True
@@ -1913,18 +1915,23 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             try: 
                 self.logger.info( 'ldap getconnection:server server=%s use_ssl=%s auth_type=%s', str(server_name), str(self.use_ssl), self.auth_type )
                 server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, use_ssl=self.use_ssl, port=self.port, get_info='ALL')
-                c = ldap3.Connection(server)
-                c.open()  # establish connection without performing any bind (equivalent to ANONYMOUS bind)
                 
-                self.logger.info( 'supported_sasl_mechanisms by %s return %s', server_name, server.info.supported_sasl_mechanisms )
+                # create a Connection to get supported_sasl_mechanisms from server
+                c = ldap3.Connection(server, auto_bind=False)
+                c.open()  # establish connection without performing any bind (equivalent to ANONYMOUS bind)
                 # read https://ldap3.readthedocs.io/en/latest/bind.html
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
+                supported_sasl_mechanisms = server.info.supported_sasl_mechanisms if server.info else None
+                self.logger.info( 'supported_sasl_mechanisms by %s return %s', server_name, str(supported_sasl_mechanisms)  )
+                del c
+
+                if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
+                    self.logger.warning( '%s is not defined by %s.info.supported_sasl_mechanisms supported_sasl_mechanisms=%s', self.auth_type, server_name, str(supported_sasl_mechanisms) )
+                 
 
                 # do kerberos bind
                 if self.auth_type == 'KERBEROS': 
-                    if not self.verify_auth_is_supported_by_ldap_server( server.info.supported_sasl_mechanisms ):
-                        self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
-                    # krb5ccname must already exist 
+                     # krb5ccname must already exist 
                     krb5ccname = self.get_krb5ccname( userid )
                     cred_store = {'ccache':  krb5ccname }
                     kerberos_principal_name = self.get_kerberos_principal( userid )
@@ -1935,10 +1942,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
                 # do ntlm bind
                 if self.auth_type == 'NTLM':
-                    if not self.verify_auth_is_supported_by_ldap_server( server.info.supported_sasl_mechanisms ):
-                        self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
-                    # userid MUST be DOMAIN\\SAMAccountName format 
-                    # call overwrited by bODAdAuthProvider:getconnection
+                    # userid MUST be DOMAIN\\SAMAccountName format, call overwrited by bODAdAuthProvider:getconnection
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.NTLM', str(server), userid )
                     conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, read_only=True, raise_exceptions=True  )
@@ -1947,8 +1951,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 if self.auth_type == 'SIMPLE':
                     # get the dn to bind 
                     userdn = self.getuserdnldapconnection(userid)
-                    # if not self.verify_auth_is_supported_by_ldap_server( server.info.supported_sasl_mechanisms ):
-                    #    self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s  authentication=ldap3.SIMPLE', str(server), userdn )
                     conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
