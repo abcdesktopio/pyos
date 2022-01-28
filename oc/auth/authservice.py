@@ -1926,12 +1926,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
                     # krb5ccname must already exist 
                     krb5ccname = self.get_krb5ccname( userid )
-                    # replace env by cred_store argument
-                    # os.putenv( 'KRB5CCNAME', krb5ccname )
                     cred_store = {'ccache':  krb5ccname }
-                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME=%s', server_name, userid, cred_store )
-                    # Connection read_only=True
-                    conn = ldap3.Connection( server, user=userid, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
+                    kerberos_principal_name = self.get_kerberos_principal( userid )
+                    # If you specify user=, it is expected to be a Kerberos principal (though it appears you can omit the domain). 
+                    # If there is a credential for that user in the collection, it will be used.
+                    self.logger.info( 'ldap getconnection:Connection server=%s as user=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME=%s', server_name, kerberos_principal_name, cred_store )
+                    conn = ldap3.Connection( server, user=kerberos_principal_name, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
 
                 # do ntlm bind
                 if self.auth_type == 'NTLM':
@@ -1953,7 +1953,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s  authentication=ldap3.SIMPLE', str(server), userdn )
                     conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
 
-                # bind to the ldap server
+                # let's bind to the ldap server
                 self.logger.info( 'binding to the ldap server %s', server_name)
                 conn.bind()
                 self.logger.info( 'bind to %s done', server_name)
