@@ -1877,7 +1877,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
-    def verify_auth_is_supported_by_ldap_server( self, supported_sasl_mechanisms )
+    def verify_auth_is_supported_by_ldap_server( self, supported_sasl_mechanisms ):
         # from https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/a98c1f56-8246-4212-8c4e-d92da1a9563b
         # The SASL mechanisms supported by a Microsoft DC are exposed as strings in the supportedSASLMechanisms attribute of the rootDSE.
         # Windows 2000 operating system support GSSAPI, GSS-SPNEGO
