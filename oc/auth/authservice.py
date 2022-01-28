@@ -1947,8 +1947,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 if self.auth_type == 'SIMPLE':
                     # get the dn to bind 
                     userdn = self.getuserdnldapconnection(userid)
+                    # if not self.verify_auth_is_supported_by_ldap_server( server.info.supported_sasl_mechanisms ):
+                    #    self.logger.error( '%s is not supported by %s supported_sasl_mechanisms=%s', self.auth_type, server_name, server.info.supported_sasl_mechanisms )
                     # logger.debug(locals()) # uncomment this line may dump password in clear text 
-                    self.logger.info( 'create Connection object ldap3.SIMPLE as %s', userdn )
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s  authentication=ldap3.SIMPLE', str(server), userdn )
                     conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
 
