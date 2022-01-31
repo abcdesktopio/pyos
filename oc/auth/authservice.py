@@ -1923,7 +1923,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
                 supported_sasl_mechanisms = server.info.supported_sasl_mechanisms if server.info else None
                 self.logger.info( 'supported_sasl_mechanisms by %s return %s', server_name, str(supported_sasl_mechanisms)  )
-                del c
+                del c # remove the Connection
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
                     self.logger.warning( '%s is not defined by %s.info.supported_sasl_mechanisms supported_sasl_mechanisms=%s', self.auth_type, server_name, str(supported_sasl_mechanisms) )
