@@ -78,6 +78,7 @@ desktopauthproviderneverchange = True     # if user can change auth provider in 
 
 # 
 prelogin_url                = None
+prelogin_url_redirect_on_error  = None
 prelogin_http_attribut      = None
 prelogin_enable             = False
 prelogin_network_list       = []
@@ -353,17 +354,20 @@ def init_prelogin():
     global prelogin_enable
     global prelogin_network_list
     global prelogin_http_attribut_to_force_auth_prelogin
+    global prelogin_url_redirect_on_error
 
     prelogin_enable         = gconfig.get(  'auth.prelogin_enable', False )
     prelogin_url            = gconfig.get(  'auth.prelogin_url' )
     prelogin_user_attribut  = gconfig.get(  'auth.prelogin_user_attribut' )
     prelogin_network_list   = gconfig.get(  'auth.prelogin_network_list', [] )
+    prelogin_url_redirect_on_error  = gconfig.get(  'auth.prelogin_url_redirect_on_error' )
     prelogin_http_attribut_to_force_auth_prelogin = gconfig.get( 'auth.prelogin_http_attribut_to_force_auth_prelogin' )
 
     if prelogin_enable:
         logger.info("prelogin_url=%s", str(prelogin_url) )
         logger.info("prelogin_user_attribut=%s", str(prelogin_user_attribut) )
         logger.info("prelogin_network_list=%s", str(prelogin_network_list) )
+        logger.info("prelogin_url_redirect_on_error=%s", str(prelogin_url_redirect_on_error) )
         logger.info("prelogin_http_attribut_to_force_auth_prelogin=%s", str(prelogin_http_attribut_to_force_auth_prelogin) )
 
 

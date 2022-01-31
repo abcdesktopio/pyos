@@ -219,11 +219,15 @@ class AuthController(BaseController):
         # ipsource
         ipsource = getclientipaddr()
         http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
+        # if the request need a prelogin
         if services.prelogin.enable and ( services.prelogin.request_match(ipsource) or http_attribut_to_force_auth_prelogin ) :
             userid = args.get('userid')
             if not isinstance(userid, str):
                 self.logger.error( 'invalid auth parameters userid %s', type(userid) )
-                raise cherrypy.HTTPError(401, 'invalid auth parameters')
+                if isinstance( services.prelogin.prelogin_url_redirect_on_error, str ):
+                    raise cherrypy.HTTPRedirect( services.prelogin.prelogin_url_redirect_on_error )
+                else:     
+                    raise cherrypy.HTTPError(401, 'invalid auth parameters')
 
             # read the provider name
             provider_name = args.get('provider')
@@ -240,13 +244,19 @@ class AuthController(BaseController):
             loginsessionid = args.get('loginsessionid')
             if not isinstance(loginsessionid, str):
                 self.logger.error( 'invalid auth parameters loginsessionid %s', type(loginsessionid) )
-                raise cherrypy.HTTPError(401, 'invalid auth parameters, request must use a prelogin session')
+                if isinstance( services.prelogin.prelogin_url_redirect_on_error, str ):
+                    raise cherrypy.HTTPRedirect( services.prelogin.prelogin_url_redirect_on_error )
+                else:     
+                    raise cherrypy.HTTPError(401, 'invalid auth parameters, request must use a prelogin session')
 
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
                 # todo: black list the ip source ?
                 self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
-                raise cherrypy.HTTPError(401, 'invalid auth request, verify failed')
+                if isinstance( services.prelogin.prelogin_url_redirect_on_error, str ):
+                    raise cherrypy.HTTPRedirect( services.prelogin.prelogin_url_redirect_on_error )
+                else:     
+                    raise cherrypy.HTTPError(401, 'invalid auth request, verify failed')
 
         # do login
         # Check if provider is set   
@@ -365,7 +375,7 @@ class AuthController(BaseController):
     def prelogin(self,userid=None):
 
         self.logger.debug( cherrypy.request.headers )
-        
+
         ipsource = getclientipaddr()
         self.logger.debug('prelogin request from ip source %s', ipsource)
         
