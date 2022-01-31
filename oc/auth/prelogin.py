@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODPrelogin:
 
-    def __init__(self, prelogin_enable, prelogin_url, prelogin_network_list, memcache_connection_string, http_attribut=None, http_attribut_to_force_auth_prelogin=None):
+    def __init__(self, prelogin_enable, prelogin_url, prelogin_network_list, memcache_connection_string, http_attribut=None, http_attribut_to_force_auth_prelogin=None, prelogin_url_redirect_on_error=None):
         self.maxlogintimeout = 120
         self.mustache_data = None
         self.prelogin_url = prelogin_url
@@ -19,6 +19,7 @@ class ODPrelogin:
         self.enable = prelogin_enable
         self.network_list = prelogin_network_list
         self.http_attribut = http_attribut
+        self.prelogin_url_redirect_on_error = prelogin_url_redirect_on_error
         self.http_attribut_to_force_auth_prelogin = http_attribut_to_force_auth_prelogin
 
         # check configuration value prelogin_url 
