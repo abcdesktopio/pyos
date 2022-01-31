@@ -2278,6 +2278,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'pulseaudio_cookie': pulseaudio_cookie,
                     'broadcast_cookie':  broadcast_cookie }
 
+        # add authinfo labels
+        labels.update( authinfo.data.get('labels', {} ))
+
         # check if we run the desktop in metappli mode or desktop mode
         if type(appname) is str :
             # if appname is set then create a metappli labels
