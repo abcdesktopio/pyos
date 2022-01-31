@@ -356,11 +356,15 @@ def init_prelogin():
 
     prelogin_enable         = gconfig.get(  'auth.prelogin_enable', False )
     prelogin_url            = gconfig.get(  'auth.prelogin_url' )
-    prelogin_user_attribut  = gconfig.get(  'auth.prelogin_http_attribut' )
+    prelogin_user_attribut  = gconfig.get(  'auth.prelogin_user_attribut' )
     prelogin_network_list   = gconfig.get(  'auth.prelogin_network_list', [] )
     prelogin_http_attribut_to_force_auth_prelogin = gconfig.get( 'auth.prelogin_http_attribut_to_force_auth_prelogin' )
 
-
+    if prelogin_enable:
+        logger.info("prelogin_url=%s", str(prelogin_url) )
+        logger.info("prelogin_user_attribut=%s", str(prelogin_user_attribut) )
+        logger.info("prelogin_network_list=%s", str(prelogin_network_list) )
+        logger.info("prelogin_http_attribut_to_force_auth_prelogin=%s", str(prelogin_http_attribut_to_force_auth_prelogin) )
 
 
 
