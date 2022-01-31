@@ -364,6 +364,8 @@ class AuthController(BaseController):
     # Pure HTTP Form request
     def prelogin(self,userid=None):
 
+        self.logger.debug( cherrypy.request.headers )
+        
         ipsource = getclientipaddr()
         self.logger.debug('prelogin request from ip source %s', ipsource)
         
