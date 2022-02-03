@@ -250,14 +250,14 @@ class ODApps:
             image ([docker image]): [docker image]
         """
 
-        def safe_load_label_json( labels, label, default_value=None ): 
+        def safe_load_label_json( name, labels, label, default_value=None ): 
             load_json = default_value # default return value
             data = labels.get(label)
             if isinstance(data, str) :     
                 try:
                     load_json = json.loads(data)
                 except Exception as e:
-                    logger.error( 'invalid label %s, json format %s, skipping label', label, e)
+                    logger.error( 'image:%s invalid label %s, json format %s, skipping label', name, label, e)
             return load_json 
 
         def safe_secrets_requirement_prefix( secrets_requirement, namespace ):
@@ -309,11 +309,11 @@ class ODApps:
             usedefaultapplication = json.loads(usedefaultapplication)
 
         # safe load convert json data json
-        rules = safe_load_label_json( labels, 'oc.rules' )
+        rules = safe_load_label_json( name, labels, 'oc.rules' )
         if rules:
             logger.debug( '%s has rules %s', name, rules )
-        acl   = safe_load_label_json( labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
-        secrets_requirement = safe_load_label_json( labels, 'oc.secrets_requirement' )
+        acl   = safe_load_label_json( name, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
+        secrets_requirement = safe_load_label_json( name, labels, 'oc.secrets_requirement' )
 
         if secrets_requirement is not None: 
             # type of secrets_requirement must be list
@@ -321,8 +321,8 @@ class ODApps:
                 secrets_requirement = [ secrets_requirement ]
             secrets_requirement = safe_secrets_requirement_prefix( secrets_requirement, oc.od.settings.namespace)
 
-        security_opt = safe_load_label_json(labels, 'oc.security_opt' )
-        host_config  = safe_load_label_json(labels, 'oc.host_config', default_value={})
+        security_opt = safe_load_label_json(name, labels, 'oc.security_opt' )
+        host_config  = safe_load_label_json(name, labels, 'oc.host_config', default_value={})
         host_config  = oc.od.settings.filter_hostconfig( host_config )
         
         executablefilename = None
