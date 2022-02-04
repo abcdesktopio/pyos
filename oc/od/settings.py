@@ -167,7 +167,10 @@ list_hostconfigkey = [
         'auto_remove',
         'cap_add', 
         'cap_drop',
-        'cpu_period',
+        'cpu_count',
+        'cpu_percent',
+        'cpu_rt_period',
+        'cpu_rt_runtime',
         'cpu_quota',
         'cpu_shares',
         'cpuset_cpus',
@@ -185,6 +188,7 @@ list_hostconfigkey = [
         'mem_swappiness',
         'memswap_limit',
         'network_mode',
+        'nano_cpus',
         'oom_kill_disable',
         'oom_score_adj',
         'pid_mode',
@@ -199,6 +203,7 @@ list_hostconfigkey = [
         'sysctls',
         'tmpfs',
         'ulimits',
+        'uts_mode',
         'secrets_requirement'   # custom for abcdesktop 
         ]
 
