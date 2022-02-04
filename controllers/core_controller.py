@@ -82,11 +82,8 @@ class CoreController(BaseController):
             return Results.error( message=str(e) )
         
         message = ''
-        if user.userid: 
-            logger.debug('getmessageinfo::popflush(%s)',user.userid )
+        
+        if isinstance( user, oc.auth.authservice.AuthUser ): 
             message = services.messageinfo.popflush(user.userid)
-            logger.debug('getmessageinfo %s is %s', str(user.userid), str(message))
-        else:
-            logger.debug('getmessageinfo warning userid is None')        
 
         return Results.success(message,result={'message':message})
