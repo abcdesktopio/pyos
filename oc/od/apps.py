@@ -31,20 +31,26 @@ logger = logging.getLogger(__name__)
 class ODApps:
 
     def __init__(self):
+        self.img_path = '/img/app/'
         self.lock = threading.Lock()
         self.myglobal_list = {}
         self.build_image_counter = 0
         self.cached_image_counter = 0
         self.public_attr_list   = [ 
-            'id', 
-            'launch',       'name',     'icon',         'keyword',              'uniquerunkey',     
-            'cat',          'args',     'execmode',     'showinview',           'displayname',  
-            'mimetype',     'path',     'desktopfile',  'executablefilename',   'secrets_requirement' ]
+            'id',           'launch',       'name',         'icon',         
+            'icon_url',     'keyword',      'uniquerunkey',     
+            'cat',          'args',         'execmode',     'showinview',           'displayname',  
+            'mimetype',     'path',         'desktopfile',  'executablefilename',   'secrets_requirement' ]
 
         self.private_attr_list  = [ 
             'sha_id', 'acl',  'rules', 'privileged', 'security_opt', 'host_config' ]
 
-    def makeiconfile(self, filename, b64data):
+    def makeicon_url(self, filename ):
+        icon_url = oc.od.settings.default_host_url + self.img_path + filename
+        return icon_url
+
+
+    def makeicon_file(self, filename, b64data):
         bReturn = False
         if filename is None or b64data is None:
             return bReturn
@@ -52,26 +58,26 @@ class ODApps:
         # normalise trust no one
         # hard code image path
         currentPath = '/var/pyos' # or os.getcwd()
-        filepath = os.path.normpath( currentPath + '/img/app/' + filename)
+        filepath = os.path.normpath( currentPath + self.img_path + filename )
         try:
             f = None
             strdecode = base64.b64decode(b64data)
             try:
-               data = strdecode.decode("utf-8")
-               f = open(filepath, 'w')
+                data = strdecode.decode("utf-8")
+                f = open(filepath, 'w')
             except Exception:
-               data = strdecode
-               f = open(filepath, 'wb')
+                data = strdecode
+                f = open(filepath, 'wb')
 
             try:
-               f.write(data)
+                f.write(data)
+                bReturn = True
             except Exception as e:
-              self.logger.error('Can not makeiconfile %s: %s', filename, e)
+                self.logger.error('Can not makeicon_file %s: %s', filename, e)
             f.close()
 
-            bReturn = True
         except Exception as e:
-           self.logger.error('Can not makeiconfile %s: %s', filename, e)
+            self.logger.error('Can not makeicon_file %s: %s', filename, e)
         return bReturn
 
     def countApps(self):
@@ -334,9 +340,11 @@ class ODApps:
         fileextensionslist = self.labeltoList(fileextensions)
         legacyfileextensionslist = self.labeltoList(legacyfileextensions)
 
+        icon_url = None
         # check if icon file name exists and icon data is str
         if isinstance(icon, str) and isinstance(icondata, str):
-            self.makeiconfile(icon, icondata)
+            if self.makeicon_file(icon, icondata):
+                icon_url= self.makeicon_url(icon)
 
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
@@ -347,6 +355,7 @@ class ODApps:
                 'launch': launch,
                 'name': name,
                 'icon': icon,
+                'icon_url': icon_url,
                 'keyword': keyword,
                 'uniquerunkey': uniquerunkey,
                 'cat': cat,
