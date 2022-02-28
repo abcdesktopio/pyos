@@ -1921,9 +1921,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 c.open()  # establish connection without performing any bind (equivalent to ANONYMOUS bind)
                 # read https://ldap3.readthedocs.io/en/latest/bind.html
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
+                # read supported_sasl_mechanisms supported by the ldap server
                 supported_sasl_mechanisms = server.info.supported_sasl_mechanisms if server.info else None
                 self.logger.info( 'supported_sasl_mechanisms by %s return %s', server_name, str(supported_sasl_mechanisms)  )
-                del c # remove the Connection
+                del c # remove the c Connection, only use to get supported_sasl_mechanisms 
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
                     self.logger.warning( '%s is not defined by %s.info.supported_sasl_mechanisms supported_sasl_mechanisms=%s', self.auth_type, server_name, str(supported_sasl_mechanisms) )
