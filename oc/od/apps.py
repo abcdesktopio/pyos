@@ -37,8 +37,9 @@ class ODApps:
         self.build_image_counter = 0
         self.cached_image_counter = 0
         self.public_attr_list   = [ 
-            'id',           'launch',       'name',         'icon',         
-            'icon_url',     'keyword',      'uniquerunkey',     
+            'id',           'launch',       'name',         
+            'icon',         'icon_data',       
+            'keyword',      'uniquerunkey',     
             'cat',          'args',         'execmode',     'showinview',           'displayname',  
             'mimetype',     'path',         'desktopfile',  'executablefilename',   'secrets_requirement' ]
 
@@ -340,11 +341,11 @@ class ODApps:
         fileextensionslist = self.labeltoList(fileextensions)
         legacyfileextensionslist = self.labeltoList(legacyfileextensions)
 
-        icon_url = None
+        # icon_url = None
         # check if icon file name exists and icon data is str
-        if isinstance(icon, str) and isinstance(icondata, str):
-            if self.makeicon_file(icon, icondata):
-                icon_url= self.makeicon_url(icon)
+        # if isinstance(icon, str) and isinstance(icondata, str):
+        #    if self.makeicon_file(icon, icondata):
+        #       icon_url = self.makeicon_url(icon)
 
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
@@ -355,7 +356,7 @@ class ODApps:
                 'launch': launch,
                 'name': name,
                 'icon': icon,
-                'icon_url': icon_url,
+                'icon_data' : icondata,
                 'keyword': keyword,
                 'uniquerunkey': uniquerunkey,
                 'cat': cat,
