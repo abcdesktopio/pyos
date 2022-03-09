@@ -474,11 +474,6 @@ class AuthController(BaseController):
             self.logger.error('logmein invalid network source error ipsource=%s', ipsource)
             raise cherrypy.HTTPError(400, 'logmein invalid network source error')
         
-        # if http request has services.prelogin.http_attribut
-        # use services.prelogin.http_attribut value has userid
-        if not isinstance( services.logmein.http_attribut, str) :  
-            raise cherrypy.HTTPError(400, 'logmein invalid http_attribut in configuration file')
-        
         # if the http header name is defined in configuration file
         # the header name must exist in the http request else raise error
         if isinstance( services.logmein.http_attribut, str):
