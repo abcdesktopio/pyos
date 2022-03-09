@@ -29,9 +29,10 @@ logger = logging.getLogger(__name__)
 
 @oc.logging.with_logger()
 class ODApps:
-
+    """ ODApps
+        manage application list 
+    """
     def __init__(self):
-        self.img_path = '/img/app/'
         self.lock = threading.Lock()
         self.myglobal_list = {}
         self.build_image_counter = 0
@@ -46,13 +47,19 @@ class ODApps:
         self.private_attr_list  = [ 
             'sha_id', 'acl',  'rules', 'privileged', 'security_opt', 'host_config' ]
 
+    '''
+        code to create icon file 
+        removed
+
     def makeicon_url(self, filename ):
+        self.img_path = '/img/app/'
         icon_url = oc.od.settings.default_host_url + self.img_path + filename
         return icon_url
 
 
     def makeicon_file(self, filename, b64data):
         bReturn = False
+        self.img_path = '/img/app/'
         if filename is None or b64data is None:
             return bReturn
 
@@ -80,12 +87,10 @@ class ODApps:
         except Exception as e:
             self.logger.error('Can not makeicon_file %s: %s', filename, e)
         return bReturn
+    '''
 
     def countApps(self):
-        mylen = 0
-        if isinstance(self.myglobal_list, dict):
-            mylen = len(self.myglobal_list)
-        return mylen
+        return len(self.myglobal_list)
 
     def getCached_image_counter(self):
         return self.cached_image_counter
@@ -203,7 +208,19 @@ class ODApps:
         return userapplist
 
     def default_appdict( self, auth, default_app, filtered_public_attr_list=False ):    
+        """default_appdict
+            return the default dock application list
+        Args:
+            auth (_type_): _description_
+            default_app (_type_): _description_
+            filtered_public_attr_list (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
         default_app = self.acl_permission_appdict( auth, default_app ) 
+        if filtered_public_attr_list is True:
+            default_app = self.filter_public_attr_list( default_app )
         return default_app
 
     def user_appdict( self, auth, filtered_public_attr_list=False ):     
