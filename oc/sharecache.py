@@ -32,6 +32,11 @@ class ODSharecacheBase(object):
 
 @oc.logging.with_logger()
 class ODMemcachedSharecache(ODSharecacheBase):
+    """ODMemcachedSharecache
+
+    Args:
+        ODSharecacheBase (_type_): ODSharecacheBase
+    """
     def __init__(self, connectionstring):
         self.socket_timeout     = 2 # 2 seconds  
         self.connectionstring   = connectionstring
