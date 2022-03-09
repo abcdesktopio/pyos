@@ -25,6 +25,7 @@ class ODServices(object):
         self.imagewatcher = None
         self.apps = None
         self.prelogin = None
+        self.logmein = None
 
     def __del__(self):
         # stop thread dockerwatcher if instance exists
@@ -55,6 +56,7 @@ class ODServices(object):
         self.init_keymanager()
         self.init_webrtc()
         self.init_prelogin()
+        self.init_logmein()
 
 
     def init_webrtc(self):
@@ -85,11 +87,11 @@ class ODServices(object):
         """update locator using site entry in ActiveDirecotry LDAP data
         """
         # filter manager to get explicit manager
-        manager_explicit = oc.od.services.services.auth.getmanager( name='explicit' )
+        manager_explicit = oc.od.services.services.auth.getmanager( 'explicit' )
         # for each explicit manager
         for prv in manager_explicit.providers.values():
             # get a explicit provider                         
-            provider=oc.od.services.services.auth.findprovider( name=prv.name )
+            provider=oc.od.services.services.auth.findprovider( provider_name=prv.name )
             # if explicit provoder is an activedirectory  
             if provider.type == 'activedirectory' :
                 # run ldap query to list site subnet from the ActiveDirectory domain 
@@ -138,6 +140,14 @@ class ODServices(object):
                                                         http_attribut=settings.prelogin_user_attribut,
                                                         http_attribut_to_force_auth_prelogin=settings.prelogin_http_attribut_to_force_auth_prelogin,
                                                         prelogin_url_redirect_on_error=settings.prelogin_url_redirect_on_error)
+
+    def init_logmein(self):
+        logger.info('')
+        import oc.auth.logmein
+        self.logmein = oc.auth.logmein.ODLogmein(       logmein_enable=settings.logmein_enable,
+                                                        logmein_network_list=settings.logmein_network_list,
+                                                        logmein_http_attribut=settings.logmein_http_attribut,
+                                                        logmein_url_redirect_on_error=settings.logmein_url_redirect_on_error)
 
     def init_messageinfo(self):
         logger.info('')
