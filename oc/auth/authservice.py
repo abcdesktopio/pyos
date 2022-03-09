@@ -1254,12 +1254,17 @@ class ODAuthManagerBase(object):
         return pdr
 
     def getclientdata(self):
+        # list(map(lambda p: p.getclientdata(), self.providers.values()))
+        # filter get p.showclientdata == True
+        providersmaplist = list( filter( lambda p: p.showclientdata == True, self.providers.values() ) )
+        providers = list( map(lambda p: p.getclientdata(), providersmaplist )) 
+
         return {
             'name': self.name,
-            'providers': list(map(lambda p: p.getclientdata(), self.providers.values()))
+            'providers': providers 
         }
 
-    
+
 class ODExternalAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
@@ -1384,6 +1389,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.rules = policies.get('rules')
         self.default = config.get('default', False )
         self.auth_only = config.get('auth_only', False )
+        self.showclientdata = config.get('showclientdata', True )
+
        
     def authenticate(self, **params):
         raise NotImplementedError()
@@ -1392,11 +1399,12 @@ class ODAuthProviderBase(ODRoleProviderBase):
         raise NotImplementedError()
 
     def getclientdata(self):
-        return { 
+        clientdata = { 
             'name': self.name, 
             'caption': self.caption, 
             'displayname': self.displayname
         }
+        return clientdata
 
     def finalize(self, auth, **params):
         return auth
@@ -1559,11 +1567,10 @@ class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
      def getuserinfo(self, authinfo, **params):
         user = copy.deepcopy(self.userinfo)
         # anonymous can have a username
-        # user name is set has the auth token 
+        # user name is set has the auth token
         user['name']   = authinfo.token
         user['userid'] = authinfo.token # take care, it must be uniqu
-        return user    
-
+        return user
 
 @oc.logging.with_logger()
 class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
