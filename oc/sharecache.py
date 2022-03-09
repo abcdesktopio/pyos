@@ -14,16 +14,24 @@
 import vendor.memcache as memcache 
 import oc.logging
 
-class ODSharecache(object):
+class ODSharecacheBase(object):
+    """ODSharecacheBase
+        virtual class to set and get
+
+    Args:
+        object (_type_): _description_
+    """
     def get(self, key):
-        raise NotImplementedError("Class %s doesn't implement method %s" % (self.__class__.__name__, 'get'))
+        raise NotImplementedError(  'Class %s doesn\'t implement method %s' %
+                                    (self.__class__.__name__, 'get'))
 
     def set(self, key, value):
-        raise NotImplementedError("Class %s doesn't implement method %s" % (self.__class__.__name__, 'set'))
+        raise NotImplementedError(  'Class %s doesn\'t implement method %s' %
+                                    (self.__class__.__name__, 'set'))
 
 
 @oc.logging.with_logger()
-class ODMemcachedSharecache(ODSharecache):
+class ODMemcachedSharecache(ODSharecacheBase):
     def __init__(self, connectionstring):
         self.socket_timeout     = 2 # 2 seconds  
         self.connectionstring   = connectionstring
