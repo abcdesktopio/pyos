@@ -3,7 +3,7 @@ import requests
 import chevron
 import uuid
 from netaddr import IPNetwork, IPAddress
-
+import oc.logging
 import oc.sharecache
 
 logger = logging.getLogger(__name__)
