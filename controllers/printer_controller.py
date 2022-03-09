@@ -248,7 +248,7 @@ class PrinterController(BaseController):
         printer = printers[0]
         try:
             trustedprintername = printer.get('printerName')
-            logger.debug( 'removing printer name found in directory %s', trustedprintername )
+            # logger.debug( 'removing printer name found in directory %s', trustedprintername )
             self.createprinterctl( auth, user ).remove( trustedprintername )
         except Exception as e:
             logger.error( e )
