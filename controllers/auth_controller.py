@@ -12,9 +12,14 @@
 # Software description: cloud native desktop service
 #
 
+from ast import arguments
 import logging
 import cherrypy
 import chevron
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509.oid import NameOID
 
 import urllib.parse
 
@@ -163,11 +168,9 @@ class AuthController(BaseController):
         # However, if request 2 returns a HTTP 200 with a Refresh header (the "meta refresh" redirect), cookies are set properly by request 3.
         #
         # empty html page to fix HTTP redirect cookie bug with safari
-        mustache_dict = {
-            'loginScreencss_url': '../../css/css-dist/loginScreen.css',
-            'jwt_user_token': str(jwt_user_token),
-            'default_host_url' : '/' 
-            # oc.od.settings.default_host_url
+        mustache_dict = {   'loginScreencss_url': '../../css/css-dist/loginScreen.css',
+                            'jwt_user_token': str(jwt_user_token),
+                            'default_host_url' : '/' 
         }
         oauth_html_refresh_page = chevron.render( self.oauth_html_redirect_page, mustache_dict )
         return oauth_html_refresh_page
@@ -175,6 +178,9 @@ class AuthController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['GET'])
     def oauth(self, **params):
+        # overwrite auth params to prevent manager changes
+        # for security reasons
+        params['manager'] = 'external'
         response = services.auth.login(**params)
         if response.success:
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
@@ -200,10 +206,11 @@ class AuthController(BaseController):
             Results success 
             if success 
                 set auth jwt cookie
-                result={'userid': response.result.user.userid,
-                                        'name': response.result.user.name,
-                                        'provider': response.result.auth.providertype,       
-                                        'expire_in': expire_in }
+                result={    'userid': response.result.user.userid,
+                            'name': response.result.user.name,
+                            'provider': response.result.auth.providertype,       
+                            'expire_in': expire_in 
+                }
                 return Results.success
             else
                 raise cherrypy.HTTPError(400) invalid parameters
@@ -261,7 +268,7 @@ class AuthController(BaseController):
         # do login
         # Check if provider is set   
         provider = args.get('provider')         
-        if provider is None or services.auth.is_default_metalogin_provider(): 
+        if provider is None and services.auth.is_default_metalogin_provider(): 
             # no provider set 
             # use metalogin provider by default
             self.logger.info( 'auth is using metalogin provider' )
@@ -373,9 +380,7 @@ class AuthController(BaseController):
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
     def prelogin(self,userid=None):
-
         self.logger.debug( cherrypy.request.headers )
-
         ipsource = getclientipaddr()
         self.logger.debug('prelogin request from ip source %s', ipsource)
         
@@ -419,7 +424,7 @@ class AuthController(BaseController):
     def autologin(self, login=None, provider=None, password=None):
         self.logger.debug('')
 
-        if oc.od.settings.services_http_request_denied.get(self.autologin.__name__) is True:
+        if oc.od.settings.services_http_request_denied.get(self.autologin.__name__, True) is True:
             raise cherrypy.HTTPError(400, 'request is denied by configfile')
 
         if not isinstance(login,str):
@@ -452,7 +457,62 @@ class AuthController(BaseController):
         cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
         return oauth_html_refresh_page
 
+
+    @cherrypy.expose
+    @cherrypy.tools.allow(methods=['POST','GET'])
+    # Pure HTTP Form request
+    def logmein(self, provider=None, userid=None ):
+
+        ipsource = getclientipaddr()
+        self.logger.debug('logmein request from ip source %s', ipsource)
         
+        if not services.logmein.enable:
+            self.logger.error('logmein is disabled, but request ask for logmein from %s', ipsource)
+            raise cherrypy.HTTPError(400, 'logmein configuration file error, service is disabled')
+
+        if not services.logmein.request_match( ipsource ):
+            self.logger.error('logmein invalid network source error ipsource=%s', ipsource)
+            raise cherrypy.HTTPError(400, 'logmein invalid network source error')
+        
+        # if http request has services.prelogin.http_attribut
+        # use services.prelogin.http_attribut value has userid
+        if not isinstance( services.logmein.http_attribut, str) :  
+            raise cherrypy.HTTPError(400, 'logmein invalid http_attribut in configuration file')
+        
+        # if the http header name is defined in configuration file
+        # the header name must exist in the http request else raise error
+        if isinstance( services.logmein.http_attribut, str):
+            cert = cherrypy.request.headers.get(services.logmein.http_attribut)
+            # if the http header name exixsts in the current http request
+            if isinstance( cert, str ):
+                cert_info = x509.load_pem_x509_certificate( urllib.parse.unquote( cert ).encode(), default_backend() )
+                self.logger.debug('logmein certificat subject data %s', str(cert_info.subject) )
+                cert_info_common_name = cert_info.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+                userid = cert_info_common_name
+            else:
+                raise cherrypy.HTTPError(400, 'logmein invalid COMMON_NAME or certrificat failed')
+        else:
+            # use the userid in querystring parameter
+            if not isinstance(userid, str) or len(userid) == 0:
+                self.logger.error('logmein invalid userid parameter format')
+                raise cherrypy.HTTPError(400, 'logmein invalid userid parameter')
+            else:
+                # if the userid is set in querystring
+                userid = urllib.parse.unquote(userid)
+
+        self.logger.info('logmein param userid=%s', userid)
+
+        response = services.auth.login( provider=provider, manager='implicit', userid=userid )
+        if response.success:
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
+            oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
+            cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
+            cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
+            return oauth_html_refresh_page
+        else:
+            logger.error( 'auth error %s', str(response.reason) )
+            return response.reason
+
 
 
     @cherrypy.expose
