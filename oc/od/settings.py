@@ -76,13 +76,21 @@ desktoppersistentvolumeclaim = None
 desktopauthproviderneverchange = True     # if user can change auth provider in the same session
 
 
-# 
+# prelogin
 prelogin_url                = None
+prelogin_user_attribut      = None
 prelogin_url_redirect_on_error  = None
 prelogin_http_attribut      = None
 prelogin_enable             = False
 prelogin_network_list       = []
 prelogin_http_attribut_to_force_auth_prelogin = None
+
+# logmein
+logmein_user_attribut      = None
+logmein_url_redirect_on_error  = None
+logmein_http_attribut      = None
+logmein_enable             = False
+logmein_network_list       = []
 
 # printer container
 desktopprinterimage         = None
@@ -339,19 +347,32 @@ def init_defaulthostfqdn():
     routehostcookiename = gconfig.get('routehostcookiename','abcdesktop_host')
     logger.info('route host cookie name: %s', routehostcookiename)
 
-    services_http_request_denied = gconfig.get('services_http_request_denied',{})
+    # if not set autologin is denied 
+    services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True} )
     logger.info('services http request denied: %s', services_http_request_denied)
 
 
 def init_printercupsdict():
     global printercupsdriverLanguageDict
     global printercupsembeddedList
-    printercupsdriverLanguageDict   = gconfig.get(  'printer.cupsdriverLanguageMap', 
-                                                    {'default': 'drv:///sample.drv/generic.ppd'}
-                                      )
-    printercupsembeddedList         = gconfig.get(  'printer.cupsPrinterEmbeddedList', 
-                                                    []
-                                      )
+    printercupsdriverLanguageDict = gconfig.get( 'printer.cupsdriverLanguageMap',   {'default': 'drv:///sample.drv/generic.ppd'} )
+    printercupsembeddedList       = gconfig.get( 'printer.cupsPrinterEmbeddedList', [] )
+
+def init_logmein():
+    global logmein_http_attribut
+    global logmein_enable
+    global logmein_network_list
+    global logmein_url_redirect_on_error
+
+    logmein_enable         = gconfig.get(  'auth.logmein_enable', False )
+    logmein_http_attribut  = gconfig.get(  'auth.logmein_http_attribut' )
+    logmein_network_list   = gconfig.get(  'auth.logmein_network_list', [] )
+    logmein_url_redirect_on_error  = gconfig.get(  'auth.logmein_url_redirect_on_error' )
+
+    if logmein_enable is True:
+        logger.info("logmein_user_attribut=%s", str(logmein_user_attribut) )
+        logger.info("logmein_network_list=%s", str(logmein_network_list) )
+        logger.info("logmein_url_redirect_on_error=%s", str(logmein_url_redirect_on_error) )
 
 def init_prelogin():
     global prelogin_url
@@ -368,7 +389,7 @@ def init_prelogin():
     prelogin_url_redirect_on_error  = gconfig.get(  'auth.prelogin_url_redirect_on_error' )
     prelogin_http_attribut_to_force_auth_prelogin = gconfig.get( 'auth.prelogin_http_attribut_to_force_auth_prelogin' )
 
-    if prelogin_enable:
+    if prelogin_enable is True:
         logger.info("prelogin_url=%s", str(prelogin_url) )
         logger.info("prelogin_user_attribut=%s", str(prelogin_user_attribut) )
         logger.info("prelogin_network_list=%s", str(prelogin_network_list) )
@@ -768,8 +789,8 @@ def init_config_auth():
                 if cfgref is None: 
                     continue
                     
-                conncfg = gconfig.get(cfgref, {}).get(name, None)
-
+                # conncfg = gconfig.get(cfgref, {}).get(name, None)
+                conncfg = list(gconfig.get(cfgref,{}).values())[0]
                 if conncfg: 
                     cfg.update({    **conncfg,
                                     'basedn':  conncfg.get('ldap_basedn'),
@@ -784,7 +805,8 @@ def init_config_auth():
 
     authmanagers = gconfig.get('authmanagers', {})
 
-    # load configref for explicit and metaexplicit providers
+    # load configref for all providers
+    parse_provider_configref( authmanagers, 'implicit.providers')
     parse_provider_configref( authmanagers, 'explicit.providers')
     parse_provider_configref( authmanagers, 'metaexplicit.providers')
 
@@ -941,6 +963,9 @@ def init():
 
     # init prelogin
     init_prelogin()
+
+    # init_logmein
+    init_logmein()
 
     # init_controllers
     # use desktopenvironmentlocal
