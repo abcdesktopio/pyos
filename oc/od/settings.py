@@ -881,6 +881,7 @@ def init_config_logging():
 def init_dock():
     global dock
     dock = gconfig.get('dock', {})
+    logger.info("default user dock %s ", str( dock ))
 
 def get_default_appdict():
     return dock
