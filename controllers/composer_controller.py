@@ -304,7 +304,6 @@ class ComposerController(BaseController):
             logger.error( e )
             return Results.error( message=str(e) )
 
-    
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
@@ -313,21 +312,21 @@ class ComposerController(BaseController):
         try:
             (auth, user ) = self.validate_env()
             userappdict = {}
+
             # list all applications allowed for this user (auth)
             appdict = services.apps.user_appdict( auth, filtered_public_attr_list=True)
+
             # list all default application from the config file allowed for this user (auth)
             defaultappdict= services.apps.default_appdict( auth, settings.get_default_appdict(), filtered_public_attr_list=True )
 
             # user application list is the default applist + the user application list
             # add defaultappdict 
-            # defaultappdict id the first one to get filemanager as first entry if in 
+            # defaultappdict id the first one to get filemanager as first entry if in dock 
             userappdict.update( defaultappdict )
             # add appdict
             userappdict.update( appdict )
 
-
-            # return value is a list
-            # convert dict to list
+            # return value is a list, convert dict to list
             userapplist = list( userappdict.values() )
             # return succes data 
             return Results.success(result=userapplist)    
