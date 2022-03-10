@@ -484,9 +484,9 @@ class ODApps:
                 if app.get(n) == keyname :
                     return app
 
+        app = None
         # image is not found try to find the app using the mimetype tagged as default 
         mimemap = self.buildmap(userappdict, 'mimetype' ) # build  mimemap
-
         # if image is mimetype get the associated imageid from the mimetype
         appid = mimemap.get(keyname)
         if appid:
