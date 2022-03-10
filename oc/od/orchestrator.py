@@ -222,6 +222,7 @@ class ODOrchestratorBase(object):
                     mycontainer['oc.path']  = container.labels.get('oc.path')
                     mycontainer['oc.args']  = container.labels.get('oc.args')
                     mycontainer['oc.icon']  = container.labels.get('oc.icon')
+                    mycontainer['oc.icondata'] = container.labels.get('oc.icondata')
                     mycontainer['oc.launch']        = container.labels.get('oc.launch')
                     mycontainer['oc.displayname']   = container.labels.get('oc.displayname')
                     # add the object to the result array
