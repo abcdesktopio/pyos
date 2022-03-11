@@ -11,16 +11,16 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODPrelogin:
 
-    def __init__(self, prelogin_enable, prelogin_url, prelogin_network_list, memcache_connection_string, http_attribut=None, http_attribut_to_force_auth_prelogin=None, prelogin_url_redirect_on_error=None):
+    def __init__(self, config, memcache_connection_string ):
         self.maxlogintimeout = 120
         self.mustache_data = None
-        self.prelogin_url = prelogin_url
+        self.prelogin_url = config.get('url')
         self.memcache = oc.sharecache.ODMemcachedSharecache( memcache_connection_string )
-        self.enable = prelogin_enable
-        self.network_list = prelogin_network_list
-        self.http_attribut = http_attribut
-        self.prelogin_url_redirect_on_error = prelogin_url_redirect_on_error
-        self.http_attribut_to_force_auth_prelogin = http_attribut_to_force_auth_prelogin
+        self.enable = config.get('enable')
+        self.network_list = config.get('network_list', [] )
+        self.http_attribut = config.get('http_attribut')
+        self.prelogin_url_redirect_on_error = config.get('url_redirect_on_error')
+        self.http_attribut_to_force_auth_prelogin = config.get('http_attribut_to_force_auth_prelogin')
 
         # check configuration value prelogin_url 
         if self.enable and not isinstance( self.prelogin_url, str):

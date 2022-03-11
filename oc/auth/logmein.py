@@ -7,11 +7,12 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODLogmein:
 
-    def __init__(self, logmein_enable, logmein_network_list, logmein_http_attribut=None, logmein_url_redirect_on_error=None):
-        self.enable = logmein_enable
-        self.network_list = logmein_network_list
-        self.http_attribut = logmein_http_attribut
-        self.logmein_url_redirect_on_error = logmein_url_redirect_on_error
+    def __init__(self, config):
+        self.enable = config.get('enable', False)
+        self.network_list = config.get('network_list', [])
+        self.http_attribut = config.get('http_attribut')
+        self.url_redirect_on_error = config.get('redirect_on_error')
+        self.permit_querystring = config.get('permit_querystring', False)
 
         # check configuration value network_list 
         if self.enable :
