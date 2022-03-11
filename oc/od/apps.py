@@ -184,6 +184,7 @@ class ODApps:
         Returns:
             [list]: [list of application]
         """
+        self.logger.info('')
         userapplist = []
         
         # Lock here 
@@ -218,6 +219,7 @@ class ODApps:
         Returns:
             _type_: _description_
         """
+        self.logger.info('')
         default_app = self.acl_permission_appdict( auth, default_app ) 
         if filtered_public_attr_list is True:
             default_app = self.filter_public_attr_list( default_app )
@@ -253,6 +255,7 @@ class ODApps:
         return userappdict
 
     def filter_public_attr_list( self, appdict ):
+        self.logger.info('')
         filtered_app_dict = {}
         for key in appdict.keys():
             currentapp = appdict[key]
@@ -263,7 +266,6 @@ class ODApps:
             for a in self.public_attr_list:
                 newapp[a] = currentapp.get(a)
             filtered_app_dict[key] = newapp
-           
         return filtered_app_dict
 
     def imagetoapp( self, image ):
