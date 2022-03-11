@@ -13,6 +13,8 @@ import oc.datastore
 import oc.pyutils as pyutils
 import oc.logging
 
+import base64
+
 logger = logging.getLogger(__name__)
 
 defaultConfigurationFilename = 'od.config'
@@ -878,10 +880,33 @@ def init_config_logging():
     pass
 
 
+def make_b64data_from_iconfile(filename):
+    """make_b64data_from_iconfile
+        load file data and encode in b64
+    Args:
+        filename (str): filename to encode
+
+    Returns:
+        str: encoded content file
+    """
+    img_path = 'img/app/'
+    filepath = os.path.normpath( img_path + filename )
+    f = open(filepath, 'r')
+    file_data = f.read()
+    f.close()
+    strencode = base64.b64encode( file_data.encode('utf8') )
+    return strencode
+
+      
+
 def init_dock():
     global dock
     dock = gconfig.get('dock', {})
+    for key in dock.keys():
+        filename = dock[key].get( 'icon' )
+        dock[key]['icondata'] = make_b64data_from_iconfile( filename )
     logger.info("default user dock %s ", str( dock ))
+
 
 def get_default_appdict():
     return dock
