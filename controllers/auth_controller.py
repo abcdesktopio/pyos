@@ -473,6 +473,11 @@ class AuthController(BaseController):
         if not services.logmein.request_match( ipsource ):
             self.logger.error('logmein invalid network source error ipsource=%s', ipsource)
             raise cherrypy.HTTPError(400, 'logmein invalid network source error')
+
+        # use the userid in querystring parameter
+        if services.logmein.permit_querystring:
+            if isinstance(userid, str) and len(userid) > 0:
+                userid = urllib.parse.unquote(userid)
         
         # if the http header name is defined in configuration file
         # the header name must exist in the http request else raise error
@@ -484,18 +489,14 @@ class AuthController(BaseController):
                 self.logger.debug('logmein certificat subject data %s', str(cert_info.subject) )
                 cert_info_common_name = cert_info.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
                 userid = cert_info_common_name
-            else:
-                raise cherrypy.HTTPError(400, 'logmein invalid COMMON_NAME or certrificat failed')
-        else:
-            # use the userid in querystring parameter
-            if not isinstance(userid, str) or len(userid) == 0:
-                self.logger.error('logmein invalid userid parameter format')
-                raise cherrypy.HTTPError(400, 'logmein invalid userid parameter')
-            else:
-                # if the userid is set in querystring
-                userid = urllib.parse.unquote(userid)
 
-        self.logger.info('logmein param userid=%s', userid)
+        if not isinstance(userid, str) :
+            self.logger.error('invalid user parameter' )
+            raise cherrypy.HTTPError(400, 'logmein invalid user parameter')
+        
+        if len(userid) == 0:
+            self.logger.error('invalid user parameter' )
+            raise cherrypy.HTTPError(400, 'logmein invalid user parameter')
 
         response = services.auth.login( provider=provider, manager='implicit', userid=userid )
         if response.success:
