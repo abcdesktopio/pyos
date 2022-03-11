@@ -133,21 +133,13 @@ class ODServices(object):
     def init_prelogin(self):
         logger.info('')
         import oc.auth.prelogin
-        self.prelogin = oc.auth.prelogin.ODPrelogin(    prelogin_enable=settings.prelogin_enable,
-                                                        prelogin_url=settings.prelogin_url,
-                                                        prelogin_network_list=settings.prelogin_network_list,
-                                                        memcache_connection_string=settings.memconnectionstring,
-                                                        http_attribut=settings.prelogin_user_attribut,
-                                                        http_attribut_to_force_auth_prelogin=settings.prelogin_http_attribut_to_force_auth_prelogin,
-                                                        prelogin_url_redirect_on_error=settings.prelogin_url_redirect_on_error)
+        self.prelogin = oc.auth.prelogin.ODPrelogin(    config=settings.prelogin,
+                                                        memcache_connection_string=settings.memconnectionstring )
 
     def init_logmein(self):
         logger.info('')
         import oc.auth.logmein
-        self.logmein = oc.auth.logmein.ODLogmein(       logmein_enable=settings.logmein_enable,
-                                                        logmein_network_list=settings.logmein_network_list,
-                                                        logmein_http_attribut=settings.logmein_http_attribut,
-                                                        logmein_url_redirect_on_error=settings.logmein_url_redirect_on_error)
+        self.logmein = oc.auth.logmein.ODLogmein( config=settings.logmein )
 
     def init_messageinfo(self):
         logger.info('')

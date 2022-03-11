@@ -79,16 +79,12 @@ desktopauthproviderneverchange = True     # if user can change auth provider in 
 
 
 # prelogin
-prelogin_url                = None
-prelogin_user_attribut      = None
-prelogin_url_redirect_on_error  = None
-prelogin_http_attribut      = None
-prelogin_enable             = False
-prelogin_network_list       = []
-prelogin_http_attribut_to_force_auth_prelogin = None
+prelogin = {}
 
 # logmein
-logmein_user_attribut      = None
+logmein = {}
+
+_user_attribut      = None
 logmein_url_redirect_on_error  = None
 logmein_http_attribut      = None
 logmein_enable             = False
@@ -361,44 +357,16 @@ def init_printercupsdict():
     printercupsembeddedList       = gconfig.get( 'printer.cupsPrinterEmbeddedList', [] )
 
 def init_logmein():
-    global logmein_http_attribut
-    global logmein_enable
-    global logmein_network_list
-    global logmein_url_redirect_on_error
-
-    logmein_enable         = gconfig.get(  'auth.logmein_enable', False )
-    logmein_http_attribut  = gconfig.get(  'auth.logmein_http_attribut' )
-    logmein_network_list   = gconfig.get(  'auth.logmein_network_list', [] )
-    logmein_url_redirect_on_error  = gconfig.get(  'auth.logmein_url_redirect_on_error' )
-
-    if logmein_enable is True:
-        logger.info("logmein_user_attribut=%s", str(logmein_user_attribut) )
-        logger.info("logmein_network_list=%s", str(logmein_network_list) )
-        logger.info("logmein_url_redirect_on_error=%s", str(logmein_url_redirect_on_error) )
+    global logmein
+    logmein = gconfig.get(  'auth.logmein', { 'enable': False } )
+    if logmein.get('enable') is True:
+        logger.info('logmein config', str(logmein))
 
 def init_prelogin():
-    global prelogin_url
-    global prelogin_user_attribut
-    global prelogin_enable
-    global prelogin_network_list
-    global prelogin_http_attribut_to_force_auth_prelogin
-    global prelogin_url_redirect_on_error
-
-    prelogin_enable         = gconfig.get(  'auth.prelogin_enable', False )
-    prelogin_url            = gconfig.get(  'auth.prelogin_url' )
-    prelogin_user_attribut  = gconfig.get(  'auth.prelogin_user_attribut' )
-    prelogin_network_list   = gconfig.get(  'auth.prelogin_network_list', [] )
-    prelogin_url_redirect_on_error  = gconfig.get(  'auth.prelogin_url_redirect_on_error' )
-    prelogin_http_attribut_to_force_auth_prelogin = gconfig.get( 'auth.prelogin_http_attribut_to_force_auth_prelogin' )
-
-    if prelogin_enable is True:
-        logger.info("prelogin_url=%s", str(prelogin_url) )
-        logger.info("prelogin_user_attribut=%s", str(prelogin_user_attribut) )
-        logger.info("prelogin_network_list=%s", str(prelogin_network_list) )
-        logger.info("prelogin_url_redirect_on_error=%s", str(prelogin_url_redirect_on_error) )
-        logger.info("prelogin_http_attribut_to_force_auth_prelogin=%s", str(prelogin_http_attribut_to_force_auth_prelogin) )
-
-
+    global prelogin
+    prelogin = gconfig.get(  'auth.prelogin', { 'enable': False } )
+    if prelogin.get('enable') is True:
+        logger.info('prelogin config', str(prelogin))
 
 def init_websocketrouting():
     """init_websocketrouting
@@ -904,7 +872,7 @@ def init_dock():
     dock = gconfig.get('dock', {})
     for key in dock.keys():
         filename = dock[key].get( 'icon' )
-        dock[key]['icondata'] = make_b64data_from_iconfile( filename )
+        dock[key]['icon_data'] = make_b64data_from_iconfile( filename )
     logger.info("default user dock %s ", str( dock ))
 
 
