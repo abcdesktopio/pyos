@@ -862,7 +862,7 @@ def make_b64data_from_iconfile(filename):
     f = open(filepath, 'r')
     file_data = f.read()
     f.close()
-    strencode = base64.b64encode( file_data.encode('utf8') )
+    strencode = base64.b64encode( file_data.encode('utf8') ).decode('utf-8') 
     return strencode
 
       
