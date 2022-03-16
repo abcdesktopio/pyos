@@ -673,7 +673,18 @@ class ODAuthTool(cherrypy.Tool):
 
         primaryGroup = condition.get('primarygroupid')
         if primaryGroup is not None:
-            if type(primaryGroup) is int:
+            # always use 'int' type format
+            # from https://docs.microsoft.com/en-us/windows/win32/adschema/a-primarygroupid
+            # Ldap-Display-Name	primaryGroupID
+            # Size	4 bytes
+            if isinstance(primaryGroup,str):
+                try:
+                    primaryGroup = int(primaryGroup)
+                except Exception as e:
+                    logger.error( 'invalid primarygroupid type convert value %s to int failed', str(primaryGroup) )
+                    pass
+
+            if isinstance(primaryGroup,int):
                 result = isPrimaryGroup( user, primaryGroup )
                 if result == condition.get( 'expected'):
                     compiled_result = True
