@@ -15,6 +15,7 @@
 #
 
 import logging
+from oc.od.desktop import ODDesktop
 
 import oc.od.settings as settings # Desktop settings lib
 import oc.pyutils
@@ -592,7 +593,8 @@ def notify_user( access_userid, access_type, method, data ):
     myOrchestrator = selectOrchestrator()  
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
     cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
-    myOrchestrator.execininstance(myDesktop, cmd)
+    if isinstance( myDesktop, ODDesktop) :
+        myOrchestrator.execininstance(myDesktop, cmd)
     
 
 def getapp(authinfo, name):
