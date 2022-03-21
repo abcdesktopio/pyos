@@ -12,7 +12,6 @@
 # Software description: cloud native desktop service
 #
 
-from ast import arguments
 import logging
 import cherrypy
 import chevron
