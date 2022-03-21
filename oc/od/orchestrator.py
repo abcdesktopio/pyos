@@ -2063,7 +2063,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env.update( {   'DISPLAY': desktop_ip_addr + ':0',
                         'CONTAINER_IP_ADDR': desktop_ip_addr,   # CONTAINER_IP_ADDR is used by ocrun node js command 
                         'XAUTH_KEY': myDesktop.xauthkey,
-                        'BROADCAST_COOKIE': myDesktop.broadcast_coookie,
+                        'BROADCAST_COOKIE': myDesktop.broadcast_cookie,
                         'PULSEAUDIO_COOKIE': myDesktop.pulseaudio_cookie,
                         'PULSE_SERVER': desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT),
                         'CUPS_SERVER':  desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
