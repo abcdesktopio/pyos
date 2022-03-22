@@ -487,7 +487,7 @@ class AuthController(BaseController):
                 strcert = urllib.parse.unquote( cert )
                 self.logger.info('read cert:' + strcert  )
                 if not strcert.startswith('-----') :
-                    strcert = '-----BEGIN PUBLIC KEY-----\n' + strcert + '\n-----END PUBLIC KEY-----'
+                    strcert = '-----BEGIN CERTIFICATE-----\n' + strcert + '\n-----END CERTIFICATE-----'
                     self.logger.info('changed cert:' + strcert  )
                 cert_info = x509.load_pem_x509_certificate( strcert.encode(), default_backend() )
                 self.logger.debug('logmein certificat subject data %s', str(cert_info.subject) )
