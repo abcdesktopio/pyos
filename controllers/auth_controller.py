@@ -484,7 +484,12 @@ class AuthController(BaseController):
             cert = cherrypy.request.headers.get(services.logmein.http_attribut)
             # if the http header name exixsts in the current http request
             if isinstance( cert, str ):
-                cert_info = x509.load_pem_x509_certificate( urllib.parse.unquote( cert ).encode(), default_backend() )
+                strcert = urllib.parse.unquote( cert )
+                self.logger.info('read cert:' + strcert  )
+                if not strcert.startswith('-----') :
+                    strcert = '-----BEGIN PUBLIC KEY-----\n' + strcert + '\n-----END PUBLIC KEY-----'
+                    self.logger.info('changed cert:' + strcert  )
+                cert_info = x509.load_pem_x509_certificate( strcert.encode(), default_backend() )
                 self.logger.debug('logmein certificat subject data %s', str(cert_info.subject) )
                 cert_info_common_name = cert_info.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
                 userid = cert_info_common_name
