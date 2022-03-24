@@ -18,7 +18,7 @@ import chevron
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from cryptography.x509.oid import NameOID
+
 
 import urllib.parse
 
@@ -486,13 +486,31 @@ class AuthController(BaseController):
             if isinstance( cert, str ):
                 strcert = urllib.parse.unquote( cert )
                 self.logger.info('read cert:' + strcert  )
-                if not strcert.startswith('-----') :
+                # update the certificat format if not begin with -----BEGIN CERTIFICATE-----
+                if not strcert.startswith('-----BEGIN') :
                     strcert = '-----BEGIN CERTIFICATE-----\n' + strcert + '\n-----END CERTIFICATE-----'
                     self.logger.info('changed cert:' + strcert  )
+                
+                # only to debug cert format
+                # f = open('user.cer')
+                # strcert = f.read( )
+                # f.close()
+
                 cert_info = x509.load_pem_x509_certificate( strcert.encode(), default_backend() )
                 self.logger.debug('logmein certificat subject data %s', str(cert_info.subject) )
-                cert_info_common_name = cert_info.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
-                userid = cert_info_common_name
+
+                userid = None
+                cert_info_data = None
+                for oid in services.logmein.oid_query_list :
+                    try:
+                        self.logger.debug('cert get oid %s', str(oid))
+                        cert_info_data = cert_info.subject.get_attributes_for_oid(oid)[0].value
+                        if isinstance( cert_info_data, str ) and len( cert_info_data ) > 0:
+                            userid = cert_info_data
+                            self.logger.info('cert read user=%s', str(cert_info_data))
+                            break
+                    except Exception as e:
+                        self.logger.error('cert read %s', str(e))
 
         if not isinstance(userid, str) :
             self.logger.error('invalid user parameter' )
@@ -502,6 +520,8 @@ class AuthController(BaseController):
             self.logger.error('invalid user parameter' )
             raise cherrypy.HTTPError(400, 'logmein invalid user parameter')
 
+        userid = oc.auth.namedlib.normalize_name( userid, encoding='utf-8', tolower=False )
+        self.logger.info('login(provider=%s, manager=implicit, user=%s)', provider, str(userid))
         response = services.auth.login( provider=provider, manager='implicit', userid=userid )
         if response.success:
             jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
