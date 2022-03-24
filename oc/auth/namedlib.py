@@ -14,7 +14,7 @@
 
 from shellescape import quote
 
-def normalize_name(name, encoding='utf-8'):
+def normalize_name(name, encoding='utf-8', tolower=True):
     newname = ''
     # permit only DNS name [a-z][A-Z][0-9]-
     #
@@ -36,7 +36,9 @@ def normalize_name(name, encoding='utf-8'):
     # remove the last char if it's a '-'
     if newname[ len(newname) - 1 ] == '-':  newname = newname[:-1:]
 
-    newname = newname.lower()
+    if tolower is True:
+      newname = newname.lower()
+      
     return newname
 
 def normalize_name_tolabel( name ):
