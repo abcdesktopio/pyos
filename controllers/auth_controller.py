@@ -499,7 +499,6 @@ class AuthController(BaseController):
                 cert_info = x509.load_pem_x509_certificate( strcert.encode(), default_backend() )
                 self.logger.debug('logmein certificat subject data %s', str(cert_info.subject) )
 
-                userid = None
                 cert_info_data = None
                 for oid in services.logmein.oid_query_list :
                     try:
@@ -513,15 +512,14 @@ class AuthController(BaseController):
                         self.logger.error('cert read %s', str(e))
 
         if not isinstance(userid, str) :
-            self.logger.error('invalid user parameter' )
+            self.logger.error('invalid userid parameter' )
             raise cherrypy.HTTPError(400, 'logmein invalid user parameter')
         
         if len(userid) == 0:
-            self.logger.error('invalid user parameter' )
+            self.logger.error('invalid userid parameter' )
             raise cherrypy.HTTPError(400, 'logmein invalid user parameter')
 
-        userid = oc.auth.namedlib.normalize_name( userid, encoding='utf-8', tolower=False )
-        self.logger.info('login(provider=%s, manager=implicit, user=%s)', provider, str(userid))
+        self.logger.info('start login(provider=%s, manager=implicit, userid=%s)', str(provider), str(userid))
         response = services.auth.login( provider=provider, manager='implicit', userid=userid )
         if response.success:
             jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
