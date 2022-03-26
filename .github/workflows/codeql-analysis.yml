@@ -50,8 +50,8 @@ jobs:
       run: |
         if [ -f packages.txt ];
         then 
-          apt-get update 
-          apt-get install -f $(cat packages.txt)
+          sudo apt-get update 
+          sudo apt-get install -f $(cat packages.txt)
         fi
         
     - name: Install dependencies
