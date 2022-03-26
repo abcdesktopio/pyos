@@ -1,6 +1,4 @@
 cntlm
-docker-ce-cli
-geoip-database-extra
 gss-ntlmssp
 krb5-user
 ldap-utils
