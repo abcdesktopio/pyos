@@ -24,6 +24,6 @@ esac
 
 # on Unix system 
 # both MacOS/X and Linux
-gcc -o ntlm_auth rc4.c ntlm_auth_v2.c -DPASSWORD=pwd -DUSERNAME=who -DDOMAIN=which `pkg-config --cflags --libs glib-2.0`
+gcc -o ntlm_auth rc4.c ntlm_auth_v2.c -DPASSWORD=pwd -DUSERNAME=who -DDOMAIN=which $(pkg-config --cflags --libs glib-2.0)
 strip ntlm_auth
 mv ntlm_auth ntlm_auth.$platform
