@@ -682,8 +682,9 @@ class ODAuthTool(cherrypy.Tool):
                 try:
                     primaryGroup = int(primaryGroup)
                 except Exception as e:
-                    logger.error( 'invalid primarygroupid type convert value %s to int failed %s', str(primaryGroup), str(e))
-                    pass
+                    logger.error(   'invalid primarygroupid type convert value %s to int failed %s',
+                                    str(primaryGroup), 
+                                    str(e))
 
             if isinstance(primaryGroup,int):
                 result = isPrimaryGroup( user, primaryGroup )
