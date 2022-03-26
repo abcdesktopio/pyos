@@ -423,19 +423,19 @@ class AuthController(BaseController):
     def autologin(self, login=None, provider=None, password=None):
         self.logger.debug('')
 
+        # check if autologin is enabled
         if oc.od.settings.services_http_request_denied.get(self.autologin.__name__, True) is True:
             raise cherrypy.HTTPError(400, 'request is denied by configfile')
 
+        # login must be set and must be a str
         if not isinstance(login,str):
             raise cherrypy.HTTPError(400, 'Bad request invalid login parameter')
 
         # password is an optionnal value but must be a str if set
-        if password is not None and not isinstance(password,str) :
-            raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
+        if password is not None:
+            if not isinstance(password,str) :
+                raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
 
-        # if isinstance(provider,str) is False:
-        #    raise cherrypy.HTTPError(400, 'Bad request invalid provider parameter')
-        
         # build a login dict arg object with provider set to AD
         args_login = {  'manager':  'explicit',
                         'password': password,
@@ -444,9 +444,9 @@ class AuthController(BaseController):
                         'auto':     True
         }
         
-        # do login        
+        # do login with dict params
         response = services.auth.login(**args_login)
-        if not response.success:                
+        if not response.success:
             raise cherrypy.HTTPError(401, response.reason)
 
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
