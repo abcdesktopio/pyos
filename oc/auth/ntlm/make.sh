@@ -1,4 +1,4 @@
-
+#!/bin/bash
 
 # Linux: Linux
 # Mac: Darwin
