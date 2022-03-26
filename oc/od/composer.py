@@ -694,5 +694,3 @@ def listAllSecretsByUser(authinfo, userinfo ):
     secrets_type_list = list( map(lambda x: x.get('type'), secrets_dict.values() ) )
     # return list
     return secrets_type_list
-
-        
