@@ -484,7 +484,7 @@ class ODAuthTool(cherrypy.Tool):
         mgr = self.getmanager(name=manager_name)
         if isinstance( mgr, ODAuthManagerBase) :
             for pdr in mgr.providers.values():
-                if pdr.name.upper() ==  provider_name: 
+                if pdr.name.upper() == provider_name:
                     return pdr
         return None
 
