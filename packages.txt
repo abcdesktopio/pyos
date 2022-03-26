@@ -3,6 +3,7 @@ gss-ntlmssp
 krb5-user
 ldap-utils
 libffi-dev
+libgeoip-dev
 libglib2.0-0
 libgss3
 libgssapi-krb5-2
