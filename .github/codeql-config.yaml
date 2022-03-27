@@ -1,4 +1,4 @@
 paths-ignore:
   # Ignore the wasm folder which requires compiling for c
   - /oc/auth/ntlm
-  - pan
+  - /pan
