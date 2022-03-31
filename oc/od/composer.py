@@ -336,7 +336,7 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     # add environment variables        
     # get env from authinfo 
     # copy a env dict from configuration file
-    env = oc.od.settings.desktopenvironmentlocal.copy()
+    env = oc.od.settings.desktop['environmentlocal'].copy()
 
     locale = userinfo['locale']
     language = locale
@@ -350,12 +350,12 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     )
                     
     # add dbussession is set in config file
-    if oc.od.settings.desktopusedbussession :
-        env.update( {'OD_DBUS_SESSION_BUS': str(oc.od.settings.desktopusedbussession) })
+    if oc.od.settings.desktop['usedbussession']  :
+        env.update( {'OD_DBUS_SESSION_BUS': str(oc.od.settings.desktop['usedbussession']) })
 
     # add dbussystem is set in config file
-    if oc.od.settings.desktopusedbussystem :
-        env.update( {'OD_DBUS_SYSTEM_BUS': str(oc.od.settings.desktopusedbussystem) } )
+    if oc.od.settings.desktop.get('usedbussystem') :
+        env.update( {'OD_DBUS_SYSTEM_BUS': str(oc.od.settings.desktop['usedbussystem']) } )
     
     if type(app) is Image:
         pass
@@ -386,7 +386,7 @@ def createDesktopArguments( authinfo, userinfo, args ):
         'args'  : [],
             # set the getdesktop_homedirectory_type
             # can be volume or nfs 
-        'homedirectory_type': settings.getdesktop_homedirectory_type(),
+        'homedirectory_type': settings.desktop['homedirectorytype'],
             # set the homedir for balloon running inside the docker container 
             # by default /home/balloon
         'balloon_homedirectory': settings.getballoon_homedirectory(),
@@ -455,7 +455,7 @@ def createdesktop( authinfo, userinfo, args  ):
         logger.info("App image name : %s %s", app.name, arguments)
     else:
         # use the desktop image
-        myCreateDesktopArguments['image'] = settings.desktopimage
+        myCreateDesktopArguments['image'] = settings.desktop['graphical'].get('image')
     
     messageinfo = services.messageinfo.getqueue(userinfo.userid)
 
@@ -464,7 +464,9 @@ def createdesktop( authinfo, userinfo, args  ):
     myOrchestrator.desktoplaunchprogress += on_desktoplaunchprogress_info
 
     # Create the desktop                
-    myDesktop = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo,  **myCreateDesktopArguments )
+    myDesktop = myOrchestrator.createdesktop(   userinfo=userinfo, 
+                                                authinfo=authinfo,  
+                                                **myCreateDesktopArguments )
 
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
         logger.debug( 'desktop dump : %s', myDesktop.to_json() )
@@ -501,10 +503,10 @@ def openapp( auth, user={}, kwargs={} ):
 
     myOrchestrator.nodehostname = myDesktop.nodehostname
 
-    kwargs[ 'homedirectory_type' ] = settings.getdesktop_homedirectory_type()
+    kwargs[ 'homedirectory_type' ] = settings.desktop['homedirectorytype']
 
     # Check limit apps counter
-    max_app_counter = oc.od.settings.desktoppolicies.get('max_app_counter', -1)
+    max_app_counter = oc.od.settings.desktop['policies'].get('max_app_counter', -1)
     # check if 
     if max_app_counter > 0 :
         # count running applications
