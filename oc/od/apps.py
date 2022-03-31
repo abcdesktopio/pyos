@@ -291,7 +291,6 @@ class ODApps:
             mylist = []
             muststartwith = namespace + '/' 
             for secret in secrets_requirement:
-                startwith = namespace + '/' 
                 if isinstance(secret, str ):
                     if not secret.startswith( muststartwith ):
                        secret =  muststartwith + secret
