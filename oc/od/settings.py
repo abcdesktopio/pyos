@@ -58,24 +58,6 @@ jira = None             # Jira tracker configuration
 
 routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
 
-desktophomedirectorytype = None  #
-desktopallowPrivilegeEscalation = False     # Permit sudo command inside a container
-
-defaultbackgroundcolors = []
-desktopenvironmentlocal = {}
-desktopusedbussession   = None
-desktopusedbussystem    = None
-desktopimage            = None
-desktopnodeselector     = None
-desktopimagepullsecret  = None
-desktoppolicies         = {}
-desktopimagepullpolicy  = 'IfNotPresent'
-desktopdnspolicy        = None
-desktopdnsconfig        = None
-desktopvnccypherkey     = 'abcdesktop'
-desktoppersistentvolumeclaim = None
-
-desktopauthproviderneverchange = True     # if user can change auth provider in the same session
 
 
 # prelogin
@@ -90,37 +72,10 @@ logmein_http_attribut      = None
 logmein_enable             = False
 logmein_network_list       = []
 
-# printer container
-desktopprinterimage         = None
-desktopprinteracl           = {}
 
-# sound container 
-desktopsoundimage           = None
-desktopsoundacl             = {}
+desktop                    = { 'secretsrootdirectory': '/var/secrets/' }
 
-# filter container 
-desktopfilerimage          = None
-desktopfileracl            = {}
-
-# secretstorage container
-desktopsecretstorageimage   = None
-desktopsecretstorageacl     = {}
-
-# init container 
-desktopuseinitcontainer     = False
-desktopinitcontainerimage   = None
-desktopinitcontainercommand = None
-
-# wait port binary path to run inside docker oc.user 
-desktopwaitportbin = None
-
-# desktoppostponeapp url 
-desktoppostponeapp          = None
-
-desktopsecretsrootdirectory = '/var/secrets/'
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
-desktopuseinternalfqdn = False
-desktopuselocaltime = True
 desktopservicestcpport = { 'x11server': 6081, 'spawner': 29786, 'broadcast': 29784, 'pulseaudio': 4714 }
 
 # fake network default interface ip address Only for reverse proxy
@@ -137,7 +92,6 @@ defaultnetworknetuserid = None  # id of the default netuser network
 desktopwebhookencodeparams = False  # url encode webhook params 
 desktopwebhookdict         = {}     # addtional dict data
 
-desktopremovehomedirectory = False # remove data homedirectory
 
 # String to route (container target_ip) or (public host url) default is
 # public host 
@@ -242,9 +196,6 @@ def getballoon_gid():
 
 def getballoon_homedirectory():
     return balloon_homedirectory
-
-def getdesktop_homedirectory_type():
-    return desktophomedirectorytype
 
 def getFQDN(hostname):
     ''' concat defaultdomainname to hostname set in configuration file  '''
@@ -452,66 +403,33 @@ def filter_hostconfig( host_config ):
 def init_desktop():
     global desktophostconfig
     global applicationhostconfig
-    global desktophomedirectorytype
-    global defaultbackgroundcolors
-    global desktopimage
-    global desktopprinterimage
-    global desktopprinteracl
-    global desktopsoundimage
-    global desktopsoundacl
-    global desktopfilerimage
-    global desktopfileracl
-    global desktopsecretstorageimage
-    global desktopsecretstorageacl
-    global desktopuseinitcontainer
-    global desktopinitcontainercommand
-    global desktopinitcontainerimage
-    global desktoppersistentvolumeclaim
-    global desktopallowPrivilegeEscalation
-    global desktopnodeselector
-    global desktopusedbussession
-    global desktopusedbussystem
-    global desktopenvironmentlocal
-    global desktopimagepullsecret
-    global desktopuseinternalfqdn
     global stack_mode
-    global desktopuselocaltime
-    global desktoppolicies
-    global desktoppostponeapp
-
-    global desktopimagepullpolicy
     global desktopkubernetesresourcelimits
-    global desktopwebhookencodeparams
-    global desktopwebhookdict
-    global desktopauthproviderneverchange
-    global desktopwaitportbin
-    global desktopdnspolicy
-    global desktopdnsconfig
-    global desktopvnccypherkey
-
-    global desktopremovehomedirectory # for demo
+ 
+    global desktop
  
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
     # desktop authprovider can change on the fly 
-    desktopauthproviderneverchange = True # default value
+    desktop['authproviderneverchange'] = True # default value
     authmanagers = gconfig.get('authmanagers', {} )
     for manager in authmanagers.values():
         providers = manager.get('providers',{})
         for provider in providers.values():
             if provider.get('explicitproviderapproval'): # one provider set explicitproviderapproval
-                desktopauthproviderneverchange = False # this allow a user to change auth provider on the fly
+                desktop['authproviderneverchange'] = False # this allow a user to change auth provider on the fly
                 break
+
+  
 
     desktopvnccypherkey = gconfig.get('desktop.vnccypherkey', 'DEAF2ccF1c4A6A4Bd3171cbe2DC5DbC0' )
 
     default_shm_size = DEFAULT_SHM_SIZE
     desktophostconfig = gconfig.get('desktop.host_config',
-                                    {   'auto_remove'   : True,
-                                        'ipc_mode'      : 'shareable',
-                                        'pid_mode'      : True,
-                                        'shm_size'      : default_shm_size
-                                    })
+                            {   'auto_remove'   : True,
+                                'ipc_mode'      : 'shareable',
+                                'pid_mode'      : True
+                            } )
 
     # check if desktophostconfig contains permit value
     desktophostconfig = filter_hostconfig( desktophostconfig )
@@ -537,63 +455,83 @@ def init_desktop():
                                             'network_mode'  : 'container'
                                         }
     '''
-
-    desktopremovehomedirectory = gconfig.get('desktop.removehomedirectory')
-
     # check if desktophostconfig contains permit value
     applicationhostconfig = filter_hostconfig( applicationhostconfig )
+
+    desktop['resources'] = gconfig.get('desktop.resources', 
+            {   'graphical': { 'requests': { 'memory': "320Mi",   'cpu': "250m" },  'limits'  : { 'memory': "1Gi",    'cpu': "1000m" } },
+                'sound':     { 'requests': { 'memory': "8Mi",     'cpu': "50m"  },  'limits'  : { 'memory': "64Mi",   'cpu': "250m"  } },
+                'printer':   { 'requests': { 'memory': "64Mi",    'cpu': "125m" },  'limits'  : { 'memory': "512Mi",  'cpu': "500m"  } },
+                'storage':   { 'requests': { 'memory': "32Mi",    'cpu': "100m" },  'limits'  : { 'memory': "128Mi",  'cpu': "250m"  } } 
+            } )
+
+    desktop['removehomedirectory'] = gconfig.get('desktop.removehomedirectory', False)
 
     desktopkubernetesresourcelimits = read_kubernetes_resource_limits( desktophostconfig )
 
     # load docker images name
-    desktopimagepullsecret  = gconfig.get('desktop.imagePullSecret')
-    desktopimagepullpolicy  = gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' )
-    desktopimage            = gconfig.get('desktop.image')
-    desktopprinterimage     = gconfig.get('desktop.printerimage')
-    desktopprinteracl       = gconfig.get('desktop.printeracl', { 'permit': [ 'all' ] })
-    desktopfilerimage       = gconfig.get('desktop.filerimage')
-    desktopfileracl         = gconfig.get('desktop.fileracl', { 'permit': [ 'all' ] })
-    desktopsecretstorageimage = gconfig.get('desktop.secretstorageimage')
-    desktopsecretstorageacl = gconfig.get('desktop.secretstorageacl', { 'permit': [ 'all' ] })
-    desktopsoundimage       = gconfig.get('desktop.soundimage')
-    desktopsoundacl         = gconfig.get('desktop.soundacl', { 'permit': [ 'all' ] })
-    desktoppolicies         = gconfig.get('desktop.policies', {} )
-    desktopwebhookencodeparams = gconfig.get('desktop.webhookencodeparams', False )
-    desktopwebhookdict         = gconfig.get('desktop.webhookdict', {} )
-    desktopinitcontainerimage  = gconfig.get('desktop.initcontainerimage')
-    desktopuseinitcontainer    = gconfig.get('desktop.useinitcontainer',False)
-    desktopwaitportbin         = gconfig.get('desktop.desktopwaitportbin', '/composer/node/wait-port/node_modules/.bin/wait-port')
+    desktop['imagepullsecret']  = gconfig.get('desktop.imagePullSecret')
+    desktop['imagepullpolicy']  = gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' )
+
+    desktop['graphical'] = {    'image': gconfig.get('desktop.image'),
+                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
+                                'acl':   gconfig.get('desktop.graphicalacl', { 'permit': [ 'all' ] }),
+                                'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port' }
+
+    desktop['printer'] = {      'image': gconfig.get('desktop.printerimage'),
+                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
+                                'acl':   gconfig.get('desktop.printeracl', { 'permit': [ 'all' ] }) }
+   
+    desktop['filer'] =  {       'image': gconfig.get('desktop.filerimage'),
+                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
+                                'acl':   gconfig.get('desktop.filerimage', { 'permit': [ 'all' ] }) }
+   
+    desktop['storage'] = {      'image': gconfig.get('desktop.secretstorageimage'),
+                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
+                                'acl':   gconfig.get('desktop.secretstorageacl', { 'permit': [ 'all' ] }) }
+   
+    desktop['sound'] =   {      'image': gconfig.get('desktop.soundimage'),
+                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
+                                'acl':   gconfig.get('desktop.soundacl', { 'permit': [ 'all' ] }) }
+
+    desktop['init'] =   { 'image': gconfig.get('desktop.initcontainerimage'),
+                          'use': gconfig.get('desktop.useinitcontainer',False),
+                           'pull':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
+                          'command':  gconfig.get('desktop.initcontainercommand') }
+   
+    desktop['policies']         = gconfig.get('desktop.policies', {} )
+    desktop['webhookencodeparams'] = gconfig.get('desktop.webhookencodeparams', False )
+    desktop['webhookdict']        = gconfig.get('desktop.webhookdict', {} )
 
 
     # desktopinitcontainercommand
     # is an array 
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
-    desktopinitcontainercommand     = gconfig.get('desktop.initcontainercommand')
-    defaultbackgroundcolors         = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
 
-    desktophomedirectorytype        = gconfig.get('desktop.homedirectorytype', 'volume')
-    desktoppersistentvolumeclaim    = gconfig.get('desktop.persistentvolumeclaim', 'abcdesktop-pvc' )
-    desktopallowPrivilegeEscalation = gconfig.get('desktop.allowPrivilegeEscalation', False )
-    desktopnodeselector             = gconfig.get('desktop.nodeselector', {} )    
-    desktopusedbussession           = gconfig.get('desktop.usedbussession', False )
-    desktopusedbussystem            = gconfig.get('desktop.usedbussystem', False )
-    desktopuseinternalfqdn          = gconfig.get('desktop.useinternalfqdn', False ) 
-    desktopuselocaltime             = gconfig.get('desktop.uselocaltime', False ) 
-    desktoppostponeapp              = gconfig.get('desktoppostponeapp')
-    desktopdnspolicy                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
-    desktopdnsconfig                = gconfig.get('desktop.dnsconfig')
+    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
+    desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'volume')
+    desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim', 'abcdesktop-pvc' )
+    desktop['allowPrivilegeEscalation'] = gconfig.get('desktop.allowPrivilegeEscalation', False )
+    desktop['nodeselector']             = gconfig.get('desktop.nodeselector', {} )    
+    desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
+    desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
+    desktop['useinternalfqdn']          = gconfig.get('desktop.useinternalfqdn', False ) 
+    desktop['uselocaltime']             = gconfig.get('desktop.uselocaltime', False ) 
+    desktop['postponeapp']              = gconfig.get('desktop.postponeapp')
+    desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
+    desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
 
     # add default env local vars if not set 
-    desktopenvironmentlocal = gconfig.get(  'desktop.envlocal', 
-            {   'DISPLAY'               : ':0.0',
-                'USER'		            : 'balloon',
-                'LIBOVERLAY_SCROLLBAR'  : '0',
-                'UBUNTU_MENUPROXY'      : '0',
-                'HOME' 		            : '/home/balloon',
-                'LOGNAME'	            : 'balloon',
-                'PULSE_SERVER'          : '/tmp/.pulse.sock',
-                'CUPS_SERVER'           : '/tmp/.cups.sock',
-                'X11LISTEN'             : 'tcp '} )
+    desktop['environmentlocal'] = gconfig.get(  'desktop.envlocal', 
+                    {   'DISPLAY'               : ':0.0',
+                        'USER'		            : 'balloon',
+                        'LIBOVERLAY_SCROLLBAR'  : '0',
+                        'UBUNTU_MENUPROXY'      : '0',
+                        'HOME' 		            : '/home/balloon',
+                        'LOGNAME'	            : 'balloon',
+                        'PULSE_SERVER'          : '/tmp/.pulse.sock',
+                        'CUPS_SERVER'           : '/tmp/.cups.sock',
+                        'X11LISTEN'             : 'tcp '} )
 
     init_balloon()
 
@@ -703,12 +641,12 @@ def init_controllers():
                                   'StoreController': { 'wrapped_key': {} } 
                                 } )
 
-    if desktopenvironmentlocal.get('SET_DEFAULT_COLOR'):
+    if desktop['environmentlocal'].get('SET_DEFAULT_COLOR'):
         # wrapper for StoreController key value
         # config use default 'color'  
-        controllers['StoreController']['wrapped_key'].update( { 'color': desktopenvironmentlocal.get('SET_DEFAULT_COLOR') } )
+        controllers['StoreController']['wrapped_key'].update( { 'color': desktop['environmentlocal'].get('SET_DEFAULT_COLOR') } )
 
-    if desktopenvironmentlocal.get('SET_DEFAULT_WALLPAPER') :
+    if desktop['environmentlocal'].get('SET_DEFAULT_WALLPAPER') :
         # wrapper for StoreController key value
         # config use default wallpaper 'img' 
         controllers['StoreController']['wrapped_key'].update( { 'backgroundType': 'img' } )
@@ -962,7 +900,7 @@ def init():
     init_logmein()
 
     # init_controllers
-    # use desktopenvironmentlocal
+    # use desktop
     # for SET_DEFAULT_WALLPAPER option
     # for SET_DEFAULT_COLOR option
     init_controllers()
