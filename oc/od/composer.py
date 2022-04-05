@@ -342,11 +342,18 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     language = locale
     lang = locale + '.UTF-8'
 
-    # update env with local values
-    env.update ( {
-        'LANGUAGE'	: language,                'LANG'		: lang,                'LC_ALL': lang,                  'LC_PAPER'	: lang,
-        'LC_ADDRESS' 	: lang,                'LC_MONETARY': lang,                'LC_TIME': lang,                 'LC_MEASUREMENT': lang,
-        'LC_IDENTIFICATION': lang,             'LC_TELEPHONE': lang,               'LC_NUMERIC': lang               }
+    # update env with user local values read from the http request
+    env.update (    {   'LANGUAGE' : language,                
+                        'LANG'	   : lang,                
+                        'LC_ALL'   : lang,                  
+                        'LC_PAPER' : lang,
+                        'LC_ADDRESS' : lang,                
+                        'LC_MONETARY': lang,                
+                        'LC_TIME': lang,                 
+                        'LC_MEASUREMENT': lang,
+                        'LC_IDENTIFICATION': lang,             
+                        'LC_TELEPHONE': lang,               
+                        'LC_NUMERIC': lang }
     )
                     
     # add dbussession is set in config file
@@ -357,8 +364,13 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     if oc.od.settings.desktop.get('usedbussystem') :
         env.update( {'OD_DBUS_SYSTEM_BUS': str(oc.od.settings.desktop['usedbussystem']) } )
     
-    if type(app) is Image:
-        pass
+    # add user name and userid 
+    env.update( { 'ABCDESKTOP_USERNAME':  userinfo.get('name')} )
+    env.update( { 'ABCDESKTOP_USERID':    userinfo.get('userid')} )
+
+    # add provider name and userid 
+    env.update( { 'ABCDESKTOP_PROVIDERNAME':  authinfo.get('provider')} )
+    env.update( { 'ABCDESKTOP_PROVIDERTYPE':  authinfo.get('providertype')} )
 
     return env
 
@@ -370,7 +382,8 @@ def createDesktopArguments( authinfo, userinfo, args ):
     
     # add source ip addr 
     env.update( { 'WEBCLIENT_SOURCEIPADDR':  args.get('WEBCLIENT_SOURCEIPADDR') } )
-    
+
+
     #
     # get value from configuration files to build dict
     #                        
