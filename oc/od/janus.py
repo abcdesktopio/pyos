@@ -66,10 +66,14 @@ class janusclient( object ):
             raise ValueError( 'Misplaced call to janus gateway')
         else:
             r = self.mypost(self.janus_url + endpoint, cmd)
-            if r :
+            if isinstance(r, requests.models.Response) and r.ok :
                 j = r.json()
-                # self.logger.debug(json.dumps(j, indent=4, separators=(',', ': ')))
+                self.logger.debug(json.dumps(j, indent=4, separators=(',', ': ')))
                 return action(j)
+            else:
+                error_message =  'janus request %s post %s return %s' % (str(self.janus_url) + str(endpoint), str(cmd), str(r)  )
+                self.logger.error( error_message )
+                raise ValueError( 'Error call to janus gateway %s ', error_message )
 
     def ping( self ):
         pong = False
