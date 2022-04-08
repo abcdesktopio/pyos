@@ -2237,6 +2237,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return appinstance
 
     def createdesktop(self, authinfo, userinfo, **kwargs):
+        self.logger.info('')
         """createdesktop for the user
             create the user pod 
 
@@ -2250,39 +2251,42 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [type]: [description]
         """
-
+    
         myDesktop       = None # default return object           
 
-        args     = kwargs.get('args')
-        
+        args     = kwargs.get('args')    
         command  = kwargs.get('command')
         env      = kwargs.get('env', {} )
         appname  = kwargs.get('appname')
 
         # add a new VNC Password to env var
+        self.logger.debug('ODVncPassword creating')
         vnc_password = ODVncPassword()
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
         vnc_secret.create( authinfo, userinfo, data={ 'password' : vnc_password.getplain() } )
+        self.logger.debug('ODVncPassword created')
 
+        # building env
         # generate XAUTH key
+        self.logger.debug('env creating')
         xauth_key = self.generate_xauthkey()
         env[ 'XAUTH_KEY' ] = xauth_key    
-
         # generate PULSEAUDIO cookie
         pulseaudio_cookie = self.generate_pulseaudiocookie()
         env[ 'PULSEAUDIO_COOKIE' ] = pulseaudio_cookie    
-
         # generate BROADCAST cookie
         broadcast_cookie = self.generate_broadcastcookie()
         env[ 'BROADCAST_COOKIE' ] = broadcast_cookie 
+        self.logger.debug('env created')
 
+        self.logger.debug('labels creating')
         # build label dictionnary
         labels = {  'access_provider':  authinfo.provider,
                     'access_userid':    userinfo.userid,
                     'access_username':  self.get_labelvalue(userinfo.name),
                     'domain':           self.endpoint_domain,
                     'netpol/ocuser' :   'true',
-                    'xauthkey':         xauth_key, 
+                    'xauthkey':          xauth_key, 
                     'pulseaudio_cookie': pulseaudio_cookie,
                     'broadcast_cookie':  broadcast_cookie }
 
@@ -2303,10 +2307,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             labels[ 'type' ]  = self.x11servertype
             kwargs[ 'type' ]  = self.x11servertype
 
+        self.logger.debug('labels created')
+
         myuuid = str(uuid.uuid4())
         pod_name = self.get_podname( authinfo, userinfo, myuuid ) 
+        self.logger.debug('pod name is %s', pod_name )
         container_graphical_name = self.get_graphicalcontainername( userinfo.userid, myuuid )         
+        self.logger.debug('container_graphical_name is %s', container_graphical_name )
 
+        self.logger.debug('envlist creating')
         # envdict to envlist
         envlist = []
         for k, v in env.items():
@@ -2337,10 +2346,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         envlist.append( { 'name': 'POD_NAME',       'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.name' } } } )
         envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
         envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
+        self.logger.debug('envlist created')
 
         # look for desktop rules
         # apply network rules 
+        self.logger.debug('rules creating')   
         rules = oc.od.settings.desktop['policies'].get('rules')
+        self.logger.debug('rules is defined %s', str(rules))
         network_config = self.applyappinstancerules_network( authinfo, rules )
         fillednetworkconfig = self.filldictcontextvalue(authinfo=authinfo, 
                                                         userinfo=userinfo, 
@@ -2348,9 +2360,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                         network_config=copy.deepcopy(network_config), 
                                                         network_name = None, 
                                                         appinstance_id = None )
+        self.logger.debug('rules created')
 
         self.on_desktoplaunchprogress('Building data storage for your desktop')
 
+
+        self.logger.debug('secrets_requirement creating')
         secrets_requirement = None # default value add all secret if no filter 
         # get all secrets
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo )
@@ -2362,7 +2377,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             for secretdictkey in mysecretdict.keys():
                 if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
                     secrets_requirement.append( secretdictkey )
+        self.logger.debug('secrets_requirement created')
 
+        self.logger.debug('volumes creating')
         # all volumes and secrets
         (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=None, rules=rules,  **kwargs)
         list_pod_allvolumes = list( pod_allvolumes.values() )
@@ -2373,7 +2390,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumes.values() )
         self.logger.info( 'volumeMounts=%s', volumeMounts.values() )
+        self.logger.debug('volumes created')
 
+
+        self.logger.debug('websocketrouting creating')
         # check if we have to build X509 certificat
         # need to build certificat if websocketrouting us bridge 
         # bridge can be a L2/L3 level like ipvlan, macvlan
@@ -2397,9 +2417,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
                 labels['websocketrouting']  = websocketrouting
                 labels['websocketroute']    = websocketroute
+        self.logger.debug('websocketrouting created')
 
+
+        self.logger.debug('initContainer creating')
         initContainers = []
-
         currentcontainertype = 'init'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             # init container chown to change the owner of the home directory
@@ -2411,6 +2433,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                         'env':              envlist
             } )
             self.logger.debug( 'initContainers is %s', initContainers)
+        self.logger.debug('initContainer created')
+
 
         # default empty dict annotations
         annotations = {}
