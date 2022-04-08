@@ -77,6 +77,37 @@ def api_build_error(status, message, traceback, version):
     cherrypy.response.headers['Content-Type'] = 'application/json'
     return cherrypy._json.encode(result)
 
+
+
+
+def img_handle_404_application(status, message, traceback, version):
+    ''' if the image icone file does not exist      '''
+    ''' return img/app/application-default-icon.svg '''
+    curdir = os.getcwd()
+    path = os.path.join(curdir, 'img/app', 'application-default-icon.svg')
+    # overwrite 404 to 200 
+    # if status is 404 then body is not aways display
+    cherrypy.response.status = 200
+    cherrypy.response.message = 'OK'
+    return cherrypy.lib.static.serve_file(path, content_type='image/svg+xml')
+
+
+#
+# img class to serve static files 
+# for example icon files for applications
+@cherrypy.config(**{ 
+    'tools.staticdir.on' : True, 
+    'tools.staticdir.dir': '/var/pyos/img', # relative path not allowed
+    'tools.allow.methods': [ 'GET' ],  # HTTP GET only for images 
+    'error_page.404'    : img_handle_404_application
+})
+class IMG(object):
+    def __init__(self):
+        """ init IMG static files
+        """
+
+
+
 #
 # main API class 
 @oc.logging.with_logger()
@@ -182,7 +213,7 @@ def run_server():
     # set /API
     cherrypy.tree.mount( API(settings.controllers), app_virtual_path, settings.config )
     # set /IMG
-    # cherrypy.tree.mount(IMG(), img_virtual_path, config={} ) # no config for img, use class config
+    cherrypy.tree.mount(IMG(), img_virtual_path, config={} ) # no config for img, use class config
 
     odthread_watcher = ODCherryWatcher(cherrypy.engine)
     odthread_watcher.subscribe()
