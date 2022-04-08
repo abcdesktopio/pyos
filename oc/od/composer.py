@@ -103,13 +103,14 @@ def opendesktop(authinfo, userinfo, args ):
     desktop = finddesktop( authinfo, userinfo, app )
     desktoptype = 'desktopmetappli' if app else 'desktop' 
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
+        logger.debug('Warm start, reconnecting to running desktop') 
         services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop') 
-        logger.info('Warm start, reconnecting to running desktop') 
         # if the desktop exists resume the connection
         services.accounting.accountex( desktoptype, 'resumed')
         resumedesktop( authinfo, userinfo ) # update last connection datetime
     else:
         # create a new desktop
+        logger.debug( 'Cold start, creating your new desktop' )
         services.messageinfo.push(userinfo.userid, 'Cold start, creating your new desktop')
         desktop = createdesktop( authinfo, userinfo, args) 
         if isinstance( desktop, oc.od.desktop.ODDesktop) :
@@ -438,6 +439,7 @@ def createdesktop( authinfo, userinfo, args  ):
     logger.info('Starting desktop creation')
     app = None
     
+    logger.debug('createdesktop:createDesktopArguments')
     myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, args )
    
     appname = args.get('app')
@@ -475,6 +477,7 @@ def createdesktop( authinfo, userinfo, args  ):
     myOrchestrator.desktoplaunchprogress += on_desktoplaunchprogress_info
 
     # Create the desktop                
+    logger.debug('createdesktop:Orchestrator.createdesktop')
     myDesktop = myOrchestrator.createdesktop(   userinfo=userinfo, 
                                                 authinfo=authinfo,  
                                                 **myCreateDesktopArguments )
