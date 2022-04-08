@@ -23,6 +23,7 @@ import mergedeep
 import copy
 import requests
 import json
+import crypt
 
 
 from ldap import filter as ldap_filter
@@ -2163,7 +2164,16 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 if isinstance( dict_hash, dict ):
                     default_authenv.update( { 'citrix' : { **dict_hash } } )
             except Exception as e:
-                    pass   
+                    pass
+
+
+        if self.auth_protocol.get('localaccount') is True :
+            try:
+                dict_hash = self.generateLocalAccount( user=userid, password=password ) 
+                if isinstance( dict_hash, dict ):
+                    default_authenv.update( { 'localaccount' : { **dict_hash } } )
+            except Exception as e:
+                    pass
 
         return default_authenv
     
@@ -2402,6 +2412,19 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             # return the All_Regions.ini hash dict
             hashes = { 'All_Regions.ini' : data }
         return hashes
+
+    def generateLocalAccount(self, user, password ):
+        self.logger.debug('Generating passwd file')
+        hashes = {}
+        # passwd
+        # balloon:x:4096:4096::/home/balloon:/bin/bash
+        hashes['passwd']= f"{user}:x:4096:4096::/home/balloon:/bin/bash"
+        # Shadow
+        sha512 = crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512))
+        # balloon:$6$0lrocU6D$IKDAfLNC.nEtSRpXFxqZZgM.Ss50kUU9FVMtEwUph4DQ09BukAf20ZTjyDuKvo71jVcWsfABCOeBc5gcTUug..:19080:0:99999:7:::
+        hashes['shadow'] = f"{user}:{sha512}:19080:0:99999:7:::"
+        return hashes
+
 
     def generateCNTLMhash(self, user, password, domain ):
         self.logger.debug('Generating CNTLM hashes')
