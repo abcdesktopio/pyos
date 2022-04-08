@@ -72,7 +72,7 @@ logmein_http_attribut      = None
 logmein_enable             = False
 logmein_network_list       = []
 
-
+desktop_pod                = {}
 desktop                    = { 'secretsrootdirectory': '/var/secrets/' }
 
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
@@ -167,7 +167,53 @@ list_hostconfigkey = [
         'secrets_requirement'   # custom for abcdesktop 
         ]
 
+ABCDESKTOP_CURRENT_RELEASE = 'dev'
+DEFAULT_IMAGE_TAG = ABCDESKTOP_CURRENT_RELEASE
 
+DEFAULT_DESKTOP_POD_CONFIG = {
+       'graphical' : { 'image': 'abcdesktopio/oc.user.18.04:' + DEFAULT_IMAGE_TAG,
+                        'pullpolicy':  'IfNotPresent',
+                        'enable': True,
+                        'acl':  { 'permit': [ 'all' ] },
+                        'secrets_requirement' : [ 'abcdesktop/vnc', 'abcdesktop/kerberos' ],
+                        'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port',
+                        'resources': { 'requests': { 'memory': "320Mi",   'cpu': "250m" },  'limits'  : { 'memory': "1Gi",    'cpu': "1000m" } }
+                        # 'securityContext': {  'allowPrivilegeEscalation': True,
+                        #                        'capabilities': { 
+                        #                            'add':  ["SYS_ADMIN", "SYS_PTRACE"], 
+                        #                            'drop': None 
+                        #                        }
+                        # } 
+        },
+        'printer' :   { 'image': 'abcdesktopio/oc.cupsd.18.04:' + DEFAULT_IMAGE_TAG,
+                        'pullpolicy': 'IfNotPresent',
+                        'enable': True,
+                        'resources': { 'requests': { 'memory': "64Mi",    'cpu': "125m" },  'limits'  : { 'memory': "512Mi",  'cpu': "500m"  } },
+                        'acl':  { 'permit': [ 'all' ] } 
+        },
+        'filer' :     { 'image': 'abcdesktopio/oc.filer:' + DEFAULT_IMAGE_TAG,
+                        'pullpolicy':  'IfNotPresent',
+                        'enable': True,
+                        'acl':  { 'permit': [ 'all' ] } 
+        },
+        'storage' :   { 'image': 'abcdesktopio/pause:' + DEFAULT_IMAGE_TAG,
+                        'pullpolicy':  'IfNotPresent',
+                        'enable': True,
+                        'acl':   { 'permit': [ 'all' ] },
+                        'resources': { 'requests': { 'memory': "32Mi",    'cpu': "100m" },  'limits'  : { 'memory': "128Mi",  'cpu': "250m"  } }
+        },
+        'sound':      { 'image': 'abcdesktopio/oc.pulseaudio.18.04:' + DEFAULT_IMAGE_TAG,
+                        'pullpolicy': 'IfNotPresent',
+                        'enable': True,
+                        'acl':  { 'permit': [ 'all' ] },
+                        'resources': { 'requests': { 'memory': "8Mi",     'cpu': "50m"  },  'limits'  : { 'memory': "64Mi",   'cpu': "250m"  } } 
+        },
+        'init':       { 'image': 'busybox',
+                        'enable': True,
+                        'pullpolicy':  'IfNotPresent',
+                        'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
+        } 
+}
 
 def getuser_execute_policy():
     return user_execute_policy
@@ -311,13 +357,13 @@ def init_logmein():
     global logmein
     logmein = gconfig.get(  'auth.logmein', { 'enable': False } )
     if logmein.get('enable') is True:
-        logger.info('logmein config', str(logmein))
+        logger.info('logmein config %s', str(logmein))
 
 def init_prelogin():
     global prelogin
     prelogin = gconfig.get(  'auth.prelogin', { 'enable': False } )
     if prelogin.get('enable') is True:
-        logger.info('prelogin config', str(prelogin))
+        logger.info('prelogin config %s', str(prelogin))
 
 def init_websocketrouting():
     """init_websocketrouting
@@ -407,6 +453,7 @@ def init_desktop():
     global desktopkubernetesresourcelimits
  
     global desktop
+    global desktop_pod
  
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
@@ -420,9 +467,6 @@ def init_desktop():
                 desktop['authproviderneverchange'] = False # this allow a user to change auth provider on the fly
                 break
 
-  
-
-    desktopvnccypherkey = gconfig.get('desktop.vnccypherkey', 'DEAF2ccF1c4A6A4Bd3171cbe2DC5DbC0' )
 
     default_shm_size = DEFAULT_SHM_SIZE
     desktophostconfig = gconfig.get('desktop.host_config',
@@ -458,50 +502,15 @@ def init_desktop():
     # check if desktophostconfig contains permit value
     applicationhostconfig = filter_hostconfig( applicationhostconfig )
 
-    desktop['resources'] = gconfig.get('desktop.resources', 
-            {   'graphical': { 'requests': { 'memory': "320Mi",   'cpu': "250m" },  'limits'  : { 'memory': "1Gi",    'cpu': "1000m" } },
-                'sound':     { 'requests': { 'memory': "8Mi",     'cpu': "50m"  },  'limits'  : { 'memory': "64Mi",   'cpu': "250m"  } },
-                'printer':   { 'requests': { 'memory': "64Mi",    'cpu': "125m" },  'limits'  : { 'memory': "512Mi",  'cpu': "500m"  } },
-                'storage':   { 'requests': { 'memory': "32Mi",    'cpu': "100m" },  'limits'  : { 'memory': "128Mi",  'cpu': "250m"  } } 
-            } )
+    desktop_pod = gconfig.get( 'desktop.pod', DEFAULT_DESKTOP_POD_CONFIG )
 
     desktop['removehomedirectory'] = gconfig.get('desktop.removehomedirectory', False)
 
     desktopkubernetesresourcelimits = read_kubernetes_resource_limits( desktophostconfig )
-
-    # load docker images name
-    desktop['imagepullsecret']  = gconfig.get('desktop.imagePullSecret')
-    desktop['imagepullpolicy']  = gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' )
-
-    desktop['graphical'] = {    'image': gconfig.get('desktop.image'),
-                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
-                                'acl':   gconfig.get('desktop.graphicalacl', { 'permit': [ 'all' ] }),
-                                'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port' }
-
-    desktop['printer'] = {      'image': gconfig.get('desktop.printerimage'),
-                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
-                                'acl':   gconfig.get('desktop.printeracl', { 'permit': [ 'all' ] }) }
    
-    desktop['filer'] =  {       'image': gconfig.get('desktop.filerimage'),
-                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
-                                'acl':   gconfig.get('desktop.filerimage', { 'permit': [ 'all' ] }) }
-   
-    desktop['storage'] = {      'image': gconfig.get('desktop.secretstorageimage'),
-                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
-                                'acl':   gconfig.get('desktop.secretstorageacl', { 'permit': [ 'all' ] }) }
-   
-    desktop['sound'] =   {      'image': gconfig.get('desktop.soundimage'),
-                                'pullpolicy':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
-                                'acl':   gconfig.get('desktop.soundacl', { 'permit': [ 'all' ] }) }
-
-    desktop['init'] =   { 'image': gconfig.get('desktop.initcontainerimage'),
-                          'use': gconfig.get('desktop.useinitcontainer',False),
-                           'pull':  gconfig.get('desktop.imagePullPolicy', 'IfNotPresent' ),
-                          'command':  gconfig.get('desktop.initcontainercommand') }
-   
-    desktop['policies']         = gconfig.get('desktop.policies', {} )
-    desktop['webhookencodeparams'] = gconfig.get('desktop.webhookencodeparams', False )
-    desktop['webhookdict']        = gconfig.get('desktop.webhookdict', {} )
+    desktop['policies']             = gconfig.get('desktop.policies', {} )
+    desktop['webhookencodeparams']  = gconfig.get('desktop.webhookencodeparams', False )
+    desktop['webhookdict']          = gconfig.get('desktop.webhookdict', {} )
 
 
     # desktopinitcontainercommand
@@ -511,7 +520,6 @@ def init_desktop():
     desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'volume')
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim', 'abcdesktop-pvc' )
-    desktop['allowPrivilegeEscalation'] = gconfig.get('desktop.allowPrivilegeEscalation', False )
     desktop['nodeselector']             = gconfig.get('desktop.nodeselector', {} )    
     desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
     desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
