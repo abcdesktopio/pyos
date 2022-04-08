@@ -50,6 +50,7 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
                         'ldif':             ODSecretLDIF,
                         'vnc':              ODSecretVNC,
                         'citrix':           ODSecretCitrix }
+                        
     # get the class from the secret_type
     secret_cls = secret_cls_dict.get( secret_type, ODSecret )
     # instance the class
@@ -75,6 +76,7 @@ class ODSecret():
         self.access_type='auth'
         self.secret_type = namespace + '/' + secret_type
         self.normalize_name_secret_type = secret_type.replace( '/', '-')
+        self.immutable = False
         if type(prefix) is str:
             self.prefix = '-' + prefix
         else:
@@ -248,14 +250,13 @@ class ODSecretVNC( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='vnc' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='vnc'
+        self.immutable = True
 
 class ODSecretCitrix( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='citrix' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='auth'
-
-
 class ODSecretRemoteFileSystemDriver( ODSecret ):
     """[class ODSecretRemoteFileSystemDriver]
         Create a secret used by for Remote File System driver 
