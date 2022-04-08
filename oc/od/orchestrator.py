@@ -1474,68 +1474,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 volumes['shm']       = self.default_volumes['shm']
                 volumes_mount['shm'] = self.default_volumes_mount['shm'] 
 
-
-        #
-        # mount secret in /etc/passwd
-        # always add localaccount secret for 'pod_desktop'
-        if volume_type in [ 'pod_desktop'  ] :
-            # Add VNC password
-            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
-            # the should only be one secret type vnc
-            secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
-            # create an entry /var/secrets/abcdesktop/vnc
-            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
-            # mode is 644 -> rw-r--r--
-            # Owing to JSON limitations, you must specify the mode in decimal notation.
-            # 644 in decimal equal to 420
-
-            secretmountPath = '/etc'
-            volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
-            volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
-
-            volumes[secret_auth_name]       = { 
-                'name': secret_auth_name, 
-                'secret': { 
-                    'secretName': secret_auth_name, 
-                    'items' : [ { 'key': 'passwd', 'path':'passwd' } ]
-                    
-                }
-            }
-            '''
-            # Add localaccount password
-            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
-            # the should only be one secret type vnc
-            secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
-            # create an entry /var/secrets/abcdesktop/vnc
-            secretmountPath = '/etc' 
-            # mode is 644 -> rw-r--r--
-            # Owing to JSON limitations, you must specify the mode in decimal notation.
-            # 644 in decimal equal to 420
-            volumes['passwd']       = { 
-                'name': 'passwd', 
-                'secret': { 
-                    'secretName': secret_auth_name, 
-                    'items' : {
-                        'key': 'passwd',
-                        'path': '/etc/passwd'
-                    }
-                }
-            }
-            volumes_mount['passwd'] = { 'name': 'passwd', 'mountPath' : '/var/secrets/abcdesktop/localaccount' }
-
-            volumes['shadow']       = { 
-                'name': 'shadow', 
-                'secret': { 
-                    'secretName': secret_auth_name, 
-                    'items' : {
-                        'key': 'shadow',
-                        'path': '/etc/shadow'
-                    }
-                }
-            }
-            volumes_mount['shadow'] = { 'name': 'shadow', 'mountPath' : '/etc/shadow' }
-            '''
-
         #
         # mount secret in /var/secrets/abcdesktop
         # always add vnc secret for 'pod_desktop'
@@ -1551,8 +1489,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # 644 in decimal equal to 420
             volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
             volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
-
-
 
         #
         # mount secret in /var/secrets/abcdesktop
@@ -2422,7 +2358,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secrets_type_requirement = oc.od.settings.desktophostconfig.get('secrets_requirement')
         if isinstance( secrets_type_requirement, list ):
             # list the secret entry by requirement type 
-            secrets_requirement = ['abcdesktop/vnc','abcdesktop/etc'] # always add the vnc passwork in the secret list 
+            secrets_requirement = ['abcdesktop/vnc'] # always add the vnc passwork in the secret list 
             for secretdictkey in mysecretdict.keys():
                 if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
                     secrets_requirement.append( secretdictkey )
