@@ -2251,7 +2251,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [type]: [description]
         """
-    
+        self.logger.debug('createdesktop end' )
         myDesktop       = None # default return object           
 
         args     = kwargs.get('args')    
@@ -2419,12 +2419,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 labels['websocketroute']    = websocketroute
         self.logger.debug('websocketrouting created')
 
-
-        self.logger.debug('initContainer creating')
         initContainers = []
         currentcontainertype = 'init'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             # init container chown to change the owner of the home directory
+            self.logger.debug('pod container creating %s', currentcontainertype )
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                         'image':            oc.od.settings.desktop_pod[currentcontainertype].get('image'),       
@@ -2432,8 +2431,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                         'volumeMounts':     list_volumeMounts,
                                         'env':              envlist
             } )
-            self.logger.debug( 'initContainers is %s', initContainers)
-        self.logger.debug('initContainer created')
+            self.logger.debug('pod container created %s', currentcontainertype )
 
 
         # default empty dict annotations
@@ -2456,7 +2454,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
         currentcontainertype = 'graphical'
-
+        self.logger.debug('pod container creating %s', currentcontainertype )
         # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2490,6 +2488,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 ]
             }
         }
+        self.logger.debug('pod container created %s', currentcontainertype )
 
         # by default remove Anonymous home directory at stop 
         # or if oc.od.settings.desktop['removehomedirectory']
@@ -2503,6 +2502,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Add printer sound servives 
         for currentcontainertype in [ 'printer', 'sound' ] :
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                self.logger.debug('pod container creating %s', currentcontainertype )
                 pod_manifest['spec']['containers'].append( { 
                                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
@@ -2513,10 +2513,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                         'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
                                     }   
                 )
+                self.logger.debug('pod container created %s', currentcontainertype )
 
         # Add ssh service 
         currentcontainertype = 'ssh'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            self.logger.debug('pod container creating %s', currentcontainertype )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
@@ -2527,6 +2529,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
                                 }   
             )
+            self.logger.debug('pod container created %s', currentcontainertype )
 
         # Add filer service 
         currentcontainertype = 'filer'
@@ -2543,6 +2546,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # if a volume exists
             # use this volume as homedir to filer service 
             # if homedirvolume  :
+            self.logger.debug('pod container creating %s', currentcontainertype )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
@@ -2552,10 +2556,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                                      
                                 }   
             )
+            self.logger.debug('pod container created %s', currentcontainertype )
 
         # Add storage service 
         currentcontainertype = 'storage'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            self.logger.debug('pod container creating %s', currentcontainertype )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
@@ -2565,6 +2571,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
                                 }   
             )
+            self.logger.debug('pod container created %s', currentcontainertype )
 
 
         # if metapply stop, do not restart the pod 
@@ -2585,9 +2592,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
         self.on_desktoplaunchprogress(f"Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
         object_type = None
-        message = ''
+        message = 'read list_namespaced_event'
         number_of_container_started = 0
 
+
+        self.logger.debug('watch list_namespaced_event pod creating' )
         # watch list_namespaced_event
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
@@ -2645,9 +2654,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             self.on_desktoplaunchprogress( readymsg )
                             w.stop()
 
+        self.logger.debug('watch list_namespaced_event pod created' )
+
         if object_type == 'Warning':
             return message
 
+        self.logger.debug('watch list_namespaced_pod creating' )
         # watch list_namespaced_pod waiting for a valid ip addr
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
@@ -2688,7 +2700,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 else:
                     self.logger.info("Your pod has no ip address, waiting for network plugin")
                     self.on_desktoplaunchprogress("Your pod is waiting for an ip address from network plugin")   
-    
+        self.logger.debug('watch list_namespaced_pod created' )
+
+        self.logger.debug('watch read_namespaced_pod creating' )
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
         self.logger.info( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
         if myPod.status.phase != 'Running':
@@ -2699,7 +2713,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.on_desktoplaunchprogress("Your pod is running.")   
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
+        self.logger.debug('watch read_namespaced_pod created' )
 
+        self.logger.debug('watch filldictcontextvalue creating' )
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
         fillednetworkconfig = self.filldictcontextvalue(authinfo=authinfo, 
@@ -2710,7 +2726,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                         appinstance_id = None )
 
         myDesktop.webhook = fillednetworkconfig.get('webhook')
+        self.logger.debug('watch filldictcontextvalue created' )
 
+        self.logger.debug('createdesktop end' )
         return myDesktop
 
   
