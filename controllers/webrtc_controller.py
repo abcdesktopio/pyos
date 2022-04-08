@@ -69,7 +69,8 @@ class WebRTCController(BaseController):
             return Results.error( message='WebRTC is disabled in configuration file')
         else:
             # get_stream create or get a previous created stream
-            return self.rtp_stream( services.webrtc.get_stream )
+            stream =  self.rtp_stream( services.webrtc.get_stream )
+            return stream
             
 
     @cherrypy.expose
