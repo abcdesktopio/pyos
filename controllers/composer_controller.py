@@ -133,9 +133,12 @@ class ComposerController(BaseController):
     def launchdesktop(self):
         logger.debug('')
         try:
+            logger.debug('launchdesktop:validate_env')
             (auth, user ) = self.validate_env()
             # add lang to user dict   
+            logger.debug('launchdesktop:LocaleSettingsLanguage')
             self.LocaleSettingsLanguage( user )
+            logger.debug('launchdesktop:_launchdesktop')
             return self._launchdesktop(auth, user, cherrypy.request.json)
 
         except Exception as e:
@@ -335,7 +338,7 @@ class ComposerController(BaseController):
             return Results.error( message=str(e) )
         
     def _launchdesktop(self, auth, user, args):
-
+        logger.info('')
         try:
             appname = args.get('app')
             
