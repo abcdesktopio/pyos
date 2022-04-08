@@ -466,9 +466,7 @@ def createdesktop( authinfo, userinfo, args  ):
             myCreateDesktopArguments['env'].update({'TZ': timezone })
 
         logger.info("App image name : %s %s", app.name, arguments)
-    else:
-        # use the desktop image
-        myCreateDesktopArguments['image'] = settings.desktop['graphical'].get('image')
+
     
     messageinfo = services.messageinfo.getqueue(userinfo.userid)
 
