@@ -77,20 +77,32 @@ class ODOrchestratorBase(object):
         if nodehostname is not None and type(nodehostname) is not str: 
             raise ValueError('Invalid nodehostname, must be a string or None: type nodehostname = %s ' % str(type(nodehostname)))
 
-        # container name is g-UUID
-        self.graphicalcontainernameprefix   = 'g'   # graphical container letter prefix 
-        # printer name is p-UUID
-        self.printercontainernameprefix     = 'p'   # printer container letter prefix 
+        # container name is x-UUID
+        self.graphicalcontainernameprefix   = 'x'   # graphical container letter prefix x for x11
+        # printer name is c-UUID
+        self.printercontainernameprefix     = 'c'   # printer container letter prefix c for cups
         # sound name is s-UUID
-        self.soundcontainernameprefix       = 's'   # sound container letter prefix
+        self.soundcontainernameprefix       = 's'   # sound container letter prefix p for pulseaudio
         # sound name is p-UUID
-        self.filercontainernameprefix       = 'f'   # file container letter prefix
+        self.filercontainernameprefix       = 'f'   # file container letter prefix f for file service
         # init name is i-UUID
-        self.initcontainernameprefix        = 'i'   # file container letter prefix
-        # init name is s-UUID
-        self.storagecontainernameprefix     = 'o'   # file container letter prefix
+        self.initcontainernameprefix        = 'i'   # file container letter prefix i for init
+        # init name is o-UUID
+        self.storagecontainernameprefix     = 'o'   # file container letter prefix o for secret storage
+         # init name is h-UUID
+        self.sshcontainernameprefix         = 'h'   # file container letter prefix h for secret ssh
         # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
+
+        self.nameprefixdict = { 'graphical' : self.graphicalcontainernameprefix,
+                                'printer'   : self.printercontainernameprefix,
+                                'sound'     : self.soundcontainernameprefix,  
+                                'filer'     : self.filercontainernameprefix,
+                                'init'      : self.initcontainernameprefix,
+                                'storage'   : self.storagecontainernameprefix,
+                                'ssh'       : self.sshcontainernameprefix 
+        }
+ 
 
         self._nodehostname = nodehostname
         self.desktoplaunchprogress  = oc.pyutils.Event()        
@@ -102,6 +114,10 @@ class ODOrchestratorBase(object):
         self.endpoint_domain        = 'desktop'
         self._myinfra = None
         self.name = 'base'
+
+    def get_containername( self, currentcontainertype, userid, myuuid ):
+        prefix = self.nameprefixdict[currentcontainertype]
+        return self.get_basecontainername( prefix, userid, myuuid )
   
     def get_initcontainername( self, userid, container_name ):
         return self.get_basecontainername( self.initcontainernameprefix, userid, container_name )
@@ -212,9 +228,9 @@ class ODOrchestratorBase(object):
                     # add the object to the result array
                     result.append( mycontainer )
                 except Exception as e:
-                    logger.error( 'listContainerApps:add entry %s', str(e))
+                    self.logger.error( 'listContainerApps:add entry %s', str(e))
         except Exception as e:
-            logger.error( '%s', str(e) ) 
+            self.logger.error( '%s', str(e) ) 
 
         return result
 
@@ -387,7 +403,7 @@ class ODOrchestratorBase(object):
             raise ValueError('invalid desktop object type' )
         
         binding = '{}:{}'.format(desktop.ipAddr, str(port))
-        command = [ oc.od.settings.desktop['graphical'].get('waitportbin'), '-t', str(timeout), binding ]       
+        command = [ oc.od.settings.desktop_pod['graphical'].get('waitportbin'), '-t', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
         self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
      
@@ -1116,7 +1132,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
             # dump host config berfore create
             # self.logger.info('oc.od.settings.desktophostconfig=%s', oc.od.settings.desktophostconfig )
-            self.logger.info('desktophostconfig=%s', desktophostconfig )
+            self.logger.info( f"desktophostconfig= {desktophostconfig}" )
 
             host_config  = c.create_host_config( **desktophostconfig )
             
@@ -1460,6 +1476,67 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
         #
+        # mount secret in /etc/passwd
+        # always add localaccount secret for 'pod_desktop'
+        if volume_type in [ 'pod_desktop'  ] :
+            # Add VNC password
+            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
+            # the should only be one secret type vnc
+            secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
+            # create an entry /var/secrets/abcdesktop/vnc
+            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
+            # mode is 644 -> rw-r--r--
+            # Owing to JSON limitations, you must specify the mode in decimal notation.
+            # 644 in decimal equal to 420
+
+            secretmountPath = '/etc'
+            volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+            volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+
+            volumes[secret_auth_name]       = { 
+                'name': secret_auth_name, 
+                'secret': { 
+                    'secretName': secret_auth_name, 
+                    'items' : [ { 'key': 'passwd', 'path':'passwd' } ]
+                    
+                }
+            }
+            '''
+            # Add localaccount password
+            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
+            # the should only be one secret type vnc
+            secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
+            # create an entry /var/secrets/abcdesktop/vnc
+            secretmountPath = '/etc' 
+            # mode is 644 -> rw-r--r--
+            # Owing to JSON limitations, you must specify the mode in decimal notation.
+            # 644 in decimal equal to 420
+            volumes['passwd']       = { 
+                'name': 'passwd', 
+                'secret': { 
+                    'secretName': secret_auth_name, 
+                    'items' : {
+                        'key': 'passwd',
+                        'path': '/etc/passwd'
+                    }
+                }
+            }
+            volumes_mount['passwd'] = { 'name': 'passwd', 'mountPath' : '/var/secrets/abcdesktop/localaccount' }
+
+            volumes['shadow']       = { 
+                'name': 'shadow', 
+                'secret': { 
+                    'secretName': secret_auth_name, 
+                    'items' : {
+                        'key': 'shadow',
+                        'path': '/etc/shadow'
+                    }
+                }
+            }
+            volumes_mount['shadow'] = { 'name': 'shadow', 'mountPath' : '/etc/shadow' }
+            '''
+
+        #
         # mount secret in /var/secrets/abcdesktop
         # always add vnc secret for 'pod_desktop'
         if volume_type in [ 'pod_desktop'  ] :
@@ -1713,15 +1790,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # auth_secret = secret.create( arguments )
           # compile a env list with the auth list  
         # translate auth environment to env 
-        self.on_desktoplaunchprogress('Building auth secrets')
+        self.on_desktoplaunchprogress('Building secrets')
 
         #
         # Create ODSecretLDIF, build userinfo object secret ldif cache
         # This section is necessary to get user photo in user_controller.py
         # dump the ldif in kubernetes secret 
-        if type(authinfo.protocol) is dict and authinfo.protocol.get('ldif') is True:
-            secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
-            secret.create( authinfo, userinfo, data=userinfo )
+        if type(authinfo.protocol) is dict :
+            if authinfo.protocol.get('ldif') is True:
+                secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
+                secret.create( authinfo, userinfo, data=userinfo )
+           
+
 
         # Create environments secrets
         # if user can change the auth provider, we need to create all secrets with empty value
@@ -2024,7 +2104,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return data
 
         
-
+    def isenablecontainerinpod( self, authinfo, currentcontainertype):
+        bReturn =   isinstance(  oc.od.settings.desktop_pod.get(currentcontainertype), dict ) and \
+                    oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop_pod[currentcontainertype].get('acl') ) and \
+                    oc.od.settings.desktop_pod[currentcontainertype].get('enable') == True
+        return bReturn
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
@@ -2135,8 +2219,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         network_annotations = network_config.get( 'annotations' )
         if isinstance( network_annotations, dict):
             annotations.update( network_annotations )
-  
-        # note 'shareProcessNamespace' is always False
 
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2192,7 +2274,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.settings.desktop['imagepullsecret']:
             pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktop['imagepullsecret'] } ]
 
-        logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
+        self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
         pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
 
         if not isinstance(pod, client.models.v1_pod.V1Pod ):
@@ -2236,7 +2318,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop       = None # default return object           
 
         args     = kwargs.get('args')
-        image    = kwargs.get('image')
+        
         command  = kwargs.get('command')
         env      = kwargs.get('env', {} )
         appname  = kwargs.get('appname')
@@ -2340,7 +2422,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secrets_type_requirement = oc.od.settings.desktophostconfig.get('secrets_requirement')
         if isinstance( secrets_type_requirement, list ):
             # list the secret entry by requirement type 
-            secrets_requirement = ['abcdesktop/vnc'] # always add the vnc passwork in the secret list 
+            secrets_requirement = ['abcdesktop/vnc','abcdesktop/etc'] # always add the vnc passwork in the secret list 
             for secretdictkey in mysecretdict.keys():
                 if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
                     secrets_requirement.append( secretdictkey )
@@ -2352,7 +2434,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # graphical volumes
         (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=secrets_requirement, rules=rules,  **kwargs)
-        list_volumes = list( volumes.values() )
         list_volumeMounts = list( volumeMounts.values() )
         self.logger.info( 'volumes=%s', volumes.values() )
         self.logger.info( 'volumeMounts=%s', volumeMounts.values() )
@@ -2382,27 +2463,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 labels['websocketroute']    = websocketroute
 
         initContainers = []
-        if  oc.od.settings.desktop['init'].get('use') is True and \
-            isinstance( oc.od.settings.desktop['init'].get('command'), list ) and \
-            isinstance( oc.od.settings.desktop['init'].get('image'), str)   :
 
+        currentcontainertype = 'init'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             # init container chown to change the owner of the home directory
-            init_name = self.get_initcontainername( userinfo.userid, myuuid )
-            initContainers.append( {    'imagePullPolicy':  oc.od.settings.desktop['init'].get('imagePullPolicy'),
-                                        'name':             init_name,
-                                        'image':            oc.od.settings.desktop['init'].get('image'),
-                                        'command':          oc.od.settings.desktop['init'].get('command'),
+            initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                        'image':            oc.od.settings.desktop_pod[currentcontainertype].get('image'),       
+                                        'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
                                         'volumeMounts':     list_volumeMounts,
                                         'env':              envlist
             } )
             self.logger.debug( 'initContainers is %s', initContainers)
-
-        # check if shareProcessNamespace is enabled
-        # read the pid_mode as shareProcessNamespace in desktophostconfig
-        # if not set or not bool set shareProcessNamespace to False
-        shareProcessNamespace = oc.od.settings.desktophostconfig.get( 'pid_mode' )
-        if not isinstance( shareProcessNamespace, bool):
-            shareProcessNamespace = False
 
         # default empty dict annotations
         annotations = {}
@@ -2413,7 +2485,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( network_annotations, dict):
             annotations.update( network_annotations )
 
-
         # set default dns configuration 
         dnspolicy = oc.od.settings.desktop['dnspolicy']
         dnsconfig = oc.od.settings.desktop['dnsconfig']
@@ -2423,6 +2494,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             dnspolicy = 'None'
             dnsconfig = network_config.get('internal_dns')
 
+
+        currentcontainertype = 'graphical'
 
         # define pod_manifest
         pod_manifest = {
@@ -2439,32 +2512,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'subdomain': self.endpoint_domain,
-                'shareProcessNamespace': shareProcessNamespace,
+                'shareProcessNamespace': oc.od.settings.desktop_pod[currentcontainertype].get('shareProcessNamespace'),
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
-                'containers': [ {   'imagePullPolicy': oc.od.settings.desktop['graphical'].get('imagePullPolicy'),
-                                    'image': image,
-                                    'name': container_graphical_name,
+                'containers': [ {   'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),
+                                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'command': command,
                                     'args': args,
                                     'env': envlist,
+                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'volumeMounts': list_volumeMounts,
-                                    'securityContext': { 
-                                             # permit sudo command inside the container False by default 
-                                            'allowPrivilegeEscalation': oc.od.settings.desktop.get('allowPrivilegeEscalation'),
-                                            # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]  
-                                            'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
-                                                              'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
-                                    },
-                                    'resources': oc.od.settings.desktop['resources'].get('graphical') 
+                                    'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
+                                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')
                                 }                                                             
                 ]
             }
         }
-
-        if oc.od.settings.desktop['imagepullsecret']:
-            pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktop['imagepullsecret'] } ]
 
         # by default remove Anonymous home directory at stop 
         # or if oc.od.settings.desktop['removehomedirectory']
@@ -2474,93 +2539,70 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'exec': { 'command':  [ "/bin/bash", "-c", "rm -rf " + oc.od.settings.getballoon_homedirectory() + "/*" ] }
                 }   
         }
-         
-        # Add printer servive 
-        if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop['printer'].get('acl') ) and \
-           isinstance( oc.od.settings.desktop['printer'].get('image'), str ) :
-            # get the container sound name prefix with 'p' like sound
-            container_printer_name = self.get_printercontainername( userinfo.userid, myuuid )
-            pod_manifest['spec']['containers'].append( { 
-                                    'name': container_printer_name,
-                                    'imagePullPolicy':  oc.od.settings.desktop['printer'].get('pullpolicy'),
-                                    'image': oc.od.settings.desktop['printer'].get('image'),                                    
-                                    'env': envlist,
-                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ],
-                                    'resources': oc.od.settings.desktop['resources'].get('printer')                             
-                                }   
-            )
-            # pod_manifest['spec']['containers'][0] is the main oc.user container
-            # set env CUPS_SERVER to reach cupsd
-            # pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock'}  )
-        
-        # Add sound service 
-        if  oc.od.settings.desktop['sound'].get('image') and \
-            oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop['sound'].get('acl') ) :
-            # get the container sound name prefix with 's' like sound
-            container_sound_name = self.get_soundcontainername( userinfo.userid, myuuid )
-            # pulseaudio need only the shared volume 
-            # /tmp for the unix socket 
-            # /dev/shm for the share memory
-            # this is a filter to reduce surface attack
-            # the home directory of balloon user MUST belongs to balloon user 
-            # else pulseaudio does not start
-
-            pod_manifest['spec']['containers'].append( { 
-                                    'name': container_sound_name,
-                                    'imagePullPolicy': oc.od.settings.desktop['sound'].get('pullpolicy'),
-                                    'image': oc.od.settings.desktop['sound'].get('image'),                                    
-                                    'env': envlist,
-                                    'volumeMounts': [ self.default_volumes_mount['tmp'] ],
-                                    'resources': oc.od.settings.desktop['resources'].get('sound')                                   
-                                }   
-            )
-            # pod_manifest['spec']['containers'][0] is the main oc.user container
-            # set env PULSE_SERVER to reach pulseaudio
-            # pod_manifest['spec']['containers'][0]['env'].append( {'name': 'PULSE_SERVER', 'value': '/tmp/.pulse.sock' } )
-
-
-        # Add filer service 
-        if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop['filer'].get('acl') ) and \
-           oc.od.settings.desktop['filer'].get('image')  :
-            # get the container sound name prefix with 'f' like sound
-            container_filter_name = self.get_filercontainername( userinfo.userid, myuuid )
-            # get the volume name created for homedir
-            volume_home_name = self.get_volumename( 'home', userinfo )
-            
-            # retrieve the home user volume name
-            # to set volumeMounts value
-            homedirvolume = None        # set default value
-            for v in list_volumeMounts:
-                if v.get('name') == volume_home_name:
-                    homedirvolume = v   # find homedirvolume is v
-                    break
-            
-            # if a volume exists
-            # use this volume as homedir to filer service 
-            if homedirvolume  :
+          
+        # Add printer sound servives 
+        for currentcontainertype in [ 'printer', 'sound' ] :
+            if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 pod_manifest['spec']['containers'].append( { 
-                                        'name': container_filter_name,
-                                        'imagePullPolicy': oc.od.settings.desktop['filer'].get('pullpolicy'),
-                                        'image': oc.od.settings.desktop['filer'].get('image'),                                    
+                                        'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                        'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
                                         'env': envlist,
-                                        'volumeMounts': [ homedirvolume ],
-                                        'resources': oc.od.settings.desktop['resources'].get('filer')                                    
+                                        'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                                        'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
+                                        'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
                                     }   
                 )
 
-        # Add storage service 
-        if oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop['storage'].get('acl') ) and \
-           oc.od.settings.desktop['storage'].get('image')  :
-            # get the container sound name prefix with 'o' like sound
-            container_storage_name = self.get_storagecontainername( userinfo.userid, myuuid )
-        
+        # Add ssh service 
+        currentcontainertype = 'ssh'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             pod_manifest['spec']['containers'].append( { 
-                                    'name': container_storage_name,
-                                    'imagePullPolicy': oc.od.settings.desktop['storage'].get('pullpolicy'),
-                                    'image': oc.od.settings.desktop['storage'].get('image'),                                    
+                                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
+                                    'env': envlist,
+                                    'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
+                                    'volumeMounts': list_volumeMounts,
+                                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
+                                }   
+            )
+
+        # Add filer service 
+        currentcontainertype = 'filer'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            # volume_home_name = self.get_volumename( 'home', userinfo ) # get the volume name created for homedir
+            # # retrieve the home user volume name
+            # # to set volumeMounts value
+            # homedirvolume = None        # set default value
+            # for v in list_volumeMounts:
+            #     if v.get('name') == volume_home_name:
+            #         homedirvolume = v   # find homedirvolume is v
+            #         break
+            
+            # if a volume exists
+            # use this volume as homedir to filer service 
+            # if homedirvolume  :
+            pod_manifest['spec']['containers'].append( { 
+                                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                  
+                                    'env': envlist,
+                                    'volumeMounts': list_volumeMounts,
+                                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                                      
+                                }   
+            )
+
+        # Add storage service 
+        currentcontainertype = 'storage'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            pod_manifest['spec']['containers'].append( { 
+                                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                 
                                     'env': envlist,
                                     'volumeMounts':  list_pod_allvolumeMounts,
-                                    'resources': oc.od.settings.desktop['resources'].get('storage')                                    
+                                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
                                 }   
             )
 
@@ -2571,20 +2613,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # we are ready to create our Pod 
         myDesktop = None
-        
-        nMaxEvent = 64
-        nEventCount = 0
-        
         self.on_desktoplaunchprogress('Creating your desktop')
-        logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
+        self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
         pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
 
         if not isinstance(pod, client.models.v1_pod.V1Pod ):
             self.on_desktoplaunchprogress('Create Pod failed.' )
             raise ValueError( 'Invalid create_namespaced_pod type')
 
+        number_of_container_started = 0
         number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
-        self.on_desktoplaunchprogress('Watching for events from services')
+        self.on_desktoplaunchprogress(f"Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
         object_type = None
         message = ''
         number_of_container_started = 0
@@ -2596,16 +2635,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                 timeout_seconds=self.createpod_timeout,
                                 field_selector=f'involvedObject.name={pod_name}' ):  
             if not isinstance(event, dict ):
-                self.logger.error( 'event type is %s, and should be a dict, skipping event', type( event ))
+                self.logger.error( 'event type is %s, and should be a dict, skipping event', type(event) )
                 continue
 
             event_object = event.get('object')
             if not isinstance(event_object, client.models.v1_event.V1Event ):
-                self.logger.error( 'event_object type is %s  skipping event', type( event_object ))
+                self.logger.error( 'event_object type is %s skipping event', type(event_object))
                 continue
 
             # Valid values for event types (new types could be added in future)
-            #    EventTypeNormal string = "Normal"      // Information only and will not cause any problems
+            #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
             object_type = event_object.type
             if isinstance(event_object.message, str) and len(event_object.message)>0:
@@ -2623,7 +2662,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if object_type == 'Normal' and event_object.reason == 'Started' :
                 # add number_of_container_started counter 
                 number_of_container_started += 1
-
+                self.on_desktoplaunchprogress( f"Waiting for containers {number_of_container_started}/{number_of_container_to_start}" )
                 # if the number of container to start is expected, all containers should be started 
                 if number_of_container_started >= number_of_container_to_start:
                     w.stop() # do not wait any more
@@ -2632,16 +2671,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)  
                 # check if the graphical container is started
                 for c in myPod.status.container_statuses:
-                    # look for the ontainer_graphical_name
+                    # look only for for the ontainer_graphical_name
                     if c.name == container_graphical_name:
                         if c.started is True :
-                            self.logger.debug( c.name + ' is started' )
-                            self.on_desktoplaunchprogress(  c.name + ' is started' )
+                            startedmsg =  f"{c.name} is ready" 
+                            self.logger.debug( startedmsg )
+                            self.on_desktoplaunchprogress(  startedmsg )
                         if c.ready is True :
                             # the graphical container is ready 
                             # do not wait for other containers
-                            self.logger.debug( c.name + ' is ready' )
-                            self.on_desktoplaunchprogress(  c.name + ' is ready' )
+                            readymsg = f"{c.name} is ready"
+                            self.logger.debug( readymsg )
+                            self.on_desktoplaunchprogress( readymsg )
                             w.stop()
 
         if object_type == 'Warning':
@@ -2667,11 +2708,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_event = event.get('object')
             # if podevent type is pod
             if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
-                self.on_desktoplaunchprogress('Your %s is %s', pod_event.kind, event_type.lower() )           
+                self.on_desktoplaunchprogress( "Your %s is %s" % (pod_event.kind, event_type.lower())  )           
                 if pod_event.status.pod_ip is not None:
                     self.on_desktoplaunchprogress('Your pod gets an ip address from network plugin') 
                    
-                    self.logger.error( 'pod_event.status.phase %s', pod_event.status.phase )
+                    self.logger.info( 'pod_event.status.phase %s', pod_event.status.phase )
                     #
                     # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
                     #
@@ -2685,17 +2726,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
                         w.stop()    
                 else:
-                    self.logger.info('Your pod has no ip address, waiting for network plugin')
-                    self.on_desktoplaunchprogress('Your pod is waiting for an ip address from network plugin')   
+                    self.logger.info("Your pod has no ip address, waiting for network plugin")
+                    self.on_desktoplaunchprogress("Your pod is waiting for an ip address from network plugin")   
     
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
-        self.logger.info( 'myPod.metadata.name is %s, %s ipAddr is %s', myPod.metadata.name, myPod.status.phase, myPod.status.pod_ip)
+        self.logger.info( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
         if myPod.status.phase != 'Running':
             # something wrong 
-            return 'Your pod does not start, status ' + str(myPod.status.phase) 
+            return f"Your pod does not start, status {myPod.status.phase}" 
         else:
             # At least one container is still running,
-            self.on_desktoplaunchprogress('Your pod is running.')   
+            self.on_desktoplaunchprogress("Your pod is running.")   
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
 
