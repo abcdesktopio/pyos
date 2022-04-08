@@ -47,9 +47,7 @@ class ODApps:
         self.private_attr_list  = [ 
             'sha_id', 'acl',  'rules', 'privileged', 'security_opt', 'host_config' ]
 
-    '''
-        code to create icon file 
-        removed
+ 
 
     def makeicon_url(self, filename ):
         self.img_path = '/img/app/'
@@ -65,7 +63,7 @@ class ODApps:
 
         # normalise trust no one
         # hard code image path
-        currentPath = '/var/pyos' # or os.getcwd()
+        currentPath = os.getcwd() # '/var/pyos' or os.getcwd()
         filepath = os.path.normpath( currentPath + self.img_path + filename )
         try:
             f = None
@@ -87,7 +85,6 @@ class ODApps:
         except Exception as e:
             self.logger.error('Can not makeicon_file %s: %s', filename, e)
         return bReturn
-    '''
 
     def countApps(self):
         return len(self.myglobal_list)
@@ -361,9 +358,10 @@ class ODApps:
 
         # icon_url = None
         # check if icon file name exists and icon data is str
-        # if isinstance(icon, str) and isinstance(icondata, str):
-        #    if self.makeicon_file(icon, icondata):
-        #       icon_url = self.makeicon_url(icon)
+        if isinstance(icon, str) and isinstance(icondata, str):
+            if self.makeicon_file(icon, icondata):
+                # create the file icon with icondata
+                self.makeicon_url(icon)
 
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
