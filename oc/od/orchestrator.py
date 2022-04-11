@@ -33,6 +33,7 @@ import uuid
 import chevron
 import requests
 import copy
+import threading
 
 from kubernetes import client, config, watch
 from kubernetes.stream import stream
@@ -44,6 +45,7 @@ import oc.od.infra
 import oc.od.acl
 import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
+import oc.od.configmap
 from   oc.od.desktop        import ODDesktop
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 from   oc.od.vnc_password   import ODVncPassword
@@ -1474,6 +1476,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 volumes['shm']       = self.default_volumes['shm']
                 volumes_mount['shm'] = self.default_volumes_mount['shm'] 
 
+        localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
+        config_map_auth_name = localaccount_configmap.get_name( userinfo=userinfo )
+        # add passwd
+        volumes['passwd']       = { 'name': 'config-passwd', 'configMap': { 'name': config_map_auth_name } }
+        volumes_mount['passwd'] = { 'name': 'config-passwd', 'mountPath': '/etc/passwd', 'subPath': 'passwd', 'readOnly': True }
+        # add shadow
+        volumes['shadow']       = { 'name': 'config-shadow', 'configMap': { 'name': config_map_auth_name } }
+        volumes_mount['shadow'] = { 'name': 'config-shadow', 'mountPath': '/etc/shadow', 'subPath': 'shadow', 'readOnly': True }
+        # add group
+        volumes['group']       = { 'name': 'config-group', 'configMap': { 'name': config_map_auth_name } }
+        volumes_mount['group'] = { 'name': 'config-group', 'mountPath': '/etc/group', 'subPath': 'group', 'readOnly': True }
+
         #
         # mount secret in /var/secrets/abcdesktop
         # always add vnc secret for 'pod_desktop'
@@ -1683,25 +1697,74 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     def removesecrets( self, authinfo, userinfo ):
         ''' remove all kubernetes secrets for a give user '''
         ''' access_type is None will list all user secret '''
+        bReturn = True
         dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type=None)
         for secret_name in dict_secret.keys():
             try:            
                 v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
+                if not isinstance(v1status,client.models.v1_status.V1Status) :
+                    raise ValueError( 'Invalid V1Status type return by delete_namespaced_secret')
+                self.logger.debug('secret %s status %s', secret_name, v1status.status) 
+                if v1status.status != 'Sucess':
+                    self.logger.error('secret %s can not be deleted %s', secret_name, str(v1status) ) 
+                    bReturn = bReturn and False
+                
             except ApiException as e:
                 self.logger.error('secret name %s can not be deleted: error %s', secret_name, e ) 
+                bReturn = bReturn and False
+        self.logger.debug('removesecrets for %s return %s', userinfo.userid, str(bReturn) ) 
+        return bReturn 
+   
+
+
+    def removeconfigmap( self, authinfo, userinfo ):
+        ''' remove all kubernetes secrets for a give user '''
+        ''' access_type is None will list all user secret '''
+        bReturn = True
+        dict_configmap = self.list_dict_configmap_data( authinfo, userinfo, access_type=None)
+        for configmap_name in dict_configmap.keys():
+            try:            
+                v1status = self.kubeapi.delete_namespaced_config_map( name=configmap_name, namespace=self.namespace )
+                if not isinstance(v1status,client.models.v1_status.V1Status) :
+                    raise ValueError( 'Invalid V1Status type return by delete_namespaced_config_map')
+                self.logger.debug('configmap %s status %s', configmap_name, v1status.status) 
+                if v1status.status != 'Sucess':
+                    self.logger.error('configmap name %s can not be deleted %s', configmap_name, str(v1status) ) 
+                    bReturn = bReturn and False
+                    
+            except ApiException as e:
+                self.logger.error('configmap name %s can not be deleted: error %s', configmap_name, e ) 
+                bReturn = bReturn and False
+        return bReturn 
 
     def removedesktop(self, authinfo, userinfo, args={} ):
         ''' remove kubernetes pod for a give user '''
         ''' then remove kubernetes user's secrets '''
-        statusPod = None
+        bReturn = False # default value 
+        removedesktopStatus = {}
         self.logger.debug('')
 
         # get the user's pod
         myPod =  self.findPodByUser(authinfo, userinfo )
-        if myPod :
-            statusPod = self.removePod( myPod )
-            self.removesecrets( authinfo, userinfo )
-        return statusPod
+        if isinstance(myPod, client.models.v1_pod.V1Pod ):
+            removedesktopStatus['pod'] = self.removePod( myPod )
+
+            removetheads    =  [ { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ], 'thread':None },
+                                 { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
+   
+            for removethread in removetheads:
+                logger.debug( 'calling webhook cmd %s', str(removethread['fct']) )
+                removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
+                removethread['thread'].start()
+ 
+            # no need to wait for removethread['thread'].join()
+            # for removethread in removetheads:
+            #     removethread['thread'].join()
+
+            bReturn = all( removedesktopStatus.values() )
+        else:
+            self.logger.error( "removedesktop can not find desktop %s %s", authinfo, userinfo )
+        return bReturn
             
     def prepareressources(self, authinfo, userinfo, **kwargs):
         """[prepareressources]
@@ -1736,8 +1799,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if authinfo.protocol.get('ldif') is True:
                 secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
                 secret.create( authinfo, userinfo, data=userinfo )
-           
-
 
         # Create environments secrets
         # if user can change the auth provider, we need to create all secrets with empty value
@@ -1748,14 +1809,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             auth_default_environment = {}
 
         auth_environment = authinfo.data.get('environment', auth_default_environment )
-        if isinstance( auth_environment, dict) :
-            # for each auth protocol enabled
-            for auth_env_built_key in auth_environment.keys():
-                # each entry in authinfo.data.environment
-                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
-                # build a kubernetes secret with the auth values 
-                # values can be empty to be updated later
-                secret.create( authinfo, userinfo, data=auth_environment.get(auth_env_built_key) )
+
+        # create /etc/passwd and /etc/shadow configmap entries
+        localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
+        localaccount_configmap.create( authinfo, userinfo, data=auth_environment.get('localaccount') )
+
+        # for each auth protocol enabled
+        for auth_env_built_key in auth_environment.keys():
+            # each entry in authinfo.data.environment
+            secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
+            # build a kubernetes secret with the auth values 
+            # values can be empty to be updated later
+            secret.create( authinfo, userinfo, data=auth_environment.get(auth_env_built_key) )
     
         # Create flexvolume secrets
         rules = oc.od.settings.desktop['policies'].get('rules')
@@ -1842,6 +1907,46 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         for key in dict_secret.keys():
             raw_secrets.update( dict_secret[key] )
         return raw_secrets
+
+
+    def list_dict_configmap_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
+        """get a dict of secret (key value) for the access_type
+           if access_type is None will list all user secrets
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data 
+            access_type (str): type of secret like 'auth' 
+
+        Returns:
+            dict: return dict of secret key value 
+        """
+        access_userid = userinfo.userid
+        access_provider = authinfo.provider
+        configmap_dict = {}
+        try: 
+            label_selector =    'access_userid=' + access_userid 
+
+            if oc.od.settings.desktop['authproviderneverchange'] is True:
+                label_selector += ',' + 'access_provider='  + access_provider   
+   
+            if type(access_type) is str :
+                label_selector += ',access_type=' + access_type 
+           
+            kconfigmap_list = self.kubeapi.list_namespaced_config_map(self.namespace, label_selector=label_selector)
+          
+            for myconfigmap in kconfigmap_list.items:
+                if hidden_empty :
+                    # check if mysecret.data is None or an emtpy dict 
+                    if myconfigmap.data is None :
+                        continue
+                    if isinstance( myconfigmap.data, dict) and len( myconfigmap.data ) == 0: 
+                        continue
+                configmap_dict[myconfigmap.metadata.name] = { 'data': myconfigmap.data }
+      
+        except ApiException as e:
+            self.logger.error("Exception %s", str(e) )
+    
+        return configmap_dict
 
     def list_dict_secret_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
         """get a dict of secret (key value) for the access_type
@@ -2277,6 +2382,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # generate BROADCAST cookie
         broadcast_cookie = self.generate_broadcastcookie()
         env[ 'BROADCAST_COOKIE' ] = broadcast_cookie 
+        # add user 
+        env[ 'USER' ] = userinfo.userid
+        env[ 'LOGNAME' ] = userinfo.userid
         self.logger.debug('env created')
 
         self.logger.debug('labels creating')
@@ -2680,9 +2788,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_event = event.get('object')
             # if podevent type is pod
             if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
-                self.on_desktoplaunchprogress( "Your %s is %s" % (pod_event.kind, event_type.lower())  )           
+                self.on_desktoplaunchprogress( f"Your {pod_event.kind} is {event_type.lower()} " )           
                 if pod_event.status.pod_ip is not None:
-                    self.on_desktoplaunchprogress('Your pod gets an ip address from network plugin') 
+                    self.on_desktoplaunchprogress(f"Your pod gets ip address {pod_event.status.pod_ip} from network plugin") 
                    
                     self.logger.info( 'pod_event.status.phase %s', pod_event.status.phase )
                     #
