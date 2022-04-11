@@ -1065,8 +1065,9 @@ class ODAuthTool(cherrypy.Tool):
                 raise AuthenticationFailureError('getuserinfo return invalid userid provider=%s', provider)
 
             self.logger.debug( 'mgr.getuserinfo provider=%s success', provider)
+            
             # make sure to use the same case sensitive if we change provider
-            user['userid'] = userid.upper()
+            # user['userid'] = userid.upper()
             
             # uncomment this line only to see password in clear text format
             # logger.debug( 'mgr.getroles arguments=%s', arguments)            
@@ -1711,6 +1712,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def krb5_authenticate(self, userid, password ):
         try:
+            userid = userid.upper()
             krb5ccname = self.get_krb5ccname( userid )
             self.run_kinit( krb5ccname, userid, password )
         except Exception as e:
@@ -2416,13 +2418,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def generateLocalAccount(self, user, password ):
         self.logger.debug('Generating passwd file')
         hashes = {}
-        # passwd
-        # balloon:x:4096:4096::/home/balloon:/bin/bash
-        hashes['passwd']= f"{user}:x:4096:4096::/home/balloon:/bin/bash"
+        hashes['user']= user
         # Shadow
-        sha512 = crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512))
-        # balloon:$6$0lrocU6D$IKDAfLNC.nEtSRpXFxqZZgM.Ss50kUU9FVMtEwUph4DQ09BukAf20ZTjyDuKvo71jVcWsfABCOeBc5gcTUug..:19080:0:99999:7:::
-        hashes['shadow'] = f"{user}:{sha512}:19080:0:99999:7:::"
+        hashes['sha512'] = crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512))
         return hashes
 
 
