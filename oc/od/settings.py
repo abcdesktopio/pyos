@@ -35,10 +35,12 @@ menuconfig   = {}  # default menu config
 
 # User balloon define
 # Balloon is the default user used inside container
-balloon_homedirectory = None
+balloon_homedirectory = '/home/balloon'
 balloon_uid = 4096  # default user id
 balloon_gid = 4096  # default group id
 balloon_name = 'balloon'
+balloon_shell = '/bin/bash'
+balloon_passwd = 'lmdpocpetit'
 
 
 DEFAULT_SHM_SIZE = '64M' # default size of shared memeory
@@ -59,6 +61,96 @@ jira = None             # Jira tracker configuration
 routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
 
 
+
+DEFAULT_PASSWD_FILE = "root:x:0:0:root:/root:/bin/bash\n\
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n\
+bin:x:2:2:bin:/bin:/usr/sbin/nologin\n\
+sys:x:3:3:sys:/dev:/usr/sbin/nologin\n\
+sync:x:4:65534:sync:/bin:/bin/sync\n\
+games:x:5:60:games:/usr/games:/usr/sbin/nologin\n\
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin\n\
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin\n\
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin\n\
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin\n\
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin\n\
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin\n\
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin\n\
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin\n\
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin\n\
+irc:x:39:39:ircd:/var/run/ircd:/usr/sbin/nologin\n\
+gnats:x:41:41:Gnats Bug-Reporting System (admin):/var/lib/gnats:/usr/sbin/nologin\n\
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n\
+_apt:x:100:65534::/nonexistent:/usr/sbin/nologin\n\
+messagebus:x:101:102::/nonexistent:/usr/sbin/nologin\n\
+pulse:x:102:104:PulseAudio daemon,,,:/var/run/pulse:/usr/sbin/nologin"
+
+
+DEFAULT_SHADOW_FILE = "root:*:19020:0:99999:7:::\n\
+daemon:*:19020:0:99999:7:::\n\
+bin:*:19020:0:99999:7:::\n\
+sys:*:19020:0:99999:7:::\n\
+sync:*:19020:0:99999:7:::\n\
+games:*:19020:0:99999:7:::\n\
+man:*:19020:0:99999:7:::\n\
+lp:*:19020:0:99999:7:::\n\
+mail:*:19020:0:99999:7:::\n\
+news:*:19020:0:99999:7:::\n\
+uucp:*:19020:0:99999:7:::\n\
+proxy:*:19020:0:99999:7:::\n\
+www-data:*:19020:0:99999:7:::\n\
+backup:*:19020:0:99999:7:::\n\
+list:*:19020:0:99999:7:::\n\
+irc:*:19020:0:99999:7:::\n\
+gnats:*:19020:0:99999:7:::\n\
+nobody:*:19020:0:99999:7:::\n\
+_apt:*:19020:0:99999:7:::\n\
+messagebus:*:19040:0:99999:7:::\n\
+pulse:*:19041:0:99999:7:::"
+
+
+DEFAULT_GROUP_FILE="daemon:x:1:\n\
+bin:x:2:\n\
+sys:x:3:\n\
+adm:x:4:\n\
+tty:x:5:\n\
+disk:x:6:\n\
+lp:x:7:\n\
+mail:x:8:\n\
+news:x:9:\n\
+uucp:x:10:\n\
+man:x:12:\n\
+proxy:x:13:\n\
+kmem:x:15:\n\
+dialout:x:20:\n\
+fax:x:21:\n\
+voice:x:22:\n\
+cdrom:x:24:\n\
+floppy:x:25:\n\
+tape:x:26:\n\
+sudo:x:27:balloon\n\
+audio:x:29:pulse\n\
+dip:x:30:\n\
+www-data:x:33:\n\
+backup:x:34:\n\
+operator:x:37:\n\
+list:x:38:\n\
+irc:x:39:\n\
+src:x:40:\n\
+gnats:x:41:\n\
+shadow:x:42:\n\
+utmp:x:43:\n\
+video:x:44:\n\
+sasl:x:45:\n\
+plugdev:x:46:\n\
+staff:x:50:\n\
+games:x:60:\n\
+users:x:100:\n\
+nogroup:x:65534:\n\
+lpadmin:x:101:root,balloon\n\
+messagebus:x:102:\n\
+ssl-cert:x:103:\n\
+pulse:x:104:\n\
+pulse-access:x:105:"
 
 # prelogin
 prelogin = {}
@@ -532,11 +624,9 @@ def init_desktop():
     # add default env local vars if not set 
     desktop['environmentlocal'] = gconfig.get(  'desktop.envlocal', 
                     {   'DISPLAY'               : ':0.0',
-                        'USER'		            : 'balloon',
                         'LIBOVERLAY_SCROLLBAR'  : '0',
                         'UBUNTU_MENUPROXY'      : '0',
                         'HOME' 		            : '/home/balloon',
-                        'LOGNAME'	            : 'balloon',
                         'PULSE_SERVER'          : '/tmp/.pulse.sock',
                         'CUPS_SERVER'           : '/tmp/.cups.sock',
                         'X11LISTEN'             : 'tcp '} )
@@ -557,13 +647,18 @@ def init_menuconfig():
 def init_balloon():
     global balloon_uid
     global balloon_gid
-    global balloon_homedirectory
+    global balloon_shell
     global balloon_name
+    global balloon_passwd
+    global balloon_homedirectory
 
     balloon_name = gconfig.get('desktop.username', 'balloon')
     balloon_uid = gconfig.get('desktop.userid', 4096)
     balloon_gid = gconfig.get('destkop.groupid', 4096)
+    balloon_shell = gconfig.get('destkop.shell', '/bin/bash')
+    balloon_passwd = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
     balloon_homedirectory = gconfig.get('desktop.userhomedirectory', '/home/balloon')
+
 
 def init_config_memcached():
     global stack_mode
