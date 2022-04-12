@@ -1280,6 +1280,7 @@ class ODAuthManagerBase(object):
         }
 
 
+@oc.logging.with_logger()
 class ODExternalAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
@@ -1288,6 +1289,7 @@ class ODExternalAuthManager(ODAuthManagerBase):
         return ODExternalAuthProvider(self, name, config)
 
 
+@oc.logging.with_logger()
 class ODExplicitAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
@@ -1354,6 +1356,7 @@ class ODExplicitAuthManager(ODAuthManagerBase):
         return self.getprovider(name=provider, raise_error=True).authenticate(userid, password)
 
 
+@oc.logging.with_logger()
 class ODExplicitMetaAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
@@ -1372,6 +1375,7 @@ class ODExplicitMetaAuthManager(ODAuthManagerBase):
         """
         return ODAdAuthMetaProvider(self, name, config)
 
+@oc.logging.with_logger()
 class ODImplicitAuthManager(ODAuthManagerBase):
     def __init__(self, name, config):
         super().__init__(name, config)
@@ -1385,6 +1389,7 @@ class ODImplicitAuthManager(ODAuthManagerBase):
         return provider
 
 
+@oc.logging.with_logger()
 class ODRoleProviderBase(object):
     def getroles(self, authinfo, **params):
         return []
@@ -1392,6 +1397,7 @@ class ODRoleProviderBase(object):
     def isinrole(self, token, role, **params):
         return role.casefold() in (n.casefold() for n in self.getroles(token))
 
+@oc.logging.with_logger()
 class ODAuthProviderBase(ODRoleProviderBase):
     def __init__(self, manager, name, config):
         self.name = name
@@ -1405,6 +1411,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.default = config.get('default', False )
         self.auth_only = config.get('auth_only', False )
         self.showclientdata = config.get('showclientdata', True )
+        self.default_user_if_not_exist = config.get('defaultuser', 'balloon' )
+        self.default_passwd_if_not_exist = config.get('defaultpassword', 'lmdpocpetit' )
 
        
     def authenticate(self, **params):
@@ -1437,6 +1445,24 @@ class ODAuthProviderBase(ODRoleProviderBase):
                 bReturn = True
         return bReturn
         
+    def generateLocalAccount(self, user, password ):
+        self.logger.debug('Generating passwd file')
+        if not isinstance( user, str ):
+            user = self.default_user_if_not_exist
+        if not isinstance( password, str ):
+            password = self.default_passwd_if_not_exist
+        hashes = {}
+        hashes['user']= user
+        # Shadow
+        hashes['sha512'] = crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512))
+        return hashes
+
+    
+    def createauthenv(self, userid, password):
+        self.logger.debug('createauthenv')
+        dict_hash = self.generateLocalAccount( user=userid, password=password ) 
+        default_authenv = { 'localaccount' : { **dict_hash } }
+        return default_authenv
 
 
 # Implement OAuth 2.0 AuthProvider
@@ -1571,7 +1597,12 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         return user
 
     def authenticate(self, userid=None, password=None, **params):
-        return ({}, AuthInfo( self.name, self.type, userid, data={ 'userid': userid }))
+        implicit_userid = userid if userid else self.userid
+        data = {    'userid': implicit_userid, 
+                    'environment': self.createauthenv(implicit_userid, password)
+        }
+
+        return ({}, AuthInfo( self.name, self.type, implicit_userid, data=data))
 
 
 class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
@@ -2169,13 +2200,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     pass
 
 
-        if self.auth_protocol.get('localaccount') is True :
-            try:
-                dict_hash = self.generateLocalAccount( user=userid, password=password ) 
-                if isinstance( dict_hash, dict ):
-                    default_authenv.update( { 'localaccount' : { **dict_hash } } )
-            except Exception as e:
-                    pass
+        #if self.auth_protocol.get('localaccount') is True :
+        try:
+            dict_hash = self.generateLocalAccount( user=userid, password=password ) 
+            if isinstance( dict_hash, dict ):
+                default_authenv.update( { 'localaccount' : { **dict_hash } } )
+        except Exception as e:
+            pass
 
         return default_authenv
     
@@ -2413,14 +2444,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             data = chevron.render( self.citrix_all_regions, {'username': username, 'password': password, 'domain': domain })
             # return the All_Regions.ini hash dict
             hashes = { 'All_Regions.ini' : data }
-        return hashes
-
-    def generateLocalAccount(self, user, password ):
-        self.logger.debug('Generating passwd file')
-        hashes = {}
-        hashes['user']= user
-        # Shadow
-        hashes['sha512'] = crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512))
         return hashes
 
 
