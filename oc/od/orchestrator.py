@@ -2716,8 +2716,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 continue
 
             event_object = event.get('object')
-            if not isinstance(event_object, client.models.v1_event.V1Event ):
-                self.logger.error( 'event_object type is %s skipping event', type(event_object))
+            if not isinstance(event_object, client.models.core_v1_event.CoreV1Event ):
+                self.logger.error( 'event_object type is %s skipping event waiting for kubernetes.client.models.core_v1_event.CoreV1Event', type(event_object))
                 continue
 
             # Valid values for event types (new types could be added in future)
