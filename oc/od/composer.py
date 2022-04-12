@@ -15,6 +15,7 @@
 #
 
 import logging
+from tokenize import String
 from oc.od.desktop import ODDesktop
 
 import oc.od.settings as settings # Desktop settings lib
@@ -573,23 +574,26 @@ def openapp( auth, user={}, kwargs={} ):
 def callwebhook(webhookcmd, messageinfo=None, timeout=60):
     logger.debug( 'callwebhook exec ' + webhookcmd )
     try :
-        proc = subprocess.run(webhookcmd, shell=True, timeout=timeout )
+        proc = subprocess.run(webhookcmd, shell=True, timeout=timeout, stdout=subprocess.PIPE )
         if isinstance( proc, subprocess.CompletedProcess) :
             proc.check_returncode()
             if messageinfo:
                 messageinfo.push('Webhooking updated service successfully')
-            logger.info( 'command %s exit_code=%d stdtout=%s', webhookcmd, proc.returncode, proc.stdout )
+            logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
         else:
+            logger.error( f"command {webhookcmd} failed")
             if messageinfo:
-                messageinfo.push('Webhooking updated service error ' + str(proc.stdout) )
-            logger.error( 'command %s failed ',webhookcmd )
+                messageinfo.push(f"Webhooking updated service error, read the log file")
     except subprocess.CalledProcessError as e:
         if messageinfo:
-            messageinfo.push('Webhooking updated service error ' + str(e) )
-        logger.error( 'command %s failed error=%s', webhookcmd, str(e) )
+            messageinfo.push(f"Webhooking updated service error {e}" )
+        logger.error( f"command failed CalledProcessError {webhookcmd} error={e}")
+    except subprocess.TimeoutExpired as e :
+        logger.error( f"command TimeoutExpired {webhookcmd} error={e}" )
     except Exception as e:
+        logger.error( f"command exception {webhookcmd} error={e}" )
         if messageinfo:
-            messageinfo.push('Webhooking updated service error ' + str(e) )
+            messageinfo.push(f"command exception {webhookcmd} error={e}" )
         logger.error( e )
 
 def notify_user( access_userid, access_type, method, data ):
