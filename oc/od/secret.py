@@ -174,13 +174,15 @@ class ODSecret():
         return  created_secret
 
     def _create(self, authinfo, userinfo, arguments ): 
+        created_secret = None
         myauth_dict_secret = self._create_dict( authinfo, userinfo, arguments )  
         mysecretname = self.get_name( userinfo )
         labels_dict = { 'access_provider':  authinfo.provider, 'access_userid': userinfo.userid, 'access_type': self.access_type }
         metadata = client.V1ObjectMeta( name=mysecretname, labels=labels_dict, namespace=self.namespace )        
-        mysecret = client.V1Secret( data=myauth_dict_secret, metadata=metadata, type=self.secret_type )         
-        created_secret = self.kubeapi.create_namespaced_secret( namespace=self.namespace, body=mysecret)
-        self.logger.info( 'new secret name %s type %s created', mysecretname, self.secret_type )
+        mysecret = client.V1Secret( data=myauth_dict_secret, metadata=metadata, immutable=self.immutable, type=self.secret_type ) 
+        if isinstance( mysecret, client.models.v1_secret.V1Secret) :      
+            created_secret = self.kubeapi.create_namespaced_secret( namespace=self.namespace, body=mysecret )
+            self.logger.info( 'new secret name %s type %s created', mysecretname, self.secret_type )
         return  created_secret
 
     def read( self, userinfo ):
