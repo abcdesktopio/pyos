@@ -1810,17 +1810,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         auth_environment = authinfo.data.get('environment', auth_default_environment )
 
-        # create /etc/passwd and /etc/shadow configmap entries
+        # create /etc/passwd, /etc/group and /etc/shadow configmap entries
         localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
-        localaccount_configmap.create( authinfo, userinfo, data=auth_environment.get('localaccount') )
+        localaccount_data = auth_environment.get('localaccount') if isinstance( auth_environment, dict) else None
+        localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
 
         # for each auth protocol enabled
         for auth_env_built_key in auth_environment.keys():
-            # each entry in authinfo.data.environment
-            secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
-            # build a kubernetes secret with the auth values 
-            # values can be empty to be updated later
-            secret.create( authinfo, userinfo, data=auth_environment.get(auth_env_built_key) )
+            if auth_env_built_key != 'localaccount':
+                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
+                # build a kubernetes secret with the auth values 
+                # values can be empty to be updated later
+                secret.create( authinfo, userinfo, data=auth_environment.get(auth_env_built_key) )
     
         # Create flexvolume secrets
         rules = oc.od.settings.desktop['policies'].get('rules')
