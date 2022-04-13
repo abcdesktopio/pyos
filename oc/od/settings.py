@@ -83,7 +83,8 @@ gnats:x:41:41:Gnats Bug-Reporting System (admin):/var/lib/gnats:/usr/sbin/nologi
 nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n\
 _apt:x:100:65534::/nonexistent:/usr/sbin/nologin\n\
 messagebus:x:101:102::/nonexistent:/usr/sbin/nologin\n\
-pulse:x:102:104:PulseAudio daemon,,,:/var/run/pulse:/usr/sbin/nologin"
+pulse:x:102:104:PulseAudio daemon,,,:/var/run/pulse:/usr/sbin/nologin\n\
+sshd:x:4095:65534::/run/sshd:/usr/sbin/nologin"
 
 
 DEFAULT_SHADOW_FILE = "\
@@ -106,9 +107,9 @@ irc:*:19020:0:99999:7:::\n\
 gnats:*:19020:0:99999:7:::\n\
 nobody:*:19020:0:99999:7:::\n\
 _apt:*:19020:0:99999:7:::\n\
+sshd:*:17987:0:99999:7:::\n\
 messagebus:*:19040:0:99999:7:::\n\
 pulse:*:19041:0:99999:7:::"
-
 
 DEFAULT_GROUP_FILE="\
 root:x:0:\n\
@@ -154,7 +155,8 @@ lpadmin:x:101:root,balloon\n\
 messagebus:x:102:\n\
 ssl-cert:x:103:\n\
 pulse:x:104:\n\
-pulse-access:x:105:"
+pulse-access:x:105:\n\
+ssh:x:4095:"
 
 # prelogin
 prelogin = {}
