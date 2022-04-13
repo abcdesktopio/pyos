@@ -1705,12 +1705,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if not isinstance(v1status,client.models.v1_status.V1Status) :
                     raise ValueError( 'Invalid V1Status type return by delete_namespaced_secret')
                 self.logger.debug('secret %s status %s', secret_name, v1status.status) 
-                if v1status.status != 'Sucess':
-                    self.logger.error('secret %s can not be deleted %s', secret_name, str(v1status) ) 
+                if v1status.status != 'Success':
+                    self.logger.error(f"secret {secret_name} can not be deleted {str(v1status)}" ) 
                     bReturn = bReturn and False
                 
             except ApiException as e:
-                self.logger.error('secret name %s can not be deleted: error %s', secret_name, e ) 
+                self.logger.error(f"secret {secret_name} can not be deleted {str(e)}") 
                 bReturn = bReturn and False
         self.logger.debug('removesecrets for %s return %s', userinfo.userid, str(bReturn) ) 
         return bReturn 
@@ -1728,7 +1728,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if not isinstance(v1status,client.models.v1_status.V1Status) :
                     raise ValueError( 'Invalid V1Status type return by delete_namespaced_config_map')
                 self.logger.debug('configmap %s status %s', configmap_name, v1status.status) 
-                if v1status.status != 'Sucess':
+                if v1status.status != 'Success':
                     self.logger.error('configmap name %s can not be deleted %s', configmap_name, str(v1status) ) 
                     bReturn = bReturn and False
                     
