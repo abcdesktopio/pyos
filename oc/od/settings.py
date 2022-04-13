@@ -62,7 +62,8 @@ routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an 
 
 
 
-DEFAULT_PASSWD_FILE = "root:x:0:0:root:/root:/bin/bash\n\
+DEFAULT_PASSWD_FILE = "\
+root:x:0:0:root:/root:/bin/bash\n\
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n\
 bin:x:2:2:bin:/bin:/usr/sbin/nologin\n\
 sys:x:3:3:sys:/dev:/usr/sbin/nologin\n\
@@ -85,7 +86,8 @@ messagebus:x:101:102::/nonexistent:/usr/sbin/nologin\n\
 pulse:x:102:104:PulseAudio daemon,,,:/var/run/pulse:/usr/sbin/nologin"
 
 
-DEFAULT_SHADOW_FILE = "root:*:19020:0:99999:7:::\n\
+DEFAULT_SHADOW_FILE = "\
+root:*:19020:0:99999:7:::\n\
 daemon:*:19020:0:99999:7:::\n\
 bin:*:19020:0:99999:7:::\n\
 sys:*:19020:0:99999:7:::\n\
@@ -108,7 +110,9 @@ messagebus:*:19040:0:99999:7:::\n\
 pulse:*:19041:0:99999:7:::"
 
 
-DEFAULT_GROUP_FILE="daemon:x:1:\n\
+DEFAULT_GROUP_FILE="\
+root:x:0:\n\
+daemon:x:1:\n\
 bin:x:2:\n\
 sys:x:3:\n\
 adm:x:4:\n\
