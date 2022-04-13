@@ -475,7 +475,7 @@ class ODAuthTool(cherrypy.Tool):
         manager = self.managers.get(name)
         if not manager: 
             if raise_error: 
-                raise  AuthenticationFailureError('Undefined authentication manager: %s' % name)
+                raise AuthenticationFailureError(f"Undefined authentication manager {str(name)}")
             return None
 
         return manager
@@ -1273,11 +1273,7 @@ class ODAuthManagerBase(object):
         # filter get p.showclientdata == True
         providersmaplist = list( filter( lambda p: p.showclientdata == True, self.providers.values() ) )
         providers = list( map(lambda p: p.getclientdata(), providersmaplist )) 
-
-        return {
-            'name': self.name,
-            'providers': providers 
-        }
+        return { 'name': self.name, 'providers': providers }
 
 
 @oc.logging.with_logger()
@@ -1597,12 +1593,11 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         return user
 
     def authenticate(self, userid=None, password=None, **params):
-        implicit_userid = userid if userid else self.userid
-        data = {    'userid': implicit_userid, 
-                    'environment': self.createauthenv(implicit_userid, password)
+        data = {    'userid': userid, 
+                    'environment': self.createauthenv(userid, password)
         }
 
-        return ({}, AuthInfo( self.name, self.type, implicit_userid, data=data))
+        return ({}, AuthInfo( self.name, self.type, userid, data=data))
 
 
 class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
@@ -1617,6 +1612,7 @@ class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
         user['name']   = authinfo.token
         user['userid'] = authinfo.token # take care, it must be uniqu
         return user
+
 
 @oc.logging.with_logger()
 class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
@@ -2195,7 +2191,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             try:
                 dict_hash = self.generateCitrixAllRegionsini( username=userid, password=password, domain=self.domain) 
                 if isinstance( dict_hash, dict ):
-                    default_authenv.update( { 'citrix' : { **dict_hash } } )
+                    default_authenv.update( { 'citrix' : dict_hash } )
             except Exception as e:
                     pass
 
@@ -2204,7 +2200,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         try:
             dict_hash = self.generateLocalAccount( user=userid, password=password ) 
             if isinstance( dict_hash, dict ):
-                default_authenv.update( { 'localaccount' : { **dict_hash } } )
+                default_authenv.update( { 'localaccount' : dict_hash } )
         except Exception as e:
             pass
 
@@ -2977,8 +2973,8 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
             raise AuthenticationError('Implicit login user %s does not exist in directory service' % userid)
 
         data = {    'userid': userid,
-                    'dn': userdn,
-                    'environment': None }
+                    'dn':     userdn,
+                    'environment': self.createauthenv( userid, password=None) }
         
         return (    { 'userid': userid, 'password': None }, 
                     AuthInfo( self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn) )
