@@ -131,7 +131,8 @@ class ODConfigMap():
             configmap_name = self.get_name( userinfo )
             myconfigmap = self.kubeapi.read_namespaced_config_map( name=configmap_name, namespace=self.namespace )
         except ApiException as e:
-            self.logger.error('configmap name %s can not be read: %s', str(configmap_name), e ) 
+            if e.status != 404:
+                self.logger.error('configmap name %s can not be read: %s', str(configmap_name), e ) 
         return myconfigmap
       
     def delete( self, userinfo ):
