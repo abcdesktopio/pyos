@@ -191,7 +191,8 @@ class ODSecret():
             secret_name = self.get_name( userinfo )
             mysecret = self.kubeapi.read_namespaced_secret( name=secret_name, namespace=self.namespace )
         except ApiException as e:
-            self.logger.error('secret name %s can not be read: error %s', str(secret_name), e ) 
+            if e.status != 404:
+                self.logger.error('secret name %s can not be read: error %s', str(secret_name), e ) 
         return mysecret
       
     def delete( self, userinfo ):
