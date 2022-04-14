@@ -552,19 +552,35 @@ class ODAuthTool(cherrypy.Tool):
 
         return auth_data_reduce
 
-    def update_token( self, auth, user, roles, expire_in, updatecookies=False ):        
-        
+    def update_token( self, auth, user, roles=None ):        
+        """update_token
+
+            remove unused data
+            call reducetoToken() for auth, user, roles
+            compute the jwt token
+
+        Args:
+            auth (_type_): _description_
+            user (_type_): _description_
+            roles (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         # remove unused data
         # call reducetoToken() for auth, user, roles
         # compute the jwt token
        
+        # create jwt_auth_reduce
         auth_data_reduce = self.reduce_auth_data( auth )
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
+        # create jwt_user_reduce
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid'), 'nodehostname': user.get('nodehostname') }
-        # role is not set 
+        # create jwt_role_reduce (futur usage) 
+        # roles=None as default parameter 
         jwt_role_reduce = {} 
-
-        jwt_token = self.jwt.encode( jwt_auth_reduce, jwt_user_reduce, jwt_role_reduce )
+        # encode new jwt 
+        jwt_token = self.jwt.encode( auth=jwt_auth_reduce, user=jwt_user_reduce, roles=jwt_role_reduce )
 
         return jwt_token 
 
