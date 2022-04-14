@@ -159,7 +159,7 @@ class AuthInfo(object):
         self.type = type
         self.expires_in = expires_in
         self.data = data
-        if not self.data.get('labels'):
+        if not isinstance( self.data.get('labels'), dict ):
             self.data['labels'] = {} # make sure labels always exist as entry dict 
         self.claims = claims
         self.conn = conn
@@ -535,20 +535,30 @@ class ODAuthTool(cherrypy.Tool):
     def getclientdata(self):
        return { 'managers': list(map(lambda m: m.getclientdata(), self.managers.values())) }
     
+
+    def reduce_token( self, auth ):
+        """reduce_token
+            reduce token data to return only 
+
+        Args:
+            auth (_type_): _description_
+        """
+        auth_data_reduce = {}
+
+        if isinstance( auth.data, dict ):
+            for entry in [ 'domain', 'dn', 'labels' ] :
+                if auth.data.get(entry) :
+                    auth_data_reduce[entry] = auth.data.get(entry)
+
+        return auth_data_reduce
+
     def update_token( self, auth, user, roles, expire_in, updatecookies=False ):        
         
         # remove unused data
         # call reducetoToken() for auth, user, roles
         # compute the jwt token
        
-        auth_data_reduce = {}
-        if auth.data.get('domain') :
-            auth_data_reduce.update( { 'domain': auth.data.get('domain') } )
-        if auth.data.get('dn'):
-            auth_data_reduce.update( { 'dn': auth.data.get('dn') } )
-        if auth.data.get('labels'):
-            auth_data_reduce.update( { 'labels': auth.data.get('labels') } )
-
+        auth_data_reduce = self.reduce_token( auth )
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid'), 'nodehostname': user.get('nodehostname') }
         # role is not set 
