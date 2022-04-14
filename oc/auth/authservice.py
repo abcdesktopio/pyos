@@ -546,6 +546,7 @@ class ODAuthTool(cherrypy.Tool):
         auth_data_reduce = {} # return an empty auth_data_reduce by default
 
         if isinstance( auth.data, dict ):
+            # filter to this entries
             for entry in [ 'domain', 'dn', 'labels' ] :
                 if auth.data.get(entry) :
                     auth_data_reduce[entry] = auth.data.get(entry)
