@@ -179,7 +179,7 @@ class AuthController(BaseController):
     def oauth(self, **params):
         # overwrite auth params to prevent manager changes
         # for security reasons
-        params['manager'] = 'external'
+        params['manager'] = 'external' # oauth MUST force an 'external' manager 
         response = services.auth.login(**params)
 
         # can raise excetion 
@@ -189,9 +189,9 @@ class AuthController(BaseController):
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
 
         # create auth token
-        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
         
-        # redirect user html
+        # redirect user html page
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
         cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
         return oauth_html_refresh_page
@@ -298,10 +298,9 @@ class AuthController(BaseController):
         # Build now auth secret for postponed usage    
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
 
-        self.logger.info( 'event:start oc.od.settings.jwt_config_user' )
+        
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
-        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
-        self.logger.info( 'event:stop oc.od.settings.jwt_config_user' )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
 
         return Results.success( message="Authentication successful", 
                                 result={'userid': response.result.user.userid,
@@ -368,15 +367,15 @@ class AuthController(BaseController):
             # prepare ressources
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
 
-            expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
+            # compute new user jwt token   
+            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
             
             return Results.success( message="Authentication successful", 
                                     result={'userid': response.result.user.userid,
                                             'name': response.result.user.name,
                                             'jwt_user_token': jwt_user_token,
                                             'provider': response.result.auth.providertype,       
-                                            'expire_in': expire_in      
+                                            'expire_in':  oc.od.settings.jwt_config_user.get('exp')      
                                     })
 
         except Exception as e:
@@ -460,8 +459,7 @@ class AuthController(BaseController):
 
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
 
-        expire_in = oc.od.settings.jwt_config_user.get('exp')    
-        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
         cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
         return oauth_html_refresh_page
@@ -538,7 +536,7 @@ class AuthController(BaseController):
         # prepare ressources
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
 
-        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles  )
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
         cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
         cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
@@ -592,11 +590,10 @@ class AuthController(BaseController):
         if services.auth.isidentified:
             user = services.auth.user
             auth = services.auth.auth
-            expire_in = oc.od.settings.jwt_config_user.get('exp')    
-            jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None, expire_in=expire_in )
+            jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None )
             services.accounting.accountex('login', 'refreshtoken')
-            return Results.success( 'Authentication successful %s' % user.name, 
-                                    {   'expire_in': expire_in,
+            return Results.success( f"Authentication successful {str(user.name)}", 
+                                    {   'expire_in': oc.od.settings.jwt_config_user.get('exp'),
                                         'jwt_user_token': jwt_user_token } )
      
         return Results.error(message='Invalid user')
