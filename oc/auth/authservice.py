@@ -912,7 +912,7 @@ class ODAuthTool(cherrypy.Tool):
         # do authenticate using service account to the metadirectory provider
         #
         try:
-            claims, auth = provider_meta.authenticate( provider_meta.userid, provider_meta.password )  
+            auth = provider_meta.authenticate( provider_meta.userid, provider_meta.password )  
         except Exception as e:
             # no authenticate 
             logger.error( 'skipping metalogin, authenticate failed %s', str(e))
@@ -1075,7 +1075,7 @@ class ODAuthTool(cherrypy.Tool):
             mgr = self.findmanager(provider, manager)
                  
             # do authenticate 
-            claims, auth = mgr.authenticate(provider, **arguments)
+            auth = mgr.authenticate(provider, **arguments)
             
             if not isinstance( auth, AuthInfo ):
                 raise AuthenticationFailureError('No authentication provided')
@@ -1102,13 +1102,6 @@ class ODAuthTool(cherrypy.Tool):
             if not isinstance(roles, list):
                 raise AuthenticationFailureError( 'mgr.getroles provider=%s error' %  provider )
             self.logger.debug( 'mgr.getroles provider=%s success', provider)
-
-            # if the mgr is an explicit mgr then add the claims for next usage 
-            # for example domain, username, password are used by desktop cifs driver
-            # claims contains raw user credentials 
-            # add claims to auth only if credentials are need to get access to external ressources                        
-            if mgr.name == 'explicit':
-                auth.claims = claims  
 
             # get the provider object
             pdr = mgr.getprovider(provider)
@@ -1469,22 +1462,20 @@ class ODAuthProviderBase(ODRoleProviderBase):
         return bReturn
         
     def generateLocalAccount(self, user, password ):
-        self.logger.debug('Generating passwd file')
+        self.logger.debug('Generating user and sha512 dict')
         if not isinstance( user, str ):
             user = self.default_user_if_not_exist
         if not isinstance( password, str ):
             password = self.default_passwd_if_not_exist
-        hashes = {}
-        hashes['user']= user
-        # Shadow
-        hashes['sha512'] = crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512))
+        hashes = {  'user'  : user,
+                    'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) }
         return hashes
 
     
     def createauthenv(self, userid, password):
         self.logger.debug('createauthenv')
         dict_hash = self.generateLocalAccount( user=userid, password=password ) 
-        default_authenv = { 'localaccount' : { **dict_hash } }
+        default_authenv = { 'localaccount' : dict_hash }
         return default_authenv
 
 
@@ -1529,9 +1520,8 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         authorization_response = self.redirect_uri_prefix + '?' + cherrypy.request.query_string
         token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, authorization_response=authorization_response )
         self.logger.debug( 'provider %s type %s return token %s', self.name,  self.type, str(token) )
-        data = (    {}, 
-                    AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth') )
-        return data
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth')
+        return authinfo
 
 
     def getuserinfo(self, authinfo, **params):
@@ -1621,10 +1611,9 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
 
     def authenticate(self, userid=None, password=None, **params):
         data = {    'userid': userid, 
-                    'environment': self.createauthenv(userid, password)
-        }
-
-        return ({}, AuthInfo( self.name, self.type, userid, data=data))
+                    'environment': self.createauthenv(userid, password) }
+        authinfo = AuthInfo( self.name, self.type, userid, data=data)
+        return authinfo
 
 
 class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
@@ -1778,12 +1767,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # like invalid credentials
         (userdn, conn) = self.validate(userid, password)   
 
-        data = {    'userid': userid, 
+        data =  {   'userid': userid, 
                     'dn': userdn,
                     'environment': self.createauthenv(userid, password) }
+        claims = { 'userid': userid, 'password': password }
         
-        return (    { 'userid': userid, 'password': password }, 
-                    AuthInfo( self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn) )
+        return AuthInfo( self.name, self.type, userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
 
     def krb5_validate(self, userid, password):
         conn = None
@@ -2180,8 +2169,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def createauthenv(self, userid, password):
         default_authenv = {}
 
+        dict_hash = self.generateLocalAccount( user=userid, password=password ) 
+        default_authenv.update( { 'localaccount' : dict_hash } )
+
         if not isinstance( self.auth_protocol, dict):
             # nothing to do 
+            self.logger.info( 'auth_protocol is not set, authenv is default localaccount' )
             return default_authenv
 
         if self.auth_protocol.get('kerberos') is True:
@@ -2192,7 +2185,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                                                 'REALM' : self.get_kerberos_realm(),
                                                                 **dict_hash } } )
             except Exception as e:
-                pass
+                self.logger.error( 'generateKerberosKeytab failed, authenv can not be completed' )
         
         if self.auth_protocol.get('ntlm') is True :
             try:
@@ -2202,7 +2195,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                                             'NTLM_DOMAIN' : self.domain,
                                                             **dict_hash } } )
             except Exception as e:
-                    pass
+                self.logger.error( 'generateNTLMhash failed, authenv can not be completed' )
 
         if self.auth_protocol.get('cntlm') is True :
             try:
@@ -2212,7 +2205,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                                             'NTLM_DOMAIN' : self.domain,
                                                             **dict_hash } } )
             except Exception as e:
-                    pass
+                self.logger.error( 'generateCNTLMhash failed, authenv can not be completed' )
 
         if self.auth_protocol.get('citrix') is True :
             try:
@@ -2220,17 +2213,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 if isinstance( dict_hash, dict ):
                     default_authenv.update( { 'citrix' : dict_hash } )
             except Exception as e:
-                    pass
-
-
-        #if self.auth_protocol.get('localaccount') is True :
-        try:
-            dict_hash = self.generateLocalAccount( user=userid, password=password ) 
-            if isinstance( dict_hash, dict ):
-                default_authenv.update( { 'localaccount' : dict_hash } )
-        except Exception as e:
-            pass
-
+                self.logger.error( 'generateCitrixAllRegionsini failed, authenv can not be completed' )
+        
         return default_authenv
     
 
@@ -2629,11 +2613,9 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     'dn': userdn,
                     'environment': self.createauthenv(userid, password)
         }
-
-        return (
-            { 'userid': userid, 'password': password, 'domain': self.domain },
-            AuthInfo(self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn)
-        )
+        claims = { 'userid': userid, 'password': password, 'domain': self.domain }
+        authinfo = AuthInfo(self.name, self.type, userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        return authinfo
 
     def getuserinfo(self, authinfo, **params):
   
@@ -2927,11 +2909,9 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
                     'dn': userdn,
                     'environment': {}
         }
-
-        return (
-            { 'userid': userid, 'password': password, 'domain': self.domain },
-            AuthInfo(self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn)
-        )
+        claims = { 'userid': userid, 'password': password, 'domain': self.domain }
+        authinfo = AuthInfo(self.name, self.type, userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        return authinfo
         
     def getuserinfo(self, authinfo, **arguments):       
         userid = arguments.get( 'userid' )
@@ -2999,9 +2979,11 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         else:
             raise AuthenticationError('Implicit login user %s does not exist in directory service' % userid)
 
+        # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
         data = {    'userid': userid,
                     'dn':     userdn,
                     'environment': self.createauthenv( userid, password=None) }
-        
-        return (    { 'userid': userid, 'password': None }, 
-                      AuthInfo( self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn) )
+        # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
+        # no need to set claims data
+        authinfo = AuthInfo( self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn)
+        return authinfo
