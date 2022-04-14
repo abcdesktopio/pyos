@@ -543,7 +543,7 @@ class ODAuthTool(cherrypy.Tool):
         Args:
             auth (_type_): _description_
         """
-        auth_data_reduce = {}
+        auth_data_reduce = {} # return an empty auth_data_reduce by default
 
         if isinstance( auth.data, dict ):
             for entry in [ 'domain', 'dn', 'labels' ] :
