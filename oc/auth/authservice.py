@@ -536,7 +536,7 @@ class ODAuthTool(cherrypy.Tool):
        return { 'managers': list(map(lambda m: m.getclientdata(), self.managers.values())) }
     
 
-    def reduce_token( self, auth ):
+    def reduce_auth_data( self, auth ):
         """reduce_token
             reduce token data to return only 
 
@@ -558,7 +558,7 @@ class ODAuthTool(cherrypy.Tool):
         # call reducetoToken() for auth, user, roles
         # compute the jwt token
        
-        auth_data_reduce = self.reduce_token( auth )
+        auth_data_reduce = self.reduce_auth_data( auth )
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid'), 'nodehostname': user.get('nodehostname') }
         # role is not set 
