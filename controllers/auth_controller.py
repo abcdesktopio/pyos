@@ -181,15 +181,21 @@ class AuthController(BaseController):
         # for security reasons
         params['manager'] = 'external'
         response = services.auth.login(**params)
-        if response.success:
-            oc.od.composer.prepareressources( response.result.auth, response.result.user )
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
-            oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
-            cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
-            return oauth_html_refresh_page
-        else:
-            logger.error( 'auth error %s', str(response.reason) )
-            return response.reason
+
+        # can raise excetion 
+        self.checkloginresponseresult( response )  
+
+        # prepare ressources
+        oc.od.composer.prepareressources( response.result.auth, response.result.user )
+
+        # create auth token
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
+        
+        # redirect user html
+        oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
+        cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
+        return oauth_html_refresh_page
+
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -280,11 +286,9 @@ class AuthController(BaseController):
             raise cherrypy.HTTPError(400, 'Bad provider parameter')
         self.logger.info( 'login done' )
 
-        if not isinstance( response, oc.auth.authservice.AuthResponse ):
-            raise cherrypy.HTTPError(401, "services auth.su does not return oc.auth.authservice.AuthResponse")  
-        if not response.success:
-            raise cherrypy.HTTPError(401, response.reason)     
-
+        # can raise excetion 
+        self.checkloginresponseresult( response )  
+        
         services.accounting.accountex('login', 'success')
         services.accounting.accountex('login', response.result.auth.providertype )
         
@@ -357,12 +361,13 @@ class AuthController(BaseController):
             }
 
             response = services.auth.su( source_provider_name=auth.provider, arguments=args_login)  
-            if not isinstance( response, oc.auth.authservice.AuthResponse ):
-                raise cherrypy.HTTPError(401, "services auth.su does not return oc.auth.authservice.AuthResponse")  
-            if not response.success:
-                raise cherrypy.HTTPError(401, response.reason)                
 
+            # can raise excetion 
+            self.checkloginresponseresult( response, msg='su' )  
+                        
+            # prepare ressources
             oc.od.composer.prepareressources( response.result.auth, response.result.user )
+
             expire_in = oc.od.settings.jwt_config_user.get('exp')    
             jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
             
@@ -449,12 +454,12 @@ class AuthController(BaseController):
         
         # do login with dict params
         response = services.auth.login(**args_login)
-        if not isinstance( response, oc.auth.authservice.AuthResponse ):
-            raise cherrypy.HTTPError(401, "services auth.login does not return oc.auth.authservice.AuthResponse")  
-        if not response.success:
-            raise cherrypy.HTTPError(401, response.reason)  
+
+        # can raise exception 
+        self.checkloginresponseresult( response )  
 
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
+
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=expire_in )
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
@@ -527,13 +532,12 @@ class AuthController(BaseController):
         self.logger.info('start login(provider=%s, manager=implicit, userid=%s)', str(provider), str(userid))
         response = services.auth.login( provider=provider, manager='implicit', userid=userid )
         
-        if not isinstance( response, oc.auth.authservice.AuthResponse ):
-            raise cherrypy.HTTPError(401, "services auth.login does not return oc.auth.authservice.AuthResponse")  
+        # can raise excetion 
+        self.checkloginresponseresult( response )
 
-        if not response.success:
-            return response.reason
-
+        # prepare ressources
         oc.od.composer.prepareressources( response.result.auth, response.result.user )
+
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles, expire_in=None )
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
         cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
@@ -541,6 +545,15 @@ class AuthController(BaseController):
         return oauth_html_refresh_page
 
 
+    def checkloginresponseresult( self, response, msg='login' ):
+        # check auth response
+        if not isinstance( response, oc.auth.authservice.AuthResponse ):
+            self.logger.error( f"services auth.{msg} does not return oc.auth.authservice.AuthResponse object" )
+            raise cherrypy.HTTPError(401, f"services auth.{msg} does not return oc.auth.authservice.AuthResponse")  
+
+        if not response.success:
+            self.logger.error( "services auth.login does not return %s", str(response.reason) )
+            raise cherrypy.HTTPError(401, str(response.reason) )  
 
 
     @cherrypy.expose
