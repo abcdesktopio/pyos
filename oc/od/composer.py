@@ -138,7 +138,7 @@ def runwebhook( c, messageinfo=None ):
         if isinstance(webhook_create, list):
             bReturn = True # need to call a command
             for webhook_command in webhook_create:
-                logger.debug( 'calling webhook cmd %s', webhook_command )
+                logger.debug( f"calling webhook cmd  {webhook_command}" )
                 t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
                 t1.start()
 
