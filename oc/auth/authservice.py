@@ -160,7 +160,7 @@ class AuthInfo(object):
         self.expires_in = expires_in
         self.data = data
         if not isinstance( self.data.get('labels'), dict ):
-            self.data['labels'] = {} # make sure labels always exist as entry dict 
+            self.data['labels'] = {} # make sure 'labels' entry always exist as key dict
         self.claims = claims
         self.conn = conn
 
@@ -223,6 +223,11 @@ class AuthResponse(object):
         self.mgr = None 
         self.redirect_to = redirect_to
        
+    def update( self, manager, result, success, reason='' ):
+        self.manager = manager
+        self.result=result
+        self.success=success
+        self.reason=reason
         
 class AuthCache(object):
     NotSet  = object()
@@ -1065,43 +1070,46 @@ class ODAuthTool(cherrypy.Tool):
             response = AuthResponse(self)
 
             # if provider is None, it must be an explicit manager 
-            if provider is None:
+            if not isinstance(provider, str):
+                # provider is None
                 # can raise exception
                 # do everythings possible to find one provider
-                logger.info( 'provider is None, login try to find a provider using manager=' +  str(manager) )
+                logger.info( f"provider is None, login try to find a provider using manager={str(manager)}" )
                 provider = self.logintrytofindaprovider( manager )
                 
             # look for an auth manager
             mgr = self.findmanager(provider, manager)
                  
-            # do authenticate 
+            # do authenticate with the auth manager
+            self.logger.debug( f"mgr.authenticate provider={str(provider)} start") 
             auth = mgr.authenticate(provider, **arguments)
-            
+            self.logger.debug( f"mgr.authenticate provider={str(provider)} done") 
+
             if not isinstance( auth, AuthInfo ):
                 raise AuthenticationFailureError('No authentication provided')
-            self.logger.debug( 'mgr.authenticate provider=%s success', provider) 
             
             # uncomment this line only to dump password in clear text format
-            # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)            
+            # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)   
+            self.logger.debug( f"mgr.getuserinfo provider={str(provider)} start")          
             user = mgr.getuserinfo(provider, auth, **arguments)
+            self.logger.debug( f"mgr.getuserinfo provider={str(provider)} done")  
             if not isinstance(user, dict ):
                 raise AuthenticationFailureError('getuserinfo return None provider=%s', provider)
 
-            userid = user.get('userid')
-            if not isinstance(userid, str):
-                raise AuthenticationFailureError('getuserinfo return invalid userid provider=%s', provider)
-
-            self.logger.debug( 'mgr.getuserinfo provider=%s success', provider)
+            # userid = user.get('userid')
+            # if not isinstance(userid, str):
+            #    raise AuthenticationFailureError('getuserinfo return invalid userid provider=%s', provider)
             
             # make sure to use the same case sensitive if we change provider
             # user['userid'] = userid.upper()
             
             # uncomment this line only to see password in clear text format
-            # logger.debug( 'mgr.getroles arguments=%s', arguments)            
+            # logger.debug( 'mgr.getroles arguments=%s', arguments) 
+            self.logger.debug( f"mgr.getroles provider={str(provider)} start")             
             roles = mgr.getroles(provider, auth, **arguments)
+            self.logger.debug( f"mgr.getroles provider={str(provider)} stop") 
             if not isinstance(roles, list):
                 raise AuthenticationFailureError( 'mgr.getroles provider=%s error' %  provider )
-            self.logger.debug( 'mgr.getroles provider=%s success', provider)
 
             # get the provider object
             pdr = mgr.getprovider(provider)
@@ -1110,7 +1118,9 @@ class ODAuthTool(cherrypy.Tool):
             # then compile data using rules
             # and runs the rules to get associated labels tag
             if pdr.rules:
+                self.logger.debug( f"compiledrules start")      
                 auth.data['labels'] = self.compiledrules( pdr.rules, user, roles )
+                self.logger.debug( f"compiledrules stop")      
                 self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
 
             # check if acl matches with tag
@@ -1119,32 +1129,29 @@ class ODAuthTool(cherrypy.Tool):
             
             # buid a AuthCache as response result 
             myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles } ) 
-
-            response.success = True     
-            response.mgr = mgr       
-            response.reason = 'Authentication successful'                            
-            response.result = myauthcache           
+            response.update(    manager=mgr, 
+                                result=myauthcache, 
+                                success=True, 
+                                reason='Authentication successful' )         
             
+        except AuthenticationError as e:
+            response.reason = e.message
+            response.code = e.code
+        
         except Exception as e:
-            if isinstance(e,AuthenticationError):
-                response.reason = e.message
-                response.code = e.code
-            else:
-                response.reason = str(e) # default value
-                if hasattr( e, 'args'):
-                    # try to extract the desc value 
-                    if isinstance(e.args, tuple) and len(e.args) > 0:
-                        try:
-                            response.reason = e.args[0].get('desc',str(e))
-                        except:
-                            pass
-                
-                response.code = e.code if hasattr( e, 'code') else 500
-                
+            response.reason = str(e) # default value
+            if hasattr( e, 'args'):
+                # try to extract the desc value 
+                if isinstance(e.args, tuple) and len(e.args) > 0:
+                    try:
+                        response.reason = e.args[0].get('desc',str(e))
+                    except:
+                        pass
+            response.code = e.code if hasattr( e, 'code') else 500
             response.error = e
 
         finally:
-            # call finalize if 
+            # call finalize to clean conn if need
             if auth is not None and hasattr( mgr, 'finalize' ) and callable(mgr.finalize) :
                auth = mgr.finalize(provider, auth, **arguments)
 
@@ -1462,7 +1469,6 @@ class ODAuthProviderBase(ODRoleProviderBase):
         return bReturn
         
     def generateLocalAccount(self, user, password ):
-        self.logger.debug('Generating user and sha512 dict')
         if not isinstance( user, str ):
             user = self.default_user_if_not_exist
         if not isinstance( password, str ):
@@ -1470,7 +1476,6 @@ class ODAuthProviderBase(ODRoleProviderBase):
         hashes = {  'user'  : user,
                     'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) }
         return hashes
-
     
     def createauthenv(self, userid, password):
         self.logger.debug('createauthenv')
@@ -1478,6 +1483,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
         default_authenv = { 'localaccount' : dict_hash }
         return default_authenv
 
+    def generateRawCredentials(self, **args ):
+        return args
 
 # Implement OAuth 2.0 AuthProvider
 
@@ -1612,7 +1619,7 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
     def authenticate(self, userid=None, password=None, **params):
         data = {    'userid': userid, 
                     'environment': self.createauthenv(userid, password) }
-        authinfo = AuthInfo( self.name, self.type, userid, data=data)
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data)
         return authinfo
 
 
@@ -1760,7 +1767,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.run_kinit( krb5ccname, userid, password )
         except Exception as e:
             self.remove_krb5ccname( krb5ccname )
-            raise AuthenticationError('kerberos credentitials validation failed ' + str(e))
+            raise AuthenticationError(f"kerberos credentitials validation failed {str(e)}")
 
     def authenticate(self, userid, password, **params):
         # validate can raise exception 
@@ -1770,9 +1777,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         data =  {   'userid': userid, 
                     'dn': userdn,
                     'environment': self.createauthenv(userid, password) }
+
         claims = { 'userid': userid, 'password': password }
-        
-        return AuthInfo( self.name, self.type, userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        d = self.generateRawCredentials( userid, password )
+        return AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
 
     def krb5_validate(self, userid, password):
         conn = None
@@ -2171,7 +2179,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         dict_hash = self.generateLocalAccount( user=userid, password=password ) 
         default_authenv.update( { 'localaccount' : dict_hash } )
-
+        d = self.generateRawCredentials( userid, password )
         if not isinstance( self.auth_protocol, dict):
             # nothing to do 
             self.logger.info( 'auth_protocol is not set, authenv is default localaccount' )
@@ -2614,7 +2622,8 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     'environment': self.createauthenv(userid, password)
         }
         claims = { 'userid': userid, 'password': password, 'domain': self.domain }
-        authinfo = AuthInfo(self.name, self.type, userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        d = self.generateRawCredentials( userid, password, self.domain )
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
 
     def getuserinfo(self, authinfo, **params):
@@ -2634,11 +2643,11 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
             # homeDirectory
             homeDirectory = userinfo.get('homeDirectory') 
-            if isinstance( homeDirectory, str ):    userinfo['homeDirectory'] = homeDirectory.replace('\\','/')
+            if isinstance( homeDirectory, str ): userinfo['homeDirectory'] = homeDirectory.replace('\\','/')
 
             # profilePath
             profilePath = userinfo.get('profilePath')
-            if isinstance( profilePath, str ):      userinfo['profilePath'] = profilePath.replace('\\','/')
+            if isinstance( profilePath, str ):   userinfo['profilePath'] = profilePath.replace('\\','/')
         return userinfo
 
     
@@ -2910,7 +2919,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
                     'environment': {}
         }
         claims = { 'userid': userid, 'password': password, 'domain': self.domain }
-        authinfo = AuthInfo(self.name, self.type, userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        authinfo = AuthInfo(provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
         
     def getuserinfo(self, authinfo, **arguments):       
@@ -2947,7 +2956,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         super().__init__(manager, name, config)
         self.dialog_url = config.get( 'dialog_url' )
         if not self.is_serviceaccount_defined(config):
-            raise InvalidCredentialsError("you must define a service account for Auth provider %s" % self.name)
+            raise InvalidCredentialsError(f"you must define a service account for Auth provider {self.name}")
 
     def getclientdata(self):
         data =  super().getclientdata()
@@ -2977,7 +2986,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
             if not isinstance( userinfo.get('name'), str) :
                 userinfo['name'] = userinfo.get(self.useridattr)
         else:
-            raise AuthenticationError('Implicit login user %s does not exist in directory service' % userid)
+            raise AuthenticationError(f"Implicit login user %s does not exist in directory service {userid}")
 
         # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
         data = {    'userid': userid,
@@ -2985,5 +2994,5 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
                     'environment': self.createauthenv( userid, password=None) }
         # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
         # no need to set claims data
-        authinfo = AuthInfo( self.name, self.type, userid, data=data, protocol=self.auth_protocol, conn=conn)
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
