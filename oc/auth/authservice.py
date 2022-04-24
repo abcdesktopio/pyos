@@ -158,9 +158,13 @@ class AuthInfo(object):
         self.token = token
         self.type = type
         self.expires_in = expires_in
+        # labels entry must exixts in data
+        if not isinstance( data.get('labels'), dict ):
+            data['labels'] = {}
         self.data = data
-        if not isinstance( self.data.get('labels'), dict ):
-            self.data['labels'] = {} # make sure 'labels' entry always exist as key dict
+         # claims must be a dict
+        if not isinstance( claims, dict ):
+           claims = {}
         self.claims = claims
         self.conn = conn
 
@@ -169,6 +173,28 @@ class AuthInfo(object):
 
     def get(self, key):
         return self[key]
+
+    def get_labels(self):
+        return self.data['labels']
+
+    def get_claims(self, key):
+        return self.claims.get(key)
+
+    def get_localaccount(self):
+        if isinstance( self.claims, dict ):
+            if isinstance( self.claims.get('environement'), dict ):
+                return self.claims.get('environement').get('localaccount')
+        return {}
+
+    def get_secrets(self):
+        local_secrets = {}
+        # claims is always a dict 
+        if isinstance( self.claims.get('environment'), dict ):
+            for k in self.claims.get('environment').keys():
+                if k != 'localaccount':
+                    local_secrets[k]=self.claims.get('environment').get(k)
+        return local_secrets
+
 
     def isValid(self):
         bReturn = False
@@ -298,8 +324,15 @@ class AuthCache(object):
                                 claims=valuedict.get('claims') )
     
     def merge( self, new_authcache ):
+        """merge
+            merge data with authprovider source to self
+            example two active directories with relationship 
+                    but with different groups and rules
+        Args:
+            new_authcache (AuthInfo): AuthInfo
+        """
         # read user and roles from another authinfo
-        # merge data from new_authcache
+        # merge data from new_authcache to self
         self._user  = self.user.merge(new_authcache._user)
         self._roles = self.roles.merge(new_authcache._roles)
         self._auth  = self.auth.merge(new_authcache._auth)
@@ -313,7 +346,7 @@ class ODAuthTool(cherrypy.Tool):
     # define meta manager and provider name
     manager_metaexplicit_name   = 'metaexplicit'
     provider_metadirectory_name = 'metadirectory'
-    # define the list of manager type
+    # define the list of manager supported type
     manager_name_list = [ 'external', 'metaexplicit', 'explicit', 'implicit' ]
 
     def __init__(self, redirect_url, jwt_config, config):
@@ -1483,8 +1516,11 @@ class ODAuthProviderBase(ODRoleProviderBase):
         default_authenv = { 'localaccount' : dict_hash }
         return default_authenv
 
-    def generateRawCredentials(self, **args ):
-        return args
+    def generateRawCredentials(self, userid, password, domain=None ):
+        dict_raw = { 'user': userid, 'password':password }
+        if domain :
+            dict_raw['domain'] = domain
+        return dict_raw
 
 # Implement OAuth 2.0 AuthProvider
 
@@ -1617,9 +1653,9 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         return user
 
     def authenticate(self, userid=None, password=None, **params):
-        data = {    'userid': userid, 
-                    'environment': self.createauthenv(userid, password) }
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data)
+        claims =  { 'environment': self.createauthenv(userid, password) }
+        data = { 'userid': userid }
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, claims=claims, token=userid, data=data)
         return authinfo
 
 
@@ -1773,13 +1809,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # validate can raise exception 
         # like invalid credentials
         (userdn, conn) = self.validate(userid, password)   
+        claims =   { 'environment': self.createauthenv(userid, password) }
+        data =  { 'userid': userid, 'dn': userdn }
 
-        data =  {   'userid': userid, 
-                    'dn': userdn,
-                    'environment': self.createauthenv(userid, password) }
-
-        claims = { 'userid': userid, 'password': password }
-        d = self.generateRawCredentials( userid, password )
+        claims.update( { 'userid': userid, 'password': password } )
+        
         return AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
 
     def krb5_validate(self, userid, password):
@@ -2618,11 +2652,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         data = {    'userid': userid, 
                     'domain': self.domain, 
                     'ad_domain': self.domain,
-                    'dn': userdn,
-                    'environment': self.createauthenv(userid, password)
+                    'dn': userdn
         }
-        claims = { 'userid': userid, 'password': password, 'domain': self.domain }
-        d = self.generateRawCredentials( userid, password, self.domain )
+        claims = {  'environment': self.createauthenv(userid, password) }
+        claims.update( { 'userid': userid, 'password': password, 'domain': self.domain } )
         authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
 
@@ -2915,8 +2948,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         data = {    'userid': userid, 
                     'domain': self.domain, 
                     'ad_domain': self.domain,
-                    'dn': userdn,
-                    'environment': {}
+                    'dn': userdn
         }
         claims = { 'userid': userid, 'password': password, 'domain': self.domain }
         authinfo = AuthInfo(provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
@@ -2988,11 +3020,10 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         else:
             raise AuthenticationError(f"Implicit login user %s does not exist in directory service {userid}")
 
+        data = {    'userid': userid, 'dn':     userdn }
+
         # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
-        data = {    'userid': userid,
-                    'dn':     userdn,
-                    'environment': self.createauthenv( userid, password=None) }
-        # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
-        # no need to set claims data
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data, protocol=self.auth_protocol, conn=conn)
+        claims =  { 'environment': self.createauthenv(userid, password=None) }
+
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
