@@ -2526,13 +2526,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # init runAsUser 0 (root)
             # to allow chmod 'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
             self.logger.debug('pod container creating %s', currentcontainertype )
+            securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext',  { 'runAsUser': 0 } )
+            self.logger.debug('pod container %s use securityContext %s ', currentcontainertype, securityContext)
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                         'image':            oc.od.settings.desktop_pod[currentcontainertype].get('image'),       
                                         'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
                                         'volumeMounts':     list_volumeMounts,
                                         'env':              envlist,
-                                        'securityContext':  { 'runAsUser': 0 }
+                                        'securityContext':  securityContext
             } )
             self.logger.debug('pod container created %s', currentcontainertype )
 
@@ -2593,8 +2595,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         }
         self.logger.debug('pod container created %s', currentcontainertype )
 
-        # by default remove Anonymous home directory at stop 
-        # or if oc.od.settings.desktop['removehomedirectory']
+        # by default remove Anonymous home directory at stop or if oc.od.settings.desktop['removehomedirectory']
         if oc.od.settings.desktop['removehomedirectory'] is True or userinfo.name == 'Anonymous':
             pod_manifest['spec']['containers'][0]['lifecycle'] = {  
                 'preStop': {
