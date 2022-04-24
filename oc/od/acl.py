@@ -19,39 +19,50 @@ import oc.lib
 
 logger = logging.getLogger(__name__)
 
+@oc.logging.with_logger()
 class ODAcl():
-
+    """ODAcl class
+        authorization must be explicit
+    """
     def __init__(self):
         pass
 
     def isAllowed( self, authinfo, acl ):
+        """isAllowed
+            authorization must be explicit
+        Args:
+            authinfo (AuthInfo): Authentification 
+            acl (dict): acl dict 'deny' and 'permit' entries
+
+        Returns:
+            bool: True if acl is explicit permit, else False 
+        """
         if acl is None :
             # no acl has been defined
             return False
 
-        if type(acl) is not dict :
-            logger.error( 'invalid acl type, dict is attended' )
+        if not isinstance( acl, dict)  :
+            self.logger.error( 'invalid acl type, dict is attended' )
             return False
         
         deny   = acl.get('deny', [])
-        if type(deny) is not list :
-            logger.error( 'invalid acl deny type, list is attended get %s', str(type(deny)) )
+        if not isinstance(deny, list):
+            self.logger.error( f"invalid acl deny type, list is attended get {str(type(deny))}" )
             return False
 
         permit = acl.get('permit', [])
-        if type(permit) is not list :
-            logger.error( 'invalid acl deny type, list is attended get %s', str(type(permit)) )
+        if not isinstance(permit, list)  :
+            self.logger.error( f"invalid acl permit type, list is attended get {str(type(permit))}" )
             return False    
 
         isdeny   = False
         ispermit = False
-
-        if authinfo.data and type( authinfo.data.get('labels') ) is dict :   
-            for userlabel in authinfo.data.get('labels') :
-                if userlabel in deny:
-                    isdeny = True
-                if userlabel in permit:
-                    ispermit = True
+  
+        for userlabel in authinfo.get_labels() :
+            if userlabel in deny:
+                isdeny = True
+            if userlabel in permit:
+                ispermit = True
 
         # special case for "all" keyword
         if "all" in permit: ispermit = True
