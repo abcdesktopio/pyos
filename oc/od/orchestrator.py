@@ -696,16 +696,16 @@ class ODOrchestrator(ODOrchestratorBase):
                 
                 # list user context tag 
                 # check if user auth tag context exist
-                if authinfo.data and type( authinfo.data.get('labels') ) is dict :
-                    for kn in rule_homedir.keys():
-                        ka = None
-                        for ka in authinfo.data.get('labels') :
-                            if kn == ka :
-                                if type(rule_homedir.get(kn)) is bool:
-                                    homedir_enabled = rule_homedir.get(kn)
-                                break
-                        if kn == ka :   # double break 
+                for kn in rule_homedir.keys():
+                    ka = None
+                    for ka in authinfo.get_labels() :
+                        if kn == ka :
+                            if type(rule_homedir.get(kn)) is bool:
+                                homedir_enabled = rule_homedir.get(kn)
                             break
+                    if kn == ka :   # double break 
+                        break
+
         return homedir_enabled
 
     def applyappinstancerules_network( self, authinfo, rules ):
@@ -749,15 +749,14 @@ class ODOrchestrator(ODOrchestratorBase):
                 
                 # list user context tag 
                 # check if user auth tag context exist
-                if authinfo.data and type( authinfo.data.get('labels') ) is dict :
-                    for kn in rule_network.keys():
-                        ka = None
-                        for ka in authinfo.data.get('labels') :
-                            if kn == ka :
-                                network_config.update ( rule_network.get(kn) )
-                                break
+                for kn in rule_network.keys():
+                    ka = None
+                    for ka in authinfo.get_labels():
                         if kn == ka :
+                            network_config.update ( rule_network.get(kn) )
                             break
+                    if kn == ka :
+                        break
 
         return network_config
     
@@ -838,7 +837,7 @@ class ODOrchestrator(ODOrchestratorBase):
         timezone = kwargs.get('timezone')
         if type(timezone) is str and len(timezone) > 0:     env['TZ'] = timezone
         if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
-        if hasattr(authinfo, 'data'):                       env.update(authinfo.data.get('environment', {}))
+        # if hasattr(authinfo, 'data'):                       env.update(authinfo.data.get('environment', {}))
 
         command = '/composer/appli-docker-entrypoint.sh'
         
@@ -1083,14 +1082,14 @@ class ODOrchestrator(ODOrchestratorBase):
         vnc_password = ODVncPassword()
         env['VNC_PASSWORD'] = vnc_password.getplain()
 
-        # compile a env list with the auth list  
-        # translate auth environment to env 
-        # env exist only in docker mode
-        environment = authinfo.data.get('environment')
-        if type(environment) is dict:
-            for auth_env_built in environment.values():
-                # each entry in authinfo.data.environment is a dict 
-                env.update( auth_env_built )
+        # # compile a env list with the auth list  
+        ## translate auth environment to env 
+        ## env exist only in docker mode
+        #environment = authinfo.data.get('environment')
+        #if type(environment) is dict:
+        #    for auth_env_built in environment.values():
+        #        # each entry in authinfo.data.environment is a dict 
+        #        env.update( auth_env_built )
 
         # convert the dict env to a list of string key=value
         envlist = ['%s=%s' % kv for kv in env.items()]
@@ -1800,28 +1799,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
                 secret.create( authinfo, userinfo, data=userinfo )
 
-        # Create environments secrets
-        # if user can change the auth provider, we need to create all secrets with empty value
-        auth_default_environment = { 'ntlm': {}, 'kerberos': {}, 'cntlm': {}, 'citrix': {} }
-        if oc.od.settings.desktop['authproviderneverchange'] :
-            # if user can not change the auth provider,
-            # then use only the user defined settings during auth
-            auth_default_environment = {}
-
-        auth_environment = authinfo.data.get('environment', auth_default_environment )
+        claims = authinfo.get_claims('environment')
 
         # create /etc/passwd, /etc/group and /etc/shadow configmap entries
         localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
-        localaccount_data = auth_environment.get('localaccount') if isinstance( auth_environment, dict) else None
+        localaccount_data = authinfo.get_localaccount()
         localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
 
         # for each auth protocol enabled
-        for auth_env_built_key in auth_environment.keys():
-            if auth_env_built_key != 'localaccount':
-                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
-                # build a kubernetes secret with the auth values 
-                # values can be empty to be updated later
-                secret.create( authinfo, userinfo, data=auth_environment.get(auth_env_built_key) )
+        local_secrets = authinfo.get_secrets()
+        for auth_env_built_key in local_secrets.keys():   
+            secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
+            # build a kubernetes secret with the auth values 
+            # values can be empty to be updated later
+            secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
     
         # Create flexvolume secrets
         rules = oc.od.settings.desktop['policies'].get('rules')
@@ -2400,7 +2391,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'broadcast_cookie':  broadcast_cookie }
 
         # add authinfo labels
-        labels.update( authinfo.data.get('labels', {} ))
+        labels.update( authinfo.get_labels() )
 
         # check if we run the desktop in metappli mode or desktop mode
         if type(appname) is str :
