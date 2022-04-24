@@ -363,10 +363,10 @@ class ODSecretRemoteFileSystemDriverUsingKerberosAuth( ODSecret ):
 
     def _create_dict(self, authinfo, userinfo, arguments):       
         # Value must exists
-        principal   = authinfo.data['environment']['kerberos']['PRINCIPAL']    # Exception if not set
-        realm       = authinfo.data['environment']['kerberos']['REALM']
-        keytab      = authinfo.data['environment']['kerberos']['keytab'] 
-        krb5_conf   = authinfo.data['environment']['kerberos']['krb5_conf'] 
+        principal   = authinfo.get_claims('environment')['kerberos']['PRINCIPAL']    # Exception if not set
+        realm       = authinfo.get_claims('environment')['kerberos']['REALM']
+        keytab      = authinfo.get_claims('environment')['kerberos']['keytab'] 
+        krb5_conf   = authinfo.get_claims('environment')['kerberos']['krb5_conf'] 
 
         str_dict_data   = json.dumps( arguments )
         

@@ -36,8 +36,8 @@ def selectODVolume( authinfo, userinfo ):
 
 def selectODVolumebyRules( authinfo, userinfo, rules ):
     volumes = []
-    if type(rules) is dict and authinfo.data.get('labels')  :
-        for k in authinfo.data.get('labels') :
+    if type(rules) is dict  :
+        for k in authinfo.get_labels() :
             rule =  rules.get(k)
             
             if type(rule) is not dict:
