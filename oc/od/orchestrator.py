@@ -2523,13 +2523,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'init'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             # init container chown to change the owner of the home directory
+            # init runAsUser 0 (root)
+            # to allow chmod 'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
             self.logger.debug('pod container creating %s', currentcontainertype )
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                         'image':            oc.od.settings.desktop_pod[currentcontainertype].get('image'),       
                                         'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
                                         'volumeMounts':     list_volumeMounts,
-                                        'env':              envlist
+                                        'env':              envlist,
+                                        'securityContext':  { 'runAsUser': 0 }
             } )
             self.logger.debug('pod container created %s', currentcontainertype )
 
@@ -2781,9 +2784,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # if podevent type is pod
             if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
                 self.on_desktoplaunchprogress( f"Your {pod_event.kind} is {event_type.lower()} " )           
-                if pod_event.status.pod_ip is not None:
-                    self.on_desktoplaunchprogress(f"Your pod gets ip address {pod_event.status.pod_ip} from network plugin") 
-                   
+                if isinstance( pod_event.status.pod_ip, str):     
+                    self.on_desktoplaunchprogress(f"Your pod gets ip address {pod_event.status.pod_ip} from network plugin")        
                     self.logger.info( 'pod_event.status.phase %s', pod_event.status.phase )
                     #
                     # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
