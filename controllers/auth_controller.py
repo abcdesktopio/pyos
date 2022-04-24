@@ -324,11 +324,8 @@ class AuthController(BaseController):
         res = None
         if services.auth.isidentified:
             auth = services.auth.auth
-            labels = [] 
-            if auth.data and isinstance( auth.data.get('labels'), dict) :
-                for k in auth.data.get('labels').keys():
-                    labels.append( str(k) )
-            res = Results.success( result=labels) 
+            labels = list( auth.get_labels().keys() )
+            res = Results.success( result=labels ) 
         else:
             res = Results.error( message='invalid user credentials' )
         return res
