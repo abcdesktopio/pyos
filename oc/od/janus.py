@@ -6,6 +6,7 @@ import random
 import threading
 import logging
 import oc.logging
+import hashlib
 
 
 logger = logging.getLogger(__name__)
@@ -45,8 +46,15 @@ class janusclient( object ):
         self.janus_port     = node.get('port', 8088)
         self.janus_apisecret = node.get('apisecret', 'janusrocks')
         self.janus_adminkey  = node.get('adminkey',  'supersecret')
+        self.janus_adminsecret = node.get('adminsecret',  'supersecret')
         self.janus_startport = node.get('startport', 5100 )
         self.janus_url = self.janus_schema + '://' + self.janus_hostip + ':' + str(self.janus_port) + '/janus'
+        self.janus_admin_base_path = node.get('admin_base_path','/admin')
+        self.admin_janus_schema = node.get('admin_janus_schema', 'https')
+        self.admin_secure_port =  node.get('admin_secure_port',7889)
+        self.salt_encoded = node.get('token_salt','dummysalt').encode()
+        self.admin_janus_url = self.admin_janus_schema + '://' + self.janus_host + ':' + str(self.admin_secure_port) + self.janus_admin_base_path
+        self.token = None
         self.transaction = janusclient.randomStringwithDigitsAndSymbols()
 
     @staticmethod
@@ -54,6 +62,13 @@ class janusclient( object ):
         ''' Generate a random string of letters, digits and special characters '''
         password_characters = string.ascii_letters + string.digits 
         return ''.join(random.choice(password_characters) for i in range(stringLength))
+
+    def mktoken( self, token ):
+        h = hashlib.new('sha256')
+        h.update(token.encode())
+        h.update(self.salt_encoded)
+        new_token = h.hexdigest()
+        return new_token
 
 
     # Request JSON POST
@@ -75,10 +90,26 @@ class janusclient( object ):
                 self.logger.error( error_message )
                 raise ValueError( 'Error call to janus gateway %s ', error_message )
 
+    def janus_admin_cmd(self, cmd, cond=False, action=lambda x: x ):
+        if cond:
+            raise ValueError( 'Misplaced call to janus gateway')
+        else:
+            r = self.mypost(self.admin_janus_url, cmd)
+            if isinstance(r, requests.models.Response) and r.ok :
+                j = r.json()
+                self.logger.debug(json.dumps(j, indent=4, separators=(',', ': ')))
+                return action(j)
+            else:
+                error_message =  'janus request %s post %s return %s' % (str(self.admin_janus_url), str(cmd), str(r)  )
+                self.logger.error( error_message )
+                raise ValueError( 'Error call to janus gateway %s ', error_message )
+
+
+
     def ping( self ):
         pong = False
         def helper(j):
-            return j["janus"] == "pong"
+            return j.get('janus') == "pong"
 
         json_create = { "janus":       "ping",
                         "apisecret":   self.janus_apisecret,
@@ -90,7 +121,42 @@ class janusclient( object ):
             self.logger.error( e )
         return pong
 
+    def add_token( self, token ):
+        add = None
+        def helper(j):
+            # 'janus':'success'
+            return j.get('janus') == 'success'
 
+        new_token = self.mktoken( token )
+
+        json_create = { "janus":       "add_token",
+                        "admin_secret":   self.janus_adminsecret,
+                        "transaction": self.transaction,
+                        "token": new_token
+                    }
+        try:
+            add = self.janus_admin_cmd(json_create, action=helper)
+            if add is True:
+                self.token = new_token
+        except Exception as e:
+            self.logger.error( e )
+        return add
+
+    def remove_token( self  ):
+        remove = None
+        def helper(j):
+            return j.get('janus') == 'success'
+
+        json_remove = { "janus":            "remove_token",
+                        "admin_secret":     self.janus_adminsecret,
+                        "transaction":      self.transaction,
+                        "token":            self.token
+                    }
+        try:
+            remove = self.janus_admin_cmd(json_remove, action=helper)
+        except Exception as e:
+            self.logger.error( e )
+        return remove
 
     def greet(self):     
         def helper(j):
@@ -99,7 +165,8 @@ class janusclient( object ):
 
         json_create = { "janus":        "create",
                         "apisecret":    self.janus_apisecret,
-                        "transaction":  self.transaction
+                        "transaction":  self.transaction,
+                        "token":        self.token
                     }
         return self.janus_cmd(json_create, action=helper)
 
@@ -109,10 +176,11 @@ class janusclient( object ):
             self.session["handle_id"] = j["data"]["id"]
             return self.session["handle_id"]
 
-        json_attach = { "janus": "attach",
-                        "plugin": plugin,
-                        "apisecret": self.janus_apisecret, 
-                        "transaction": self.transaction }
+        json_attach = { "janus":        "attach",
+                        "plugin":       plugin,
+                        "apisecret":    self.janus_apisecret, 
+                        "transaction":  self.transaction,
+                        "token":        self.token }
 
         return self.janus_cmd(json_attach,
                 not self.session["session_id"],
@@ -125,7 +193,8 @@ class janusclient( object ):
         jsondata = {"janus": "message",
                     "transaction": self.transaction,
                     "body": body,
-                    "apisecret": self.janus_apisecret }
+                    "apisecret": self.janus_apisecret,
+                    "token":        self.token }
         return self.janus_cmd(jsondata,
                 not self.session["session_id"] or not self.session["handle_id"],
                 action,
@@ -173,6 +242,7 @@ class janusclient( object ):
             {   "janus": "message",
                 "transaction": self.transaction,
                 "apisecret": self.janus_apisecret,
+                "token":        self.token,
                 "body": {
                     "request": "create",
                     "id": janusid,
@@ -200,37 +270,52 @@ class janusclient( object ):
                 json_data = j["plugindata"]["data"]["info"]
                 json_data['host']   = self.janus_host
                 json_data['hostip'] = self.janus_hostip
+                json_data['token']  = self.token
             except Exception as e:
                 self.logger.error( e )
             return json_data
 
+
+        message_dict =  {   "janus": "message",
+                            "token": self.token,
+                            "transaction": self.transaction,
+                            "apisecret": self.janus_apisecret,
+                            "body": {
+                                "request": "info",
+                                "id": janusid
+                            }
+        }
         return self.janus_cmd(
-            {   "janus": "message",
-                "transaction": self.transaction,
-                "apisecret": self.janus_apisecret,
-                "body": {
-                    "request": "info",
-                    "id": janusid
-                }
-            },
+            message_dict,
             not self.session["session_id"] or not self.session["handle_id"],
             helper,
             endpoint="/" + str(self.session["session_id"]) + "/" + str(self.session["handle_id"])
         )
 
     def destroy(self, janusid):
-        return self.janus_cmd({"janus": "message",
-                "transaction": self.transaction,
-                "body": {
-                    "request": "destroy",
-                    "id": janusid,
-                    "admin_key": self.janus_adminkey
-                }}, not self.session["session_id"] or not self.session["handle_id"],
-                endpoint="/" + str(self.session["session_id"]) + "/" + str(self.session["handle_id"]))
+
+        def helper(j):
+            return j.get('janus') == 'success'
+
+        destroy_dict = {    "janus":        "message",
+                            "transaction":  self.transaction,
+                            "token":        self.token,
+                            "body": {   "request": "destroy",
+                                        "id": janusid,
+                                        "admin_key": self.janus_adminkey
+                            }
+        }
+        return self.janus_cmd(  destroy_dict, 
+                                not self.session["session_id"] or not self.session["handle_id"],
+                                helper=helper,
+                                endpoint="/" + str(self.session["session_id"]) + "/" + str(self.session["handle_id"]))
 
    
    
     def get_stream(self, pod_name ):
+        if self.token is None:
+            self.add_token( token=pod_name )
+
         self.greet()
         self.attach()
         n = 0
@@ -293,7 +378,6 @@ class ODJanusCluster():
         
         # create a janus client
         janus = janusclient( node )
-
         # create a streaming entry
         stream = janus.get_stream( pod_name )
         info = janus.info( stream['stream']['id'] )
@@ -303,6 +387,7 @@ class ODJanusCluster():
     def thread_get_info( node, pod_name, results, i ):
         janus = janusclient( node )
         try:
+            janus.add_token( token=pod_name )
             janus.greet()
             janus.attach()
             results[i] = janus.find( description=pod_name )
@@ -364,18 +449,24 @@ class ODJanusCluster():
 
     def destroy_stream( self, pod_name ):
         self.logger.debug('')
+        bReturn = False
         if type(pod_name) is not str:
             self.logger.error( 'invalid stream name type')
             return None
 
         stream = self.find_stream( pod_name )
-        if type(stream) is dict:
+        if isinstance(stream, dict):
             node = self.nodes.get( stream['host'] )
             if node is None:
                 raise ValueError('Invalid node host')
             # create a janus client
             janus = janusclient( node )
+            janus.add_token( token=pod_name )
             janus.greet()
             janus.attach()
-            return janus.destroy( stream['id'] )
-        return None
+            # remove the stream id
+            if janus.destroy( stream.get('id') ) is True: 
+                # remove the token
+                if janus.remove_token() is True:
+                    bReturn = True
+        return bReturn
