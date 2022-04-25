@@ -307,7 +307,7 @@ class janusclient( object ):
         }
         return self.janus_cmd(  destroy_dict, 
                                 not self.session["session_id"] or not self.session["handle_id"],
-                                helper=helper,
+                                action=helper,
                                 endpoint="/" + str(self.session["session_id"]) + "/" + str(self.session["handle_id"]))
 
    
