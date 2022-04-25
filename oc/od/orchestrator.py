@@ -3100,24 +3100,27 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return bReturn
 
     def garbagecollector( self, expirein, force=False ):
+        self.logger.debug('')
         garbaged = []
         try: 
-            list_label_selector = [ 'type=' + self.x11servertype, 'type=' + self.x11servertype_embeded ]
+            list_label_selector = [ 'type=' + self.x11servertype ]
             for label_selector in list_label_selector:
                 myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
-                for myPod in myPodList.items:
-                    myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
-                    self.logger.debug(  "%s is garbageable %s", myPod.metadata.name, str(myPodisgarbagable) )
-                    if myPodisgarbagable is True:
-                        self.logger.info( '%s is garbagable, removing...', myPod.metadata.name  )
-                        # fake an authinfo object
-                        authinfo = AuthInfo( provider=myPod.metadata.labels.get('access_provider') )
-                        # fake an userinfo object
-                        userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
-                                               'name':  myPod.metadata.labels.get('access_username') } )
-                        status = self.removedesktop( authinfo, userinfo )
-                        if isinstance(status,client.models.v1_status.V1Status) :
-                            garbaged.append( myPod.metadata.name )
+                if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
+                    for myPod in myPodList.items:
+                        self.logger.debug(  "test if pod:%s is garbageable", myPod.metadata.name )
+                        myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
+                        self.logger.debug(  "pod:%s is garbageable %s", myPod.metadata.name, str(myPodisgarbagable) )
+                        if myPodisgarbagable is True:
+                            self.logger.info( '%s is garbagable, removing...', myPod.metadata.name  )
+                            # fake an authinfo object
+                            authinfo = AuthInfo( provider=myPod.metadata.labels.get('access_provider') )
+                            # fake an userinfo object
+                            userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
+                                                   'name':  myPod.metadata.labels.get('access_username') } )
+                            status = self.removedesktop( authinfo, userinfo )
+                            if isinstance(status,client.models.v1_status.V1Status) :
+                                garbaged.append( myPod.metadata.name )
         except ApiException as e:
             self.logger.error(str(e))
         return garbaged
