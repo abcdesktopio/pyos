@@ -1804,7 +1804,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # create /etc/passwd, /etc/group and /etc/shadow configmap entries
         localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
         localaccount_data = authinfo.get_localaccount()
-        localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
+
+        createdconfigmap = None
+        nCounterConfigMap = 0
+        maxCounterConfigMap = 5
+        while not isinstance( createdconfigmap, client.models.v1_config_map.V1ConfigMap):
+            nCounterConfigMap = nCounterConfigMap + 1
+            createdconfigmap = localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
+            if not isinstance( createdconfigmap, client.models.v1_config_map.V1ConfigMap):
+                self.logger.error( 'Building user configmap user, trying again' )
+                self.on_desktoplaunchprogress(f"Fixing issue in user configmap {nCounterConfigMap}/{maxCounterConfigMap}" )
+            if nCounterConfigMap >= maxCounterConfigMap :
+                self.on_desktoplaunchprogress(f"Error in user configmap {nCounterConfigMap}/{maxCounterConfigMap}" )
+                break
 
         # for each auth protocol enabled
         local_secrets = authinfo.get_secrets()
@@ -2608,14 +2620,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 self.logger.debug('pod container creating %s', currentcontainertype )
                 pod_manifest['spec']['containers'].append( { 
-                                        'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
-                                        'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
-                                        'env': envlist,
-                                        'volumeMounts': [ self.default_volumes_mount['tmp'] ],
-                                        'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
-                                        'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
-                                    }   
+                        'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                        'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
+                        'env': envlist,
+                        'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                        'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
+                        'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
+                    }   
                 )
                 self.logger.debug('pod container created %s', currentcontainertype )
 
@@ -2721,9 +2733,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
             object_type = event_object.type
             if isinstance(event_object.message, str) and len(event_object.message)>0:
-                message = f"{object_type} {event_object.message}"     
+                message = f"{object_type.lower()} {event_object.message}"     
             else:
-                message = f"{object_type} {event_object.reason}"
+                message = f"{object_type.lower()} {event_object.reason}"
                 
             self.logger.info(message)
             self.on_desktoplaunchprogress( message )
