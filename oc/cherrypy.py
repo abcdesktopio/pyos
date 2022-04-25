@@ -26,30 +26,59 @@ logger = logging.getLogger(__name__)
 # WARNING : No logging is possible inside getclientipaddr, 
 # it would generate cycling dependencies call in oc.logging functions
 def getclientipaddr_dict():
-    ''' return a dict of all client ip '''
-    ''' WARNING : No logging is possible inside getclientipaddr, 
-                  it would generate cycling dependencies call in oc.logging functions'''
+    """getclientipaddr_dict
+        return a dict of all client ip 'X-Forwarded-For', X-Real-IP', and 'remoteip'
+        No logging is possible inside getclientipaddr, 
+        it would generate cycling dependencies call in oc.logging functions
+
+        take care 
+            X-Forwarded-For header can result in spoofed values being used for security-related purposes
+            Syntax X-Forwarded-For: <client>, <proxy1>, <proxy2>
+            where <client> is the client IP address
+
+    Returns:
+        dict: dict of all client ip 
+                { 'X-Forwarded-For' : clientip,
+                  'X-Real-IP':  realip,
+                  'remoteip': cherrypy.request.remote.ip }
+    """
+    
     xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
-    clientip = None
-    realip   = None
-    if type(xforwardedfor) is str:
+    clientip = None # default value
+    realip   = None # default value
+
+    if isinstance(xforwardedfor, str):
         clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
-        clientip = clientiplistxforwardedfor[0] # the first entry is the real client ip address source
         try:
             # Check if clientip is an ipAddr 
-            netaddr.IPAddress(clientip)
+            # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
+            if isinstance( clientiplistxforwardedfor, list ):
+                # Check if ipaddr is an ipAddr 
+                ipaddr = netaddr.IPAddress( clientiplistxforwardedfor[0] )
+                # reconvert to string make sure to remove garbage data 
+                # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
+                # str( ipaddr ) returns '127.0.0.1'
+                clientip = str( ipaddr )
         # No logging is possible inside getclientipaddr
         except netaddr.core.AddrFormatError as e: 
+            # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
             pass
         except Exception as e : 
             pass
 
         realip = cherrypy.request.headers.get('X-Real-IP')
         try:
-            # Check if realip is an ipAddr 
-            netaddr.IPAddress(realip)
+            _realip = cherrypy.request.headers.get('X-Real-IP')
+            if isinstance( _realip, str ):
+                # Check if realip is an ipAddr 
+                ipaddr = netaddr.IPAddress(_realip)
+                # reconvert to string make sure to remove garbage data 
+                # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
+                # str( ipaddr ) returns '127.0.0.1'
+                realip = str( ipaddr )
         # No logging is possible inside getclientipaddr
         except netaddr.core.AddrFormatError as e: 
+             # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
             pass
         except Exception as e: 
             pass
@@ -58,30 +87,33 @@ def getclientipaddr_dict():
         # proxy ip is not used but set as :
         # proxyip = ','.join(clientiplistxforwardedfor[1::])
 
-            
     clientip_dict = { 'X-Forwarded-For' : clientip,
                       'X-Real-IP':  realip,
                       'remoteip': cherrypy.request.remote.ip }
+
     return clientip_dict
 
 
 # WARNING : No logging is possible inside getclientipaddr, 
 # it would generate cycling dependencies call in oc.logging functions
 def getclientipaddr():
-    ''' return string ipAddr of browser client, None if failed '''
-    ''' Do the best to obtain the Client IP Address
+    """getclientipaddr
+        return string ipAddr of browser client, None if failed
+        
+        Do the best to obtain the Client IP Address
         use X-Forwarded-For HTTP header from nginx
         or use X-Real-IP-For HTTP header from nginx
-        or cherrypy.request.remote.ip        
-    '''
+        or cherrypy.request.remote.ip  
+    Returns:
+        str: ip client address
+    """
     ipaddr = None   # the return value
     clientip_dict = getclientipaddr_dict()
     ipaddr = clientip_dict.get('X-Forwarded-For')
-    if ipaddr is None:
+    if not isinstance( ipaddr, str) :
         ipaddr = clientip_dict.get('X-Real-IP')
-        if ipaddr is None:
+        if not isinstance( ipaddr, str) :
             ipaddr = clientip_dict.get('remoteip')
-
     return ipaddr
 
 
@@ -141,9 +173,8 @@ class Tools(object):
 class Results(object):
     @staticmethod
     def result(message=None, status=200, result=None):
-        response = {
-            'status': status,
-            'result': result
+        response = {    'status': status,
+                        'result': result
         }
 
         if status == 200:
