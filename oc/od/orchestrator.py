@@ -1756,7 +1756,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
                 removethread['thread'].start()
  
-            # no need to wait for removethread['thread'].join()
+            # need to wait for removethread['thread'].join()
             # for removethread in removetheads:
             #     removethread['thread'].join()
 
@@ -3118,9 +3118,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             # fake an userinfo object
                             userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
                                                    'name':  myPod.metadata.labels.get('access_username') } )
-                            status = self.removedesktop( authinfo, userinfo )
-                            if isinstance(status,client.models.v1_status.V1Status) :
-                                garbaged.append( myPod.metadata.name )
+                            self.removedesktop( authinfo, userinfo )
+                            garbaged.append( myPod.metadata.name )
         except ApiException as e:
             self.logger.error(str(e))
         return garbaged
