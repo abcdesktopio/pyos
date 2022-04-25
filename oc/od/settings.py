@@ -609,6 +609,7 @@ def init_desktop():
     desktop['policies']             = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']  = gconfig.get('desktop.webhookencodeparams', False )
     desktop['webhookdict']          = gconfig.get('desktop.webhookdict', {} )
+    desktop['imagepullsecret']      = gconfig.get('desktop.imagepullsecret' )
 
 
     # desktopinitcontainercommand
