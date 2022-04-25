@@ -22,9 +22,11 @@ import oc.pyutils as pyutils
 
 logger = logging.getLogger(__name__)
 
-
+#########
 # WARNING : No logging is possible inside getclientipaddr, 
 # it would generate cycling dependencies call in oc.logging functions
+#########
+
 def getclientipaddr_dict():
     """getclientipaddr_dict
         return a dict of all client ip 'X-Forwarded-For', X-Real-IP', and 'remoteip'
@@ -176,12 +178,10 @@ class Results(object):
         response = {    'status': status,
                         'result': result
         }
-
         if status == 200:
             response['message'] = message
         else:
             response['error'] = message or 'Unkown error'
-
         return response
 
     @staticmethod
