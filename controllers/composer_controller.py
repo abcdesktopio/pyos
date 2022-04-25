@@ -357,7 +357,10 @@ class ComposerController(BaseController):
                     return Results.error('Desktop creation failed')
 
             # safe check for futur desktop.internaluri usage 
-            if not hasattr( desktop, 'internaluri') or desktop.internaluri is None:                
+            if not hasattr( desktop, 'internaluri') or desktop.internaluri is None:   
+                # a desktop exists but is unreachable
+                # decide to trash it
+                oc.od.composer.removedesktop( auth, user )              
                 return Results.error('Desktop URI is None, creation failed')
             
             # build a jwt token with desktop.internaluri
