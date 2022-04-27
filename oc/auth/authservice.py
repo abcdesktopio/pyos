@@ -182,8 +182,8 @@ class AuthInfo(object):
 
     def get_localaccount(self):
         if isinstance( self.claims, dict ):
-            if isinstance( self.claims.get('environement'), dict ):
-                return self.claims.get('environement').get('localaccount')
+            if isinstance( self.claims.get('environment'), dict ):
+                return self.claims.get('environment').get('localaccount')
         return {}
 
     def get_secrets(self):
