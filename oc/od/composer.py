@@ -219,7 +219,7 @@ def finddesktop( authinfo, userinfo, appname=None ):
     return myDesktop
 
 
-def prepareressources( authinfo, userinfo):
+def prepareressources( authinfo, userinfo, allow_exception=True ):
     """prepareressources for user from authinfo
         call Orchestrator.prepareressources
 
@@ -228,7 +228,7 @@ def prepareressources( authinfo, userinfo):
         userinfo (AuthUser): user data 
     """
     myOrchestrator = selectOrchestrator()
-    myOrchestrator.prepareressources(authinfo, userinfo)
+    myOrchestrator.prepareressources( authinfo=authinfo, userinfo=userinfo, allow_exception=allow_exception )
     
 
 def stopContainerApp(auth, user, containerid):
