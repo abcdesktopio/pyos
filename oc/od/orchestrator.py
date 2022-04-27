@@ -539,7 +539,7 @@ class ODOrchestrator(ODOrchestratorBase):
         self.logger.info( 'volume name %s', normalize_name)
         return normalize_name
 
-    def prepareressources(self, authinfo, userinfo, **kwargs):
+    def prepareressources(self, authinfo, userinfo, allow_exception, **kwargs):
         self.logger.info('externals ressources are not supported in docker mode')  
 
     def getsecretuserinfo(self, authinfo, userinfo):  
@@ -1811,7 +1811,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( "removedesktop can not find desktop %s %s", authinfo, userinfo )
         return bReturn
             
-    def prepareressources(self, authinfo, userinfo, **kwargs):
+    def prepareressources(self, authinfo, userinfo, allow_exception=True, **kwargs):
         """[prepareressources]
 
         Args:
@@ -1840,18 +1840,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # This section is necessary to get user photo in user_controller.py
         # dump the ldif in kubernetes secret 
         if type(authinfo.protocol) is dict :
+            # if ldif is enabled
             if authinfo.protocol.get('ldif') is True:
+                # create a ldif secret
                 secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
                 secret.create( authinfo, userinfo, data=userinfo )
-
-        claims = authinfo.get_claims('environment')
 
         # create /etc/passwd, /etc/group and /etc/shadow configmap entries
         localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
         localaccount_data = authinfo.get_localaccount()
         createdconfigmap = localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
         if not isinstance( createdconfigmap, client.models.v1_config_map.V1ConfigMap):
-            raise Exception("cannot create configmap localaccount")
+            if allow_exception is True: 
+                raise Exception("cannot create configmap localaccount")
 
 
         # for each auth protocol enabled
@@ -1862,7 +1863,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # values can be empty to be updated later
             createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
             if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
-                raise Exception(f"cannot create secret {auth_env_built_key}")
+                if allow_exception is True: 
+                    raise Exception(f"cannot create secret {auth_env_built_key}")
 
     
         # Create flexvolume secrets
