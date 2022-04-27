@@ -27,9 +27,7 @@ import oc.od.orchestrator
 from oc.od.services import services
 from oc.od.infra import ODError  # Desktop Infrastructure Class lib
 from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
-
-
-import json
+import oc.od.desktop
 
 import subprocess
 import threading
@@ -171,10 +169,9 @@ def removedesktop( authinfo, userinfo ):
     Args:
         authinfo (AuthInfo): authentification data
         userinfo (AuthUser): user data 
-        args ([type]): [description]
 
     Returns:
-        [str]: status 
+        [bool]: True if the desktop is removed 
     """
     myOrchestrator = selectOrchestrator()    
 
@@ -182,9 +179,12 @@ def removedesktop( authinfo, userinfo ):
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
     removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
     
-    if myDesktop and isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
-        # if myDesktop has been found AND webrtc is a ODJanusCluster then 
-        # remove the entry stream and to free the listening port on the janus gateway
+    if  isinstance( myDesktop, oc.od.desktop.ODDesktop) and \
+        isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
+        # if myDesktop exists AND webrtc is a ODJanusCluster then 
+        # remove the entry stream to 
+        # - free the listening port on the janus gateway
+        # - free the janus auth token 
         services.webrtc.destroy_stream( myDesktop.name )
     
     # remove the desktop
@@ -581,9 +581,9 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
                 messageinfo.push('Webhooking updated service successfully')
             logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
         else:
-            logger.error( f"command {webhookcmd} failed")
+            logger.error( f"command {webhookcmd} subprocess.run return {str(type(proc))}" )
             if messageinfo:
-                messageinfo.push(f"Webhooking updated service error, read the log file")
+                messageinfo.push(f"Webhooking updated service error, read the log file ")
     except subprocess.CalledProcessError as e:
         if messageinfo:
             messageinfo.push(f"Webhooking updated service error {e}" )
