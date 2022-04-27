@@ -186,7 +186,8 @@ class AuthController(BaseController):
         self.checkloginresponseresult( response )  
 
         # prepare ressources
-        oc.od.composer.prepareressources( response.result.auth, response.result.user )
+        # can raise Exception
+        oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user, allow_exception=False )
 
         # create auth token
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
@@ -292,13 +293,9 @@ class AuthController(BaseController):
         services.accounting.accountex('login', 'success')
         services.accounting.accountex('login', response.result.auth.providertype )
         
+        # can raise excetion   
+        oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user, allow_exception=True )
 
-        # if the user have to access authenticated external ressources 
-        # this is the only one request which contains users credentials       
-        # Build now auth secret for postponed usage    
-        oc.od.composer.prepareressources( response.result.auth, response.result.user )
-
-        
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
 
@@ -362,7 +359,7 @@ class AuthController(BaseController):
             self.checkloginresponseresult( response, msg='su' )  
                         
             # prepare ressources
-            oc.od.composer.prepareressources( response.result.auth, response.result.user )
+            oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user, allow_exception=False )
 
             # compute new user jwt token   
             jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
@@ -454,7 +451,7 @@ class AuthController(BaseController):
         # can raise exception 
         self.checkloginresponseresult( response )  
 
-        oc.od.composer.prepareressources( response.result.auth, response.result.user )
+        oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user, allow_exception=False )
 
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
@@ -527,11 +524,11 @@ class AuthController(BaseController):
         self.logger.info('start login(provider=%s, manager=implicit, userid=%s)', str(provider), str(userid))
         response = services.auth.login( provider=provider, manager='implicit', userid=userid )
         
-        # can raise excetion 
+        # can raise excetion if an error occurs
         self.checkloginresponseresult( response )
 
         # prepare ressources
-        oc.od.composer.prepareressources( response.result.auth, response.result.user )
+        oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user, allow_exception=False )
 
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles  )
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
