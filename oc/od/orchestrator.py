@@ -1819,6 +1819,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             userinfo (AuthUser): user data
 
         """
+        self.logger.debug('')
         # create a kerberos kubernets secret 
         #  
         # translate the userid as sAMAccountName in the authinfo.claims dict
@@ -1843,19 +1844,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # if ldif is enabled
             if authinfo.protocol.get('ldif') is True:
                 # create a ldif secret
+                self.logger.debug('oc.od.secret.ODSecretLDIF creating')
                 secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
                 secret.create( authinfo, userinfo, data=userinfo )
+                self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
         # create /etc/passwd, /etc/group and /etc/shadow configmap entries
+        self.logger.debug('localaccount_configmap.create creating')
         localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
         localaccount_data = authinfo.get_localaccount()
+        localaccount_configmap_name = localaccount_configmap.get_name(userinfo=userinfo)
         createdconfigmap = localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
         if not isinstance( createdconfigmap, client.models.v1_config_map.V1ConfigMap):
+            self.logger.error((f"cannot create configmap localaccount {localaccount_configmap_name}"))
             if allow_exception is True: 
-                raise Exception("cannot create configmap localaccount")
-
+                raise Exception(f"cannot create configmap localaccount {localaccount_configmap_name}")
+        self.logger.debug('localaccount_configmap.create created')
 
         # for each auth protocol enabled
+        self.logger.debug('secret.create creating')
         local_secrets = authinfo.get_secrets()
         for auth_env_built_key in local_secrets.keys():   
             secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
@@ -1863,11 +1870,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # values can be empty to be updated later
             createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
             if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
+                mysecretname = self.get_name( userinfo )
+                self.logger.error((f"cannot create secret {mysecretname}"))
                 if allow_exception is True: 
                     raise Exception(f"cannot create secret {auth_env_built_key}")
-
+        self.logger.debug('secret.create created')
     
         # Create flexvolume secrets
+        self.logger.debug('flexvolume secrets creating')
         rules = oc.od.settings.desktop['policies'].get('rules')
         if rules is not None:
             mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo,  rules.get('volumes') )
@@ -1881,7 +1891,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 auth_secret = secret.create( authinfo, userinfo, arguments )
                 if auth_secret is None:
                     self.logger.error( 'Failed to build auth secret fstype=%s', fstype )
-
+        self.logger.debug('flexvolume secrets created')
 
     def get_annotations_lastlogin_datetime(self):
         """get a new lastlogin datetime dict 
@@ -1919,7 +1929,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [ODesktop]: Desktop Object updated annotations data
         """
-        self.logger.info('')
+        self.logger.debug('')
         myDesktop = None
         myPod =  self.findPodByUser(authinfo, userinfo)
 
