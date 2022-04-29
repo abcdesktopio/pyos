@@ -14,9 +14,10 @@
 import logging
 import cherrypy		
 from oc.cherrypy import Results
-import oc.od.settings as settings
+import oc.od.settings
 from oc.od.services import services 
 from oc.od.base_controller import BaseController
+import oc.od.janus
 
 import oc.lib
 
@@ -44,28 +45,28 @@ class CoreController(BaseController):
 
         # do not report error message 
         # ignore the message and send an empty response
-        if type( arguments ) is not dict:
+        if not isinstance( arguments, dict ):
             return {}
 
         provider = arguments.get('provider')
-        if provider is None:
-            return  {}	
+        if not isinstance(provider,str):
+            return {}	
 
-        id = None
-        callbackurl = None
+        id = None           # value to return 
+        callbackurl = None  # reserved for futur usage 
          
         if provider == 'colors' :
-            id = settings.defaultbackgroundcolors
+            id = oc.od.settings.desktop['defaultbackgroundcolors']
 
         elif provider == 'menuconfig':            
-            id = settings.menuconfig
+            id = oc.od.settings.desktop['menuconfig']
 
         elif provider == 'tracker' :
             import oc.od.tracker
             id = oc.od.tracker.jiraclient().isenable()
 
         elif provider == 'webrtc':
-            id = services.webrtc != None  # return true is services.webrtc is enabled
+            id = isinstance( services.webrtc, oc.od.janus.ODJanusCluster )
 
         return { 'id': id, 'callbackurl': callbackurl }
 
