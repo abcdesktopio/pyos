@@ -1436,12 +1436,72 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     ]
     ''' 
 
+    def safeget_localaccount_confimap( self, userinfo, configmap_type ):
+        """safeget_localaccount_confimap
+            This section code should be removed if the kubernetes cluster use a stable etc cluster
+            Fix issues if etcd clusters are unstable
+
+        Args:
+            userinfo (AuthUser): user data
+            configmap_type (str): 'localaccount' define in oc.od.configmap.selectConfigMap
+
+        Returns:
+            tuple: (ODConfigMapLocalAccount, client.models.v1_config_map.V1ConfigMap)
+        """
+       
+        configmap_localaccount = None
+        configmap_localaccount_data = None
+
+        nCounterReadConfigMap = 0
+        maxCounterReadEtcdRetry = 5
+
+        #
+        # this section code is to debug some issues 
+        # when a node create a configmap, another node can find or read it 
+        # the call on the another node may failed in production
+
+        #
+        # this section code tries to fix and get the configmap data
+        # the read call and the nCounterReadConfigMap up to maxCounterReadEtcdRetry 
+        # issues occurs if etcd clusters are unstable or do not run on dedicated machines or isolated environments
+        #
+        while nCounterReadConfigMap < maxCounterReadEtcdRetry:
+            nCounterReadConfigMap = nCounterReadConfigMap + 1
+            configmap_localaccount = oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type=configmap_type )
+            # the read call is dummy only to read safe test
+            configmap_localaccount_data = configmap_localaccount.read( userinfo=userinfo) 
+            configmap_localaccount_name = configmap_localaccount.get_name( userinfo=userinfo )
+            if isinstance( configmap_localaccount_data, client.models.v1_config_map.V1ConfigMap):
+                self.logger.info(f"Configmap {configmap_localaccount_name} has been read successfully try={nCounterReadConfigMap}" )
+                break
+            if nCounterReadConfigMap > maxCounterReadEtcdRetry:
+                # do not map passwd, group and shaddow files
+                # use default emdedded in the container image
+                self.logger.error( 'ETCD fatal error') 
+                self.logger.error( f"Configmap {configmap_localaccount_name} is unreadable but it has been created successfully")
+                self.logger.error( 'do not map custom passwd, group and shaddow')
+                self.logger.error( 'rollback uses default emdedded passwd, group and shaddow in the container image')
+            else:
+                # the config map localaccount MUST exist, be it seems not 
+                # i down know what to do except sleeping
+                # the configmap is unreadable but it has been created succefully on another node
+                # may be waiting for an etc sync 
+                # counter [ 1, 2, 3, 4, 5 ] -> sleep time [ 0.5, 1, 1.5, 2, 2.5 ]
+                sleeptime = nCounterReadConfigMap/2 #  sleeptime in float
+                self.logger.error(f"Configmap {configmap_localaccount_name} is unreadable but it has been created successfully previously")
+                self.logger.error(f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
+                self.on_desktoplaunchprogress( f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for {sleeptime}s on etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
+                time.sleep(nCounterReadConfigMap/2)
+
+        return (configmap_localaccount, configmap_localaccount_data)
+
+
     def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
         """[build_volumes]
 
         Args:
             authinfo ([type]): [description]
-            userinfo ([type]): [description]
+            userinfo (AuthUser): user data
             volume_type ([str]): 'container_desktop' 'pod_desktop', 'container_app', 'pod_application'
             rules (dict, optional): [description]. Defaults to {}.
 
@@ -1476,63 +1536,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 volumes['shm']       = self.default_volumes['shm']
                 volumes_mount['shm'] = self.default_volumes_mount['shm'] 
 
-
-        #
-        # this section is to debug some issues 
-        # when a node create a configmap, another node can find or read it 
-        # the call on the another node may failed in production
-        #
-        # this section code tries to fix and get the configmap data
-        # the read call and the nCounterReadConfigMap up to maxCounterReadEtcdRetry 
-        # issues occurs if etcd clusters are unstable or do not run on dedicated machines or isolated environments
-        #
-        configmap_localaccount = None
-        nCounterReadConfigMap = 0
-        maxCounterReadEtcdRetry = 5
-        while nCounterReadConfigMap < maxCounterReadEtcdRetry:
-            nCounterReadConfigMap = nCounterReadConfigMap + 1
-            configmap_localaccount = oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
-            # the read call is dummy only to read safe test
-            configmap_localaccount_data = configmap_localaccount.read( userinfo=userinfo) 
-            configmap_localaccount_name = configmap_localaccount.get_name( userinfo=userinfo )
-            if isinstance( configmap_localaccount_data, client.models.v1_config_map.V1ConfigMap):
-                self.logger.debug(f"Configmap {configmap_localaccount_name} has been read successfully" )
-                break
-            if nCounterReadConfigMap > maxCounterReadEtcdRetry:
-                # do not map passwd, group and shaddow
-                # use default emdedded in the container image
-                self.logger.error( 'ETCD error') 
-                self.logger.error( f"Configmap {configmap_localaccount_name} is unreadable but it has been created successfully")
-                self.logger.error( 'do not map custom passwd, group and shaddow')
-                self.logger.error( 'use default emdedded passwd, group and shaddow in the container image')
-            else:
-                # the config map localaccount MUST exist, be it seems not 
-                # i down know what to do except sleeping
-                # the configmap is unreadable but it has been created succefully on another node
-                # may be waiting for an etc sync 
-                # counter [ 1, 2, 3, 4, 5 ] -> sleep time [ 0.5, 1, 1.5, 2, 2.5 ]
-                sleeptime = nCounterReadConfigMap/2 #  sleeptime in float
-                self.logger.error(f"Configmap {configmap_localaccount_name} is unreadable but it has been created succefully")
-                self.logger.error(f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
-                self.on_desktoplaunchprogress( f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for {sleeptime}s on etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
-                time.sleep(nCounterReadConfigMap/2)
-
+       
+        # if a config map localaccount exist
+        configmap_localaccount = oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount'  )
+        configmap_localaccount_data = configmap_localaccount.read( userinfo=userinfo ) 
         if isinstance( configmap_localaccount_data, client.models.v1_config_map.V1ConfigMap):
-            self.logger.debug(f"Configmap {configmap_localaccount_name} has been read successfully" )
+            self.logger.debug(f"Configmap {configmap_localaccount_data.metadata.name} has been read successfully" )
+            # Note: configmaps are mounted read-only so that you can't touch the files
+            # Note: a config map is always mounted as 'readOnly': True
             config_map_auth_name = configmap_localaccount.get_name( userinfo=userinfo )
             # add passwd
             volumes['passwd']       = { 'name': 'config-passwd', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['passwd'] = { 'name': 'config-passwd', 'mountPath': '/etc/passwd', 'subPath': 'passwd', 'readOnly': True }
+            volumes_mount['passwd'] = { 'name': 'config-passwd', 'mountPath': '/etc/passwd',    'subPath': 'passwd' }
             # add shadow
             volumes['shadow']       = { 'name': 'config-shadow', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['shadow'] = { 'name': 'config-shadow', 'mountPath': '/etc/shadow', 'subPath': 'shadow', 'readOnly': True }
+            volumes_mount['shadow'] = { 'name': 'config-shadow', 'mountPath': '/etc/shadow',    'subPath': 'shadow' }
             # add group
             volumes['group']       = { 'name': 'config-group', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['group'] = { 'name': 'config-group', 'mountPath': '/etc/group', 'subPath': 'group', 'readOnly': True }
+            volumes_mount['group'] = { 'name': 'config-group', 'mountPath': '/etc/group',       'subPath': 'group' }
                   
-
-
-
         #
         # mount secret in /var/secrets/abcdesktop
         # always add vnc secret for 'pod_desktop'
@@ -1593,9 +1615,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 volumes['home'].update( { 'persistentVolumeClaim': { 'claimName': oc.od.settings.desktop['persistentvolumeclaim'] } } )
 
             subpath_name = oc.auth.namedlib.normalize_name( userinfo.name )
-            volumes_mount['home'] = {   'name'      : volume_home_name,                                 # home + userid
+            volumes_mount['home'] = {   'name'      : volume_home_name,                          # home + userid
                                         'mountPath' : oc.od.settings.getballoon_homedirectory(), # /home/balloon
-                                        'subPath'   : subpath_name                                      # userid
+                                        'subPath'   : subpath_name                               # userid
             }
             self.logger.debug( 'volume mount : %s %s', 'home', volumes_mount['home'] )
             self.logger.debug( 'volumes      : %s %s', 'home', volumes['home'] )
@@ -1849,17 +1871,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret.create( authinfo, userinfo, data=userinfo )
                 self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
-        # create /etc/passwd, /etc/group and /etc/shadow configmap entries
-        self.logger.debug('localaccount_configmap.create creating')
-        localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
         localaccount_data = authinfo.get_localaccount()
-        localaccount_configmap_name = localaccount_configmap.get_name(userinfo=userinfo)
-        createdconfigmap = localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
-        if not isinstance( createdconfigmap, client.models.v1_config_map.V1ConfigMap):
-            self.logger.error((f"cannot create configmap localaccount {localaccount_configmap_name}"))
-            if allow_exception is True: 
-                raise Exception(f"cannot create configmap localaccount {localaccount_configmap_name}")
-        self.logger.debug('localaccount_configmap.create created')
+        if isinstance( localaccount_data, dict ) :
+            # create /etc/passwd, /etc/group and /etc/shadow configmap entries
+            self.logger.debug('localaccount_configmap.create creating')
+            localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
+            localaccount_configmap_name = localaccount_configmap.get_name(userinfo=userinfo)
+            createdconfigmap = localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
+            if not isinstance( createdconfigmap, client.models.v1_config_map.V1ConfigMap):
+                self.logger.error((f"cannot create configmap localaccount {localaccount_configmap_name}"))
+                if allow_exception is True: 
+                    raise Exception(f"cannot create configmap localaccount {localaccount_configmap_name}")
+            self.logger.debug('localaccount_configmap.create created')
 
         # for each auth protocol enabled
         self.logger.debug('secret.create creating')
