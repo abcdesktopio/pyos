@@ -13,17 +13,21 @@
 
 import logging
 import cherrypy		
-from oc.cherrypy import Results
-import oc.od.settings
-from oc.od.services import services 
-from oc.od.base_controller import BaseController
-import oc.od.janus
 
+import oc.od.janus
+import oc.od.tracker
+import oc.logging
 import oc.lib
 
+from oc.od.settings import desktop
+from oc.od.janus import ODJanusCluster
+from oc.cherrypy import Results
+from oc.od.services import services 
+from oc.od.base_controller import BaseController
 
 logger = logging.getLogger(__name__) 
 
+@oc.logging.with_logger()
 class CoreController(BaseController):
 
     '''
@@ -56,17 +60,13 @@ class CoreController(BaseController):
         callbackurl = None  # reserved for futur usage 
          
         if provider == 'colors' :
-            id = oc.od.settings.desktop['defaultbackgroundcolors']
-
-        elif provider == 'menuconfig':            
-            id = oc.od.settings.desktop['menuconfig']
-
+            id = desktop['defaultbackgroundcolors']
+        elif provider == 'menuconfig':    
+            id = desktop['menuconfig']
         elif provider == 'tracker' :
-            import oc.od.tracker
             id = oc.od.tracker.jiraclient().isenable()
-
         elif provider == 'webrtc':
-            id = isinstance( services.webrtc, oc.od.janus.ODJanusCluster )
+            id = isinstance( services.webrtc, ODJanusCluster )
 
         return { 'id': id, 'callbackurl': callbackurl }
 
