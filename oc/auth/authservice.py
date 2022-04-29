@@ -181,10 +181,11 @@ class AuthInfo(object):
         return self.claims.get(key)
 
     def get_localaccount(self):
+        localaccount = None
         if isinstance( self.claims, dict ):
             if isinstance( self.claims.get('environment'), dict ):
-                return self.claims.get('environment').get('localaccount')
-        return {}
+                localaccount = self.claims.get('environment').get('localaccount')
+        return localaccount
 
     def get_secrets(self):
         local_secrets = {}
@@ -1456,6 +1457,13 @@ class ODRoleProviderBase(object):
 @oc.logging.with_logger()
 class ODAuthProviderBase(ODRoleProviderBase):
     def __init__(self, manager, name, config):
+        """_summary_
+
+        Args:
+            manager (ODAuthManagerBase): ODAuthManager for this provider
+            name (str): name of the provider, must be uniqu for a manager
+            config (dict): provider config dict
+        """
         self.name = name
         self.manager = manager
         self.type = config.get('type', self.name)
@@ -1469,7 +1477,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.showclientdata = config.get('showclientdata', True )
         self.default_user_if_not_exist = config.get('defaultuser', 'balloon' )
         self.default_passwd_if_not_exist = config.get('defaultpassword', 'lmdpocpetit' )
-
+        self.auth_protocol = config.get('auth_protocol', { 'localaccount': False } )
        
     def authenticate(self, **params):
         raise NotImplementedError()
@@ -1478,10 +1486,14 @@ class ODAuthProviderBase(ODRoleProviderBase):
         raise NotImplementedError()
 
     def getclientdata(self):
-        clientdata = { 
-            'name': self.name, 
-            'caption': self.caption, 
-            'displayname': self.displayname
+        """getclientdata
+            Filter data to the web client
+        Returns:
+            dict : config dict for the javascript web client auth 
+        """
+        clientdata = {  'name': self.name, 
+                        'caption': self.caption, 
+                        'displayname': self.displayname
         }
         return clientdata
 
@@ -1512,8 +1524,11 @@ class ODAuthProviderBase(ODRoleProviderBase):
     
     def createauthenv(self, userid, password):
         self.logger.debug('createauthenv')
-        dict_hash = self.generateLocalAccount( user=userid, password=password ) 
-        default_authenv = { 'localaccount' : dict_hash }
+        default_authenv = {}
+        if self.auth_protocol.get('localaccount') is True:
+            dict_hash = self.generateLocalAccount( user=userid, password=password ) 
+            default_authenv.update( { 'localaccount' : dict_hash } )
+
         return default_authenv
 
     def generateRawCredentials(self, userid, password, domain=None ):
@@ -2209,36 +2224,35 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
 
     def createauthenv(self, userid, password):
-        default_authenv = {}
+        
+        # 
+        # if self.auth_protocol.get('localaccount') is True
+        # add self.generateLocalAccount( user=userid, password=password ) 
+        default_authenv = super().createauthenv(userid, password)
 
-        dict_hash = self.generateLocalAccount( user=userid, password=password ) 
-        default_authenv.update( { 'localaccount' : dict_hash } )
-        d = self.generateRawCredentials( userid, password )
-        if not isinstance( self.auth_protocol, dict):
-            # nothing to do 
-            self.logger.info( 'auth_protocol is not set, authenv is default localaccount' )
-            return default_authenv
-
+        # if kerberos is enabled
         if self.auth_protocol.get('kerberos') is True:
             try:
                 dict_hash = self.generateKerberosKeytab( userid, password )
                 if isinstance( dict_hash, dict ): 
-                    default_authenv.update( { 'kerberos' : {    'PRINCIPAL'   : userid,
-                                                                'REALM' : self.get_kerberos_realm(),
-                                                                **dict_hash } } )
+                    default_authenv.update( { 'kerberos' : { 'PRINCIPAL'   : userid,
+                                                             'REALM' : self.get_kerberos_realm(),
+                                                              **dict_hash } } )
             except Exception as e:
                 self.logger.error( 'generateKerberosKeytab failed, authenv can not be completed' )
         
+        # if ntlm is enabled
         if self.auth_protocol.get('ntlm') is True :
             try:
                 dict_hash = self.generateNTLMhash(password)
                 if isinstance( dict_hash, dict ):
-                    default_authenv.update( { 'ntlm' : {    'NTLM_USER'   : userid,
-                                                            'NTLM_DOMAIN' : self.domain,
-                                                            **dict_hash } } )
+                    default_authenv.update( { 'ntlm' : { 'NTLM_USER'   : userid,
+                                                         'NTLM_DOMAIN' : self.domain,
+                                                          **dict_hash } } )
             except Exception as e:
                 self.logger.error( 'generateNTLMhash failed, authenv can not be completed' )
 
+        # if cntlm is enabled
         if self.auth_protocol.get('cntlm') is True :
             try:
                 dict_hash = self.generateCNTLMhash( userid, password, self.domain)
@@ -2249,6 +2263,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             except Exception as e:
                 self.logger.error( 'generateCNTLMhash failed, authenv can not be completed' )
 
+        # if citrix is enabled
         if self.auth_protocol.get('citrix') is True :
             try:
                 dict_hash = self.generateCitrixAllRegionsini( username=userid, password=password, domain=self.domain) 
