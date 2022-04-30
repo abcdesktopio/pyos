@@ -19,7 +19,7 @@ import oc.od.tracker
 import oc.logging
 import oc.lib
 
-from oc.od.settings import desktop
+from oc.od.settings import desktop, menuconfig
 from oc.od.janus import ODJanusCluster
 from oc.cherrypy import Results
 from oc.od.services import services 
@@ -60,9 +60,9 @@ class CoreController(BaseController):
         callbackurl = None  # reserved for futur usage 
          
         if provider == 'colors' :
-            id = desktop['defaultbackgroundcolors']
+            id = desktop.get('defaultbackgroundcolors')
         elif provider == 'menuconfig':    
-            id = desktop['menuconfig']
+            id = menuconfig
         elif provider == 'tracker' :
             id = oc.od.tracker.jiraclient().isenable()
         elif provider == 'webrtc':
