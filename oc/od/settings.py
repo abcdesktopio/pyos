@@ -920,7 +920,7 @@ def init_dock():
     dock = gconfig.get('dock', {})
     for key in dock.keys():
         filename = dock[key].get( 'icon' )
-        dock[key]['icon_data'] = make_b64data_from_iconfile( filename )
+        dock[key]['icondata'] = make_b64data_from_iconfile( filename )
     logger.info("default user dock %s ", str( dock ))
 
 
