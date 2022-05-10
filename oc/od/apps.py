@@ -309,6 +309,16 @@ class ODApps:
 
         # Read all data came from Labels images value
         imageid = repoTags[0]
+      
+        # inspect the docker image
+        inspect_dict = ODInfra().inspectimage( imageid )
+        # read the CMD with fallback for compatibiliy with old version release
+        cmd = inspect_dict.get('Config').get('Cmd', ['/bin/sh', '-c', '/composer/appli-dockerentrypoint.sh'] )
+        # read WORKING with fallback for compatibiliy with old version release
+        workingdir = inspect_dict.get('Config').get('WorkingDir', oc.od.settings.getballoon_homedirectory() ) 
+        # read USER with fallback for compatibiliy with old version release
+        user = inspect_dict.get('Config').get('User', oc.od.settings.getballoon_name() ) 
+
         desktopfile = labels.get('oc.desktopfile')
         icon = labels.get('oc.icon')
         icondata = labels.get('oc.icondata')
@@ -327,14 +337,14 @@ class ODApps:
         usedefaultapplication = labels.get('oc.usedefaultapplication')
         execmode = labels.get('oc.execmode')
         run_inside_pod = labels.get('oc.run_inside_pod', False)
-       
+
         if usedefaultapplication is not None:
             usedefaultapplication = json.loads(usedefaultapplication)
 
         # safe load convert json data json
         rules = safe_load_label_json( imageid, labels, 'oc.rules' )
         if rules:
-            logger.debug( '%s has rules %s', name, rules )
+            self.logger.debug( '%s has rules %s', name, rules )
         acl   = safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
         secrets_requirement = safe_load_label_json( imageid, labels, 'oc.secrets_requirement' )
 
@@ -365,6 +375,9 @@ class ODApps:
 
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
+                'cmd': cmd,
+                'workingdir': workingdir,
+                'user': user,
                 'sha_id': sha_id,
                 'id': imageid,
                 'rules' : rules,
