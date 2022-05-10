@@ -91,12 +91,16 @@ class ODDockerWatcher:
             access_userid   = attributes.get('access_userid')
             access_type     = attributes.get('access_type')
             name            = attributes.get('oc.name')
+
             # skip not abcdeskop container notification 
-            if access_userid is None or  access_type is None or name is None :
+            if  not isinstance(access_userid, str) or \
+                not isinstance(access_type, str) or \
+                not isinstance(name, str) :
                 return
-            message = "Out of memory for application {}".format(  name )
+
+            message = f"Out of memory for application {name}"
             data = { 'status':  event.get('status'), 
-                     'message': message, 
+                     'message': f"Out of memory for application {name}", 
                      'icon':    attributes.get('oc.icon'), 
                      'image':   attributes.get('image'), 
                      'launch':  attributes.get('oc.launch'), 
@@ -118,18 +122,23 @@ class ODDockerWatcher:
             access_type     = attributes.get('access_type')
             name            = attributes.get('oc.name')
             exitcode        = attributes.get('exitCode')
+            
             # skip not abcdeskop container notification 
-            if access_userid is None or  access_type is None or name is None :
+            if  not isinstance(access_userid, str) or \
+                not isinstance(access_type, str) or \
+                not isinstance(name, str) :
                 return
+
             # if exit code is zero
             # skip user notification 
             if int(exitcode) == 0:
                 return
 
-            message = "application {} die exit code {}".format(  name, exitcode )
+            message = f"application {name} die exit code {exitcode}"
             data = { 'status':  event.get('status'), 
                      'message': message, 
                      'icon':    attributes.get('oc.icon'), 
+                     'icondata':    attributes.get('oc.icondata'), 
                      'image':   attributes.get('image'), 
                      'launch':  attributes.get('oc.launch'), 
                      'name':    name }
