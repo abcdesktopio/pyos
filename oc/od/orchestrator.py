@@ -786,7 +786,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # connnect to the dockerd 
         infra = self.createInfra( myDesktop.nodehostname )
-       
+        # get desktop 
         desktop = infra.getcontainer( myDesktop.container_id )
 
         # get volunebind from the storage container if exist else 
@@ -811,7 +811,10 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # load env dict from configuration file
         env = oc.od.settings.desktop['environmentlocal'].copy()
-        
+        # overwrite 'HOME' if app set a specific value 
+        if isinstance( app.get('home'), str ):
+            env['HOME'] = app.get('home')
+
         # update env with 
         #     * user's lang value 
         #     * XAUTH_KEY
@@ -830,14 +833,15 @@ class ODOrchestrator(ODOrchestratorBase):
                         'LC_IDENTIFICATION' : lang,
                         'PARENT_ID' 	    : desktop.id, 
                         'PARENT_HOSTNAME'   : self.nodehostname,
-                        'XAUTH_KEY':          myDesktop.xauthkey,
-                        'BROADCAST_COOKIE'   : myDesktop.broadcast_cookie
+                        'XAUTH_KEY'         : myDesktop.xauthkey,
+                        'BROADCAST_COOKIE'  : myDesktop.broadcast_cookie,
+                        'PULSEAUDIO_COOKIE' : myDesktop.pulseaudio_cookie
         } )
 
         # Add specific vars      
         timezone = kwargs.get('timezone')
-        if type(timezone) is str and len(timezone) > 0:     env['TZ'] = timezone
-        if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
+        if isinstance(timezone,str) and len(timezone) > 0:     env['TZ'] = timezone
+        if isinstance(userargs,str) and len(userargs) > 0:     env['APPARGS'] = userargs
         # if hasattr(authinfo, 'data'):                       env.update(authinfo.data.get('environment', {}))
         
         # container name
