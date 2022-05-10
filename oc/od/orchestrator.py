@@ -839,8 +839,6 @@ class ODOrchestrator(ODOrchestratorBase):
         if type(timezone) is str and len(timezone) > 0:     env['TZ'] = timezone
         if type(userargs) is str and len(userargs) > 0:     env['APPARGS'] = userargs
         # if hasattr(authinfo, 'data'):                       env.update(authinfo.data.get('environment', {}))
-
-        command = '/composer/appli-docker-entrypoint.sh'
         
         # container name
         # DO NOT USE TOO LONG NAME for container name  
@@ -918,6 +916,7 @@ class ODOrchestrator(ODOrchestratorBase):
                 'pid_mode'      : pid_mode
         } )
 
+
          # dump host config berfore create   
         self.logger.info('application hostconfig=%s', host_config )
 
@@ -925,9 +924,10 @@ class ODOrchestrator(ODOrchestratorBase):
         appinfo = infra.createcontainer(
             image = app['id'],
             name  =  containername,
-            command = command,
+            working_dir = app['workingdir'],
+            command = app['cmd'],
             environment = env,
-            user = oc.od.settings.getballoon_name(),
+            user = app['user'],
             network_disabled = network_disabled,
             labels = {                
                 'access_type'           : authinfo.provider,
@@ -1319,8 +1319,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #    self.default_volumes['home']      = { 'name': 'home', 'hostPath': { 'path': '/var/run/abcdesktop/pods/home' } }
             #    self.default_volumes_mount['home']= { 'name': 'home', 'mountPath': '/home/balloon', 'subPathExpr': '$(POD_NAME)' }
             # else:
+
             self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
             self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
+
+            self.default_volumes['x11unix'] = { 'name': 'x11unix',  'emptyDir': { 'medium': 'Memory' } }
+            self.default_volumes_mount['x11unix'] = { 'name': 'x11unix',  'mountPath': '/tmp/.X11-unix' }
 
         except Exception as e:
             self.bConfigure = False
@@ -1526,6 +1530,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # set tmp volume
             volumes['tmp']       = self.default_volumes['tmp']
             volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
+            volumes['x11unix']   = self.default_volumes['x11unix']
+            volumes_mount['x11unix'] = self.default_volumes_mount['x11unix'] 
 
         #
         # shm volume is shared between all container inside the desktop pod
