@@ -31,6 +31,7 @@ import oc.od.desktop
 
 import subprocess
 import threading
+import json
 
 from docker.models.images               import Image
 from docker.models.containers           import Container    # only for type
