@@ -39,7 +39,7 @@ class ODApps:
         self.cached_image_counter = 0
         self.public_attr_list   = [ 
             'id',           'launch',       'name',         
-            'icon',         'icon_data',       
+            'icon',         'icondata',       
             'keyword',      'uniquerunkey',     
             'cat',          'args',         'execmode',     'showinview',           'displayname',  
             'mimetype',     'path',         'desktopfile',  'executablefilename',   'secrets_requirement' ]
@@ -313,18 +313,19 @@ class ODApps:
         # inspect the docker image
         inspect_dict = ODInfra().inspectimage( imageid )
         # read the CMD with fallback for compatibiliy with old version release
-        cmd = inspect_dict.get('Config').get('Cmd', ['/bin/sh', '-c', '/composer/appli-dockerentrypoint.sh'] )
+        cmd = inspect_dict.get('Config').get('Cmd', '/composer/appli-dockerentrypoint.sh' )
         # read WORKING with fallback for compatibiliy with old version release
         workingdir = inspect_dict.get('Config').get('WorkingDir', oc.od.settings.getballoon_homedirectory() ) 
         # read USER with fallback for compatibiliy with old version release
         user = inspect_dict.get('Config').get('User', oc.od.settings.getballoon_name() ) 
-
+        # read oc specific value
         desktopfile = labels.get('oc.desktopfile')
         icon = labels.get('oc.icon')
         icondata = labels.get('oc.icondata')
         keyword = labels.get('oc.keyword')
         cat = labels.get('oc.cat')
         launch = labels.get('oc.launch')
+        home = labels.get('oc.home')
         name = labels.get('oc.name')
         args = labels.get('oc.args')
         uniquerunkey = labels.get('oc.uniquerunkey')
@@ -347,6 +348,7 @@ class ODApps:
             self.logger.debug( '%s has rules %s', name, rules )
         acl   = safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
         secrets_requirement = safe_load_label_json( imageid, labels, 'oc.secrets_requirement' )
+       
 
         if secrets_requirement is not None: 
             # type of secrets_requirement must be list
@@ -375,6 +377,7 @@ class ODApps:
 
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
+                'home': home,
                 'cmd': cmd,
                 'workingdir': workingdir,
                 'user': user,
@@ -385,7 +388,7 @@ class ODApps:
                 'launch': launch,
                 'name': name,
                 'icon': icon,
-                'icon_data' : icondata,
+                'icondata' : icondata,
                 'keyword': keyword,
                 'uniquerunkey': uniquerunkey,
                 'cat': cat,
