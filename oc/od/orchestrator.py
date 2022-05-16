@@ -1270,14 +1270,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #   KUBERNETES_SERVICE_PORT_HTTPS=443
             #
             if os.getenv('KUBERNETES_SERVICE_HOST') and os.getenv('KUBERNETES_SERVICE_PORT') :
-                self.logger.debug( 'env has detected $KUBERNETES_SERVICE_HOST and $KUBERNETES_SERVICE_PORT' )
-                self.logger.debug( 'config.load_incluster_config start')
+                # self.logger.debug( 'env has detected $KUBERNETES_SERVICE_HOST and $KUBERNETES_SERVICE_PORT' )
+                # self.logger.debug( 'config.load_incluster_config start')
                 config.load_incluster_config() # set up the client from within a k8s pod
-                self.logger.debug( 'config.load_incluster_config done')
+                self.logger.debug( 'config.load_incluster_config kubernetes mode done')
             else:
-                self.logger.debug( 'config.load_kube_config not in cluster mode')
+                # self.logger.debug( 'config.load_kube_config not in cluster mode')
                 config.load_kube_config()
-                self.logger.debug( 'config.load_kube_config done')
+                self.logger.debug( 'config.load_kube_config docker mode done')
             
             # 
             # previous line is 
@@ -1557,14 +1557,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             config_map_auth_name = configmap_localaccount.get_name( userinfo=userinfo )
             # add passwd
             volumes['passwd']       = { 'name': 'config-passwd', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['passwd'] = { 'name': 'config-passwd', 'mountPath': '/etc/passwd',    'subPath': 'passwd' }
+            volumes_mount['passwd'] = { 'name': 'config-passwd', 'mountPath': '/etc/passwd', 'subPath': 'passwd' }
             # add shadow
             volumes['shadow']       = { 'name': 'config-shadow', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['shadow'] = { 'name': 'config-shadow', 'mountPath': '/etc/shadow',    'subPath': 'shadow' }
+            volumes_mount['shadow'] = { 'name': 'config-shadow', 'mountPath': '/etc/shadow', 'subPath': 'shadow' }
             # add group
             volumes['group']       = { 'name': 'config-group', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['group'] = { 'name': 'config-group', 'mountPath': '/etc/group',       'subPath': 'group' }
-                  
+            volumes_mount['group'] = { 'name': 'config-group', 'mountPath': '/etc/group', 'subPath': 'group' }
+        else:
+            self.logger.debug(f"Configmap localaccount is not defined" )
+
         #
         # mount secret in /var/secrets/abcdesktop
         # always add vnc secret for 'pod_desktop'
