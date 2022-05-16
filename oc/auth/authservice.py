@@ -1717,7 +1717,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.timeout = config.get('timeout', 20)
         self.connect_timeout = config.get('connect_timeout', 5)
         self.use_ssl = config.get('secure', False) is True
-        self.port = config.get('port') # if port is None ldap3.Server use default port 389 and 636
+        self.port = config.get('port') # if port is None ldap3.Server use default port 389 or 636
         self.useridattr = config.get('useridattr', 'cn')
         self.usercnattr = config.get('usercnattr', 'cn') 
         self.useruidattr = config.get('useruidattr', 'uid')
@@ -1824,9 +1824,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # validate can raise exception 
         # like invalid credentials
         (userdn, conn) = self.validate(userid, password)   
-        claims =   { 'environment': self.createauthenv(userid, password) }
-        data =  { 'userid': userid, 'dn': userdn }
-
+        claims = { 'environment': self.createauthenv(userid, password) }
+        data = { 'userid': userid, 'dn': userdn }
         claims.update( { 'userid': userid, 'password': password } )
         
         return AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
