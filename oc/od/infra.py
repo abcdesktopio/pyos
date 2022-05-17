@@ -634,10 +634,8 @@ class ODInfra(object):
     def inspectimage(self, name ):
         return  self.getdockerClientAPI().inspect_image(image=name)
 
-        
     def findimages(self, name=None, filters={'dangling': False, 'label': 'oc.type=app'} ):
         return  self.getdockerClientAPI().images(name=name, filters=filters)
-
     
     def resumeorcreatenewnetwork(self, name, labels=None):
         net = None
