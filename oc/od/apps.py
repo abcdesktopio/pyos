@@ -96,11 +96,12 @@ class ODApps:
         return self.build_image_counter
 
     def cached_applist(self, bRefresh=False):
-        if bRefresh or len(self.myglobal_list) == 0:
+        self.logger.debug('')
 
+        # if force refresh or myglobal_list is empty 
+        if bRefresh or len(self.myglobal_list) == 0:
             # Build the AppList
             mybuild_applist = self.build_applist()
-
             self.lock.acquire()
             try:
                 self.myglobal_list = mybuild_applist
@@ -265,6 +266,7 @@ class ODApps:
             filtered_app_dict[key] = newapp
         return filtered_app_dict
 
+
     def imagetoapp( self, image ):
         """[imagetoapp]
             return an abcdesktop image object from a docker image
@@ -280,8 +282,8 @@ class ODApps:
                 try:
                     load_json = json.loads(data)
                 except Exception as e:
-                    logger.error( 'image:%s invalid label=%s, json format %s, skipping label', name, label, e)
-                    logger.error( 'image:%s label=%s data=%s', name, label, data )
+                    self.logger.error( 'image:%s invalid label=%s, json format %s, skipping label', name, label, e)
+                    self.logger.error( 'image:%s label=%s data=%s', name, label, data )
             return load_json 
 
         def safe_secrets_requirement_prefix( secrets_requirement, namespace ):
@@ -293,7 +295,7 @@ class ODApps:
                        secret =  muststartwith + secret
                     mylist.append( secret )
                 else:
-                    logger.error( 'skipping bad data in secrets_requirement')
+                    self.logger.error( 'skipping bad data in secrets_requirement')
             return mylist
 
         myapp = None
@@ -412,7 +414,7 @@ class ODApps:
         return myapp
  
     def build_applist(self):
-        logger.debug('')
+        self.logger.debug('')
         mydict = {}
         localimage_list = ODInfra().findimages( filters={'dangling': False, 'label': 'oc.type=app'} )
         for image in localimage_list:
@@ -421,7 +423,7 @@ class ODApps:
                 if type(myapp) is dict:
                     mydict[ myapp['id'] ] = myapp
             except Exception as e:
-                logger.error('Image id:%s failed invalid value: %s', image, e)
+                self.logger.error('Image id:%s failed invalid value: %s', image, e)
         return mydict
 
     def add_image( self, image_name ):
@@ -443,7 +445,7 @@ class ODApps:
                     self.myglobal_list[ myapp['id'] ] = myapp
                 finally:
                     self.lock.release()
-                logger.debug( 'updated global applist %s', myapp['id'])
+                self.logger.debug( 'updated global applist %s', myapp['id'])
         return myapp
 
 
@@ -460,7 +462,7 @@ class ODApps:
                     bDeleted = True
                     break
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
         finally:
             self.lock.release()
         if not bDeleted :
