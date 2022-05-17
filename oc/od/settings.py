@@ -747,8 +747,8 @@ def init_controllers():
     # local net is defined as list_local_subnet
     list_local_subnet = [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8', '169.254.0.0/16', '127.0.0.0/8' ]
     controllers = gconfig.get(  'controllers', \
-                                { 'manager':         { 'permitip':    list_local_subnet },
-                                  'StoreController': { 'wrapped_key': {} } 
+                                { 'ManagerController': { 'permitip':    list_local_subnet },
+                                  'StoreController':   { 'wrapped_key': {} } 
                                 } )
 
     if desktop['environmentlocal'].get('SET_DEFAULT_COLOR'):
