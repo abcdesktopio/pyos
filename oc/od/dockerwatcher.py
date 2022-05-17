@@ -54,8 +54,8 @@ class ODDockerWatcher:
             # 'scope': 'local', 
             # 'time': 1614588892, 
             # 'timeNano': 1614588892647421832}
-            image_id = event.get('id')
-            logger.info('new event_action %s call cached_applist(True)', event_action )
+            imageid = event.get('id')
+            logger.info(f"new event_action {event_action} image {imageid}" )
             # oc.od.services.services.apps.del_image( image_sha_id=image_id )
             newapplist = oc.od.services.services.apps.cached_applist(True)
             if isinstance( newapplist, dict ):
