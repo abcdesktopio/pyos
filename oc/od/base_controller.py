@@ -33,7 +33,7 @@ class BaseController(object):
           self.init_ipfilter( config )
 
      def init_ipfilter( self, config ):
-          if type(config) is not dict:
+          if not isinstance(config,dict):
                return
 
           ipfilterlist = self.config.get( 'permitip')
@@ -54,7 +54,11 @@ class BaseController(object):
                return (auth, user) if the user is identified and authenticated. 
                else raise WebAppError('User is not identified') 
                or   raise WebAppError('User is not authenticated')
+               or   raise WebAppError('Http request is banned')
           '''
+
+          if self.isban_ip():
+               raise WebAppError('Http request is banned')
           
           if not services.auth.isauthenticated:
                raise WebAppError('User is not authenticated')
@@ -66,6 +70,17 @@ class BaseController(object):
           auth = services.auth.auth
 
           return (auth, user)
+
+
+     def ban_ip( self, ipAddr ):
+          if not isinstance( ipAddr, str):
+               ipAddr = getclientipaddr()
+          services.fail2ban.fail_ip( ipAddr )
+
+     def isban_ip( self, ipAddr ):
+          if not isinstance( ipAddr, str):
+               ipAddr = getclientipaddr()
+          return services.fail2ban.isban_ip( ipAddr )
 
      def is_ipsource_private(self):
           '''
