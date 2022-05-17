@@ -5,7 +5,6 @@ import oc.od.orchestrator
 import oc.od.dockerwatcher
 import oc.od.imagewatcher
 
-
 logger = logging.getLogger(__name__)
 
 class ODServices(object):
@@ -26,6 +25,7 @@ class ODServices(object):
         self.apps = None
         self.prelogin = None
         self.logmein = None
+        self.fail2ban = None
 
     def __del__(self):
         # stop thread dockerwatcher if instance exists
@@ -57,7 +57,22 @@ class ODServices(object):
         self.init_webrtc()
         self.init_prelogin()
         self.init_logmein()
+        self.init_fail2ban()
 
+
+    def init_fail2ban( self ):
+        import oc.od.fail2ban
+        self.fail2ban = oc.od.fail2ban.ODFail2ban( mongoconfig=settings.mongoconfig, fail2banconfig={} )
+        self.fail2ban.fail_ip( 'toto' )
+        self.fail2ban.isban_ip( 'toto' )
+        self.fail2ban.fail_ip( 'toto' )
+        self.fail2ban.isban_ip( 'toto' )
+        self.fail2ban.fail_login( 'toto' )
+        self.fail2ban.isban_login( 'toto' )
+        self.fail2ban.fail_login( 'toto' )
+        self.fail2ban.isban_login( 'toto' )
+        toto = self.fail2ban.listban_ip()
+        tito = 4
 
     def init_webrtc(self):
         """init parameters to the janus webrtc gateway
