@@ -52,10 +52,9 @@ class AuthController(BaseController):
         try:
             self.oauth_html_redirect_page = oc.lib.load_local_file(filename=AuthController.redirect_page_local_filename)
         except Exception as e:
-            self.logger.error( 'FATAL ERROR %s file is missing', AuthController.redirect_page_local_filename)
-            self.logger.error( 'http auth request will failed')
-            self.logger.error( e )
-            raise ValueError( 'missing file ' + AuthController.redirect_page_local_filename)
+            self.logger.error( f"FATAL ERROR {AuthController.redirect_page_local_filename} file is missing")
+            self.logger.error( f"http auth request will failed {e}" )
+            raise  ValueError( f"missing file {AuthController.redirect_page_local_filename}")
 
 
     @cherrypy.expose
@@ -264,8 +263,8 @@ class AuthController(BaseController):
 
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
-                # todo: black list the ip source ?
                 self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
+                self.fail_ip( ipsource ) # ban the ipsource addr
                 if isinstance( services.prelogin.prelogin_url_redirect_on_error, str ):
                     raise cherrypy.HTTPRedirect( services.prelogin.prelogin_url_redirect_on_error )
                 else:     
@@ -390,6 +389,7 @@ class AuthController(BaseController):
 
         if not services.prelogin.request_match( ipsource ):
             self.logger.error('prelogin invalid network source error ipsource=%s', ipsource)
+            self.fail_ip( ipsource ) # ban ipsource addr
             raise cherrypy.HTTPError(400, 'Invalid network source error')
         
         # if http request has services.prelogin.http_attribut
@@ -473,6 +473,7 @@ class AuthController(BaseController):
 
         if not services.logmein.request_match( ipsource ):
             self.logger.error('logmein invalid network source error ipsource=%s', ipsource)
+            services.fail2ban.fail_ip( ipsource )
             raise cherrypy.HTTPError(400, 'logmein invalid network source error')
 
         # use the userid in querystring parameter
@@ -589,5 +590,7 @@ class AuthController(BaseController):
             return Results.success( f"Authentication successful {str(user.name)}", 
                                     {   'expire_in': oc.od.settings.jwt_config_user.get('exp'),
                                         'jwt_user_token': jwt_user_token } )
+        else:
+           self.ban_ip
      
         return Results.error(message='Invalid user')
