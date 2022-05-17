@@ -1895,6 +1895,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if allow_exception is True: 
                     raise Exception(f"cannot create configmap localaccount {localaccount_configmap_name}")
             self.logger.debug('localaccount_configmap.create created')
+        else:
+            self.logger.debug( 'no localaccount_data is defined, no localaccount_configmap')
 
         # for each auth protocol enabled
         self.logger.debug('secret.create creating')
