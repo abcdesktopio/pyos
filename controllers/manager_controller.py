@@ -17,11 +17,14 @@ import logging
 import cherrypy
 
 from oc.od.base_controller import BaseController
+from oc.cherrypy import WebAppError, getclientipaddr
 import oc.od.composer
 import oc.od.services
 import oc.cherrypy
 import oc.logging
 import distutils.util
+from oc.od.services import services
+
 
 logger = logging.getLogger(__name__)
 
@@ -95,3 +98,39 @@ class ManagerController(BaseController):
         garbaged = oc.od.composer.garbagecollector( expirein=nexpirein, force=force )
 
         return garbaged
+
+    # garbagecollector request is protected by is_permit_request()
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def ban_login(self, login ):
+        self.is_permit_request()
+        ban_login = services.fail2ban.ban_login( login )
+        return ban_login
+
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def ban_ipaddr(self, ipaddr ):
+        self.is_permit_request()
+        ban_ip = services.fail2ban.ban_ip( ipaddr )
+        return ban_ip
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def listban_ipaddr(self ):
+        self.is_permit_request()
+        listban_ip = services.fail2ban.listban_ip()
+        return listban_ip
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def listban_login(self ):
+        self.is_permit_request()
+        listban_login =  services.fail2ban.listban_login()
+        return listban_login
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def ipaddr(self ):
+        ipclient = getclientipaddr()
+        return ipclient
