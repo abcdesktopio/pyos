@@ -360,7 +360,7 @@ class ODAuthTool(cherrypy.Tool):
                 # skip the entry if not enabled
                 if not cfg.get('enabled', True):
                     continue
-                logger.info( 'Adding Auth manager %s', name)
+                self.logger.info( 'Adding Auth manager %s', name)
                 self.managers[name] = self.createmanager(name,cfg)
             except Exception as e:
                 self.logger.exception(e)
@@ -381,7 +381,7 @@ class ODAuthTool(cherrypy.Tool):
 
             if ctx.complete:
                 username = str(ctx.initiator_name)
-                logger.debug( 'Negotiate auth -> ' + username )
+                self.logger.debug( 'Negotiate auth -> ' + username )
                 return username, out_token
 
         return None, None 
@@ -406,17 +406,16 @@ class ODAuthTool(cherrypy.Tool):
             token = token[7:] 
             # if there is some data to decode
             if len(token) > 0 : 
-                try:
-                    # get the dict decoded token
-                    # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
-                    decoded_token = self.jwt.decode( token )
+               
+                # get the dict decoded token
+                # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
+                decoded_token = self.jwt.decode( token )
 
-                    # read user, roles, auth
-                    # Build a cache data to store value from decoded token into an AuthCache object
-                    authcache = AuthCache( decoded_token )
-                    authcache.markAuthDoneFromPreviousToken()
-                except jwt.exceptions.DecodeError as e:
-                    logger.error( e )
+                # read user, roles, auth
+                # Build a cache data to store value from decoded token into an AuthCache object
+                authcache = AuthCache( decoded_token )
+                authcache.markAuthDoneFromPreviousToken()
+
         return authcache
 
     @property
@@ -427,7 +426,10 @@ class ODAuthTool(cherrypy.Tool):
         if not hasattr(cherrypy.request, 'odauthcache') :  
             # attr is not found
             # parse_auth_request() will decode the cookie token 
-            cherrypy.request.odauthcache = self.parse_auth_request()                
+            self.logger.debug( f"current http request build cached odauthcache" ) 
+            cherrypy.request.odauthcache = self.parse_auth_request()    
+        else:
+            self.logger.debug( f"current http request has cached odauthcache" )            
         return cherrypy.request.odauthcache 
 
     @property
@@ -460,16 +462,19 @@ class ODAuthTool(cherrypy.Tool):
 
     @property
     def isauthenticated(self):  
+        self.logger.debug('')
         return self.current.isValidAuth()
     
     @property
     def isidentified(self):
-        is_valid_auth = self.current.isValidAuth()
-        if  is_valid_auth:
+        self.logger.debug('')
+        bReturn = False
+        if  self.isauthenticated:
             is_valid_user = self.current.isValidUser()
             if  is_valid_user:
-                return True
-        return False
+                bReturn = True
+        self.logger.debug(f"isidentified return {bReturn}")
+        return bReturn
         
         # return self.current.isValidAuth() and self.current.isValidUser()
         
@@ -491,7 +496,7 @@ class ODAuthTool(cherrypy.Tool):
         else:
             # for another class extended 
             cls = oc.pyutils.get_class(config.get('class', name))
-        logger.info( 'createmanager name=%s %s', name, cls )
+        self.logger.info( 'createmanager name=%s %s', name, cls )
         return cls(name, config)
  
     def findmanager(self, providername, managername=None):
@@ -640,7 +645,7 @@ class ODAuthTool(cherrypy.Tool):
 
         def isHttpHeader( headerdict ):
             if type(headerdict) is not dict:
-                logger.warning('invalid value type http header %s, dict is expected in rule', type(headerdict) )
+                self.logger.warning('invalid value type http header %s, dict is expected in rule', type(headerdict) )
                 return False  
 
             for header in headerdict.keys():
@@ -650,8 +655,8 @@ class ODAuthTool(cherrypy.Tool):
             return True
 
         def isBoolean( value ):
-            if type(value) is not bool:
-                logger.warning('invalid value type boolean %s, bool is expected in rule', type(value) )
+            if not isinstance(value, bool):
+                self.logger.warning('invalid value type boolean %s, bool is expected in rule', type(value) )
                 return False  
 
             return value
@@ -668,7 +673,7 @@ class ODAuthTool(cherrypy.Tool):
                 for g in groups:
                     if not isinstance( g, str):
                         continue
-                    logger.debug('isMemberOf %s, %s', m, g)
+                    self.logger.debug('isMemberOf %s, %s', m, g)
                     if m.lower().startswith(g.lower()):
                         return True
             return False
@@ -697,18 +702,18 @@ class ODAuthTool(cherrypy.Tool):
                 if equal :
                     return attribut_user_value.__eq__( equal )
             except Exception as e:
-                logger.error( str(e) ) 
+                self.logger.error( str(e) ) 
                 return False
             return False
 
-        logger.info('condition %s ', condition )
+        self.logger.info('condition %s ', condition )
         compiled_result = False
         if type(condition) is not dict :
             return False
 
         expected    = condition.get('expected')
         if type(expected) is not bool:
-            logger.warning('invalid value type %s bool is expected in rule', type(expected) )
+            self.logger.warning('invalid value type %s bool is expected in rule', type(expected) )
    
         # DO not change with lambda 
         # this is not a dummy code
@@ -749,7 +754,7 @@ class ODAuthTool(cherrypy.Tool):
                 try:
                     primaryGroup = int(primaryGroup)
                 except Exception as e:
-                    logger.error(   'invalid primarygroupid type convert value %s to int failed %s',
+                    self.logger.error(   'invalid primarygroupid type convert value %s to int failed %s',
                                     str(primaryGroup), 
                                     str(e))
 
@@ -758,7 +763,7 @@ class ODAuthTool(cherrypy.Tool):
                 if result == condition.get( 'expected'):
                     compiled_result = True
             else:
-                logger.error( 'invalid primarygroupid type int is expected, get %s', type(primaryGroup) )
+                self.logger.error( 'invalid primarygroupid type int is expected, get %s', type(primaryGroup) )
 
         attribut_dict = condition.get('attibut')
         if type(attribut_dict) is dict:
@@ -779,12 +784,12 @@ class ODAuthTool(cherrypy.Tool):
         conditions  = rule.get('conditions')   
         expected    = rule.get('expected')
         if type(expected) is not bool:
-            logger.warning('invalid value type %s bool is expected in rule', type(expected) )
+            self.logger.warning('invalid value type %s bool is expected in rule', type(expected) )
 
         results = []
         for condition in conditions :
             r = self.compiledcondition(condition, user, roles)
-            logger.debug('compiled_result=%s condition=%s', r, condition)
+            self.logger.debug('compiled_result=%s condition=%s', r, condition)
             results.append( r )
             
         if len(results) == 0:
@@ -944,7 +949,7 @@ class ODAuthTool(cherrypy.Tool):
         ( mgr_meta, provider_meta ) = self.get_metalogin_manager_provider()
         if mgr_meta is None or provider_meta is None:
             # no metaexplicit manager has been defined
-            logger.info( 'skipping metalogin, no metaexplicit manager or no metadirectory provider has been defined')
+            self.logger.info( 'skipping metalogin, no metaexplicit manager or no metadirectory provider has been defined')
             return self.login(provider, manager, **arguments)
 
         # 
@@ -954,7 +959,7 @@ class ODAuthTool(cherrypy.Tool):
             auth = provider_meta.authenticate( provider_meta.userid, provider_meta.password )  
         except Exception as e:
             # no authenticate 
-            logger.error( 'skipping metalogin, authenticate failed %s', str(e))
+            self.logger.error( 'skipping metalogin, authenticate failed %s', str(e))
             return self.login(provider, manager, **arguments)
 
         #
@@ -965,12 +970,12 @@ class ODAuthTool(cherrypy.Tool):
             metauser = provider_meta.getuserinfo( auth, **arguments ) 
         except Exception as e:
             # no user provider has been found
-            logger.error( 'skipping metalogin, no metauser getuserinfo  %s', str(e))
+            self.logger.error( 'skipping metalogin, no metauser getuserinfo  %s', str(e))
             return self.login(provider, manager, **arguments)
         if metauser is None:
             # no user provider has been found
             # an error occurs in meta directory query
-            logger.error( 'skipping metalogin, no metauser found' )
+            self.logger.error( 'skipping metalogin, no metauser found' )
             return self.login(provider, manager, **arguments)
        
         roles = provider_meta.getroles( auth, **arguments)
@@ -995,7 +1000,7 @@ class ODAuthTool(cherrypy.Tool):
         new_login = metauser.get( provider_meta.join_key_ldapattribut )
 
         if not isinstance( new_login, str ):
-            logger.debug( 'invalid object type %s', provider_meta.join_key_ldapattribut  )
+            self.logger.debug( 'invalid object type %s', provider_meta.join_key_ldapattribut  )
             return self.login(provider, manager, **arguments)
 
         providers_list = self.listprovider( manager_name='explicit' )
@@ -1003,14 +1008,14 @@ class ODAuthTool(cherrypy.Tool):
         new_provider = self.findproviderbydomainprefix( providers=providers_list, domain=new_domain ) 
 
         if new_provider is None:
-            logger.error( 'provider %s to authenticate %s is not defined', new_domain, new_userid )
+            self.logger.error( 'provider %s to authenticate %s is not defined', new_domain, new_userid )
             raise AuthenticationFailureError('Provider %s to authenticate %s is not defined' % (new_domain, new_userid) )
             # return self.login(provider, manager, **arguments)
 
-        logger.info( 'metadirectory translating user auth')
-        logger.info( 'metadirectory replay from provider %s->%s', provider_meta.name, new_provider.name )
-        logger.info( 'metadirectory replay from user %s->%s', str(arguments.get('userid')) , new_userid )
-        logger.info( 'metadirectory replay from domain %s->%s', provider_meta.domain, new_domain )
+        self.logger.info( 'metadirectory translating user auth')
+        self.logger.info( 'metadirectory replay from provider %s->%s', provider_meta.name, new_provider.name )
+        self.logger.info( 'metadirectory replay from user %s->%s', str(arguments.get('userid')) , new_userid )
+        self.logger.info( 'metadirectory replay from domain %s->%s', provider_meta.domain, new_domain )
 
         # update login with new data from meta directory
         arguments[ 'userid'   ] = new_userid
@@ -1056,7 +1061,7 @@ class ODAuthTool(cherrypy.Tool):
 
         for p in providers:
             if p.domain.upper() == domain :
-                logger.info( 'provider.name %s match for domain=%s', p.name, domain) 
+                self.logger.debug( 'provider.name %s match for domain=%s', p.name, domain) 
                 provider = p
                 break   
         
@@ -1108,7 +1113,7 @@ class ODAuthTool(cherrypy.Tool):
                 # provider is None
                 # can raise exception
                 # do everythings possible to find one provider
-                logger.info( f"provider is None, login try to find a provider using manager={str(manager)}" )
+                self.logger.info( f"provider is None, login try to find a provider using manager={str(manager)}" )
                 provider = self.logintrytofindaprovider( manager )
                 
             # look for an auth manager
@@ -1123,7 +1128,7 @@ class ODAuthTool(cherrypy.Tool):
                 raise AuthenticationFailureError('No authentication provided')
             
             # uncomment this line only to dump password in clear text format
-            # logger.debug( 'mgr.getuserinfo arguments=%s', arguments)   
+            # self.logger.debug( 'mgr.getuserinfo arguments=%s', arguments)   
             self.logger.debug( f"mgr.getuserinfo provider={str(provider)} start")          
             user = mgr.getuserinfo(provider, auth, **arguments)
             self.logger.debug( f"mgr.getuserinfo provider={str(provider)} done")  
@@ -1138,7 +1143,7 @@ class ODAuthTool(cherrypy.Tool):
             # user['userid'] = userid.upper()
             
             # uncomment this line only to see password in clear text format
-            # logger.debug( 'mgr.getroles arguments=%s', arguments) 
+            # self.logger.debug( 'mgr.getroles arguments=%s', arguments) 
             self.logger.debug( f"mgr.getroles provider={str(provider)} start")             
             roles = mgr.getroles(provider, auth, **arguments)
             self.logger.debug( f"mgr.getroles provider={str(provider)} stop") 
@@ -1264,13 +1269,13 @@ class ODAuthManagerBase(object):
         for name,cfg in config.get('providers',{}).items():
             if not cfg.get('enabled', True): 
                 continue
-            logger.info( 'Adding provider name %s ', name )
+            self.logger.info( 'Adding provider name %s ', name )
             provider = self.createprovider(name, cfg)
             try:
                 # add only instance ODAuthProviderBase or herited
                 self.add_provider( name, provider )    
             except Exception as e:
-                logger.exception(e) 
+                self.logger.exception(e) 
 
     def add_provider( self, name, provider ):
         """[add_provider]
@@ -1700,7 +1705,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.attrs = attrs            
 
     def __init__(self, manager, name, config={}):
-        logger.info('')
+        self.logger.info('')
         super().__init__(manager, name, config)
         self.type = 'ldap'
 
@@ -1740,9 +1745,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if self.auth_protocol.get('citrix'):
             self.citrix_all_regions = oc.lib.load_local_file( config.get('citrix_all_regions.ini' ) )
             if isinstance( self.citrix_all_regions, str):
-                logger.info( 'provider %s has enabled citrix, mustache file %s', name, config.get('citrix_all_regions.ini') )
+                self.logger.info( 'provider %s has enabled citrix, mustache file %s', name, config.get('citrix_all_regions.ini') )
             else:
-                logger.error( 'provider %s has disabled citrix, invalid entry citrix_all_regions.ini', name)
+                self.logger.error( 'provider %s has disabled citrix, invalid entry citrix_all_regions.ini', name)
 
         self.exec_timeout = config.get('exec_timeout', 10)
         self.tls_require_cert = config.get( 'tls_require_cert', False)
@@ -1900,7 +1905,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         ''' for example if all ldap servers are down or ''' 
         ''' if credentials are invalid ''' 
         # uncomment this line may dump password in clear text 
-        # logger.debug(locals())
+        # self.logger.debug(locals())
         conn = None
 
         # LDAP by itself doesn't place any restriction on the username
@@ -1925,7 +1930,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
    
     def getuserinfo(self, authinfo, **params):        
-        # logger.debug(locals()) # uncomment this line may dump password in clear text 
+        # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
         # authinfo.conn is ldap3.core.connection.Connection 
 
         if self.auth_only is True:
@@ -1993,7 +1998,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 krb5ccname = self.get_krb5ccname( userid )
                 # os.putenv( 'KRB5CCNAME', krb5ccname )
                 self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', userid, krb5ccname )
-                # logger.debug(locals()) # uncomment this line may dump password in clear text 
+                # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                 cred_store = {'ccache':  krb5ccname }
                 kerberos_principal_name = self.get_kerberos_principal( userid )
                 # If you specify user=, it is expected to be a Kerberos principal (though it appears you can omit the domain). 
@@ -2010,7 +2015,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # userid MUST be DOMAIN\\SAMAccountName format 
                 # call overwrited by bODAdAuthProvider:getconnection
                 self.logger.info( 'create Connection object ldap3.NTLM as %s', userid )
-                # logger.debug(locals()) # uncomment this line may dump password in clear text 
+                # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                 conn = ldap3.Connection( server_pool, user=userid, password=password, authentication=ldap3.NTLM, raise_exceptions=True  )
                 # bind to the ldap server
                 self.logger.debug( 'binding to the ldap server')
@@ -2020,7 +2025,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             if self.auth_type == 'SIMPLE':
                 # get the dn to bind 
                 userdn = self.getuserdnldapconnection(userid)
-                # logger.debug(locals()) # uncomment this line may dump password in clear text 
+                # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                 self.logger.info( 'create Connection object ldap3.SIMPLE as %s', userdn )
                 conn = ldap3.Connection( server_pool, user=userdn, password=password, authentication=ldap3.SIMPLE, raise_exceptions=True )
                 # bind to the ldap server
@@ -2108,14 +2113,14 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # do ntlm bind
                 if self.auth_type == 'NTLM':
                     # userid MUST be DOMAIN\\SAMAccountName format, call overwrited by bODAdAuthProvider:getconnection
-                    # logger.debug(locals()) # uncomment this line may dump password in clear text 
+                    # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.NTLM', str(server), userid )
                     conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, read_only=True, raise_exceptions=True )
                 # do textplain simple_bind_s 
                 if self.auth_type == 'SIMPLE':
                     # get the dn to bind 
                     userdn = self.getuserdnldapconnection(userid)
-                    # logger.debug(locals()) # uncomment this line may dump password in clear text 
+                    # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s  authentication=ldap3.SIMPLE', str(server), userdn )
                     conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
 
@@ -2167,7 +2172,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return self.search(conn, basedn, scope, filter, attrs, True)
 
     def search(self, conn, basedn, scope, filter=None, attrs=None, one=False):
-        logger.debug(locals())
+        self.logger.debug(locals())
         withdn = attrs is not None and 'dn' in (a.lower() for a in attrs)
         entries = []
         time_start = time.time()
@@ -2209,10 +2214,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 except UnicodeDecodeError as e:
                     # raw binary data
                     # Could be an raw binary JPEG data
-                    # logger.warning('Attribute %s not decoded as utf-8, use raw data type: %s exception:%s', name, type(item), e)
+                    # self.logger.warning('Attribute %s not decoded as utf-8, use raw data type: %s exception:%s', name, type(item), e)
                     pass
                 except Exception as e:
-                    logger.error('Attribute %s error to decode as utf-8, use raw data type: %s exception:%s', name, type(item), e)
+                    self.logger.error('Attribute %s error to decode as utf-8, use raw data type: %s exception:%s', name, type(item), e)
             items.append(item)
 
         return items[0] if len(items) == 1 else items
@@ -2328,7 +2333,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                                             creds=req_creds.creds,
                                                             usage="initiate", 
                                                             overwrite=True )
-            logger.debug( 'store_cred_into %s %s', krb5ccname, store_cred_result.usage )
+            self.logger.debug( 'store_cred_into %s %s', krb5ccname, store_cred_result.usage )
             # exported_cred = gssapi.raw.export_cred(req_creds.creds)
 
         return store_cred_result
@@ -2472,7 +2477,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     continue
                 # parse string format
                 # NTLM_KEY=v8+pDkRc41i8weIufYRhVBPSv=dqM
-                logger.info( 'Parsing %s', line )
+                self.logger.debug( 'Parsing %s', line )
                 try:
                     nv = line.index('=') # read the first entry of 
                     hashes[ line[ 0 : nv ] ] = line[ nv+1 : ]
@@ -2809,7 +2814,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     not self.refreshdcs_lock.locked() and   \
                     (time.time() - self.dcs_list_lastupdated > self.dcs_list_maxage)
         if bReturn is True:
-           logger.debug( 'dcslist has exprired' )
+           self.logger.debug( 'dcslist has expired' )
         return bReturn
 
 
@@ -2824,7 +2829,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
 
     def listprinter( self, filter, **params):
-        logger.info('')
+        self.logger.info('')
         printerlist = []
 
         userid     = params.get( 'userid', self.userid )
@@ -2834,20 +2839,20 @@ class ODAdAuthProvider(ODLdapAuthProvider):
            filter = '(&' + self.printer_query.filter + filter + ')'
         else:
            filter = self.printer_query.filter
-        logger.debug('filter %s', filter)
+        self.logger.debug('filter %s', filter)
         try:
-            # logger.debug('getconnection')
+            # self.logger.debug('getconnection')
             conn = self.getconnection( userid, password )
             result = self.paged_search(conn, self.printer_query.basedn, filter, self.printer_query.attrs)
-            # logger.debug('result %s', result)
+            # self.logger.debug('result %s', result)
             len_printers = len(result)
-            logger.info('query result count:%d %s %s ', len_printers, self.printer_query.basedn, filter )
+            self.logger.info('query result count:%d %s %s ', len_printers, self.printer_query.basedn, filter )
 
             for dn in result:
                 attrs = result.get(dn)
                 # attrs must be a dict
                 if not isinstance( attrs, dict): 
-                    logger.error( 'attrs must be a dict, return data from ldap attrs %s', str(type( attrs )))
+                    self.logger.error( 'attrs must be a dict, return data from ldap attrs %s', str(type( attrs )))
                     continue
                 myobject = {}             
                 for a in self.printer_query.attrs:
@@ -2855,7 +2860,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                 printerlist.append(myobject)
             
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
         finally:
             conn.unbind()
 
@@ -2864,7 +2869,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
     
     def listsite(self, **params):       
-        logger.info('')
+        self.logger.info('')
 
         dictsite = {}
         len_dictsite = 0
@@ -2872,25 +2877,25 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         password   = params.get( 'password',self.password )                
         
         if not isinstance(userid, str) or not isinstance(password, str) :
-            logger.info( 'service account not set in config file, listsite return empty site')
+            self.logger.info( 'service account not set in config file, listsite return empty site')
             return dictsite
 
         try:
-            logger.debug('getconnection to ldap')
+            self.logger.debug('getconnection to ldap')
             conn = self.getconnection( userid, password )
 
-            logger.debug('_pagedAsyncSearch %s %s %s ', self.site_query.basedn, self.site_query.filter, self.site_query.attrs)            
+            self.logger.debug('_pagedAsyncSearch %s %s %s ', self.site_query.basedn, self.site_query.filter, self.site_query.attrs)            
             result = self.paged_search(conn, self.site_query.basedn, self.site_query.filter, self.site_query.attrs )            
-            # logger.debug('_pagedAsyncSearch return len=%d', len( result ))
+            # self.logger.debug('_pagedAsyncSearch return len=%d', len( result ))
             for dn in result:
                 attrs = result[dn]
 
                 if attrs is None:
-                    logger.info( 'ldap dn=%s has no attrs %s, skipping', str(dn), self.site_query.attrs  )
+                    self.logger.info( 'ldap dn=%s has no attrs %s, skipping', str(dn), self.site_query.attrs  )
                     continue
 
                 if not isinstance( attrs, dict): 
-                    logger.error( 'dn=%s attrs must be a dict, return data from ldap attrs %s', str(dn), str( type( attrs )))
+                    self.logger.error( 'dn=%s attrs must be a dict, return data from ldap attrs %s', str(dn), str( type( attrs )))
                     continue
                 
                 entry = {}                
@@ -2903,15 +2908,15 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     dictsite[ entry.get('subnet') ] = entry
                 
             len_dictsite = len( dictsite )
-            logger.info('query result count:%d %s %s ', len_dictsite, self.site_query.basedn, self.site_query.filter)
+            self.logger.info('query result count:%d %s %s ', len_dictsite, self.site_query.basedn, self.site_query.filter)
 
             conn.unbind()
 
         except Exception as e:
-            logger.error( 'LDAP query siteObject error: %s', e )     
+            self.logger.error( 'LDAP query siteObject error: %s', e )     
         
         if len_dictsite == 0:
-           logger.warning('ActiveDirectory has no siteObject defined')
+            self.logger.warning('ActiveDirectory has no siteObject defined')
             
         return dictsite
 
@@ -2971,7 +2976,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
     def getuserinfo(self, authinfo, **arguments):       
         userid = arguments.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
-        logger.info( 'ODAdAuthMetaProvider:ldap.filter %s', filter)
+        self.logger.info( 'ODAdAuthMetaProvider:ldap.filter %s', filter)
         usersinfo = self.search_all(    conn=authinfo.conn, 
                                         basedn=self.user_query.basedn, 
                                         scope=self.user_query.scope, 
@@ -2981,14 +2986,14 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         if not isinstance( usersinfo, list ) or len( usersinfo ) == 0:
             # User does not exist in metadirectory 
             # use login
-            logger.error( 'user does not exist in metadirectory, skipping meta query' )
+            self.logger.error( 'user does not exist in metadirectory, skipping meta query' )
             return None
 
         if len( usersinfo ) > 1:
             # too much user with the same SAMAccountName 
             # may be Forest SAMAccountName Meta 
-            logger.error( 'too much user %s in metadirectory len %d, skipping meta query', userid, len( usersinfo ) )
-            logger.error( 'dump metadirectory %s', usersinfo )
+            self.logger.error( 'too much user %s in metadirectory len %d, skipping meta query', userid, len( usersinfo ) )
+            self.logger.error( 'dump metadirectory %s', usersinfo )
             return None
 
         return usersinfo[0]
