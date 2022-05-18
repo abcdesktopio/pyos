@@ -110,73 +110,60 @@ class ManagerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def removedesktop( self, name ):
+        self.logger.debug('')
         myRemoveDesktop = None
         self.is_permit_request()
         if isinstance( name, str):
-            myRemoveDesktop = oc.od.composer.removedesktopbyname(name=name)
+            myRemoveDesktop = oc.od.composer.removedesktopbypodname(name=name)
         return myRemoveDesktop
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def ban_login(self, login ):
+    def listcontainers(self, name):
+        self.logger.debug('')
+        containers = []
         self.is_permit_request()
-        ban = services.fail2ban.ban( login, collection_name=services.fail2ban.login_collection_name)
+        if isinstance( name, str):
+            containers = oc.od.composer.listcontainerappsbypodname(name=name)
+        return containers
+   
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def ban(self, collection, value ):
+        self.logger.debug('')
+        self.is_permit_request()
+        ban = None
+        if services.fail2ban.iscollection( collection ):
+            ban = services.fail2ban.ban( value, collection_name=collection)
         return ban
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def unban_login(self, login ):
+    def unban(self, collection, value ):
+        self.logger.debug('')
         self.is_permit_request()
-        ban = services.fail2ban.unban( login, collection_name=services.fail2ban.login_collection_name)
-        return ban
-
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def ban_ip(self, ipaddr ):
-        self.is_permit_request()
-        ban = services.fail2ban.ban( ipaddr, collection_name=services.fail2ban.ip_collection_name)
-        return ban
-
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def unban_ip(self, ipaddr ):
-        self.is_permit_request()
-        unban = services.fail2ban.unban( ipaddr, collection_name=services.fail2ban.ip_collection_name )
+        unban = None
+        if services.fail2ban.iscollection( collection ):
+            unban = services.fail2ban.unban( value, collection_name=collection )
         return unban
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def listban_ip(self):
+    def listban(self, collection ):
+        self.logger.debug('')
         self.is_permit_request()
-        listban = services.fail2ban.listban( collection_name=services.fail2ban.ip_collection_name)
+        listban = None
+        if services.fail2ban.iscollection( collection ):
+            listban = services.fail2ban.listban( collection_name=collection)
         return listban
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def listban_login(self):
+    def drop(self,collection):
+        self.logger.debug('')
         self.is_permit_request()
-        listban = services.fail2ban.listban( collection_name=services.fail2ban.login_collection_name)
-        return listban
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def drop_ip(self):
-        self.is_permit_request()
-        drop = services.fail2ban.drop(collection_name=services.fail2ban.ip_collection_name)
+        drop = None
+        if services.fail2ban.iscollection( collection ):
+            drop = services.fail2ban.drop(collection_name=collection)
         return drop
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def drop_login(self):
-        self.is_permit_request()
-        drop = services.fail2ban.drop(collection_name=services.fail2ban.login_collection_name)
-        return drop
-
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def ip(self ):
-        ipclient = getclientipaddr()
-        return ipclient
