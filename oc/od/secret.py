@@ -121,7 +121,7 @@ class ODSecret():
             # try to decode as utf8
             b = b.decode('utf-8')
         except Exception as e:
-            # logger.error( 'failed to decode b64 str %s', str(e))
+            # self.logger.error( 'failed to decode b64 str %s', str(e))
             # don't care if decode as utf8 has failed, it should not be a utf8
             pass
         return b
@@ -143,7 +143,7 @@ class ODSecret():
             b64data = secret.data.get(key)
             data = oc.od.secret.ODSecret.b64todata( b64data )
         except Exception as e:
-            logger.error( 'failed to read secret key %s %s', str(key), e)
+            self.logger.error( 'failed to read secret key %s %s', str(key), e)
         return data 
 
     def _create_dict(self, authinfo, userinfo,  arguments):       
