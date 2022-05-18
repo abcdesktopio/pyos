@@ -17,7 +17,7 @@ import logging
 import oc.sharecache
 
 logger = logging.getLogger(__name__)
-
+@oc.logging.with_logger()
 class ODMessageInfoManager():    
     def __init__(self, connectionstring):
         self.memcache = oc.sharecache.ODMemcachedSharecache( connectionstring )
@@ -43,7 +43,7 @@ class ODMessageInfoManager():
             if self.memcacheclient.set(str(key), str(value), time) != 0: 
                 return True            
         except Exception as e:
-            logger.error( str(e) )                      
+            self.logger.error( str(e) )                      
         return False
 
     def set(self, key, value ):
