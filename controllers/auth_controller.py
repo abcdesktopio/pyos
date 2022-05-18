@@ -372,7 +372,7 @@ class AuthController(BaseController):
                                     })
 
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
 
     @cherrypy.expose
