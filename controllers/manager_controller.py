@@ -120,48 +120,63 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def ban_login(self, login ):
         self.is_permit_request()
-        ban_login = services.fail2ban.ban_login( login )
-        return ban_login
+        ban = services.fail2ban.ban( login, collection_name=services.fail2ban.login_collection_name)
+        return ban
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def unban_login(self, login ):
         self.is_permit_request()
-        ban_login = services.fail2ban.unban_login( login )
-        return ban_login
+        ban = services.fail2ban.unban( login, collection_name=services.fail2ban.login_collection_name)
+        return ban
 
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def ban_ipaddr(self, ipaddr ):
+    def ban_ip(self, ipaddr ):
         self.is_permit_request()
-        ban_ip = services.fail2ban.ban_ip( ipaddr )
-        return ban_ip
+        ban = services.fail2ban.ban( ipaddr, collection_name=services.fail2ban.ip_collection_name)
+        return ban
 
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def unban_ipaddr(self, ipaddr ):
+    def unban_ip(self, ipaddr ):
         self.is_permit_request()
-        ban_ip = services.fail2ban.unban_ip( ipaddr )
-        return ban_ip
+        unban = services.fail2ban.unban( ipaddr, collection_name=services.fail2ban.ip_collection_name )
+        return unban
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def listban_ipaddr(self ):
+    def listban_ip(self):
         self.is_permit_request()
-        listban_ip = services.fail2ban.listban_ip()
-        return listban_ip
+        listban = services.fail2ban.listban( collection_name=services.fail2ban.ip_collection_name)
+        return listban
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def listban_login(self ):
+    def listban_login(self):
         self.is_permit_request()
-        listban_login =  services.fail2ban.listban_login()
-        return listban_login
+        listban = services.fail2ban.listban( collection_name=services.fail2ban.login_collection_name)
+        return listban
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def ipaddr(self ):
+    def drop_ip(self):
+        self.is_permit_request()
+        drop = services.fail2ban.drop(collection_name=services.fail2ban.ip_collection_name)
+        return drop
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def drop_login(self):
+        self.is_permit_request()
+        drop = services.fail2ban.drop(collection_name=services.fail2ban.login_collection_name)
+        return drop
+
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def ip(self ):
         ipclient = getclientipaddr()
         return ipclient
