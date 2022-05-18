@@ -57,19 +57,19 @@ class ODInternalDNS():
         try:
             data = urllib.parse.urlencode(values)
             url = self.url + '?' + data
-            logger.info( 'update url: %s', url )
+            self.logger.info( 'update url: %s', url )
             response = urllib.request.urlopen(url)
             
         except IOError as e:
             if hasattr(e, 'reason'):
-                logger.error( 'url %s failed %s', self.url, str(e.reason) )
+                self.logger.error( 'url %s failed %s', self.url, str(e.reason) )
             elif hasattr(e, 'code'):
-                logger.error( 'url %s failed %s', self.url, str(e.code) )                
+                self.logger.error( 'url %s failed %s', self.url, str(e.code) )                
             else:
-                logger.error( 'url %s failed', self.url )            
+                self.logger.error( 'url %s failed', self.url )            
             
         except Exception as e:
-            logger.error( 'url %s failed %s', self.url, str(e) )            
+            self.logger.error( 'url %s failed %s', self.url, str(e) )            
         else:
             # everything is fine
             try:
@@ -79,7 +79,7 @@ class ODInternalDNS():
                     response.close()
                     # {"Success":true,"Message":"Updated A record for e96f94bb-84ed-4a64-8080-03399e6da748 to IP address 10.244.0.89","Domain":"e96f94bb-84ed-4a64-8080-03399e6da748","Domains":["e96f94bb-84ed-4a64-8080-03399e6da748"],"Address":"10.244.0.89","AddrType":"A"}
                     jsondns = json.loads(content.decode(encoding))
-                    logger.info( 'dns response  %s', content.decode(encoding) )
+                    self.logger.info( 'dns response  %s', content.decode(encoding) )
                     
                     dnssuccess = jsondns.get('Success', False)
                     dnsresponseaddr = jsondns.get('Address', '')
@@ -89,9 +89,9 @@ class ODInternalDNS():
                         dnsresponsetype == 'A':
                        bReturn = True
             except Exception as e:
-                logger.error( 'dns response error %s', str(e) )
+                self.logger.error( 'dns response error %s', str(e) )
        
-        logger.info( 'bReturn  %s', bReturn )
+        self.logger.info( 'bReturn  %s', bReturn )
         
         if bReturn : 
             return self.get_targetfqdn( hostname )
