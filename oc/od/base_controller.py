@@ -58,19 +58,30 @@ class BaseController(object):
           '''
 
           if self.isban_ip():
-               raise WebAppError('Http request is banned')
+               raise WebAppError('http request is banned')
           
           if not services.auth.isauthenticated:
+               self.fail_ip()
                raise WebAppError('User is not authenticated')
           
           if not services.auth.isidentified:
+               self.fail_ip()
                raise WebAppError('User is not identified')
+
 
           user = services.auth.user
           auth = services.auth.auth
 
           return (auth, user)
 
+     def fail_ip( self, ipAddr=None ):
+          if not isinstance( ipAddr, str):
+               ipAddr = getclientipaddr()
+          services.fail2ban.fail_ip( ipAddr )
+
+     def fail_login( self, login):
+          self.logger.debug('')
+          isban =  services.fail2ban.fail_login( login )
 
      def isban_ip( self, ipAddr=None ):
           if not isinstance( ipAddr, str):
@@ -95,7 +106,7 @@ class BaseController(object):
                myipaddr = ipaddress.ip_address(cherrypy.request.remote.ip)
                bReturn = myipaddr.is_private
           except Exception as e:
-               logger.error( e )
+               self.logger.error( e )
           return bReturn
 
      def is_permit_request(self):
