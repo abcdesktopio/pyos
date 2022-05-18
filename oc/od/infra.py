@@ -486,7 +486,7 @@ class ODInfra(object):
         """
         bReturn = False
         myContainer = None
-        logger.info('stop_container containerid=%s', containerid )
+        self.logger.info('stop_container containerid=%s', containerid )
         
         try:
             c = self.getdockerClient()
@@ -494,11 +494,11 @@ class ODInfra(object):
             myContainer.stop(timeout=timeout)            
             bReturn = True
         except docker.errors.APIError as e:
-            logger.error('Error: %s', str(e) )
+            self.logger.error('Error: %s', str(e) )
         except docker.errors.NotFound as e:
-            logger.error('failed: %s', str(e) )
+            self.logger.error('failed: %s', str(e) )
         except Exception as e:
-            logger.error('log_container:Exception %s', str(e) )
+            self.logger.error('log_container:Exception %s', str(e) )
     
         return bReturn
 
@@ -513,11 +513,11 @@ class ODInfra(object):
             myresult = mycontainer.logs()
             myresult = myresult.decode('utf-8')                
         except docker.errors.APIError as e:
-            logger.error('log_container:docker.errors.APIError: %s', str(e) )
+            self.logger.error('log_container:docker.errors.APIError: %s', str(e) )
         except docker.errors.NotFound as e:
-            logger.error('log_container:docker.errors.NotFound failed: %s', str(e) )
+            self.logger.error('log_container:docker.errors.NotFound failed: %s', str(e) )
         except Exception as e:
-            logger.error('log_container:Exception %s', str(e) )
+            self.logger.error('log_container:Exception %s', str(e) )
     
         return myresult
 
@@ -534,11 +534,11 @@ class ODInfra(object):
             mycontainer.remove( force=force )            
             result = True
         except docker.errors.APIError as e:
-            logger.error('remove_container:docker.errors.APIError: %s', str(e) )
+            self.logger.error('remove_container:docker.errors.APIError: %s', str(e) )
         except docker.errors.NotFound as e:
-            logger.error('remove_container:docker.errors.NotFound failed: %s', str(e) )
+            self.logger.error('remove_container:docker.errors.NotFound failed: %s', str(e) )
         except Exception as e:
-            logger.error('remove_container:Exception %s', str(e) )
+            self.logger.error('remove_container:Exception %s', str(e) )
     
         return result
 
@@ -559,11 +559,11 @@ class ODInfra(object):
                     # set data to dict
                     myresult[ a[0] ] = a[1]                    
         except docker.errors.APIError as e:
-            logger.error('env_container:docker.errors.APIError: %s', e )
+            self.logger.error('env_container:docker.errors.APIError: %s', e )
         except docker.errors.NotFound as e:
-            logger.error('env_container:docker.errors.NotFound failed: %s', e )
+            self.logger.error('env_container:docker.errors.NotFound failed: %s', e )
         except Exception as e:
-            logger.error('env_container:Exception %s', e )
+            self.logger.error('env_container:Exception %s', e )
     
         return myresult
 
@@ -592,7 +592,7 @@ class ODInfra(object):
             container = self.getDesktopContainer( containerid )
             volume_bind = container.attrs["HostConfig"]["Binds"]
         except Exception as e:            
-            logger.error('Error: %s', str(e) )
+            self.logger.error('Error: %s', str(e) )
         return ODInfra.volumebind_to_dict(volume_bind)
 
     def remove_volume( self, name ):
@@ -605,9 +605,9 @@ class ODInfra(object):
                 v.remove()
             bReturn = True
         except docker.errors.APIError as e:
-            logger.error('Error: %s', str(e) )
+            self.logger.error('Error: %s', str(e) )
         except docker.errors.NotFound as e:
-            logger.error('failed: %s', str(e) )
+            self.logger.error('failed: %s', str(e) )
         return bReturn
 
     def getnetworkbyname(self, networkname):
@@ -743,9 +743,9 @@ class ODInfra(object):
             container.wait(timeout=10, condition='removed')
             bReturn =True
         except docker.errors.APIError as e:
-            logger.error('Error: %s - %s', id, e)
+            self.logger.error('Error: %s - %s', id, e)
         except docker.errors.NotFound:
-            logger.warning('Container already removed: %s', id)
+            self.logger.warning('Container already removed: %s', id)
             bReturn = False
         return bReturn
 
@@ -789,16 +789,16 @@ class ODInfra(object):
                     volume.remove()
                     volume = c.volumes.create(name=name, driver=driver, labels=labels, driver_opts=driver_opts)
                 except docker.errors.APIError as e:
-                    logger.error('Failed, api error: %s', e)                    
+                    self.logger.error('Failed, api error: %s', e)                    
                 except Exception as e:
-                    logger.error('Failed: %s', e)            
+                    self.logger.error('Failed: %s', e)            
         except docker.errors.NotFound:            
             try:
                 volume = c.volumes.create(name=name, driver=driver, labels=labels, driver_opts=driver_opts)
             except docker.errors.APIError as e:
-                logger.error('Failed, API error: %s', e)
+                self.logger.error('Failed, API error: %s', e)
             except Exception as e:
-                logger.error('Failed: %s', e)
+                self.logger.error('Failed: %s', e)
         return volume
 
     def findDesktopById(self, id, nodehostname=None):        
@@ -834,7 +834,7 @@ class ODInfraKubernetes(ODInfra):
         self.logger.info('pod_name=%s', pod_name)
         desktoplist = None
         labelfilter = self.labelfilterpodname % pod_name
-        logger.info('label filter: %s base_url: %s', labelfilter, self.base_url)
+        self.logger.info('label filter: %s base_url: %s', labelfilter, self.base_url)
         
         try:
             c = self.getdockerClient()
@@ -879,7 +879,7 @@ class ODInfraKubernetes(ODInfra):
         self.logger.info('name=%s', name)
         myDesktop = None
         labelfilter = self.labelfiltercontainername % name
-        logger.info('label filter: %s base_url: %s', labelfilter, self.base_url)
+        self.logger.info('label filter: %s base_url: %s', labelfilter, self.base_url)
         
         try:
             c = self.getdockerClient()
