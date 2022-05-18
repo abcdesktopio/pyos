@@ -39,6 +39,10 @@ class ODFail2ban:
             self.logger.info( e )
         mongo_client.close()
 
+    def iscollection( self, collection_name ):
+        bReturn = collection_name in self.collections_name
+        return bReturn
+
     def test( self ):
         self.logger.debug('')
         dummy_ipaddr = 'loopback'
