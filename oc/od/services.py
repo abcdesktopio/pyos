@@ -6,7 +6,7 @@ import oc.od.dockerwatcher
 import oc.od.imagewatcher
 
 logger = logging.getLogger(__name__)
-
+@oc.logging.with_logger()
 class ODServices(object):
     def __init__(self):
         self.datastore = None
@@ -63,21 +63,12 @@ class ODServices(object):
     def init_fail2ban( self ):
         import oc.od.fail2ban
         self.fail2ban = oc.od.fail2ban.ODFail2ban( mongoconfig=settings.mongoconfig, fail2banconfig={} )
-        self.fail2ban.fail_ip( 'toto' )
-        self.fail2ban.isban_ip( 'toto' )
-        self.fail2ban.fail_ip( 'toto' )
-        self.fail2ban.isban_ip( 'toto' )
-        self.fail2ban.fail_login( 'toto' )
-        self.fail2ban.isban_login( 'toto' )
-        self.fail2ban.fail_login( 'toto' )
-        self.fail2ban.isban_login( 'toto' )
-        toto = self.fail2ban.listban_ip()
-        tito = 4
+        # self.fail2ban.test()
 
     def init_webrtc(self):
         """init parameters to the janus webrtc gateway
         """
-        logger.info('')
+        self.logger.info('')
         import oc.od.janus
         if settings.webrtc_enable :
             self.webrtc = oc.od.janus.ODJanusCluster( settings.webrtc_server )
@@ -92,7 +83,7 @@ class ODServices(object):
     def init_locator(self):
         """geolocatization from ip address
         """
-        logger.info('')
+        self.logger.info('')
         import oc.od.locator
         self.locatorPublicInternet = oc.od.locator.ODLocatorPublicInternet()
         self.locatorPrivateActiveDirectory = {}
@@ -119,74 +110,74 @@ class ODServices(object):
         """Load rsa keys jwtdesktopprivatekeyfile jwtdesktoppublickeyfile payloaddesktoppublickeyfile
            to build the jwtdesktop  
         """
-        logger.info('')
+        self.logger.info('')
         import oc.auth.jwtdesktop
         self.jwtdesktop = oc.auth.jwtdesktop.ODDesktopJWToken( settings.jwt_config_desktop )
 
 
     def init_internaldns(self):
-        logger.info('')
+        self.logger.info('')
         if settings.internaldns.get('enable') is True:
             import oc.od.internaldns
             self.internaldns = oc.od.internaldns.ODInternalDNS( domain=settings.internaldns.get('domain'), server=settings.internaldns.get('server'), secret=settings.internaldns.get('secret') )
 
     def init_accounting(self):
-        logger.info('')
+        self.logger.info('')
         import oc.od.accounting
         self.accounting = oc.od.accounting.ODAccounting()
 
     def init_datastore(self):
-        logger.info('')
+        self.logger.info('')
         import oc.datastore
         self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongoconfig)
 
     def init_datacache(self):
-        logger.info('')
+        self.logger.info('')
         import oc.sharecache
         self.sharecache = oc.sharecache.ODMemcachedSharecache(settings.memconnectionstring)
 
     def init_prelogin(self):
-        logger.info('')
+        self.logger.info('')
         import oc.auth.prelogin
         self.prelogin = oc.auth.prelogin.ODPrelogin(    config=settings.prelogin,
                                                         memcache_connection_string=settings.memconnectionstring )
 
     def init_logmein(self):
-        logger.info('')
+        self.logger.info('')
         import oc.auth.logmein
         self.logmein = oc.auth.logmein.ODLogmein( config=settings.logmein )
 
     def init_messageinfo(self):
-        logger.info('')
+        self.logger.info('')
         import oc.od.messageinfo
         self.messageinfo = oc.od.messageinfo.ODMessageInfoManager(settings.memconnectionstring)
 
     def init_auth(self):
-        logger.info('')
+        self.logger.info('')
         import oc.auth.authservice
         self.auth = oc.auth.authservice.ODAuthTool(settings.default_host_url, settings.jwt_config_user, settings.authmanagers) 
 
     def init_resolvnetbios( self ):
         """resolvnetbios DEPRECATED
         """
-        logger.info('')
+        self.logger.info('')
         import oc.od.resolvnetbios
         self.resolvnetbios = oc.od.resolvnetbios.ODResolvNetbios()
 
     def init_applist( self ):
-        logger.info('')
+        self.logger.info('')
         import oc.od.apps 
         # Build applist cache data
         self.apps = oc.od.apps.ODApps()
         self.apps.cached_applist(bRefresh=True)
 
     def init_dockerwatcher( self ):
-        logger.info('')
+        self.logger.info('')
         self.dockerwatcher = oc.od.dockerwatcher.ODDockerWatcher()
         self.dockerwatcher.start()
 
     def init_imagewatcher( self ):
-        logger.info('')
+        self.logger.info('')
         self.imagewatcher = oc.od.imagewatcher.ODImageWatcher()
         self.imagewatcher.start()
 
