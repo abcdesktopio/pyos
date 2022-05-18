@@ -52,25 +52,29 @@ class BaseController(object):
      def validate_env(self):
           '''
                return (auth, user) if the user is identified and authenticated. 
-               else raise WebAppError('User is not identified') 
-               or   raise WebAppError('User is not authenticated')
-               or   raise WebAppError('Http request is banned')
+               else raise WebAppError('user is not identified') 
+               or   raise WebAppError('user is not authenticated')
+               or   raise WebAppError('ip address is banned')
+               or   raise WebAppError('login is banned')
           '''
 
           if self.isban_ip():
-               raise WebAppError('http request is banned')
+               raise WebAppError('ip address is banned')
           
           if not services.auth.isauthenticated:
                self.fail_ip()
-               raise WebAppError('User is not authenticated')
+               raise WebAppError('user is not authenticated')
           
           if not services.auth.isidentified:
                self.fail_ip()
-               raise WebAppError('User is not identified')
+               raise WebAppError('user is not identified')
 
 
           user = services.auth.user
           auth = services.auth.auth
+
+          if self.isban_login(user.userid):
+               raise WebAppError('user is banned')
 
           return (auth, user)
 
@@ -86,13 +90,13 @@ class BaseController(object):
      def isban_ip( self, ipAddr=None ):
           if not isinstance( ipAddr, str):
                ipAddr = getclientipaddr()
-          isban = services.fail2ban.isban_ip( ipAddr )
+          isban = services.fail2ban.isban( ipAddr, collection_name=services.fail2ban.ip_collection_name )
           self.logger.debug(f"isban {ipAddr} return {isban}")
           return isban
 
      def isban_login( self, login):
           self.logger.debug('')
-          isban =  services.fail2ban.isban_login( login )
+          isban =  services.fail2ban.isban( login, collection_name=services.fail2ban.login_collection_name )
           self.logger.debug(f"isban {login} return {isban}")
           return isban
 
