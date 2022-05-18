@@ -72,15 +72,18 @@ class BaseController(object):
           return (auth, user)
 
 
-     def ban_ip( self, ipAddr ):
+     def isban_ip( self, ipAddr=None ):
           if not isinstance( ipAddr, str):
                ipAddr = getclientipaddr()
-          services.fail2ban.fail_ip( ipAddr )
+          isban = services.fail2ban.isban_ip( ipAddr )
+          self.logger.debug(f"isban {ipAddr} return {isban}")
+          return isban
 
-     def isban_ip( self, ipAddr ):
-          if not isinstance( ipAddr, str):
-               ipAddr = getclientipaddr()
-          return services.fail2ban.isban_ip( ipAddr )
+     def isban_login( self, login):
+          self.logger.debug('')
+          isban =  services.fail2ban.isban_login( login )
+          self.logger.debug(f"isban {login} return {isban}")
+          return isban
 
      def is_ipsource_private(self):
           '''
