@@ -25,6 +25,7 @@ from oc.od.base_controller import BaseController
 
 logger = logging.getLogger(__name__)
 
+@oc.logging.with_logger()
 @cherrypy.config(**{ 'tools.auth.on': True })
 class WebRTCController(BaseController):
 
@@ -32,10 +33,11 @@ class WebRTCController(BaseController):
         super().__init__(config_controller)
 
     def rtp_stream( self, action=lambda x: x):
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
         
         if not settings.webrtc_enable :
@@ -48,7 +50,7 @@ class WebRTCController(BaseController):
 
         desktop = oc.od.composer.finddesktop_quiet( authinfo=auth, userinfo=user, appname=appname ) 
         if desktop is None:                
-            logger.error( 'asking for a rtp_stream but desktop is not found')
+            self.logger.error( 'asking for a rtp_stream but desktop is not found')
             return Results.error( message='desktop not found')
         
         try:
@@ -64,7 +66,7 @@ class WebRTCController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def get_stream(self):
-        logger.debug('')
+        self.logger.debug('')
         if services.webrtc is None :
             return Results.error( message='WebRTC is disabled in configuration file')
         else:
@@ -77,7 +79,7 @@ class WebRTCController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def destroy_stream(self):
-        logger.debug('')
+        self.logger.debug('')
         if services.webrtc is None :
             return Results.error( message='WebRTC is disabled in configuration file')
         else:
