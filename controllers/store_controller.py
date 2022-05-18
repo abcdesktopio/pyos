@@ -49,7 +49,7 @@ class StoreController(BaseController):
         key     = arguments.get('key')
         value   = arguments.get('value')
 
-        logger.debug('setstoredvalue userid:%s key:%s value:%s', str(userid), str(key), str(value) )
+        self.logger.debug('setstoredvalue userid:%s key:%s value:%s', str(userid), str(key), str(value) )
         if all([userid, key]):
             if services.datastore.setstoredvalue(userid, key , value) is True:
                 return Results.success()

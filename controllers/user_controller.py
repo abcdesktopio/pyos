@@ -38,19 +38,19 @@ class UserController(BaseController):
         try:
             return services.auth.getuserinfo(arguments.get('token_provider'), arguments.get('token'))
         except Exception as e:
-            logger.error( str(e) )
+            self.logger.error( str(e) )
             return {'userid': None, 'name': None}
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getlocation(self):
-        logger.debug('')
+        self.logger.debug('')
 
         try:
             (auth, user) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
         
         location = oc.od.user.getlocation( auth )
@@ -60,13 +60,13 @@ class UserController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def whoami(self):
-        logger.debug('')  
-
-        try:
-            (auth, user) = self.validate_env()
-        except Exception:
-            auth = None
-            user = None
-
+        self.logger.debug('')  
+        auth = None
+        user = None
+        # same has super().validate_env 
+        # but do not fail or ban ipaddr
+        if services.auth.isauthenticated and services.auth.isidentified:
+            user = services.auth.user
+            auth = services.auth.auth
         userinfo = oc.od.user.whoami( auth, user )
         return userinfo
