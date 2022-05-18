@@ -184,7 +184,7 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
                     sAMAccountName = arguments.get('sAMAccountName', None)
 
                     if all([hasuserWebdavOption, sAMAccountName, oc.od.settings.webdavurl, oc.od.settings.webdaventryname]):
-                        logger.info('hasuserWebdavOption: True')
+                        self.logger.info('hasuserWebdavOption: True')
                         setmessageinfo('Mounting ' + str(oc.od.settings.webdavurl))
                         mountwebdavpoint = oc.od.settings.getmount_remotewebdav_point(sAMAccountName)
                         mountwebdavdirname = '/home/balloon/' + oc.od.settings.webdaventryname
