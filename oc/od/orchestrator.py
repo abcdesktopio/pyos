@@ -1771,6 +1771,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         except ApiException as e:
                 self.logger.error( str(e) )
+
+        self.logger.debug( f"removePod return v1status {v1status}")
         return v1status
 
     def removesecrets( self, authinfo, userinfo ):
@@ -1816,7 +1818,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 bReturn = bReturn and False
         return bReturn 
 
-    def removedesktop(self, authinfo, userinfo, args={} ):
+    def removedesktop(self, authinfo, userinfo, myPod=None ):
         ''' remove kubernetes pod for a give user '''
         ''' then remove kubernetes user's secrets '''
         bReturn = False # default value 
@@ -1824,9 +1826,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('')
 
         # get the user's pod
-        myPod =  self.findPodByUser(authinfo, userinfo )
+        if not isinstance(myPod, client.models.v1_pod.V1Pod ):
+            myPod = self.findPodByUser(authinfo, userinfo )
+
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-            removedesktopStatus['pod'] = self.removePod( myPod )
+            v1status = self.removePod( myPod )
+            if isinstance(v1status,client.models.v1_status.V1Status) :
+                removedesktopStatus['pod'] = v1status
+            else:
+                removedesktopStatus['pod'] = False
 
             removetheads    =  [ { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ], 'thread':None },
                                  { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
@@ -3173,6 +3181,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except ApiException as e:
             self.logger.error(e)
         return nCount
+
+    def listdesktop(self):        
+        ''' return the number count of pod type 'type=' + self.x11servertype    '''
+        ''' return 0 if failed ( not the best return value )                    ''' 
+        myDesktopList = []   
+        try:  
+            list_label_selector = 'type=' + self.x11servertype
+            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=list_label_selector)
+            if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
+                for myPod in myPodList.items:
+                        mydesktop = self.pod2desktop( myPod )
+                        myDesktopList.append( mydesktop.to_dict() )              
+        except ApiException as e:
+            self.logger.error(e)
+
+        return myDesktopList
             
     def isgarbagable( self, pod, expirein, force=False ):
         bReturn = False
@@ -3199,6 +3223,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return bReturn
 
+
+    def removedesktopbyname( self, name):
+        self.logger.debug('')
+        removedesktop = None
+        field_selector='metadata.name=' + name
+        myPodList = self.kubeapi.list_namespaced_pod(self.namespace, field_selector=field_selector)
+        if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
+            for myPod in myPodList.items:
+                    # fake an authinfo object
+                    authinfo = AuthInfo( provider=myPod.metadata.labels.get('access_provider') )
+                    # fake an userinfo object
+                    userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
+                                            'name':  myPod.metadata.labels.get('access_username') } )
+                    removedesktop = self.removedesktop( authinfo, userinfo, myPod )
+
+        return removedesktop
+
+
     def garbagecollector( self, expirein, force=False ):
         self.logger.debug('')
         garbaged = []
@@ -3218,7 +3260,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             # fake an userinfo object
                             userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
                                                    'name':  myPod.metadata.labels.get('access_username') } )
-                            self.removedesktop( authinfo, userinfo )
+                            self.removedesktop( authinfo, userinfo, myPod )
                             garbaged.append( myPod.metadata.name )
         except ApiException as e:
             self.logger.error(str(e))
