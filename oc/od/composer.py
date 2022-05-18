@@ -164,6 +164,13 @@ def logdesktop( authinfo, userinfo ):
     myOrchestrator = selectOrchestrator()    
     return myOrchestrator.logs( authinfo, userinfo )
 
+
+def removedesktopbyname( name ):
+    myOrchestrator = selectOrchestrator()    
+    # webrtc look for the desktop
+    removed_desktop = myOrchestrator.removedesktopbyname( name )
+    return removed_desktop
+
 def removedesktop( authinfo, userinfo ):
     """removedesktop
 
@@ -502,6 +509,12 @@ def createdesktop( authinfo, userinfo, args  ):
     return myDesktop
 
 
+
+def listdesktop():
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+    myListDesktop = myOrchestrator.listdesktop()
+    return myListDesktop
 
     
 def openapp( auth, user={}, kwargs={} ):
