@@ -99,12 +99,19 @@ class ManagerController(BaseController):
 
         return garbaged
 
-    # garbagecollector request is protected by is_permit_request()
+
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def ban_login(self, login ):
         self.is_permit_request()
         ban_login = services.fail2ban.ban_login( login )
+        return ban_login
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def unban_login(self, login ):
+        self.is_permit_request()
+        ban_login = services.fail2ban.unban_login( login )
         return ban_login
 
 
@@ -113,6 +120,14 @@ class ManagerController(BaseController):
     def ban_ipaddr(self, ipaddr ):
         self.is_permit_request()
         ban_ip = services.fail2ban.ban_ip( ipaddr )
+        return ban_ip
+
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def unban_ipaddr(self, ipaddr ):
+        self.is_permit_request()
+        ban_ip = services.fail2ban.unban_ip( ipaddr )
         return ban_ip
 
     @cherrypy.expose
