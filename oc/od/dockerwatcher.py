@@ -23,7 +23,7 @@ class ODDockerWatcher:
         self.thead_event = None
 
     def event_image( self, client, event ):
-        logger.debug('new image event from docker event %s', event)
+        self.logger.debug('new image event from docker event %s', event)
         event_action = event.get('Action') 
         event_attributes = event.get('Actor').get('Attributes')
 
@@ -31,12 +31,12 @@ class ODDockerWatcher:
         if event_action == 'pull' or event_action == 'tag':
             image_name = event_attributes.get('name')
             if event_attributes.get('oc.type') == 'app' and isinstance( image_name, str ) :
-                logger.debug('new event_action %s call cached_applist(True)', event_action )
+                self.logger.debug('new event_action %s call cached_applist(True)', event_action )
                 newapplist = oc.od.services.services.apps.cached_applist(True)
                 if isinstance( newapplist, dict ):
-                    logger.info( 'cached_applist updated')
+                    self.logger.info( 'cached_applist updated')
                 else:
-                    logger.error( 'cached_applist update failed')
+                    self.logger.error( 'cached_applist update failed')
 
                 # newapp = oc.od.services.services.apps.add_image( image_name )
                 # if (newapp):
@@ -55,13 +55,13 @@ class ODDockerWatcher:
             # 'time': 1614588892, 
             # 'timeNano': 1614588892647421832}
             imageid = event.get('id')
-            logger.info(f"new event_action {event_action} image {imageid}" )
+            self.logger.info(f"new event_action {event_action} image {imageid}" )
             # oc.od.services.services.apps.del_image( image_sha_id=image_id )
             newapplist = oc.od.services.services.apps.cached_applist(True)
             if isinstance( newapplist, dict ):
-                logger.info( 'cached_applist updated')
+                self.logger.info( 'cached_applist updated')
             else:
-                logger.error( 'cached_applist update failed')
+                self.logger.error( 'cached_applist update failed')
 
     def event_network( self, client, event ):
         self.logger.debug('new network event from docker event %s', event)
