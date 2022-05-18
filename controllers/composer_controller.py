@@ -33,6 +33,8 @@ from oc.od.base_controller import BaseController
 
 logger = logging.getLogger(__name__)
 
+
+@oc.logging.with_logger()
 @cherrypy.config(**{ 'tools.auth.on': True })
 class ComposerController(BaseController):
 
@@ -47,7 +49,7 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def ocrun(self):
-        logger.debug('')
+        self.logger.debug('')
         
         try:
             (auth, user ) = self.validate_env()
@@ -67,7 +69,7 @@ class ComposerController(BaseController):
             return Results.success(result=result)
 
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
         
        
@@ -85,7 +87,7 @@ class ComposerController(BaseController):
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
         
         if type(cherrypy.request.json) is not dict:
@@ -120,7 +122,7 @@ class ComposerController(BaseController):
                         return Results.error( message='invalid encrypted execmetadata parameters' )
             args['metadata'] = metadata
 
-        logger.info('Metappli : %s %s', str(appname), str(appargs))
+        self.logger.info('Metappli : %s %s', str(appname), str(appargs))
 
         # add lang to user dict
         self.LocaleSettingsLanguage( user )
@@ -131,28 +133,29 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def launchdesktop(self):
-        logger.debug('')
+        self.logger.debug('')
         try:
-            logger.debug('launchdesktop:validate_env')
+            self.logger.debug('launchdesktop:validate_env')
             (auth, user ) = self.validate_env()
             # add lang to user dict   
-            logger.debug('launchdesktop:LocaleSettingsLanguage')
+            self.logger.debug('launchdesktop:LocaleSettingsLanguage')
             self.LocaleSettingsLanguage( user )
-            logger.debug('launchdesktop:_launchdesktop')
+            self.logger.debug('launchdesktop:_launchdesktop')
             return self._launchdesktop(auth, user, cherrypy.request.json)
 
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getlogs(self):
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
         
         logs = oc.od.composer.logdesktop(auth, user)
@@ -164,11 +167,11 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def stopcontainer(self):
-        
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
 
         args = cherrypy.request.json
@@ -188,10 +191,11 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def logcontainer(self):
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
 
         args = cherrypy.request.json
@@ -212,10 +216,11 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def envcontainer(self):
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
 
         args = cherrypy.request.json
@@ -236,10 +241,11 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def removecontainer(self):
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
 
         args = cherrypy.request.json
@@ -260,6 +266,7 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def listcontainer(self):
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
             result = oc.od.composer.listContainerApp(auth, user)
@@ -268,7 +275,7 @@ class ComposerController(BaseController):
             else:
                 return Results.error('failed to read container list')
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )       
 
 
@@ -276,7 +283,7 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def refreshdesktoptoken(self):
-        logger.debug('')
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
 
@@ -296,7 +303,7 @@ class ComposerController(BaseController):
             
             # build new jwtdesktop
             jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-            logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
+            self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
 
             return Results.success(result={
                     'authorization' : jwtdesktoptoken,  # the desktop.ipAddr encrypted
@@ -304,14 +311,14 @@ class ComposerController(BaseController):
             })
 
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getuserapplist(self):
-        logger.debug('')
+        self.logger.debug('')
         try:
             (auth, user ) = self.validate_env()
             userappdict = {}
@@ -334,11 +341,11 @@ class ComposerController(BaseController):
             # return succes data 
             return Results.success(result=userapplist)    
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
         
     def _launchdesktop(self, auth, user, args):
-        logger.info('')
+        self.logger.info('')
         try:
             appname = args.get('app')
             
@@ -367,8 +374,8 @@ class ComposerController(BaseController):
             
             # build a jwt token with desktop.internaluri
             jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-            # logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
-            # logger.info('Service is running on node %s', str(desktop.nodehostname) )
+            # self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
+            # self.logger.info('Service is running on node %s', str(desktop.nodehostname) )
             
             # set cookie for a optimized load balacing http request
             # if loadbalancing support cookie persistance routing
@@ -417,7 +424,7 @@ class ComposerController(BaseController):
             })
 
         except Exception as e:
-            logger.error( str(e) )
+            self.logger.error( str(e) )
             return Results.error( message=str(e) )
 
         finally:
@@ -439,7 +446,7 @@ class ComposerController(BaseController):
         http_requested_host = cherrypy.url()
         http_origin = cherrypy.request.headers.get('Origin', None)
         http_host   = cherrypy.request.headers.get('Host', None)
-        # logger.debug(locals())
+        # self.logger.debug(locals())
 
         route = None
 
@@ -455,7 +462,7 @@ class ComposerController(BaseController):
                 url = urllib.parse.urlparse(myhosturl)
                 route = url.hostname
             except Exception as e:
-                logger.error('failed: %s', e)
+                self.logger.error('failed: %s', e)
 
         elif websocketrouting == 'bridge':
             route = target
@@ -467,7 +474,7 @@ class ComposerController(BaseController):
                     url = urllib.parse.urlparse(http_origin)
                     route = url.hostname
                 except Exception as e:
-                    logger.error('Errror: %s', e)
+                    self.logger.error('Errror: %s', e)
 
         elif websocketrouting == 'http_host':
             try:
@@ -475,9 +482,9 @@ class ComposerController(BaseController):
                 url = urllib.parse.urlparse(http_host)
                 route = url.hostname
             except Exception as e:
-                logger.error('Errror: %s', e)
+                self.logger.error('Errror: %s', e)
 
-        logger.info('Route websocket to: %s', route)
+        self.logger.info('Route websocket to: %s', route)
         return route
 
     @cherrypy.expose
@@ -491,5 +498,5 @@ class ComposerController(BaseController):
             list_secrets = list( secrets )
             return Results.success(result=list_secrets)
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
