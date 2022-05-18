@@ -406,16 +406,23 @@ class ODAuthTool(cherrypy.Tool):
             token = token[7:] 
             # if there is some data to decode
             if len(token) > 0 : 
-               
-                # get the dict decoded token
-                # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
-                decoded_token = self.jwt.decode( token )
-
-                # read user, roles, auth
-                # Build a cache data to store value from decoded token into an AuthCache object
-                authcache = AuthCache( decoded_token )
-                authcache.markAuthDoneFromPreviousToken()
-
+                try:
+                    # get the dict decoded token
+                    # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
+                    decoded_token = self.jwt.decode( token )
+                    # read user, roles, auth
+                    # Build a cache data to store value from decoded token into an AuthCache object
+                    authcache = AuthCache( decoded_token )
+                    authcache.markAuthDoneFromPreviousToken()
+                except jwt.exceptions.ExpiredSignatureError as e:
+                    # nothing to do log the exception and continue with empty authcache
+                    self.logger.warning( e )
+                except jwt.exceptions.DecodeError as e:
+                    # nothing to do log the exception and continue with empty authcache
+                    self.logger.warning( e )
+                except Exception as e:
+                    # nothing to do log the exception and continue with empty authcache
+                    self.logger.warning( e )
         return authcache
 
     @property
