@@ -79,7 +79,7 @@ class CoreController(BaseController):
         try:
             (auth, user ) = self.validate_env()
         except Exception as e:
-            logger.error( e )
+            self.logger.error( e )
             return Results.error( message=str(e) )
         
         message = ''
