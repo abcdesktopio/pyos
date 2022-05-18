@@ -102,6 +102,22 @@ class ManagerController(BaseController):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
+    def listdesktop( self ):
+        self.is_permit_request()
+        myListDesktop = oc.od.composer.listdesktop()
+        return myListDesktop
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def removedesktop( self, name ):
+        myRemoveDesktop = None
+        self.is_permit_request()
+        if isinstance( name, str):
+            myRemoveDesktop = oc.od.composer.removedesktopbyname(name=name)
+        return myRemoveDesktop
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
     def ban_login(self, login ):
         self.is_permit_request()
         ban_login = services.fail2ban.ban_login( login )
