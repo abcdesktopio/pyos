@@ -82,7 +82,20 @@ class ODFail2ban:
         if bfind:
             myban = collection.update({ self.index_name: value}, {'$inc' : { self.counter : self.failmaxvaluebeforeban } })
         else: 
-            myban = collection.insert({ self.index_name: value, self.counter : self.failmaxvaluebeforeban }).__str__()
+            myban = collection.insert({ self.index_name: value, self.counter : self.failmaxvaluebeforeban })
+            myban = {"n": 1, "Inserted": 1, "ok": 1.0, "updatedExisting": False }
+
+        return myban
+
+    def _unban( self, value,  collection_name ):
+        myban = None
+        self.logger.debug('')
+        collection = self.get_collection( collection_name )
+        bfind = collection.find_one({ self.index_name: value})
+        if bfind:
+            myban = collection.update({ self.index_name: value}, { self.counter : 0 } )
+        else: 
+            myban = collection.insert({ self.index_name: value, self.counter : 0 }).__str__()
 
         return myban
 
@@ -93,6 +106,15 @@ class ODFail2ban:
     def ban_login( self, value ):
         assert isinstance(value, str) , 'bad value login parameter'
         return self._ban( value, collection_name = self.login_collection_name )
+
+    def unban_ip( self, value ):
+        assert isinstance(value, str) , 'bad value ip parameter'
+        return self._unban( value, collection_name = self.ip_collection_name )
+
+    def unban_login( self, value ):
+        assert isinstance(value, str) , 'bad value login parameter'
+        return self._unban( value, collection_name = self.login_collection_name )
+
 
 
     def _listban( self, collection_name ):
