@@ -1831,7 +1831,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
             v1status = self.removePod( myPod )
-            if isinstance(v1status,client.models.v1_status.V1Status) :
+            if isinstance(v1status,client.models.v1_pod.V1Pod) :
                 removedesktopStatus['pod'] = v1status
             else:
                 removedesktopStatus['pod'] = False
@@ -1840,13 +1840,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                  { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
    
             for removethread in removetheads:
-                logger.debug( 'calling webhook cmd %s', str(removethread['fct']) )
+                self.logger.debug( 'calling webhook cmd %s', str(removethread['fct']) )
                 removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
                 removethread['thread'].start()
  
             # need to wait for removethread['thread'].join()
-            # for removethread in removetheads:
-            #     removethread['thread'].join()
+            for removethread in removetheads:
+                removethread['thread'].join()
 
             bReturn = all( removedesktopStatus.values() )
         else:
