@@ -316,6 +316,11 @@ class ODApps:
         inspect_dict = ODInfra().inspectimage( imageid )
         # read the CMD with fallback for compatibiliy with old version release
         cmd = inspect_dict.get('Config').get('Cmd', '/composer/appli-dockerentrypoint.sh' )
+        if isinstance( cmd, list ):
+            # fix error
+            if cmd[0] == 'bash' and len(cmd) == 1:
+                 cmd = '/composer/appli-dockerentrypoint.sh'
+                 
         # read WORKING with fallback for compatibiliy with old version release
         workingdir = inspect_dict.get('Config').get('WorkingDir', oc.od.settings.getballoon_homedirectory() ) 
         # read USER with fallback for compatibiliy with old version release
@@ -421,6 +426,8 @@ class ODApps:
             try:
                 myapp = self.imagetoapp(image)
                 if type(myapp) is dict:
+                    self.logger.debug (f"adding new image {myapp['id']}")
+                    self.logger.debug( f"cmd {myapp['cmd']}" )
                     mydict[ myapp['id'] ] = myapp
             except Exception as e:
                 self.logger.error('Image id:%s failed invalid value: %s', image, e)
