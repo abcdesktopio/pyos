@@ -167,9 +167,13 @@ def logdesktop( authinfo, userinfo ):
 
 def removedesktopbyname( name ):
     myOrchestrator = selectOrchestrator()    
-    # webrtc look for the desktop
     removed_desktop = myOrchestrator.removedesktopbyname( name )
     return removed_desktop
+
+def listcontainerappsbypodname( name ):
+    myOrchestrator = selectOrchestrator()    
+    listcontainer = myOrchestrator.listcontainerappsbypodname( name )
+    return listcontainer
 
 def removedesktop( authinfo, userinfo ):
     """removedesktop

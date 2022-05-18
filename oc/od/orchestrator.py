@@ -3223,11 +3223,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return bReturn
 
-
-    def removedesktopbyname( self, name):
+    def getuserinfoauthinfofrompod( self, name ):
         self.logger.debug('')
         removedesktop = None
         field_selector='metadata.name=' + name
+        authinfo = None
+        userinfo = None
         myPodList = self.kubeapi.list_namespaced_pod(self.namespace, field_selector=field_selector)
         if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
             for myPod in myPodList.items:
@@ -3236,8 +3237,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # fake an userinfo object
                     userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
                                             'name':  myPod.metadata.labels.get('access_username') } )
-                    removedesktop = self.removedesktop( authinfo, userinfo, myPod )
+                    return (authinfo,userinfo,myPod)
 
+    def listcontainerappsbypodname( self, name ):
+        self.logger.debug('')
+        listcontainer = None
+        (authinfo,userinfo,myPod) = self.getuserinfoauthinfofrompod( name )
+        if isinstance( userinfo, AuthUser) and isinstance( authinfo, AuthInfo ):
+            listcontainer=self.listContainerApps( authinfo, userinfo )
+        return listcontainer
+
+    def removedesktopbypodname( self, name):
+        self.logger.debug('')
+        removedesktop = None
+        (authinfo,userinfo,myPod) = self.getuserinfoauthinfofrompod( name )
+        if isinstance( userinfo, AuthUser) and isinstance( authinfo, AuthInfo ):
+                removedesktop = self.removedesktop( authinfo, userinfo, myPod )
         return removedesktop
 
 
