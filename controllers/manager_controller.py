@@ -28,7 +28,7 @@ from oc.od.services import services
 
 logger = logging.getLogger(__name__)
 
-@cherrypy.tools.allow(methods=['GET'])
+@cherrypy.tools.allow(methods=['GET','PUT','DELETE'])
 @cherrypy.config(**{ 'tools.auth.on': False })
 class ManagerController(BaseController):
 
@@ -70,10 +70,11 @@ class ManagerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def garbagecollector(self, expirein, force=False):
-        ''' garbage collector remove all user containers not connected created since more than expirein time
+        self.logger.debug('')
+        ''' garbage collector remove all user container not connected created since more than expirein time
             expirein:   value in second
             force:      boolean False by default, garbage even if user is connected
-            to remove all user containers run garbagecollector(expirein=0, force=True)
+            to remove all user container run garbagecollector(expirein=0, force=True)
         '''
         self.is_permit_request()
         cherrypy.response.notrace = True
@@ -102,68 +103,147 @@ class ManagerController(BaseController):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def listdesktop( self ):
+    def desktop( self, *args ):
         self.is_permit_request()
-        myListDesktop = oc.od.composer.listdesktop()
-        return myListDesktop
+        if cherrypy.request.method == 'GET':
+            return self.handle_desktop_GET( args )
+        elif cherrypy.request.method == 'DELETE':
+            return self.handle_desktop_DELETE( args )
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def removedesktop( self, name ):
-        self.logger.debug('')
-        myRemoveDesktop = None
+    def ban( self, collection, *args ):
         self.is_permit_request()
-        if isinstance( name, str):
-            myRemoveDesktop = oc.od.composer.removedesktopbypodname(name=name)
-        return myRemoveDesktop
+        if cherrypy.request.method == 'GET':
+            return self.handle_ban_GET( collection, args )
+        elif cherrypy.request.method == 'PUT':
+            return self.handle_ban_PUT( collection, args )  
+        elif cherrypy.request.method == 'DELETE':
+            return self.handle_ban_DELETE( collection, args )              
 
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def listcontainers(self, name):
+    def handle_desktop_GET( self, args ):
         self.logger.debug('')
-        containers = []
-        self.is_permit_request()
-        if isinstance( name, str):
-            containers = oc.od.composer.listcontainerappsbypodname(name=name)
-        return containers
-   
 
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def ban(self, collection, value ):
-        self.logger.debug('')
-        self.is_permit_request()
-        ban = None
-        if services.fail2ban.iscollection( collection ):
-            ban = services.fail2ban.ban( value, collection_name=collection)
-        return ban
+        if not isinstance( args, tuple):
+            raise Exception( 'invalid request') 
 
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def unban(self, collection, value ):
-        self.logger.debug('')
-        self.is_permit_request()
-        unban = None
-        if services.fail2ban.iscollection( collection ):
-            unban = services.fail2ban.unban( value, collection_name=collection )
-        return unban
+        if len(args)==0:
+            # /API/manager/desktop/
+            # list all desktops
+            listdesktop = oc.od.composer.list_desktop()
+            return listdesktop
 
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def listban(self, collection ):
+        desktop_name = args[0]
+        if not isinstance( desktop_name, str):
+            raise Exception('bad paramters')
+
+        if len(args)==1:
+            # get information for a desktop
+            # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
+            describedesktop = oc.od.composer.describe_desktop(name=desktop_name)
+            return describedesktop
+
+        # use a specify desktop
+        if len(args)==2 and args[1]=="container":
+            # list container for a desktop
+            # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
+            container = oc.od.composer.list_containers_bypodname(name=desktop_name)
+            return container
+
+        container_id = args[2]
+        if not isinstance( container_id, str):
+            raise Exception('bad parameters')
+
+        # use a specify desktop
+        if len(args)==3 and args[1]=="container":
+            # list container for a desktop
+            # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
+            container = oc.od.composer.describe_container( name=desktop_name, container=container_id )
+            return container
+
+        raise Exception( 'invalid request') 
+
+    def handle_desktop_DELETE( self, args ):
         self.logger.debug('')
-        self.is_permit_request()
-        listban = None
-        if services.fail2ban.iscollection( collection ):
-            listban = services.fail2ban.listban( collection_name=collection)
+
+        if not isinstance( args, tuple):
+            raise Exception( 'invalid request') 
+
+        if len(args) == 0:
+            raise Exception( 'invalid request') 
+
+        desktop_name = args[0]
+        if not isinstance( desktop_name, str):
+            raise Exception('bad paramters')
+
+        if len(args)==1:
+            # delete a desktop
+            # DELETE /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
+            delete_desktop = oc.od.composer.remove_desktop_byname(name=desktop_name)
+            return delete_desktop
+
+        # use a specify desktop
+        if len(args)==3 and args[1]=="container":
+            # delete a container for a desktop
+            # /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/7f77381f778b1214c780762185a2a345ed00cfd1022f18cbd37902af041aff40
+            container_id = args[2]
+            container = oc.od.composer.delete_container( name=desktop_name, container=container_id )
+            return container
+
+        raise Exception( 'invalid request') 
+
+ 
+
+    def handle_ban_GET( self, collection, args ):
+        self.logger.debug('')
+
+        # handle GET request to ban 
+        if not services.fail2ban.iscollection( collection ):
+           raise Exception('invalid parameter')
+
+        if not isinstance( args, tuple):
+            raise Exception( 'invalid request') 
+
+        if len(args)!=0:
+            raise Exception( 'invalid request') 
+
+        # /API/ban/ipaddr 
+        # /API/ban/login 
+        # list all desktops
+        listban = services.fail2ban.listban( collection_name=collection )
         return listban
 
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def drop(self,collection):
+    def handle_ban_PUT( self, collection, args ):
         self.logger.debug('')
-        self.is_permit_request()
-        drop = None
-        if services.fail2ban.iscollection( collection ):
+        # handle GET request to ban 
+        if not services.fail2ban.iscollection( collection ):
+           raise Exception('invalid parameter')
+
+        if not isinstance( args, tuple):
+            raise Exception( 'invalid request') 
+
+        if len(args)!=1:
+            raise Exception( 'invalid request') 
+  
+        ban = services.fail2ban.ban( args[0], collection_name=collection)
+        return ban
+
+
+    def handle_ban_DELETE( self, collection, args ):
+        self.logger.debug('')
+        # handle GET request to ban 
+        if not services.fail2ban.iscollection( collection ):
+           raise Exception('invalid parameter')
+
+        if not isinstance( args, tuple):
+            raise Exception( 'invalid request') 
+
+        if len(args)==0:
             drop = services.fail2ban.drop(collection_name=collection)
-        return drop
+            return drop
+
+        if len(args)==1:
+            ban = services.fail2ban.unban( args[0], collection_name=collection)
+            return ban
+
+        raise Exception( 'invalid request')
