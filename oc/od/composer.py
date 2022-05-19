@@ -16,6 +16,7 @@
 
 import logging
 from tokenize import String
+from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
 
 import oc.od.settings as settings # Desktop settings lib
@@ -165,17 +166,35 @@ def logdesktop( authinfo, userinfo ):
     return myOrchestrator.logs( authinfo, userinfo )
 
 
-def removedesktopbyname( name ):
-    myOrchestrator = selectOrchestrator()    
-    removed_desktop = myOrchestrator.removedesktopbyname( name )
-    return removed_desktop
+def remove_desktop_byname( desktop_name:str ):
+    """remove_desktop_byname
 
-def listcontainerappsbypodname( name ):
+    Args:
+        desktop_name (str): name of a desktop or name of a pod
+
+    Returns:
+        bool: True if desktop is removed, else False
+    """
+    myOrchestrator = selectOrchestrator()  
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return removedesktop( authinfo, userinfo )
+
+def list_containers_bypodname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
-    listcontainer = myOrchestrator.listcontainerappsbypodname( name )
+    listcontainer = myOrchestrator.list_containers_bypodname( desktop_name )
     return listcontainer
 
-def removedesktop( authinfo, userinfo ):
+def describe_desktop( desktop_name:str ):
+    myOrchestrator = selectOrchestrator()    
+    pod = myOrchestrator.describe_desktop_byname( desktop_name )
+    return pod
+
+def describe_container( desktop_name:str , container_id:str ):
+    myOrchestrator = selectOrchestrator()    
+    container = myOrchestrator.describe_container( desktop_name, container_id )
+    return container
+
+def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     """removedesktop
 
     Args:
@@ -188,10 +207,14 @@ def removedesktop( authinfo, userinfo ):
     myOrchestrator = selectOrchestrator()    
 
     # webrtc look for the desktop
+    # read the desktop object before removing
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
+    # remove the desktop
     removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
     
-    if  isinstance( myDesktop, oc.od.desktop.ODDesktop) and \
+    # remove the janus stream
+    if  removed_desktop is True and \
+        isinstance( myDesktop, oc.od.desktop.ODDesktop) and \
         isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
         # if myDesktop exists AND webrtc is a ODJanusCluster then 
         # remove the entry stream to 
@@ -231,7 +254,7 @@ def finddesktop( authinfo, userinfo, appname=None ):
     return myDesktop
 
 
-def prepareressources( authinfo, userinfo, allow_exception=True ):
+def prepareressources( authinfo, userinfo ):
     """prepareressources for user from authinfo
         call Orchestrator.prepareressources
 
@@ -240,7 +263,7 @@ def prepareressources( authinfo, userinfo, allow_exception=True ):
         userinfo (AuthUser): user data 
     """
     myOrchestrator = selectOrchestrator()
-    myOrchestrator.prepareressources( authinfo=authinfo, userinfo=userinfo, allow_exception=allow_exception )
+    myOrchestrator.prepareressources( authinfo=authinfo, userinfo=userinfo )
     
 
 def stopContainerApp(auth, user, containerid):
@@ -514,11 +537,11 @@ def createdesktop( authinfo, userinfo, args  ):
 
 
 
-def listdesktop():
+def list_desktop():
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()
-    myListDesktop = myOrchestrator.listdesktop()
-    return myListDesktop
+    listdesktop = myOrchestrator.list_desktop()
+    return listdesktop
 
     
 def openapp( auth, user={}, kwargs={} ):
@@ -545,18 +568,21 @@ def openapp( auth, user={}, kwargs={} ):
         # count running applications
         running_user_applications_counter = myOrchestrator.countRunningContainerforUser( auth, user )
         if running_user_applications_counter > max_app_counter:
-            raise ODError( 'policies %d too much applications are running, stop one of them' % running_user_applications_counter )
+            raise ODError( f"policies {running_user_applications_counter} too much applications are running, stop one of them" )
 
     # get application object from application name
     app = getapp(auth, appname)
     if app is None:
-        raise ODError( 'app %s not found' % appname)
+        raise ODError( f"app {appname} not found")
 
     # check if app is allowed 
     # this can occur only if the applist has been (hacked) modified 
     if not services.apps.is_app_allowed( auth, app ) :
         logger.error( 'SECURITY Warning applist has been (hacked) modified')
-        # Block this IP source addr + user ?
+        # BAN Block this IP source addr
+        services.fail2ban.fail_ip( getclientipaddr() )
+        # BAN Block this user id 
+        services.fail2ban.fail_login( user.get('userid') )
         raise ODError('Application access is denied by security policy')
 
     # Check if the image is has the uniquerunkey Label set
