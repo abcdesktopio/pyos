@@ -470,7 +470,9 @@ class ODAuthTool(cherrypy.Tool):
     @property
     def isauthenticated(self):  
         self.logger.debug('')
-        return self.current.isValidAuth()
+        bReturn = self.current.isValidAuth()
+        self.logger.debug(f"isauthenticated return {bReturn}")
+        return bReturn
     
     @property
     def isidentified(self):
