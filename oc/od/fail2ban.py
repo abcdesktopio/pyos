@@ -15,8 +15,10 @@ class ODFail2ban:
         self.databasename = 'fail2ban'
         self.ip_collection_name = 'ipaddr'
         self.login_collection_name = 'login'
+
         self.collections_name = [ self.ip_collection_name, self.login_collection_name ]
-       
+        self.sanity_filter = {  self.ip_collection_name:"0123456789.", 
+                                self.login_collection_name:"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_\\/ " }
         mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore)  
         db = mongo_client[self.databasename]
         # create a new database instance
@@ -26,7 +28,23 @@ class ODFail2ban:
 
         self.init_collection( self.ip_collection_name )
         self.init_collection( self.login_collection_name )
-       
+
+    def sanity( self, value, filter ):
+        """sanity
+
+        Args:
+            value (str): value to be check
+            filter (str): str of permited char
+
+        Returns:
+            bool: True if all chars are permited, False else
+        """
+        if not isinstance( value, str) or not isinstance( filter, str):
+            return False
+        for c in value:
+            if c not in filter:
+                return False
+        return True
 
     def init_collection( self, collection_name ):
         mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore) 
@@ -51,6 +69,8 @@ class ODFail2ban:
             is_ban = self.isban_ip( dummy_ipaddr )
             if is_ban and (n+1)==self.failmaxvaluebeforeban :
                  self.logger.debug( f"ban self test ok is {dummy_ipaddr} banned {is_ban}")
+        list_ban_dummy_ipaddr = self.listban_ip()
+        self.logger.debug( f"dump list is {list_ban_dummy_ipaddr}")
         self.logger.debug( f"unban {dummy_ipaddr}")
         self.unban_ip( dummy_ipaddr )
         list_ban_dummy_ipaddr = self.listban_ip()
@@ -71,11 +91,9 @@ class ODFail2ban:
         return myfail
 
     def fail_ip( self, value ):
-        assert isinstance(value, str) , 'bad value ip parameter'
         return self.fail( value, collection_name = self.ip_collection_name )
 
     def fail_login( self, value ):
-        assert isinstance(value, str) , 'bad value login parameter'
         return self.fail( value, collection_name = self.login_collection_name )
 
     def isban( self, value, collection_name ):
@@ -86,6 +104,12 @@ class ODFail2ban:
         """
 
         bReturn = False 
+
+        # sanity check
+        if not self.sanity( value, self.sanity_filter.get(collection_name)):
+            self.logger.error("bad parameter sanity check")
+            return False
+
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
         if isinstance(bfind, dict):
@@ -107,8 +131,9 @@ class ODFail2ban:
 
     def ban( self, value,  collection_name ):
         myban = None
-        assert isinstance(value, str) , 'bad value parameter'
-        utc_timestamp = datetime.datetime.utcnow()
+        if not self.sanity( value, self.sanity_filter.get(collection_name)):
+            self.logger.error("bad parameter sanity check")
+            return False
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
         myban = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=self.failmaxvaluebeforeban )
@@ -121,7 +146,9 @@ class ODFail2ban:
 
     def unban( self, value,  collection_name ):
         myban = False
-        assert isinstance(value, str) , 'bad value parameter'
+        if not self.sanity( value, self.sanity_filter.get(collection_name)):
+            self.logger.error("bad parameter sanity check")
+            return False
         collection = self.get_collection( collection_name )
         delete_one = collection.delete_one({ self.index_name: value})
         if isinstance( delete_one, pymongo.results.DeleteResult ):
