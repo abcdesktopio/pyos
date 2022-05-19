@@ -220,6 +220,14 @@ class ODInfra(object):
             self.logger.error('countdesktop failed: %s', e)
         return ncount
 
+    def describe_container( self, container_id):
+        try:
+            c = self.getdockerClientAPI()
+            container = c.inspect_container(container_id)
+            return container
+        except Exception as e:
+            self.logger.error('failed: %s', e)
+        return None
     
     def listContainers( self, labelfilterdict={} ):
         """list containers unsing the labelfilterdict key value 
