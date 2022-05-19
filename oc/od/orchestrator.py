@@ -23,6 +23,7 @@ import oc.auth.namedlib
 import os
 import time
 import binascii
+import urllib3
 
 import time
 import datetime
@@ -204,6 +205,10 @@ class ODOrchestratorBase(object):
            self._myinfra = oc.od.infra.selectInfra( nodehostname )
         return self._myinfra
 
+    def describe_container( self, container ):
+        myinfra = self.createInfra( self.nodehostname )
+        return myinfra.describe_container( container  )
+
     def listContainerApps( self, authinfo, userinfo ):
         ''' list containers application for user '''
         result = None
@@ -228,6 +233,7 @@ class ODOrchestratorBase(object):
                     mycontainer['oc.icondata'] = container.labels.get('oc.icondata')
                     mycontainer['oc.launch']        = container.labels.get('oc.launch')
                     mycontainer['oc.displayname']   = container.labels.get('oc.displayname')
+                    mycontainer['nodehostname']     = self.nodehostname 
                     # add the object to the result array
                     result.append( mycontainer )
                 except Exception as e:
@@ -318,13 +324,25 @@ class ODOrchestratorBase(object):
                 break
         return stop_result
 
-    def userconnectcount(self, desktop, timeout=2000):
-        ''' return  /composer/connectcount.sh value '''
-        ''' return  -1 if failed '''
-        self.logger.info('')
-        nReturn = -1
-        if type(desktop) is not ODDesktop:
-            raise ValueError('invalid desktop object type' )
+    def user_connect_count(self, desktop:ODDesktop, timeout=2000):
+        """user_connect_count
+            call bash script /composer/connectcount.sh inside a desktop
+        Args:
+            desktop (ODDesktop): ODDesktop
+            timeout (int, optional): in milliseconds. Defaults to 2000.
+
+        Raises:
+            ValueError: ValueError('invalid desktop object type') if desktop id not an ODDesktop
+
+        Returns:
+            int: number of user connected on a desktop
+                -1 if error
+                else number of connection to the x11 websocket 
+        """
+        self.logger.debug('')
+        nReturn = -1 # default value is a error
+        if not isinstance(desktop,ODDesktop):
+            raise ValueError('invalid desktop object type')
 
         # call bash script in oc.user 
         # bash script 
@@ -333,7 +351,7 @@ class ODOrchestratorBase(object):
         # echo $COUNT
         command = [ '/composer/connectcount.sh' ]      
         result = self.execwaitincontainer( desktop, command, timeout)
-        if type(result) is not dict:
+        if not isinstance(result,dict):
             return nReturn
 
         self.logger.info( 'command %s , exitcode %s output %s', command, str(result.get('ExitCode')), result.get('stdout') )
@@ -539,7 +557,7 @@ class ODOrchestrator(ODOrchestratorBase):
         self.logger.info( 'volume name %s', normalize_name)
         return normalize_name
 
-    def prepareressources(self, authinfo, userinfo, allow_exception, **kwargs):
+    def prepareressources(self, authinfo, userinfo ):
         self.logger.info('externals ressources are not supported in docker mode')  
 
     def getsecretuserinfo(self, authinfo, userinfo):  
@@ -1212,7 +1230,7 @@ class ODOrchestrator(ODOrchestratorBase):
         bReturn = False
         myDesktop = self.container2desktop( container )
         if force is False:
-            nCount = self.userconnectcount( myDesktop )
+            nCount = self.user_connect_count( myDesktop )
             if nCount == -1 : 
                 return bReturn 
             if nCount > 0:
@@ -1819,6 +1837,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return bReturn 
 
     def removedesktop(self, authinfo, userinfo, myPod=None ):
+        """_summary_
+
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data 
+            myPod (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         ''' remove kubernetes pod for a give user '''
         ''' then remove kubernetes user's secrets '''
         bReturn = False # default value 
@@ -1853,7 +1881,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( "removedesktop can not find desktop %s %s", authinfo, userinfo )
         return bReturn
             
-    def prepareressources(self, authinfo, userinfo, allow_exception=True, **kwargs):
+    def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
         """[prepareressources]
 
         Args:
@@ -1959,8 +1987,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             datetime: a datetime from pod.metadata.annotations.get('lastlogin_datetime')
         """
+        resumed_datetime = None
         str_lastlogin_datetime = pod.metadata.annotations.get('lastlogin_datetime')
-        if type(str_lastlogin_datetime) is str:
+        if isinstance(str_lastlogin_datetime,str):
             resumed_datetime = datetime.datetime.strptime(str_lastlogin_datetime, "%Y-%m-%dT%H:%M:%S")
         return resumed_datetime
 
@@ -3182,9 +3211,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error(e)
         return nCount
 
-    def listdesktop(self):        
-        ''' return the number count of pod type 'type=' + self.x11servertype    '''
-        ''' return 0 if failed ( not the best return value )                    ''' 
+    def list_desktop(self):
         myDesktopList = []   
         try:  
             list_label_selector = 'type=' + self.x11servertype
@@ -3198,85 +3225,122 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return myDesktopList
             
-    def isgarbagable( self, pod, expirein, force=False ):
+    def isgarbagable( self, pod:client.models.v1_pod.V1Pod, expirein:int, force=False ):
+        """isgarbagable
+
+        Args:
+            pod (client.models.v1_pod.V1Pod): pod
+            expirein (int): in seconds
+            force (bool, optional): check if user is connected or not. Defaults to False.
+
+        Returns:
+            boot: True if pod is garbageable
+        """
+
         bReturn = False
         myDesktop = self.pod2desktop( pod=pod )
+        if not isinstance(myDesktop, ODDesktop):
+            return False
+
         if force is False:
-            nCount = self.userconnectcount( myDesktop )
+            nCount = self.user_connect_count( myDesktop )
             if nCount < 0: # if something wrong do not garbage this pod
                 return bReturn 
             if nCount > 0 : # if a user is connected do not garbage this pod
                 return bReturn 
-        # now nCount be equal to zero : no error and nouser connected
-        try:
-            # read the lastlogin datetime fomr metadata annotations
-            lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
-            # get the cuurent time
+
+        # read the lastlogin datetime from metadata annotations
+        lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
+        if isinstance( lastlogin_datetime, str):
+            # get the current time
             now_datetime = datetime.datetime.now()
-            # now_datetime.tzinfo = creation_datetime.tzinfo
             delta_datetime = now_datetime - lastlogin_datetime
             delta_second = delta_datetime.total_seconds()
+            # if delta_second is more than expirein in second
             if ( delta_second > expirein  ):
+                # this pod is gabagable
                 bReturn = True
-        except Exception as e:
-            self.logger.error(str(e))
-
         return bReturn
 
-    def getuserinfoauthinfofrompod( self, name ):
+
+    def extract_userinfo_authinfo_from_pod( self, myPod:client.models.v1_pod.V1Pod ):
+        """extract_userinfo_authinfo_from_pod
+            Read labels (authinfo,userinfo) from a pod
+        Args:
+            myPod (V1Pod): Pod
+
+        Returns:
+            (tuple): (authinfo,userinfo) AuthInfo, AuthUser
+        """
+        # fake an authinfo object
+        authinfo = AuthInfo( provider=myPod.metadata.labels.get('access_provider') )
+        # fake an userinfo object
+        userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'), 'name':  myPod.metadata.labels.get('access_username') } )
+        return (authinfo,userinfo)
+
+
+    def find_userinfo_authinfo_by_desktop_name( self, name:str ):
         self.logger.debug('')
-        removedesktop = None
-        field_selector='metadata.name=' + name
         authinfo = None
         userinfo = None
-        myPodList = self.kubeapi.list_namespaced_pod(self.namespace, field_selector=field_selector)
-        if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
-            for myPod in myPodList.items:
-                    # fake an authinfo object
-                    authinfo = AuthInfo( provider=myPod.metadata.labels.get('access_provider') )
-                    # fake an userinfo object
-                    userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
-                                            'name':  myPod.metadata.labels.get('access_username') } )
-                    return (authinfo,userinfo,myPod)
+        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name )
+        if isinstance( myPod, client.models.v1_pod.V1Pod ) :  
+            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
+        return (authinfo,userinfo)
 
-    def listcontainerappsbypodname( self, name ):
+    def describe_desktop_byname( self, name:str ):
+        """describe_desktop_byname
+
+        Args:
+            name (str): name of the desktop (pod)
+
+        Returns:
+            dict: dict of the desktop's pod
+        """
+        self.logger.debug('')
+        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name, _preload_content=False)
+        if isinstance( myPod, urllib3.response.HTTPResponse ) :  
+            myPod = json.loads( myPod.data )
+        return myPod
+
+        
+    def list_containers_bypodname( self, name: str):
         self.logger.debug('')
         listcontainer = None
-        (authinfo,userinfo,myPod) = self.getuserinfoauthinfofrompod( name )
+        (authinfo,userinfo) = self.find_userinfo_authinfo_by_desktop_name( name )
         if isinstance( userinfo, AuthUser) and isinstance( authinfo, AuthInfo ):
             listcontainer=self.listContainerApps( authinfo, userinfo )
         return listcontainer
 
-    def removedesktopbypodname( self, name):
-        self.logger.debug('')
-        removedesktop = None
-        (authinfo,userinfo,myPod) = self.getuserinfoauthinfofrompod( name )
-        if isinstance( userinfo, AuthUser) and isinstance( authinfo, AuthInfo ):
-                removedesktop = self.removedesktop( authinfo, userinfo, myPod )
-        return removedesktop
 
+    def garbagecollector( self, expirein:int, force=False ):
+        """garbagecollector
 
-    def garbagecollector( self, expirein, force=False ):
+        Args:
+            expirein (int): garbage expired in millisecond 
+            force (bool, optional): force event if user is connected. Defaults to False.
+
+        Returns:
+            list: list of str, list of pod name garbaged
+        """
         self.logger.debug('')
-        garbaged = []
-        try: 
-            list_label_selector = [ 'type=' + self.x11servertype ]
-            for label_selector in list_label_selector:
-                myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
-                if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
-                    for myPod in myPodList.items:
-                        self.logger.debug(  "test if pod:%s is garbageable", myPod.metadata.name )
+        garbaged = [] # list of garbaged pod
+        list_label_selector = [ 'type=' + self.x11servertype ]
+        for label_selector in list_label_selector:
+            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
+            if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
+                for myPod in myPodList.items:
+                    try: 
                         myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
-                        self.logger.debug(  "pod:%s is garbageable %s", myPod.metadata.name, str(myPodisgarbagable) )
+                        self.logger.debug(  f"pod {myPod.metadata.name} is garbageable {myPodisgarbagable}" )
                         if myPodisgarbagable is True:
-                            self.logger.info( '%s is garbagable, removing...', myPod.metadata.name  )
+                            self.logger.debug( f"{myPod.metadata.name} is garbagable, removing start" )
                             # fake an authinfo object
-                            authinfo = AuthInfo( provider=myPod.metadata.labels.get('access_provider') )
-                            # fake an userinfo object
-                            userinfo = AuthUser( { 'userid':myPod.metadata.labels.get('access_userid'),
-                                                   'name':  myPod.metadata.labels.get('access_username') } )
+                            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
                             self.removedesktop( authinfo, userinfo, myPod )
+                            self.logger.debug( f"{myPod.metadata.name} is garbagable, removing done" )
+                            # add the name of the pod to the list of garbaged pod
                             garbaged.append( myPod.metadata.name )
-        except ApiException as e:
-            self.logger.error(str(e))
+                    except ApiException as e:
+                        self.logger.error(e)
         return garbaged
