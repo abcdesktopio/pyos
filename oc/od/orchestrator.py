@@ -276,6 +276,8 @@ class ODOrchestratorBase(object):
         myinfra = self.createInfra( self.nodehostname )
 
         # get list of app 
+        # make shure the app belongs to the user 
+        # this is a security check
         listContainersApps = myinfra.listContainersApps( userinfo.userid )        
         for container in listContainersApps:                         
             # find the right container to kill
@@ -518,7 +520,7 @@ class ODOrchestrator(ODOrchestratorBase):
 
 
    
-    def createvolume(self, prefix, userinfo, authinfo, removeifexist=False, **kwargs ):
+    def createvolume(self, prefix:str, authinfo:AuthInfo, userinfo:AuthUser, removeifexist: bool=False ):
         '''
         docker volume create --driver local \
             --opt type=tmpfs \
@@ -557,16 +559,16 @@ class ODOrchestrator(ODOrchestratorBase):
         self.logger.info( 'volume name %s', normalize_name)
         return normalize_name
 
-    def prepareressources(self, authinfo, userinfo ):
+    def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
         self.logger.info('externals ressources are not supported in docker mode')  
 
-    def getsecretuserinfo(self, authinfo, userinfo):  
+    def getsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser):  
         ''' cached userinfo are not supported in docker mode '''    
         ''' return an empty dict '''
         self.logger.info('get cached userinfo are not supported in docker mode')
         return {} 
 
-    def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs):
+    def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
         """[build_volumes]
 
         Args:
@@ -3302,15 +3304,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( myPod, urllib3.response.HTTPResponse ) :  
             myPod = json.loads( myPod.data )
         return myPod
-
-        
-    def list_containers_bypodname( self, name: str):
-        self.logger.debug('')
-        listcontainer = None
-        (authinfo,userinfo) = self.find_userinfo_authinfo_by_desktop_name( name )
-        if isinstance( userinfo, AuthUser) and isinstance( authinfo, AuthInfo ):
-            listcontainer=self.listContainerApps( authinfo, userinfo )
-        return listcontainer
 
 
     def garbagecollector( self, expirein:int, force=False ):

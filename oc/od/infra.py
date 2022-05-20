@@ -275,7 +275,7 @@ class ODInfra(object):
         myContainersList = self.listContainers( myFilter )                
         return myContainersList
 
-    def listContainersApps( self, userid ):
+    def listContainersApps( self, userid:str ):
         """return a list of container oc.type:app for user=userid
 
         Args:
@@ -288,7 +288,7 @@ class ODInfra(object):
         return self.listContainersFilter( userid, { 'oc.type' : 'app' } )
 
 
-    def getDesktopContainer( self, containerid ):
+    def getDesktopContainer( self, containerid:str ):
         """return a container object from container id 
 
         Args:
