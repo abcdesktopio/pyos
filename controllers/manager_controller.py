@@ -140,14 +140,14 @@ class ManagerController(BaseController):
         if len(args)==1:
             # get information for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
-            describedesktop = oc.od.composer.describe_desktop(name=desktop_name)
+            describedesktop = oc.od.composer.describe_desktop_byname(name=desktop_name)
             return describedesktop
 
         # use a specify desktop
         if len(args)==2 and args[1]=="container":
             # list container for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
-            container = oc.od.composer.list_containers_bypodname(name=desktop_name)
+            container = oc.od.composer.list_container_byname(name=desktop_name)
             return container
 
         container_id = args[2]
@@ -187,8 +187,9 @@ class ManagerController(BaseController):
             # delete a container for a desktop
             # /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/7f77381f778b1214c780762185a2a345ed00cfd1022f18cbd37902af041aff40
             container_id = args[2]
-            container = oc.od.composer.delete_container( name=desktop_name, container=container_id )
-            return container
+            oc.od.composer.stop_container_byname( desktop_name, container=container_id )
+            oc.od.composer.remove_container_byname( desktop_name, container=container_id )
+            return container_id
 
         raise Exception( 'invalid request') 
 
