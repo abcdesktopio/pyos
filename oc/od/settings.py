@@ -32,6 +32,7 @@ authprovider = {}  # auth provider dict
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
 menuconfig   = {}  # default menu config
+geolocation   = None  # default geolocation 
 
 # User balloon define
 # Balloon is the default user used inside container
@@ -651,6 +652,12 @@ def init_menuconfig():
                                                     'logout':   True, 
                                                     'disconnect': True } )
 
+def init_geolocation():
+    global geolocation
+    # geolocation config
+    # options = { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 };
+    geolocation = gconfig.get('geolocation')
+
 def init_balloon():
     global balloon_uid
     global balloon_gid
@@ -949,6 +956,9 @@ def init():
 
     # load default menu config
     init_menuconfig()
+
+    # load geolocation config
+    init_geolocation()
 
     # init_jwt_config
     init_jwt_config()
