@@ -63,6 +63,8 @@ class CoreController(BaseController):
             id = desktop.get('defaultbackgroundcolors')
         elif provider == 'menuconfig':    
             id = menuconfig
+        elif provider == 'geolocation':    
+            id = oc.od.settings.geolocation
         elif provider == 'tracker' :
             id = oc.od.tracker.jiraclient().isenable()
         elif provider == 'webrtc':
