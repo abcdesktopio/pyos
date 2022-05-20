@@ -150,6 +150,30 @@ def runwebhook( c, messageinfo=None ):
     return bReturn 
 
 
+def remove_desktop_byname( desktop_name:str ):
+    myOrchestrator = selectOrchestrator()
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return removedesktop( authinfo, userinfo )
+
+def stop_container_byname( desktop_name:str, container ):
+    myOrchestrator = selectOrchestrator()  
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return stopContainerApp( authinfo, userinfo, container )
+
+def list_container_byname( desktop_name:str ):
+    myOrchestrator = selectOrchestrator()    
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return listContainerApp(authinfo, userinfo)
+
+def describe_desktop_byname( desktop_name:str ):
+    myOrchestrator = selectOrchestrator()    
+    pod = myOrchestrator.describe_desktop_byname( desktop_name )
+    return pod
+
+def describe_container_byname( desktop_name:str , container_id:str ):
+    myOrchestrator = selectOrchestrator()    
+    container = myOrchestrator.describe_container( desktop_name, container_id )
+    return container
 
 
 def logdesktop( authinfo, userinfo ):
@@ -166,34 +190,6 @@ def logdesktop( authinfo, userinfo ):
     return myOrchestrator.logs( authinfo, userinfo )
 
 
-def remove_desktop_byname( desktop_name:str ):
-    """remove_desktop_byname
-
-    Args:
-        desktop_name (str): name of a desktop or name of a pod
-
-    Returns:
-        bool: True if desktop is removed, else False
-    """
-    myOrchestrator = selectOrchestrator()  
-    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return removedesktop( authinfo, userinfo )
-
-def list_containers_bypodname( desktop_name:str ):
-    myOrchestrator = selectOrchestrator()    
-    listcontainer = myOrchestrator.list_containers_bypodname( desktop_name )
-    return listcontainer
-
-def describe_desktop( desktop_name:str ):
-    myOrchestrator = selectOrchestrator()    
-    pod = myOrchestrator.describe_desktop_byname( desktop_name )
-    return pod
-
-def describe_container( desktop_name:str , container_id:str ):
-    myOrchestrator = selectOrchestrator()    
-    container = myOrchestrator.describe_container( desktop_name, container_id )
-    return container
-
 def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     """removedesktop
 
@@ -209,6 +205,8 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     # webrtc look for the desktop
     # read the desktop object before removing
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
+
+
     # remove the desktop
     removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
     
@@ -284,7 +282,7 @@ def stopContainerApp(auth, user, containerid):
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( auth, user )
         
-    if myDesktop is None:
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
        raise ODError( 'stopcontainer::findDesktopByUser not found')
 
     services.accounting.accountex('api', 'container_app')
@@ -293,78 +291,70 @@ def stopContainerApp(auth, user, containerid):
     return result
 
 
-def logContainerApp(auth, user, containerid):
+def logContainerApp(authinfo, userinfo, containerid):
     logger.info('stopcontainer' )
 
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
-        
-    if myDesktop is None:
-       raise ODError( 'stopcontainer::findDesktopByUser not found')
+    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
+
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
+       raise ODError( 'findDesktopByUser not found')
 
     services.accounting.accountex('api', 'log_container_app' )
     myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.logContainerApp( auth, user, containerid )
+    result = myOrchestrator.logContainerApp( authinfo, userinfo, containerid )
     return result
 
 
-def removeContainerApp(auth, user, containerid):
+def removeContainerApp(authinfo, userinfo, containerid):
     logger.info('removeContainerApp')
 
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
+    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
-    if myDesktop is None:
-       raise ODError( 'removeContainerApp:findDesktopByUser not found')
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
+       raise ODError( 'findDesktopByUser not found')
 
     services.accounting.accountex('api', 'remove_container_app' )
     myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.removeContainerApp( auth, user, containerid )
+    result = myOrchestrator.removeContainerApp( authinfo, userinfo, containerid )
     return result
 
-def getsecretuserinfo( auth, user ):
-    logger.info('completeuserinfo')
-
+def getsecretuserinfo( authinfo, userinfo ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
-    secretuserinfo = myOrchestrator.getsecretuserinfo( auth, user )
-   
+    secretuserinfo = myOrchestrator.getsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
 
 
-def listContainerApp(auth, user ):
-    logger.info('listContainerApp')
-
+def listContainerApp(authinfo, userinfo):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
+    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
-    if myDesktop is None:
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
        raise ODError( 'listContainerApp:findDesktopByUser not found')
 
-    services.accounting.accountex('api', 'list_container_app')
     myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.listContainerApps( auth, user )
+    result = myOrchestrator.listContainerApps( authinfo, userinfo )
     return result
 
 
 
-def envContainerApp(auth, user, containerid ):
-    logger.info('listcontainer')
-
+def envContainerApp(authinfo, userinfo, containerid ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
+    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
-    if myDesktop is None:
-       raise ODError( 'stopcontainer::findDesktopByUser not found')
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
+       raise ODError( 'envContainerApp:findDesktopByUser not found')
 
     services.accounting.accountex('api', 'env_container_app')
     myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.envContainerApp( auth, user, containerid )
+    result = myOrchestrator.envContainerApp( authinfo, userinfo, containerid )
     return result
 
 
@@ -552,13 +542,13 @@ def openapp( auth, user={}, kwargs={} ):
 
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()  
+
     # find the desktop for the current user 
     myDesktop = myOrchestrator.findDesktopByUser( auth, user, **kwargs )
-    if myDesktop is None:
+    if not isinstance( myDesktop, ODDesktop):
         raise ODError( 'openapp:findDesktopByUser not found')
 
     myOrchestrator.nodehostname = myDesktop.nodehostname
-
     kwargs[ 'homedirectory_type' ] = settings.desktop['homedirectorytype']
 
     # Check limit apps counter
@@ -591,7 +581,7 @@ def openapp( auth, user={}, kwargs={} ):
         appinstance = myOrchestrator.getappinstance(auth, user, app )            
         if appinstance is not None:
             logger.debug('Another container with the same uniquerunkey %s is running for userid %s', app.get('uniquerunkey'), user.userid)
-            cmd,result = launchappprocess(myOrchestrator, app, appinstance, userargs)
+            cmd,result = launch_app_in_process(myOrchestrator, app, appinstance, userargs)
             services.accounting.accountex('container', 'reused')
             services.accounting.accountex('image', app['name'] )
             return {
@@ -668,7 +658,7 @@ def getapp(authinfo, name):
     return app
 
 
-def launchappprocess(orchestrator, app, appinstance, userargs):
+def launch_app_in_process(orchestrator, app, appinstance, userargs):
     cmd = [ app['path'],  app['args'], userargs ]
     result = orchestrator.execininstance(appinstance, cmd)
     if type(result) is not dict:
@@ -677,19 +667,13 @@ def launchappprocess(orchestrator, app, appinstance, userargs):
 
 def garbagecollector( expirein, force=False ):
     logger.debug('')
-    garbaged = []
-    try:
-        # new Orchestrator Object
-        myOrchestrator = selectOrchestrator()   
-        garbaged = myOrchestrator.garbagecollector( expirein=expirein, force=force )
-    except Exception as e:
-        logger.exception(e)
-    return garbaged
-
-        
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()   
+    return myOrchestrator.garbagecollector( expirein=expirein, force=force )
 
 # call info messages service
 def on_desktoplaunchprogress_info(source, key, *args):
+    logger.debug('')
     if key=='lookup_desktop':
         message = key
     elif key=='create_networks':
@@ -708,18 +692,6 @@ def on_desktoplaunchprogress_info(source, key, *args):
         except Exception:
             message = key    
     services.messageinfo.push( services.auth.user.userid, message)
-
-# call accounting service
-# def on_desktoplaunchprogress_count(source, key, *args):
-#     if key=='resume_desktop':
-#        message = key
-#    elif key=='create_desktop':
-#        message = key
-#    elif key=='create_desktop_error':
-#        pass
-#    else:
-#        return
-
 
 
 def detach_container_from_network( container_id ):
