@@ -1,3 +1,4 @@
+haversine==2.5.1
 chevron==0.14.0
 kubernetes>=23.3.0
 setuptools-rust
