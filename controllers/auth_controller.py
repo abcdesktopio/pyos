@@ -232,12 +232,16 @@ class AuthController(BaseController):
 
         if not isinstance(args, dict):
             raise cherrypy.HTTPError(400)
+
         # ipsource
         ipsource = getclientipaddr()
+
         # can raise excetion 
         self.isban_ip(ipsource)
 
+        # if force_auth_prelogin
         http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
+        
         # if the request need a prelogin
         if services.prelogin.enable and ( services.prelogin.request_match(ipsource) or http_attribut_to_force_auth_prelogin ) :
             userid = args.get('userid')
@@ -305,7 +309,7 @@ class AuthController(BaseController):
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
 
-        return Results.success( message="Authentication successful", 
+        return Results.success( message=response.reason, 
                                 result={'userid': response.result.user.userid,
                                         'jwt_user_token': jwt_user_token,
                                         'name': response.result.user.name,
@@ -559,10 +563,10 @@ class AuthController(BaseController):
         if not isinstance( response, oc.auth.authservice.AuthResponse ):
             self.logger.error( f"services auth.{msg} does not return oc.auth.authservice.AuthResponse object" )
             raise cherrypy.HTTPError(401, f"services auth.{msg} does not return oc.auth.authservice.AuthResponse")  
-
+        # if it's an error
         if not response.success:
-            self.logger.error( "services auth.login does not return %s", str(response.reason) )
-            raise cherrypy.HTTPError(401, str(response.reason) )  
+            self.logger.error( f"services auth.login error {response.reason}" )
+            raise cherrypy.HTTPError(401, response.reason )  
 
 
     @cherrypy.expose
@@ -571,8 +575,8 @@ class AuthController(BaseController):
     def login(self):
         # 
         # this request launchdesktop a desktop
+        #
         # this request could take a while and takes up to 180s
-        #  
         cherrypy.response.timeout = 180
         # can raise exception 
         self.isban_ip()
@@ -580,8 +584,8 @@ class AuthController(BaseController):
         args = cherrypy.request.json
         # can raise exception
         (auth, user ) = self.validate_env()
-        # push a start message to the message info database
-        services.messageinfo.start( user.userid, f"Authentication success {user.name}")
+        # push a start message to database cache info
+        services.messageinfo.start( user.userid, f"Launching desktop")
         # launch the user desktop 
         return self.root.composer._launchdesktop( auth, user, args)
 
@@ -591,10 +595,12 @@ class AuthController(BaseController):
     @cherrypy.tools.json_in()
     def refreshtoken(self):
         self.logger.debug('')
+        # get params from json request
+        args = cherrypy.request.json
         # can raise exception
-        (auth, user ) = self.validate_env()
+        (auth, user) = self.validate_env()
         # update token
         jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None )
         # return new token
-        return Results.success( f"Authentication successful {user.name}", 
+        return Results.success( "Refresh token success", 
                                 { 'expire_in': oc.od.settings.jwt_config_user.get('exp'), 'jwt_user_token': jwt_user_token } )
