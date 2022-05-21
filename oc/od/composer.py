@@ -175,6 +175,12 @@ def describe_container_byname( desktop_name:str , container_id:str ):
     container = myOrchestrator.describe_container( desktop_name, container_id )
     return container
 
+def remove_container_byname(desktop_name: str, container_id:str):
+    myOrchestrator = selectOrchestrator()    
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return removeContainerApp(authinfo,userinfo,container_id=container_id)
+
+
 
 def logdesktop( authinfo, userinfo ):
     """read the log from  the current desktop
@@ -307,7 +313,7 @@ def logContainerApp(authinfo, userinfo, containerid):
     return result
 
 
-def removeContainerApp(authinfo, userinfo, containerid):
+def removeContainerApp(authinfo, userinfo, container_id):
     logger.info('removeContainerApp')
 
     # new Orchestrator Object
@@ -319,7 +325,7 @@ def removeContainerApp(authinfo, userinfo, containerid):
 
     services.accounting.accountex('api', 'remove_container_app' )
     myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.removeContainerApp( authinfo, userinfo, containerid )
+    result = myOrchestrator.removeContainerApp( authinfo, userinfo, container_id )
     return result
 
 def getsecretuserinfo( authinfo, userinfo ):
@@ -552,42 +558,37 @@ def openapp( auth, user={}, kwargs={} ):
     kwargs[ 'homedirectory_type' ] = settings.desktop['homedirectorytype']
 
     # Check limit apps counter
-    max_app_counter = oc.od.settings.desktop['policies'].get('max_app_counter', -1)
-    # check if 
-    if max_app_counter > 0 :
+    max_app_counter = oc.od.settings.desktop['policies'].get('max_app_counter')
+    if isinstance( max_app_counter, int ):
         # count running applications
         running_user_applications_counter = myOrchestrator.countRunningContainerforUser( auth, user )
         if running_user_applications_counter > max_app_counter:
-            raise ODError( f"policies {running_user_applications_counter} too much applications are running, stop one of them" )
+            raise ODError( f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
 
     # get application object from application name
     app = getapp(auth, appname)
-    if app is None:
+    if not isinstance( app, dict ):
         raise ODError( f"app {appname} not found")
 
-    # check if app is allowed 
+    # verify if app is allowed 
     # this can occur only if the applist has been (hacked) modified 
+    # or applist has been updated in background 
     if not services.apps.is_app_allowed( auth, app ) :
-        logger.error( 'SECURITY Warning applist has been (hacked) modified')
-        # BAN Block this IP source addr
-        services.fail2ban.fail_ip( getclientipaddr() )
-        # BAN Block this user id 
-        services.fail2ban.fail_login( user.get('userid') )
+        logger.error( 'SECURITY Warning applist has been modified or updated')
         raise ODError('Application access is denied by security policy')
 
     # Check if the image is has the uniquerunkey Label set
     if app.get('uniquerunkey'):
-        logger.debug('the app %s has an uniqu key property set', appname )
+        logger.debug(f"app {appname} has an uniqu key property set" )
         appinstance = myOrchestrator.getappinstance(auth, user, app )            
-        if appinstance is not None:
+        if myOrchestrator.isinstance_app( appinstance ):
             logger.debug('Another container with the same uniquerunkey %s is running for userid %s', app.get('uniquerunkey'), user.userid)
             cmd,result = launch_app_in_process(myOrchestrator, app, appinstance, userargs)
             services.accounting.accountex('container', 'reused')
             services.accounting.accountex('image', app['name'] )
-            return {
-                'container_id': appinstance.id,
-                'cmd': cmd,
-                'stdout': result['stdout']
+            return {    'container_id': appinstance.id,
+                        'cmd': cmd,
+                        'stdout': result['stdout']
             }
     
     logger.debug( 'no application instance %s is running, create a new one', str(appname) )                  
@@ -648,7 +649,7 @@ def notify_user( access_userid, access_type, method, data ):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
     cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
     if isinstance( myDesktop, ODDesktop) :
-        myOrchestrator.execininstance(myDesktop, cmd)
+        myOrchestrator.execininstance(myDesktop.id, cmd)
     
 
 def getapp(authinfo, name):
