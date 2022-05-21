@@ -667,6 +667,9 @@ class ODOrchestrator(ODOrchestratorBase):
                         continue
         return bRemove
 
+    def isinstance_app( self, appinstance ):
+        return  isinstance( appinstance, docker.models.containers.Container )
+
     def execincontainer_metappli( self, containerid, command):
         myinfra = self.createInfra( self.nodehostname )
         return myinfra.execincontainer( containerid, command, detach=True)
@@ -675,7 +678,7 @@ class ODOrchestrator(ODOrchestratorBase):
         myinfra = self.createInfra( self.nodehostname )
         return myinfra.execincontainer( desktop.id, command)
 
-    def execininstance( self, container, command):
+    def execininstance( self, container_id, command):
         """exec command in container
 
         Args:
@@ -686,18 +689,16 @@ class ODOrchestrator(ODOrchestratorBase):
             (dict): Dictionary of values returned by the endpoint, 
                     stdout entry
         """
-        containerid = container.container_id
         myinfra = self.createInfra( self.nodehostname )
-        return myinfra.execincontainer( containerid, command)
+        return myinfra.execincontainer( container_id, command)
 
     def getappinstance( self, authinfo, userinfo, app ):        
         userid = userinfo.userid
         self.logger.debug( "app=%s, userid=%s", app['name'], userid )
         myinfra = self.createInfra( self.nodehostname )
         container = myinfra.findRunningContainerforUserandImage( userid, app['uniquerunkey'])
-        if container:
-            container.app = app        
-        self.logger.debug( 'return container=%s', str(container) )
+        if isinstance( container, docker.models.containers.Container ):
+            container.app = app
         return container
 
     def get_auth_env_dict( self, authinfo, userinfo  ):
@@ -2194,24 +2195,36 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         return myrunningPodList
 
+        def isinstance_app( self, appinstance ):
+            bReturn = super().isinstance_app( appinstance) or isinstance( appinstance, client.models.v1_pod.V1Pod )
+            return bReturn
+
 
     def getappinstance( self, authinfo, userinfo, app ):    
-        pod = None    
-        userid = userinfo.userid 
-        self.logger.debug( "app=%s, userid=%s", app['name'], userid )
-        
-        podlist = self.findRunningPodforUserandImage( authinfo, userinfo, app)
+        self.logger.debug('')
+        # check if the application instance exixts and
+        # is running as a container
+        appinstance = super().getappinstance( authinfo, userinfo, app )
+        if super().isinstance_app( appinstance ):
+            return appinstance
 
+        # the application instance does not exist as a container
+        # looking for a pod instance
+        pod = None 
+        podlist = self.findRunningPodforUserandImage( authinfo, userinfo, app)
         if len(podlist) > 0:
             pod = podlist[0]
-            pod.id = pod.metadata.name
-
+            pod.id = pod.metadata.name # add an id for container compatibility
         return pod
 
 
     def execininstance( self, desktop, command):
-       
         self.logger.info('')
+
+        # if the desktop object is a container instance object
+        if isinstance( desktop, docker.models.containers.Container ):
+            return super().execininstance( desktop.id, command)
+
         result = { 'ExitCode': -1, 'stdout':None }
         timeout=5
         # calling exec and wait for response.
@@ -2281,6 +2294,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop_pod[currentcontainertype].get('acl') ) and \
                     oc.od.settings.desktop_pod[currentcontainertype].get('enable') == True
         return bReturn
+
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
