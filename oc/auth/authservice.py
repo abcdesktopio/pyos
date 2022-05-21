@@ -24,6 +24,7 @@ import copy
 import requests
 import json
 import crypt
+import datetime
 
 
 from ldap import filter as ldap_filter
@@ -34,7 +35,7 @@ import ldap3
 
 # kerberos import
 import gssapi
-import base64
+import haversine
 import platform
 import chevron  # for citrix All_Regions.ini
 
@@ -652,20 +653,53 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
-        def isHttpHeader( headerdict ):
+        def isTimeAfter( timeafter ) :
+            return False
+
+        def isTimeBefore( timebefore ) :
+            return False
+
+
+        def isGeoLocation(user, geolocation):
+            # user.get('geolocation'): {accuracy: 14.884, latitude: 48.8555131, longitude: 2.3752174}
+            # haversine.haversine()
+            user_geolocation = user.get('geolocation')
+            if not isinstance( user_geolocation, dict ):
+                logger.error( "bad user location type")
+                return False
+
+            if not isinstance (geolocation.get('accuracy'), int ):
+                 return False
+
+            # format (latitude, longitude)
+            user_latitude = user_geolocation.get('latitude')
+            user_longitude = user_geolocation.get('longitude')
+            if not isinstance( user_longitude, float) or not isinstance( user_longitude, float):
+                logger.error( "bad user latitude or longitude type")
+                return False
+            loc1=( user_latitude, user_longitude)
+            loc2=( geolocation.get('latitude'), geolocation.get('longitude') )
+            logger.debug( f"isGeoLocation define geolocation {loc1} {loc2}")
+            distance = haversine.haversine(loc1,loc2, unit=haversine.Unit.METERS)
+            logger.debug( f"isGeoLocation compare {distance} < {geolocation.get('accuracy')} ")
+            if distance < geolocation.get('accuracy'):
+                return True
+            return False
+
+        def isHttpHeader( user, headerdict ):
             if type(headerdict) is not dict:
-                self.logger.warning('invalid value type http header %s, dict is expected in rule', type(headerdict) )
+                logger.warning('invalid value type http header %s, dict is expected in rule', type(headerdict) )
                 return False  
 
             for header in headerdict.keys():
-                headervalue = cherrypy.request.headers.get(header)
+                headervalue = user.get('httpheaders').get(header)
                 if headervalue != headerdict[header] :
                     return False
             return True
 
         def isBoolean( value ):
             if not isinstance(value, bool):
-                self.logger.warning('invalid value type boolean %s, bool is expected in rule', type(value) )
+                logger.warning('invalid value type boolean %s, bool is expected in rule', type(value) )
                 return False  
 
             return value
@@ -676,13 +710,12 @@ class ODAuthTool(cherrypy.Tool):
             if type(groups) is not list: 
                 groups = [groups]
             for m in roles:
-                # 
                 if not isinstance( m, str):
                     continue
                 for g in groups:
                     if not isinstance( g, str):
                         continue
-                    self.logger.debug('isMemberOf %s, %s', m, g)
+                    logger.debug(f"isMemberOf {m}  {g}")
                     if m.lower().startswith(g.lower()):
                         return True
             return False
@@ -716,11 +749,14 @@ class ODAuthTool(cherrypy.Tool):
             return False
 
         self.logger.info('condition %s ', condition )
-        compiled_result = False
+
+        compiled_result = False  # default compiled_result is False
+
         if type(condition) is not dict :
             return False
 
-        expected    = condition.get('expected')
+        # just a type sanity check
+        expected = condition.get('expected')
         if type(expected) is not bool:
             self.logger.warning('invalid value type %s bool is expected in rule', type(expected) )
    
@@ -736,13 +772,19 @@ class ODAuthTool(cherrypy.Tool):
 
         httpheader = condition.get('httpheader')
         if type(httpheader) is dict:
-            result     = isHttpHeader( httpheader )
+            result     = isHttpHeader( user, httpheader )
             if result == condition.get( 'expected'):
                 compiled_result = True
 
         memberOf = condition.get('memberOf') or condition.get('memberof')
         if type(memberOf) is str:
             result     = isMemberOf( roles, memberOf )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        geolocation = condition.get('geolocation')
+        if type(geolocation) is dict:
+            result = isGeoLocation( user, geolocation  )
             if result == condition.get( 'expected'):
                 compiled_result = True
 
@@ -763,16 +805,14 @@ class ODAuthTool(cherrypy.Tool):
                 try:
                     primaryGroup = int(primaryGroup)
                 except Exception as e:
-                    self.logger.error(   'invalid primarygroupid type convert value %s to int failed %s',
-                                    str(primaryGroup), 
-                                    str(e))
+                    self.logger.error( f"invalid primarygroupid type convert value {primaryGroup} to int failed {e}")
 
             if isinstance(primaryGroup,int):
                 result = isPrimaryGroup( user, primaryGroup )
                 if result == condition.get( 'expected'):
                     compiled_result = True
             else:
-                self.logger.error( 'invalid primarygroupid type int is expected, get %s', type(primaryGroup) )
+                self.logger.error( f"invalid primarygroupid type int is expected, get {type(primaryGroup)}" )
 
         attribut_dict = condition.get('attibut')
         if type(attribut_dict) is dict:
@@ -1111,39 +1151,51 @@ class ODAuthTool(cherrypy.Tool):
 
 
 
+
     def login(self, provider, manager=None, **arguments):        
 
         try:
             auth = None
             response = AuthResponse(self)
 
+            # mesure time betwwen client and serveur at the first time 
+            # before all auth processing
+            # show profiler time diff
+            user_utctimestamp = arguments.get('utctimestamp')
+            server_utctimestamp = datetime.datetime.now().timestamp()*1000
+            if isinstance(user_utctimestamp, int):
+                # convert server_utctimestamp to milliseconds
+                # server_utctimestamp = float(datetime.datetime.utcnow().timestamp()) * 1000
+                arguments['difftime'] = server_utctimestamp - user_utctimestamp
+                self.logger.info(f"Diff between server-client {arguments['difftime']} in milliseconds")
+
             # if provider is None, it must be an explicit manager 
             if not isinstance(provider, str):
                 # provider is None
                 # can raise exception
                 # do everythings possible to find one provider
-                self.logger.info( f"provider is None, login try to find a provider using manager={str(manager)}" )
+                self.logger.info( f"provider is None, login try to find a provider using manager={manager}" )
                 provider = self.logintrytofindaprovider( manager )
                 
             # look for an auth manager
             mgr = self.findmanager(provider, manager)
                  
             # do authenticate with the auth manager
-            self.logger.debug( f"mgr.authenticate provider={str(provider)} start") 
+            self.logger.debug( f"mgr.authenticate provider={provider} start") 
             auth = mgr.authenticate(provider, **arguments)
-            self.logger.debug( f"mgr.authenticate provider={str(provider)} done") 
+            self.logger.debug( f"mgr.authenticate provider={provider} done") 
 
             if not isinstance( auth, AuthInfo ):
                 raise AuthenticationFailureError('No authentication provided')
             
             # uncomment this line only to dump password in clear text format
             # self.logger.debug( 'mgr.getuserinfo arguments=%s', arguments)   
-            self.logger.debug( f"mgr.getuserinfo provider={str(provider)} start")          
+            self.logger.debug( f"mgr.getuserinfo provider={provider} start")          
             user = mgr.getuserinfo(provider, auth, **arguments)
-            self.logger.debug( f"mgr.getuserinfo provider={str(provider)} done")  
+            self.logger.debug( f"mgr.getuserinfo provider={provider} done")  
             if not isinstance(user, dict ):
-                raise AuthenticationFailureError('getuserinfo return None provider=%s', provider)
-
+                raise AuthenticationFailureError(f"getuserinfo return {type(user)} provider={provider}")
+ 
             # userid = user.get('userid')
             # if not isinstance(userid, str):
             #    raise AuthenticationFailureError('getuserinfo return invalid userid provider=%s', provider)
@@ -1151,36 +1203,38 @@ class ODAuthTool(cherrypy.Tool):
             # make sure to use the same case sensitive if we change provider
             # user['userid'] = userid.upper()
             
-            # uncomment this line only to see password in clear text format
-            # self.logger.debug( 'mgr.getroles arguments=%s', arguments) 
-            self.logger.debug( f"mgr.getroles provider={str(provider)} start")             
+            self.logger.debug( f"mgr.getroles provider={provider} start")             
             roles = mgr.getroles(provider, auth, **arguments)
-            self.logger.debug( f"mgr.getroles provider={str(provider)} stop") 
+            self.logger.debug( f"mgr.getroles provider={provider} done") 
             if not isinstance(roles, list):
-                raise AuthenticationFailureError( 'mgr.getroles provider=%s error' %  provider )
+                raise AuthenticationFailureError( f"mgr.getroles provider={provider} error" )
 
             # get the provider object
             pdr = mgr.getprovider(provider)
 
-            # if the provider has rules defined
-            # then compile data using rules
-            # and runs the rules to get associated labels tag
+            # if the provider has rules defined then 
+            # compile data using rules
+            # runs the rules to get associated labels tag
             if pdr.rules:
-                self.logger.debug( f"compiledrules start")      
+                self.logger.debug( "compiledrules start")      
                 auth.data['labels'] = self.compiledrules( pdr.rules, user, roles )
-                self.logger.debug( f"compiledrules stop")      
-                self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+                self.logger.debug( "compiledrules done")      
+                self.logger.info( f"compiled rules get labels {auth.data['labels']}")
 
             # check if acl matches with tag
             if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
             
-            # buid a AuthCache as response result 
+            server_endoflogin_utctimestamp = datetime.datetime.now().timestamp()*1000
+            login_duration = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
+
+            # build a AuthCache as response result 
             myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles } ) 
+
             response.update(    manager=mgr, 
                                 result=myauthcache, 
                                 success=True, 
-                                reason='Authentication successful' )         
+                                reason=f"Authentication successful in {login_duration:.2f} s" )  # float two digits after comma       
             
         except AuthenticationError as e:
             response.reason = e.message
@@ -1301,7 +1355,15 @@ class ODAuthManagerBase(object):
         return self.getprovider(provider, True).authenticate(**arguments)
 
     def getuserinfo(self, provider, token, **arguments):
-        return self.getprovider(provider, True).getuserinfo(token, **arguments)
+        userinfo =  self.getprovider(provider, True).getuserinfo(token, **arguments)
+
+        if isinstance( userinfo, dict):
+            userinfo['httpheaders'] = cherrypy.request.headers
+            # complete data from arguments
+            for addionnalinfo in [ 'geolocation', 'utctimestamp']:
+                userinfo[addionnalinfo]=arguments.get(addionnalinfo)
+
+        return userinfo
 
     def getroles(self, provider, authinfo, **arguments):
         return self.getprovider(provider, True).getroles(authinfo, **arguments)
