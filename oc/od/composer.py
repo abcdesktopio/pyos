@@ -515,7 +515,7 @@ def createdesktop( authinfo, userinfo, args  ):
                                                 **myCreateDesktopArguments )
 
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
-        logger.debug( 'desktop dump : %s', myDesktop.to_json() )
+        # logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
             messageinfo.push('Webhooking network services')
        
@@ -607,7 +607,8 @@ def openapp( auth, user={}, kwargs={} ):
     return openapp_dict
 
 def callwebhook(webhookcmd, messageinfo=None, timeout=60):
-    logger.debug( 'callwebhook exec ' + webhookcmd )
+    logger.debug( f"callwebhook exec {webhookcmd}" )
+    exitCode = -1
     try :
         proc = subprocess.run(webhookcmd, shell=True, timeout=timeout, stdout=subprocess.PIPE )
         if isinstance( proc, subprocess.CompletedProcess) :
@@ -615,6 +616,7 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
             if messageinfo:
                 messageinfo.push('Webhooking updated service successfully')
             logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
+            exitCode = proc.returncode
         else:
             logger.error( f"command {webhookcmd} subprocess.run return {str(type(proc))}" )
             if messageinfo:
@@ -630,6 +632,7 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
         if messageinfo:
             messageinfo.push(f"command exception {webhookcmd} error={e}" )
         logger.error( e )
+    return exitCode
 
 def notify_user( access_userid, access_type, method, data ):
     """[notify_user]
@@ -705,7 +708,10 @@ def detach_container_from_network( container_id ):
     logger.debug( 'detach_container_from_network:key=%s', container_id )
     cmd_webhook_destroy = oc.od.services.services.sharecache.get( container_id )
     if isinstance( cmd_webhook_destroy, str) :
-        callwebhook( cmd_webhook_destroy )
+        exitCode = callwebhook( cmd_webhook_destroy )
+        if exitCode == 0 :
+            oc.od.services.services.sharecache.delele( container_id )
+
 
 
 
