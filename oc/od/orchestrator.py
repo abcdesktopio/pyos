@@ -1766,8 +1766,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return result
 
 
-    def removePod( self, myPod ):
-        ''' remove kubernetes pod '''
+    def removePod( self, myPod, propagation_policy = 'Foreground' ):
+        """_summary_
+            Remove a pod
+            like command 'kubectl delete pods'
+        Args:
+            myPod (_type_): _description_
+            propagation_policy (str, optional): propagation_policy. Defaults to 'Foreground'.
+            propagation_policy = 'Background' or 
+            propagation_policy = 'Foreground'
+
+
+        Returns:
+            v1status: v1status
+        """
+        self.logger.debug('')
         v1status = None
         try:
             #   The Kubernetes propagation_policy is 'Foreground'
@@ -1778,8 +1791,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.info( 'pod_name %s', pod_name)              
             self.nodehostname = myPod.spec.node_name
 
-            # propagation_policy='Background'
-            propagation_policy = 'Foreground'
+            # propagation_policy = 'Background'
+            # propagation_policy = 'Foreground'
             #grace_period_seconds = 0
             delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy )
             # delete_options = client.V1DeleteOptions(propagation_policy = propagation_policy, grace_period_seconds=grace_period_seconds )
@@ -1793,7 +1806,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except ApiException as e:
                 self.logger.error( str(e) )
 
-        self.logger.debug( f"removePod return v1status {v1status}")
         return v1status
 
     def removesecrets( self, authinfo, userinfo ):
@@ -3178,7 +3190,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             desktop_container_id = desktop_container.container_id
             desktop_container_name = desktop_container.name
         
-
         internal_pod_fqdn = self.build_internalPodFQDN( pod )
 
         # read the vnc password from kubernetes secret
@@ -3318,7 +3329,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( myPod, urllib3.response.HTTPResponse ) :  
             myPod = json.loads( myPod.data )
         return myPod
-
 
     def garbagecollector( self, expirein:int, force=False ):
         """garbagecollector
