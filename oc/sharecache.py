@@ -58,7 +58,17 @@ class ODMemcachedSharecache(ODSharecacheBase):
                 return True
             self.logger.error('memcached %s failed, (%s: %s) return failed', self.connectionstring, key, value)
         except Exception as e:
-            self.logger.error('memcached %s failed, (%s: %s): %s', self.connectionstring, key, value, e)
+            self.logger.error('memcached %s failed, (%s: %s)', self.connectionstring, key, value, e)
+        return False
+
+    def delete(self, key, time=0 ):
+        # self.logger.debug("setting key '%s' = %s", key, value)
+        try:
+            if self.createclient().delete(str(key), time=time) != 0: 
+                return True
+            self.logger.error('memcached %s failed, (%s: %s) return failed', self.connectionstring, key)
+        except Exception as e:
+            self.logger.error('memcached %s failed, (%s: %s)', self.connectionstring, key, e)
 
         return False
 
