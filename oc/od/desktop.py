@@ -46,8 +46,6 @@ class ODDesktop(object):
         self._broadcast_cookie      = broadcast_cookie
         self._storage_container_id  = storage_container_id
 
-
-
     # id is the container id in docker mode
     # id is the pod id in kubernetes node
     @property
