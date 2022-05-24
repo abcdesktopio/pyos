@@ -3,6 +3,7 @@ import oc.od.settings as settings
 import oc.od.infra
 import oc.od.orchestrator
 import oc.od.dockerwatcher
+import oc.od.kuberneteswatcher
 import oc.od.imagewatcher
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ class ODServices(object):
         self.locatorPublicInternet = None
         self.webrtc = None
         self.dockerwatcher = None
+        self.kuberneteswatcher = None
         self.imagewatcher = None
         self.apps = None
         self.prelogin = None
@@ -176,6 +178,11 @@ class ODServices(object):
         self.dockerwatcher = oc.od.dockerwatcher.ODDockerWatcher()
         self.dockerwatcher.start()
 
+    def init_kuberneteswatcher( self ):
+        self.logger.info('')
+        self.kuberneteswatcher = oc.od.kuberneteswatcher.ODKubernetesWatcher()
+        self.kuberneteswatcher.start()
+
     def init_imagewatcher( self ):
         self.logger.info('')
         self.imagewatcher = oc.od.imagewatcher.ODImageWatcher()
@@ -264,6 +271,8 @@ def init():
     # watch image pull rm event
     # watch network create destroy event
     services.init_dockerwatcher()
+
+    services.init_kuberneteswatcher()
 
     # run image watcher for images ain mongodb
     # watch image pull event
