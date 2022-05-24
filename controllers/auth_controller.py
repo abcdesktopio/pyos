@@ -107,7 +107,8 @@ class AuthController(BaseController):
         """
         bReturn = None
         if services.auth.isidentified:
-            # Always remove all http cookies
+            # nothing to do
+            # keep dekstop running
             services.auth.logout()
             bReturn = Results.success()
         else:
@@ -142,6 +143,7 @@ class AuthController(BaseController):
             removeCookie( oc.od.settings.routehostcookiename )
 
             # Always call logout auth services 
+            # nothing to do
             services.auth.logout() 
             
             if bReturn is None:
