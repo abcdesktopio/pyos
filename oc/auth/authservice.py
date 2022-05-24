@@ -136,6 +136,9 @@ class AuthUser(dict):
         mergedeep.merge(newuser, self, strategy=mergedeep.Strategy.ADDITIVE) 
         return newuser
 
+    def isValid( self ):
+        return not(not self.get('userid') )
+
 #
 # define AuthInfo
 class AuthInfo(object):
@@ -168,6 +171,7 @@ class AuthInfo(object):
            claims = {}
         self.claims = claims
         self.conn = conn
+        self.isAuthDoneFromDecodedToken = False
 
     def __getitem__(self, key):
         return getattr(self, key, None)
@@ -201,20 +205,13 @@ class AuthInfo(object):
     def isValid(self):
         bReturn = False
         try:
-            bReturn = not not (self.provider and self.token)            
+            bReturn = not not (self.provider and self.isAuthDoneFromDecodedToken)            
         except Exception:
             pass
         return bReturn
     
-    def markAuthDoneFromPreviousToken(self, already_done=True):
-        self.token = already_done
-
-    def isPreviousAuth(self):        
-        if type(self.token) is bool:
-            return True
-        if type(self.token) is str:
-            return False
-        raise ValueError('Invalid token value type')
+    def markAuthDoneFromDecodedToken(self, isDecodedToken=True):
+        self.isAuthDoneFromDecodedToken = isDecodedToken
 
     def todict( self ):
         """[todict]
@@ -260,15 +257,26 @@ class AuthResponse(object):
 class AuthCache(object):
     NotSet  = object()
 
-    def __init__(self, dict_token=None):
+    def __init__(self, dict_token=None, auth_duration_in_milliseconds=None, origin=None):
         self.reset()
-        if type(dict_token) is dict:
+        if isinstance(dict_token, dict):
             self.setuser( dict_token.get('user'))
             self.setauth( dict_token.get('auth'))            
             self.setroles( dict_token.get('roles'))
+            self.userdecodedsuccessful = True
+        self._origin = origin
+        self.auth_duration_in_milliseconds = auth_duration_in_milliseconds  
 
-    def markAuthDoneFromPreviousToken(self):
-        self._auth.markAuthDoneFromPreviousToken()
+    def markAuthDoneFromDecodedToken(self):
+        self._auth.markAuthDoneFromDecodedToken()
+
+    @property
+    def origin( self ):
+        return self._origin
+
+    @origin.setter
+    def origin(self, value):
+        self._origin = value
 
     def reset(self):
         """[reset]
@@ -278,6 +286,8 @@ class AuthCache(object):
         self._user  = AuthCache.NotSet
         self._roles = AuthCache.NotSet        
         self._auth  = AuthInfo()
+        self._origin = None
+        self.auth_duration_in_milliseconds = None
 
     @property 
     def user(self):
@@ -287,7 +297,9 @@ class AuthCache(object):
         self._user = AuthUser( valuedict )
 
     def isValidUser(self):
-        return self._user != AuthCache.NotSet and not(not self._user.userid)
+        # != AuthCache.NotSet and not(not self._user.userid)
+        isvalid = isinstance(self._user, AuthUser) and self._user.isValid()
+        return isvalid
             
     def isValidRoles(self):
         return self._roles != AuthCache.NotSet            
@@ -398,32 +410,43 @@ class ODAuthTool(cherrypy.Tool):
         Returns:
             [AuthCache]: [return an authcahe can be empty or contains decoded data]
         """
-        authcache = AuthCache() # empty Auth
+        authcache = AuthCache()
         
         # by default user token use Authorization HTTP Header
-        token = cherrypy.request.headers.get('ABCAuthorization', None)
-        if isinstance(token, str) and token.startswith( 'Bearer '):
+        http_request_token = cherrypy.request.headers.get('ABCAuthorization', None)
+        if isinstance(http_request_token, str) and http_request_token.startswith( 'Bearer '):
             # remove the 'Bearer ' : len( 'Bearer ') = 7
-            token = token[7:] 
+            request_token = http_request_token[7:] 
             # if there is some data to decode
-            if len(token) > 0 : 
+            if len(request_token) > 0 : 
                 try:
                     # get the dict decoded token
                     # can raise jwt.exceptions.ExpiredSignatureError: Signature has expired
-                    decoded_token = self.jwt.decode( token )
+                    decoded_token = self.jwt.decode( request_token )
                     # read user, roles, auth
                     # Build a cache data to store value from decoded token into an AuthCache object
-                    authcache = AuthCache( decoded_token )
-                    authcache.markAuthDoneFromPreviousToken()
+                    authcache = AuthCache( decoded_token, origin='jwt.decoded')
+                    authcache.markAuthDoneFromDecodedToken()
                 except jwt.exceptions.ExpiredSignatureError as e:
-                    # nothing to do log the exception and continue with empty authcache
+                    # nothing to do
+                    # log the exception as a warning 
+                    # and continue with empty authcache
+                    authcache.origin = 'jwt.ExpiredSignatureError'
                     self.logger.warning( e )
                 except jwt.exceptions.DecodeError as e:
                     # nothing to do log the exception and continue with empty authcache
-                    self.logger.warning( e )
-                except Exception as e:
+                    # this is an error 
+                    authcache.origin = 'jwt.DecodeError'
+                    self.logger.error( e )
+                except jwt.exceptions.PyJWTError as e:
                     # nothing to do log the exception and continue with empty authcache
-                    self.logger.warning( e )
+                    # this is an error 
+                    authcache.origin = 'jwt.Error'
+                    self.logger.error( e )
+                except Exception as e:
+                    authcache.origin = 'exceptionError'
+                    # nothing to do log the exception and continue with empty authcache
+                    self.logger.error( e )
         return authcache
 
     @property
@@ -1226,15 +1249,15 @@ class ODAuthTool(cherrypy.Tool):
                 raise AuthenticationDenied( 'Access is denied by security policy')
             
             server_endoflogin_utctimestamp = datetime.datetime.now().timestamp()*1000
-            login_duration = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
-
+            auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
+            
             # build a AuthCache as response result 
-            myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles } ) 
+            myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles }, auth_duration_in_milliseconds=auth_duration_in_milliseconds ) 
 
             response.update(    manager=mgr, 
                                 result=myauthcache, 
                                 success=True, 
-                                reason=f"Authentication successful in {login_duration:.2f} s" )  # float two digits after comma       
+                                reason=f"Authentication successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma       
             
         except AuthenticationError as e:
             response.reason = e.message
@@ -1254,8 +1277,8 @@ class ODAuthTool(cherrypy.Tool):
 
         finally:
             # call finalize to clean conn if need
-            if auth is not None and hasattr( mgr, 'finalize' ) and callable(mgr.finalize) :
-               auth = mgr.finalize(provider, auth, **arguments)
+            if isinstance( auth, AuthInfo )  and hasattr( mgr, 'finalize' ) and callable(mgr.finalize) :
+                mgr.finalize(provider, auth, **arguments)
 
         return response
 
@@ -1574,7 +1597,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         return clientdata
 
     def finalize(self, auth, **params):
-        return auth
+        pass
 
     def is_default( self ):
         return self.default
@@ -1706,8 +1729,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         oauthsession = authinfo.token 
         # Check if type is OAuth2Session
         if isinstance(oauthsession,OAuth2Session) :
-            authinfo.token = oauthsession.token 
-        return authinfo
+            authinfo.token = oauthsession.token
 
 # ODImplicitAuthProvider is an Anonymous AuthProvider
 class ODImplicitAuthProvider(ODAuthProviderBase):
