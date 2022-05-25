@@ -698,19 +698,30 @@ def on_desktoplaunchprogress_info(source, key, *args):
     services.messageinfo.push( services.auth.user.userid, message)
 
 
-def detach_container_from_network( container_id ):
-    """ detach a container from a network
-        call a url_webhook_destroy formated by orchestrator
-        to notify stop on firewall for example 
+def detach_container_from_network( id:str ):
+    """detach_container_from_network
+        execute a postpone command when container or desktop stop
+
+    Usage:
+        call a url_webhook_destroy formated by orchestrator to notify stop on firewall for example 
+
     Args:
-        container_id ([str]): [container id]
+        id (str): container id or pod name
+
+    Returns:
+        bool: True if command exit command is 0 and id removed
     """
-    logger.debug( 'detach_container_from_network:key=%s', container_id )
-    cmd_webhook_destroy = oc.od.services.services.sharecache.get( container_id )
+    bReturn = False
+    logger.debug( f"detach_container_from_network:key={id}" )
+    # read the postponed command
+    cmd_webhook_destroy = oc.od.services.services.sharecache.get( id )
     if isinstance( cmd_webhook_destroy, str) :
+        # execute the postponed command
         exitCode = callwebhook( cmd_webhook_destroy )
         if exitCode == 0 :
-            oc.od.services.services.sharecache.delele( container_id )
+            # delete the postponed command
+            bReturn = oc.od.services.services.sharecache.delete( id )
+    return bReturn
 
 
 
