@@ -94,7 +94,9 @@ class ODOrchestratorBase(object):
         # init name is o-UUID
         self.storagecontainernameprefix     = 'o'   # file container letter prefix o for secret storage
          # init name is h-UUID
-        self.sshcontainernameprefix         = 'h'   # file container letter prefix h for secret ssh
+        self.sshcontainernameprefix         = 'h'   # file container letter prefix h for ssh
+        # name separtor only for human read 
+        self.rdpcontainernameprefix         = 'r'   # file container letter prefix r for xrdp
         # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
 
@@ -104,7 +106,8 @@ class ODOrchestratorBase(object):
                                 'filer'     : self.filercontainernameprefix,
                                 'init'      : self.initcontainernameprefix,
                                 'storage'   : self.storagecontainernameprefix,
-                                'ssh'       : self.sshcontainernameprefix 
+                                'ssh'       : self.sshcontainernameprefix,
+                                'rdp'       : self.rdpcontainernameprefix 
         }
  
 
@@ -1278,6 +1281,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def __init__(self, arguments=None):
         super().__init__(arguments)
+
+        self.DEFAULT_K8S_TIMEOUT_SECONDS = 15
+        self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS = 30
         
         # Configs can be set in Configuration class directly or using helper
         # utility. If no argument provided, the config will be loaded from
@@ -2842,6 +2848,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
             self.logger.debug('pod container created %s', currentcontainertype )
 
+        # Add rdp service 
+        currentcontainertype = 'rdp'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            self.logger.debug('pod container creating %s', currentcontainertype )
+            pod_manifest['spec']['containers'].append( { 
+                                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'), 
+                                    'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),                                
+                                    'env': envlist,
+                                    'volumeMounts':  list_volumeMounts,
+                                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
+                                }   
+            )
+            self.logger.debug('pod container created %s', currentcontainertype )
 
         # if metapply stop, do not restart the pod 
         if kwargs[ 'type' ] == self.x11servertype_embeded :
@@ -2870,7 +2891,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
-                                timeout_seconds=self.createpod_timeout,
+                                timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
                                 field_selector=f'involvedObject.name={pod_name}' ):  
             if not isinstance(event, dict ):
                 self.logger.error( 'event type is %s, and should be a dict, skipping event', type(event) )
@@ -2933,7 +2954,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                 namespace=self.namespace, 
-                                timeout_seconds=self.createpod_timeout,
+                                timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
                                 field_selector='metadata.name=' + pod_name ):   
             # event must be a dict, else continue
             if not isinstance(event,dict):
