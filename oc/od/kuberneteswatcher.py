@@ -14,17 +14,18 @@ class ODKubernetesWatcher:
         self.orchestrator = oc.od.orchestrator.ODOrchestratorKubernetes()
         self.thead_event = None
         self.watch = None
+        self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS = 10
 
 
     def loopforevent( self ):
         self.logger.debug('' )
         self.watch = watch.Watch() 
-        while( True ): #  inifity loop     
+        while( True ): #  inifity loop stop when watch.stop     
             try:
                 # watch list_namespaced_pod waiting for a valid ip addr          
-                events = self.watch.stream(  self.orchestrator.kubeapi.list_namespaced_pod, namespace=self.orchestrator.namespace, timeout_seconds=10)
+                events = self.watch.stream(  self.orchestrator.kubeapi.list_namespaced_pod, namespace=self.orchestrator.namespace, timeout_seconds=self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS)
                 if self.watch._stop :
-                    return
+                    return  # stop this thread 
                 for event in events:
                     # event must be a dict, else continue
                     if not isinstance(event,dict):
