@@ -21,6 +21,7 @@ class ODDockerWatcher:
 
         #
         self.thead_event = None
+        self.events = None
 
     def event_image( self, client, event ):
         self.logger.debug('new image event from docker event %s', event)
@@ -153,7 +154,6 @@ class ODDockerWatcher:
 
 
     def loop_forevent(self):    
-
         # connect to local docker daemon
         client = oc.od.infra.ODInfra().getdockerClient()
 
@@ -180,11 +180,22 @@ class ODDockerWatcher:
         self.thead_event.start() # infinite loop until events.close()
 
     def stop(self):
-        self.logger.debug('stoping watcher thread')
+        self.logger.debug('ODDockerWatcher thread stopping')
         if isinstance( self.thead_event, threading.Thread ):
             if self.thead_event.is_alive() :
-                self.events.close() # this will stop the thread self.thead_event
+                self.logger.debug('ODDockerWatcher thead_event is alive')
+                if self.events:
+                    self.logger.debug('ODDockerWatcher events closing')
+                    self.events.close() # this will stop the thread self.thead_event
+                    self.logger.debug('ODDockerWatcher events closed')
+                self.logger.debug('ODDockerWatcher thead_event join')
                 self.thead_event.join()
             else:
                 self.logger.debug('thread watcher is not alive')
+
+        # clean up 
+        self.events = None
+        self.thead_event = None
+
+        self.logger.debug('ODDockerWatcher thread stopped')
             

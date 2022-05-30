@@ -13,51 +13,60 @@ class ODKubernetesWatcher:
     def __init__(self):
         self.orchestrator = oc.od.orchestrator.ODOrchestratorKubernetes()
         self.thead_event = None
+        self.watch = None
 
 
     def loopforevent( self ):
         self.logger.debug('' )
-        # watch list_namespaced_pod waiting for a valid ip addr
-        w = watch.Watch()                 
-        for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, namespace=self.orchestrator.namespace):   
-            # event must be a dict, else continue
-            if not isinstance(event,dict):
-                self.logger.error( 'event type is %s, and should be a dict, skipping event', type( event ))
-                continue
+        self.watch = watch.Watch() 
+        while( True ): #  inifity loop     
+            try:
+                # watch list_namespaced_pod waiting for a valid ip addr          
+                events = self.watch.stream(  self.orchestrator.kubeapi.list_namespaced_pod, namespace=self.orchestrator.namespace, timeout_seconds=10)
+                if self.watch._stop :
+                    return
+                for event in events:
+                    # event must be a dict, else continue
+                    if not isinstance(event,dict):
+                        self.logger.error( 'event type is %s, and should be a dict, skipping event', type( event ))
+                        continue
 
-            # event dict must contain a type 
-            event_type = event.get('type')
-            if event_type == 'MODIFIED':
-                self.logger.debug( f"event {event_type} receive" )
-                # event dict must contain a object 
-                pod_event = event.get('object')
-                # if podevent type is pod
-                if isinstance( pod_event, client.models.v1_pod.V1Pod ) : 
-                    self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
-                    podtype = pod_event.metadata.labels.get( 'type' )
-                    if podtype == self.orchestrator.applicationtype :
-                        self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
-                        if isinstance( pod_event.status, client.models.v1_pod_status.V1PodStatus ):
-                            if not isinstance(pod_event.status.container_statuses, list):
-                                continue
-                            state = pod_event.status.container_statuses[0].state     
-                            if isinstance( state.terminated, client.models.v1_container_state_terminated.V1ContainerStateTerminated ):
-                                self.logger.debug( f"{event_type} -> {pod_event.metadata.name} phase: {pod_event.status.phase} reason:{state.terminated.reason}" )
-                                if state.terminated.reason == 'Completed':
-                                    self.orchestrator.removePod( pod_event )
+                    # event dict must contain a type 
+                    event_type = event.get('type')
+                    if event_type == 'MODIFIED':
+                        self.logger.debug( f"event {event_type} receive" )
+                        # event dict must contain a object 
+                        pod_event = event.get('object')
+                        # if podevent type is pod
+                        if isinstance( pod_event, client.models.v1_pod.V1Pod ) : 
+                            self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
+                            podtype = pod_event.metadata.labels.get( 'type' )
+                            if podtype == self.orchestrator.applicationtype :
+                                self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
+                                if isinstance( pod_event.status, client.models.v1_pod_status.V1PodStatus ):
+                                    if not isinstance(pod_event.status.container_statuses, list):
+                                        continue
+                                    state = pod_event.status.container_statuses[0].state     
+                                    if isinstance( state.terminated, client.models.v1_container_state_terminated.V1ContainerStateTerminated ):
+                                        self.logger.debug( f"{event_type} -> {pod_event.metadata.name} phase: {pod_event.status.phase} reason:{state.terminated.reason}" )
+                                        if state.terminated.reason == 'Completed':
+                                            self.orchestrator.removePod( pod_event )
 
-            if event_type == 'DELETED':
-                self.logger.debug( f"event {event_type} receive" )
-                # event dict must contain a object 
-                pod_event = event.get('object')
-                # if podevent type is pod
-                if isinstance( pod_event, client.models.v1_pod.V1Pod ) : 
-                    self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
-                    podtype = pod_event.metadata.labels.get( 'type' )
-                    if podtype == self.orchestrator.x11servertype :
-                        self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
-                        desktop = self.orchestrator.pod2desktop( pod_event )
-                        oc.od.composer.detach_container_from_network(desktop.name)
+                    if event_type == 'DELETED':
+                        self.logger.debug( f"event {event_type} receive" )
+                        # event dict must contain a object 
+                        pod_event = event.get('object')
+                        # if podevent type is pod
+                        if isinstance( pod_event, client.models.v1_pod.V1Pod ) : 
+                            self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
+                            podtype = pod_event.metadata.labels.get( 'type' )
+                            if podtype == self.orchestrator.x11servertype :
+                                self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
+                                desktop = self.orchestrator.pod2desktop( pod_event )
+                                oc.od.composer.detach_container_from_network(desktop.name)
+            except Exception as e:
+                self.logger.degug( e )
+                pass
                     
         
     def start(self):
@@ -66,11 +75,23 @@ class ODKubernetesWatcher:
         self.thead_event.start() # infinite loop until events.close()
 
     def stop(self):
-        self.logger.debug('stoping watcher thread')
+        self.logger.debug('ODKubernetesWatcher thread stopping')
         if isinstance( self.thead_event, threading.Thread ):
-            if self.thead_event.is_alive() :
-                self.events.close() # this will stop the thread self.thead_event
-                self.thead_event.join()
+            while self.thead_event.is_alive():
+                self.logger.debug('thread watcher is alive')
+                if isinstance(self.watch, watch.Watch ) :
+                    self.logger.debug('ODKubernetesWatcher watch closing')
+                    self.watch.stop() # this will stop the thread self.thead_event
+                    self.logger.debug('ODKubernetesWatcher watch closed')
+              
+                self.logger.debug('ODKubernetesWatcher join start timeout=5')
+                self.thead_event.join(timeout=5)
+                self.logger.debug('ODKubernetesWatcher join done')
             else:
                 self.logger.debug('thread watcher is not alive')
+
+        self.watch = None
+        self.thead_event = None
+
+        self.logger.debug('ODKubernetesWatcher thread stopped')
             
