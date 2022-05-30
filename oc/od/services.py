@@ -1,3 +1,4 @@
+from errno import ESTALE
 import logging
 import oc.od.settings as settings
 import oc.od.infra
@@ -30,18 +31,8 @@ class ODServices(object):
         self.fail2ban = None
 
     def __del__(self):
-        # stop thread dockerwatcher if instance exists
-        if hasattr(self, 'dockerwatcher') and isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
-            try:
-                self.dockerwatcher.stop()
-            except Exception as e:
-                pass
-        # stop thread imagewatcher if instance exists
-        if hasattr(self, 'imagewatcher') and isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
-            try:
-                self.imagewatcher.stop()
-            except Exception as e:
-                pass
+        self.logger.debug('')
+        self.stop_services()
 
     def init(self):
         """[init services call all services init() methods]
@@ -60,6 +51,52 @@ class ODServices(object):
         self.init_prelogin()
         self.init_logmein()
         self.init_fail2ban()
+
+    def start(self):
+        self.logger.debug('')
+        if isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher):
+
+            self.dockerwatcher.start()
+        if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
+            self.kuberneteswatcher.start()
+
+
+    def stop( self):
+        self.logger.debug('')
+
+        # stop thread dockerwatcher if instance exists
+        if isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
+            try:
+                self.logger.debug( 'dockerwatcher stop')
+                self.dockerwatcher.stop()
+                self.logger.debug( 'dockerwatcher stopped')
+            except Exception as e:
+                self.logger.error(e)
+        else:
+            self.logger.debug( 'self.dockerwatcher is not defined')
+
+        # stop thread imagewatcher if instance exists
+        if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
+            try:
+                self.logger.debug( 'kuberneteswatcher stop')
+                self.kuberneteswatcher.stop()
+                self.logger.debug( 'kuberneteswatcher stopped')
+            except Exception as e:
+                self.logger.error(e)
+        else:
+            self.logger.debug( 'self.kuberneteswatcher is not defined')
+
+
+        # stop thread imagewatcher if instance exists
+        #if hasattr(self, 'imagewatcher') and isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
+        #    try:
+        #        self.logger.debug( 'imagewatcher.stop')
+        #        self.imagewatcher.stop()
+        #    except Exception as e:
+        #        pass
+
+
+        self.logger.debug('done')
 
 
     def init_fail2ban( self ):
@@ -176,17 +213,14 @@ class ODServices(object):
     def init_dockerwatcher( self ):
         self.logger.info('')
         self.dockerwatcher = oc.od.dockerwatcher.ODDockerWatcher()
-        self.dockerwatcher.start()
 
     def init_kuberneteswatcher( self ):
         self.logger.info('')
         self.kuberneteswatcher = oc.od.kuberneteswatcher.ODKubernetesWatcher()
-        self.kuberneteswatcher.start()
 
     def init_imagewatcher( self ):
         self.logger.info('')
         self.imagewatcher = oc.od.imagewatcher.ODImageWatcher()
-        self.imagewatcher.start()
 
 
 # use services to access 
@@ -271,7 +305,6 @@ def init():
     # watch image pull rm event
     # watch network create destroy event
     services.init_dockerwatcher()
-
     services.init_kuberneteswatcher()
 
     # run image watcher for images ain mongodb

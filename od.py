@@ -195,12 +195,11 @@ class ODCherryWatcher(plugins.SimplePlugin):
     """ signal thread to stop when cherrypy stop"""
     def start(self):
         logger.debug( "ODCherryWatcher start events, skipping" )
+        oc.od.services.services.start()
 
     def stop(self):
         logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
-        # if oc.od.services.services.dockerwatcher exists, stop it
-        if isinstance( oc.od.services.services.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher):
-            oc.od.services.services.dockerwatcher.stop()
+        oc.od.services.services.stop()
 
 
 def run_server():   
