@@ -205,7 +205,7 @@ class AuthInfo(object):
     def isValid(self):
         bReturn = False
         try:
-            bReturn = not not (self.provider and self.isAuthDoneFromDecodedToken)            
+            bReturn = not not (self.provider and self.isAuthDoneFromDecodedToken)
         except Exception:
             pass
         return bReturn
@@ -265,7 +265,7 @@ class AuthCache(object):
             self.setroles( dict_token.get('roles'))
             self.userdecodedsuccessful = True
         self._origin = origin
-        self.auth_duration_in_milliseconds = auth_duration_in_milliseconds  
+        self.auth_duration_in_milliseconds = auth_duration_in_milliseconds
 
     def markAuthDoneFromDecodedToken(self):
         self._auth.markAuthDoneFromDecodedToken()
@@ -416,7 +416,7 @@ class ODAuthTool(cherrypy.Tool):
         http_request_token = cherrypy.request.headers.get('ABCAuthorization', None)
         if isinstance(http_request_token, str) and http_request_token.startswith( 'Bearer '):
             # remove the 'Bearer ' : len( 'Bearer ') = 7
-            request_token = http_request_token[7:] 
+            request_token = http_request_token[7:]
             # if there is some data to decode
             if len(request_token) > 0 : 
                 try:
@@ -435,12 +435,12 @@ class ODAuthTool(cherrypy.Tool):
                     self.logger.warning( e )
                 except jwt.exceptions.DecodeError as e:
                     # nothing to do log the exception and continue with empty authcache
-                    # this is an error 
+                    # this is an error
                     authcache.origin = 'jwt.DecodeError'
                     self.logger.error( e )
                 except jwt.exceptions.PyJWTError as e:
                     # nothing to do log the exception and continue with empty authcache
-                    # this is an error 
+                    # this is an error
                     authcache.origin = 'jwt.Error'
                     self.logger.error( e )
                 except Exception as e:
@@ -1250,14 +1250,13 @@ class ODAuthTool(cherrypy.Tool):
             
             server_endoflogin_utctimestamp = datetime.datetime.now().timestamp()*1000
             auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
-            
             # build a AuthCache as response result 
             myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles }, auth_duration_in_milliseconds=auth_duration_in_milliseconds ) 
 
             response.update(    manager=mgr, 
                                 result=myauthcache, 
                                 success=True, 
-                                reason=f"Authentication successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma       
+                                reason=f"Authentication successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma
             
         except AuthenticationError as e:
             response.reason = e.message
