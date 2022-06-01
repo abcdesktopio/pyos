@@ -30,10 +30,6 @@ class ODServices(object):
         self.logmein = None
         self.fail2ban = None
 
-    def __del__(self):
-        self.logger.debug('')
-        self.stop_services()
-
     def init(self):
         """[init services call all services init() methods]
         """
