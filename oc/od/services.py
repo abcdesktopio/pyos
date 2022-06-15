@@ -10,6 +10,7 @@ import oc.od.imagewatcher
 logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODServices(object):
+
     def __init__(self):
         self.datastore = None
         self.sharecache = None
@@ -49,17 +50,25 @@ class ODServices(object):
         self.init_fail2ban()
 
     def start(self):
+        """start
+            start threads 
+                * dockerwatcher
+                * kuberneteswatcher
+        """
         self.logger.debug('')
         if isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher):
-
             self.dockerwatcher.start()
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             self.kuberneteswatcher.start()
 
 
     def stop( self):
+        """stop
+            stop threads 
+                * dockerwatcher
+                * kuberneteswatcher
+        """
         self.logger.debug('')
-
         # stop thread dockerwatcher if instance exists
         if isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
             try:
@@ -84,13 +93,15 @@ class ODServices(object):
 
 
         # stop thread imagewatcher if instance exists
-        #if hasattr(self, 'imagewatcher') and isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
-        #    try:
-        #        self.logger.debug( 'imagewatcher.stop')
-        #        self.imagewatcher.stop()
-        #    except Exception as e:
-        #        pass
-
+        if hasattr(self, 'imagewatcher') and isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
+            try:
+                self.logger.debug( 'imagewatcher stop')
+                self.imagewatcher.stop()
+                self.logger.debug( 'imagewatcher stopped')
+            except Exception as e:
+                self.logger.error(e)
+        else:
+            self.logger.debug( 'self.imagewatcher is not defined')
 
         self.logger.debug('done')
 
@@ -226,7 +237,7 @@ services = ODServices()
 def init_infra():
     """init_infra
 
-       find configuration docker and kubernetex
+       find configuration docker and kubernetes
     """
     logger.info('')
 
