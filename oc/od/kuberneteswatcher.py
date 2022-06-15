@@ -66,7 +66,7 @@ class ODKubernetesWatcher:
                                 desktop = self.orchestrator.pod2desktop( pod_event )
                                 oc.od.composer.detach_container_from_network(desktop.name)
             except Exception as e:
-                self.logger.degug( e )
+                self.logger.debug( e )
                 pass
                     
         
