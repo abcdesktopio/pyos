@@ -1689,8 +1689,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret_dict_data    = secret.read_data( userinfo )
                 mountPath           = secret_dict_data.get( 'mountPath')
                 networkPath         = secret_dict_data.get( 'networkPath' )
-
-                mountOptions        = secret_dict_data.get( 'mountOptions' )
                 
                 # Check if the secret contains valid datas 
                 if not isinstance( mountPath, str) :
