@@ -1711,7 +1711,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.debug( f"flexvolume: {mountvol.name} set option {mountOptions}" )
                 self.logger.debug( f"flexvolume: read secret {secret_name} to mount {networkPath}")
                 # add dict volumes entry mountvol.name
-                volumes[mountvol.name] = { 'name': volume_name,
+                volumes[mountvol.name] = {  'name': volume_name,
                                             'flexVolume' : {
                                                 'driver': driver_type,
                                                 'fsType': fstype,
