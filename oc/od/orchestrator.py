@@ -1689,27 +1689,30 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret_dict_data    = secret.read_data( userinfo )
                 mountPath           = secret_dict_data.get( 'mountPath')
                 networkPath         = secret_dict_data.get( 'networkPath' )
+
+                mountOptions        = secret_dict_data.get( 'mountOptions' )
                 
                 # Check if the secret contains valid datas 
-                if mountPath is None :
+                if not isinstance( mountPath, str) :
                     self.logger.error( 'Invalid value for mountPath read from secret' )
                     continue
 
-                if networkPath is None:
+                if not isinstance( networkPath, str) :
                     self.logger.error( 'Invalid value for networkPath read from secret' )
                     continue
 
-                volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }                        
+                volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }     
 
-                # Default mount options
-                mountOptions =  'uid=' + str( oc.od.settings.getballoon_uid() ) + ',' + \
-                                'gid=' + str( oc.od.settings.getballoon_gid() )
-                                
-                # if a volume mountOptions exists, concat the mountvol.mountOptions
-                if type(mountvol.mountOptions) is str and len(mountvol.mountOptions) > 0:
-                    mountOptions = mountOptions +  ',' + mountvol.mountOptions
-                self.logger.info( 'flexvolume: read secret %s to mount %s', secret_name, networkPath )
+                 # Default mount options
+                mountOptions = 'uid=' + str( oc.od.settings.getballoon_uid() ) + ',gid=' + str( oc.od.settings.getballoon_gid() )
+                # concat mountOptions for the volume if exists 
+                if mountvol.has_options():
+                    mountOptions += ',' + mountvol.mountOptions
 
+                # dump for debug
+                self.logger.debug( f"flexvolume: {mountvol.name} set option {mountOptions}" )
+                self.logger.debug( f"flexvolume: read secret {secret_name} to mount {networkPath}")
+                # add dict volumes entry mountvol.name
                 volumes[mountvol.name] = { 'name': volume_name,
                                             'flexVolume' : {
                                                 'driver': driver_type,
@@ -1719,9 +1722,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                                 'mountOptions': mountOptions }
                                             }
                 }
-
-                self.logger.debug( 'volume mount : %s %s', mountvol.name, volumes_mount[mountvol.name] )
-                self.logger.debug( 'volumes      : %s %s', mountvol.name, volumes[mountvol.name] )
+                # dump for debug
+                self.logger.debug( f"volumes {mountvol.name} use volume {volumes[mountvol.name]} and volume mount {volumes_mount[mountvol.name]}")
             
         self.logger.debug('volumes end')        
         return (volumes, volumes_mount)
@@ -1902,7 +1904,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( "removedesktop can not find desktop %s %s", authinfo, userinfo )
         return bReturn
             
-    def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
+    def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser, allow_exception=False):
         """[prepareressources]
 
         Args:
@@ -1973,13 +1975,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Create flexvolume secrets
         self.logger.debug('flexvolume secrets creating')
         rules = oc.od.settings.desktop['policies'].get('rules')
-        if rules is not None:
+        if isinstance(rules, dict):
             mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo,  rules.get('volumes') )
             for mountvol in mountvols:
                 # use as a volume defined and the volume is mountable
                 fstype = mountvol.fstype # Get the fstype: for example 'cifs' or 'cifskerberos' or 'webdav'
                 # Flex volume use kubernetes secret, add mouting path
-                arguments = { 'mountPath': mountvol.containertarget, 'networkPath': mountvol.networkPath }
+                arguments = { 'mountPath': mountvol.containertarget, 'networkPath': mountvol.networkPath, 'mountOptions': mountvol.mountOptions }
                 # Build the kubernetes secret
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype)
                 auth_secret = secret.create( authinfo, userinfo, arguments )
