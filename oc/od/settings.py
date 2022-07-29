@@ -28,7 +28,6 @@ namespace = 'abcdesktop'
 
 mongoconfig = None  # Mongodb config Object Class
 
-authprovider = {}  # auth provider dict
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
 menuconfig   = {}  # default menu config
@@ -802,44 +801,41 @@ def init_config_mongodb():
 
 
 def init_config_auth():
-    global authprovider
     global authmanagers
-
+    
     def parse_provider_configref( authmanagers, provider_type ):
+        logger.debug( f"parsing provider type {provider_type}" )
         expcfg = pyutils.get_setting(authmanagers, provider_type )
-        if expcfg:
+        if isinstance( expcfg, dict ):
             for name,cfg in expcfg.items(): 
-                cfgref = cfg.get('config_ref')
-                if cfgref is None: 
-                    continue
-                    
-                # conncfg = gconfig.get(cfgref, {}).get(name, None)
-                conncfg = list(gconfig.get(cfgref,{}).values())[0]
-                if conncfg: 
-                    cfg.update({    **conncfg,
-                                    'basedn':  conncfg.get('ldap_basedn'),
-                                    'timeout': conncfg.get('ldap_timeout', 15),
-                                    'secure':  conncfg.get('ldap_protocol') == 'ldaps'
-                    })
-                    logger.debug(cfg)
+                configref_name = cfg.get('config_ref')
+                if isinstance( configref_name, str ) :
+                    logger.debug( f"config {name} as use configref_name={configref_name}" )
+                    config_ref = gconfig.get(configref_name)
+                    if not isinstance(config_ref, dict):
+                        logger.error( f"config {name} can not read configref_name={configref_name}, skipping" )
+                        continue
+                        
+                    firstkey = next(iter(config_ref)) # Using next() + iter(), getting first key in dictionary
+                    logger.debug( f"reading config_ref key {firstkey}" )
+                    conncfg = config_ref.get( firstkey )
+                    if isinstance(conncfg, dict):
+                        logger.debug( f"apply update config to {name}" )
+                        cfg.update({    **conncfg,
+                                        'basedn':  conncfg.get('ldap_basedn'),
+                                        'timeout': conncfg.get('ldap_timeout', 15),
+                                        'secure':  conncfg.get('ldap_protocol') == 'ldaps'
+                        })
+                    else:
+                        logger.error( f"{configref_name} is not a dict, invalid format type={type(conncfg)}" )
 
-
-    authprovider = gconfig.get('authprovider', {})    
-    logger.debug(authprovider)
-
+    # load authmanagers from config file
     authmanagers = gconfig.get('authmanagers', {})
-
     # load configref for all providers
     parse_provider_configref( authmanagers, 'implicit.providers')
     parse_provider_configref( authmanagers, 'explicit.providers')
     parse_provider_configref( authmanagers, 'metaexplicit.providers')
 
-
-def getAuthProvider(name):
-    provider = authprovider.get(name, {})
-    provider['provider'] = name
-    logger.debug('%s => %s', name, provider)
-    return provider
 
 #
 # init_config_check return True if
