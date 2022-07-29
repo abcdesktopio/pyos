@@ -2051,7 +2051,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             if ldap_bind_userid: 
                 conn.unbind()
 
-    def getroles(self, authinfo, **params):   
+    def getroles(self, authinfo, **params):  
+        self.logger.debug('') 
         if self.auth_only :
             return []
 
@@ -2809,6 +2810,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                 conn.unbind()
 
     def getroles(self, authinfo, **params):
+        self.logger.debug('')
         token = authinfo.token 
         if not self.recursive_search:
             return super().getroles(authinfo, **params)
@@ -3086,7 +3088,23 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
         return usersinfo[0]
 
+    def getroles(self, authinfo, **arguments): 
+        self.logger.debug('') 
+        roles = []     
+        userid = arguments.get( 'userid' )
+        filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
+        self.logger.info( 'ODAdAuthMetaProvider:ldap.filter %s', filter)
+        userinfo = self.search_one( conn=authinfo.conn, 
+                                    basedn=self.user_query.basedn, 
+                                    scope=self.user_query.scope, 
+                                    filter=filter, 
+                                    attrs='memberOf' )
 
+        if isinstance( userinfo, dict ) :
+            roles = userinfo.get('memberOf',[])
+            if not isinstance( roles, list ):
+                roles = [ roles ]
+        return roles
 
 @oc.logging.with_logger()
 class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
