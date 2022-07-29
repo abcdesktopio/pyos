@@ -102,7 +102,7 @@ class ExternalAuthUserError(ExternalAuthError):
 # define AuthRoles
 class AuthRoles(dict):
     def __init__(self,entries):
-        if type(entries) is dict:
+        if isinstance(entries,dict):
             super().__init__(entries)
 
     def __getattr__(self, name):
@@ -466,10 +466,6 @@ class ODAuthTool(cherrypy.Tool):
     @property
     def user(self):
         return self.current.user
-
-    #@property
-    #def nodehostname(self): 
-    #    return self.current.user.nodehostname
  
     @property
     def roles(self):
@@ -728,9 +724,9 @@ class ODAuthTool(cherrypy.Tool):
             return value
 
         def isMemberOf(roles, groups) :
-            if type(roles) is not list:  
+            if not isinstance(roles,list):  
                 roles = [roles]
-            if type(groups) is not list: 
+            if not isinstance(groups,list): 
                 groups = [groups]
             for m in roles:
                 if not isinstance( m, str):
