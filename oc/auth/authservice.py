@@ -800,15 +800,19 @@ class ODAuthTool(cherrypy.Tool):
             result     = isMemberOf( roles, memberOf )
             if result == condition.get('expected'):
                 compiled_result = True
-            # check if the porvider object is an ODAdAuthProvider
-            # and has isMemberOf method
-            # ODAdAuthMetaProvider has isMemberOf method
-            meta_provider = kwargs.get('provider')
-            auth = kwargs.get('auth')
-            if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
-                result = meta_provider.isMemberOf( auth, user, memberOf )
-                if result == condition.get('expected'):
-                    compiled_result = True
+            
+            if compiled_result is False:
+                # check if the provider object is an ODAdAuthMetaProvider
+                # and auth object is an AuthInfo
+                meta_provider = kwargs.get('provider')
+                auth = kwargs.get('auth')
+                if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
+                    # call the isMember method to run LDAP Qeury and 
+                    # read the member attribut in group
+                    # This is not the user's memberOf 
+                    result = meta_provider.isMemberOf( auth, user, memberOf )
+                    if result == condition.get('expected'):
+                        compiled_result = True
 
         geolocation = condition.get('geolocation')
         if type(geolocation) is dict:
@@ -1113,7 +1117,7 @@ class ODAuthTool(cherrypy.Tool):
             self.logger.debug( f"userlogin has objectSid={objectSid}")
 
             # look for entries set with the user domain sid in the meta directory provider
-            metauser['foreingkeys'] = provider_meta.getforeignkeys( auth, userloginresponse.result.user )
+            metauser['foreing_distinguished_name'] = provider_meta.getforeignkeys( auth, userloginresponse.result.user )
 
             # meta user knows the foreingkeys from the user domain
             # can query to memberof 
@@ -2317,16 +2321,16 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         result = self.search(conn, query.basedn, query.scope, ldap_filter.filter_format(query.filter, [id]), ['cn', 'distinguishedName'], True)
         return result['distinguishedName'] if result else None
 
-    def isMemberOf( self, authinfo, userdistinguished_name, groupdistinguished_name):
-        self.logger.debug('userdistinguished_name={userdistinguished_name} groupdistinguished_name={groupdistinguished_name}')
+    def isMemberOf( self, authinfo, userdistinguished_name:str, groupdistinguished_name:str):
+        self.logger.debug(f"userdistinguished_name={userdistinguished_name} groupdistinguished_name={groupdistinguished_name}")
         memberof = False
-        filter = ldap_filter.filter_format( '(objectClass=group)' )
+        filter = '(objectClass=group)'
         groupinfo = self.search_one( conn=authinfo.conn, 
                                     basedn=groupdistinguished_name, 
                                     scope=ldap3.BASE, 
                                     filter=filter, 
-                                    attrs='member' )
-        self.logger.debug('groupinfo={groupinfo} ')
+                                    attrs=['member'] )
+        self.logger.debug(f"groupinfo={groupinfo}")
         if not isinstance( groupinfo, dict ):
             self.logger.debug('groupinfo is not a dict')
             return memberof
@@ -2335,10 +2339,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if not isinstance( member, list ):
             self.logger.debug('member is not a list')
             return memberof
-        self.logger.debug('member={member}')
+        self.logger.debug(f"member={member}")
         if userdistinguished_name in member:
             memberof = True
-        self.logger.debug('return memberof={memberof}')
+        self.logger.debug(f"return memberof={memberof}")
         return memberof
         
 
@@ -3163,7 +3167,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
                                     basedn=self.user_query.basedn, 
                                     scope=self.user_query.scope, 
                                     filter=filter, 
-                                    attrs='memberOf' )
+                                    attrs=['memberOf']  )
 
         if isinstance( userinfo, dict ) :
             roles = userinfo.get('memberOf',[])
@@ -3187,20 +3191,26 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         self.logger.debug( f"ldap.filter {filter}")
         self.logger.debug( f"ldap search_all basedn={self.foreign_query.basedn} filter={filter} attrs={self.foreign_query.attrs}" )
 
-        foreingdistinguished_name = self.search_all(   conn=authinfo.conn, 
-                                                        basedn=self.foreign_query.basedn, 
-                                                        scope=self.foreign_query.scope, 
-                                                        filter=filter, 
-                                                        attrs=self.foreign_query.attrs )
+        query_foreingdistinguished_name = self.search_all(  conn=authinfo.conn, 
+                                                            basedn=self.foreign_query.basedn, 
+                                                            scope=self.foreign_query.scope, 
+                                                            filter=filter, 
+                                                            attrs=self.foreign_query.attrs )
 
-        self.logger.debug( f"ldap search result {type(foreingdistinguished_name)} {foreingdistinguished_name}")
+        self.logger.debug( f"ldap search result {type(query_foreingdistinguished_name)} {query_foreingdistinguished_name}")
 
-        if not isinstance( foreingdistinguished_name, list ) or len( foreingdistinguished_name ) == 0:
+        if not isinstance( query_foreingdistinguished_name, list ) or len( query_foreingdistinguished_name ) == 0:
             # foreign sid not exist in metadirectory 
-            foreingdistinguished_name =  None
+            self.logger.debug( f"objectSid={objectSid} is not found, return None")
+            return None
+       
+        foreingdistinguished_list = []
+        for foreingdn in foreingdistinguished_name.values():
+            if isinstance( foreingdn, dict  ) and foreingdn.get('distinguishedName'):
+                foreingdistinguished_list.append( foreingdn.get('distinguishedName') )
 
-        self.logger.debug( f"return {type(foreingdistinguished_name)} {foreingdistinguished_name}")
-        return foreingdistinguished_name
+        self.logger.debug( f"return {type(foreingdistinguished_list)} {foreingdistinguished_list}")
+        return foreingdistinguished_list
 
 
     def _isMemberOf( self, foreingkeys_distinguished_name:str, groupdistinguished_name:str ):
@@ -3238,6 +3248,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             return memberof
 
         for userdistinguished_name in foreing_distinguished_name:
+            self.logger.debug( f"call super().isMemberOf")
             if super().isMemberOf( authinfo, userdistinguished_name, groupdistinguished_name):
                 memberof = True
                 break
