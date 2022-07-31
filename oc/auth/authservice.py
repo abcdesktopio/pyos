@@ -660,7 +660,7 @@ class ODAuthTool(cherrypy.Tool):
 
         
         
-    def compiledcondition( self, condition, user, roles ):     
+    def compiledcondition( self, condition, user, roles, **kwargs ):     
 
         def isPrimaryGroup(user, primaryGroupID):
             # if user is not a dict return False
@@ -723,7 +723,7 @@ class ODAuthTool(cherrypy.Tool):
 
             return value
 
-        def isMemberOf(roles, groups) :
+        def isMemberOf(roles, groups ) :
             if not isinstance(roles,list):  
                 roles = [roles]
             if not isinstance(groups,list): 
@@ -798,8 +798,17 @@ class ODAuthTool(cherrypy.Tool):
         memberOf = condition.get('memberOf') or condition.get('memberof')
         if type(memberOf) is str:
             result     = isMemberOf( roles, memberOf )
-            if result == condition.get( 'expected'):
+            if result == condition.get('expected'):
                 compiled_result = True
+            # check if the porvider object is an ODAdAuthProvider
+            # and has isMemberOf method
+            # ODAdAuthMetaProvider has isMemberOf method
+            meta_provider = kwargs.get('provider')
+            auth = kwargs.get('auth')
+            if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
+                result = meta_provider.isMemberOf( auth, user, memberOf )
+                if result == condition.get('expected'):
+                    compiled_result = True
 
         geolocation = condition.get('geolocation')
         if type(geolocation) is dict:
@@ -844,7 +853,7 @@ class ODAuthTool(cherrypy.Tool):
 
         return compiled_result
 
-    def compiledrule( self, name, rule, user, roles ):        
+    def compiledrule( self, name, rule, user, roles, **kwargs ):        
 
         if type(rule) is not dict :
             return False
@@ -856,7 +865,7 @@ class ODAuthTool(cherrypy.Tool):
 
         results = []
         for condition in conditions :
-            r = self.compiledcondition(condition, user, roles)
+            r = self.compiledcondition(condition, user, roles, **kwargs)
             self.logger.debug('compiled_result=%s condition=%s', r, condition)
             results.append( r )
             
@@ -872,7 +881,7 @@ class ODAuthTool(cherrypy.Tool):
         return result
 
 
-    def compiledrules( self, rules, user, roles ):
+    def compiledrules( self, rules, user, roles, **kwargs ):
         # 
         # 'rule-ship':   {  'conditions' : { 'memberOf': [  'cn=ship_crew,ou=people,dc=planetexpress,dc=com'] },
         #                   'expected' : True,
@@ -894,9 +903,12 @@ class ODAuthTool(cherrypy.Tool):
         #
 
         buildcompiledrules = {}
+        if not isinstance( rules, dict ):
+            return buildcompiledrules
+
         for name in rules.keys():
             try:
-                compiled_result = self.compiledrule( name, rules.get(name), user, roles )
+                compiled_result = self.compiledrule( name, rules.get(name), user, roles, **kwargs )
                 if compiled_result is True:
                     k = rules.get(name).get('label')
                     if k is not None:
@@ -1045,25 +1057,20 @@ class ODAuthTool(cherrypy.Tool):
             # an error occurs in meta directory query
             self.logger.error( 'skipping metalogin, no metauser found' )
             return self.login(provider, manager, **arguments)
-       
+
+
+        # 
+        # postpone with user domain sid 
         roles = provider_meta.getroles( auth, **arguments)
         if not isinstance(roles, list):
-            raise AuthenticationFailureError( 'mgr.getroles provider=%s error' %  provider )
-        self.logger.debug( 'mgr.getroles provider=%s success', provider)
-
-        # if the provider has rules defined
-        # then compile data using rules
-        # and runs the rules to get associated labels tag
-        if provider_meta.rules:
-            auth.data['labels'] = self.compiledrules( provider_meta.rules, metauser, roles )
-            self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+           raise AuthenticationFailureError( 'mgr.getroles provider=%s error' %  provider )
+        self.logger.debug( 'mgr.getroles provider=%s success', provider) 
 
         # check if acl matches with tag
         if not oc.od.acl.ODAcl().isAllowed( auth, provider_meta.acls ):
             raise AuthenticationDenied( 'Access is denied by security policy')
         
-        # buid a AuthCache as response result 
-        metaauthcache = AuthCache( { 'auth': vars(auth), 'user': metauser, 'roles': roles } ) 
+       
 
         new_login = metauser.get( provider_meta.join_key_ldapattribut )
 
@@ -1090,13 +1097,33 @@ class ODAuthTool(cherrypy.Tool):
         arguments[ 'provider' ] = new_provider.name
         arguments[ 'manager'  ] = 'explicit'
           
-
         userloginresponse = self.login(**arguments)
-        # Now merge userloginresponse result 
+
         if  hasattr( userloginresponse, 'success')  and  \
             userloginresponse.success is True       and  \
             hasattr( userloginresponse, 'result')   and  \
             isinstance( userloginresponse.result, AuthCache ) : 
+
+            # now it's time to query for foreign keys to the meta provider
+            # if the metaprovider has rules defined
+            # then compile data using rules
+            # and runs the rules to get associated labels tag
+
+            objectSid = userloginresponse.result.user.get('objectSid')
+            self.logger.debug( f"userlogin has objectSid={objectSid}")
+
+            # look for entries set with the user domain sid in the meta directory provider
+            metauser['foreingkeys'] = provider_meta.getforeignkeys( auth, userloginresponse.result.user )
+
+            # meta user knows the foreingkeys from the user domain
+            # can query to memberof 
+            # set auth to get a connection with auth.conn
+            # set provider to meta_provider to query to the meta directory service 
+            auth.data['labels'] = self.compiledrules( provider_meta.rules, metauser, roles, provider=provider_meta, auth=auth )
+            self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+
+            # buid a AuthCache as response result 
+            metaauthcache = AuthCache( { 'auth': vars(auth), 'user': metauser, 'roles': roles } ) 
               
             # merge userloginresponse with metaauthdata
             userloginresponse.result.merge( metaauthcache )
@@ -2290,6 +2317,31 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         result = self.search(conn, query.basedn, query.scope, ldap_filter.filter_format(query.filter, [id]), ['cn', 'distinguishedName'], True)
         return result['distinguishedName'] if result else None
 
+    def isMemberOf( self, authinfo, userdistinguished_name, groupdistinguished_name):
+        self.logger.debug('userdistinguished_name={userdistinguished_name} groupdistinguished_name={groupdistinguished_name}')
+        memberof = False
+        filter = ldap_filter.filter_format( '(objectClass=group)' )
+        groupinfo = self.search_one( conn=authinfo.conn, 
+                                    basedn=groupdistinguished_name, 
+                                    scope=ldap3.BASE, 
+                                    filter=filter, 
+                                    attrs='member' )
+        self.logger.debug('groupinfo={groupinfo} ')
+        if not isinstance( groupinfo, dict ):
+            self.logger.debug('groupinfo is not a dict')
+            return memberof
+        
+        member = groupinfo.get('member')
+        if not isinstance( member, list ):
+            self.logger.debug('member is not a list')
+            return memberof
+        self.logger.debug('member={member}')
+        if userdistinguished_name in member:
+            memberof = True
+        self.logger.debug('return memberof={memberof}')
+        return memberof
+        
+
     def decodeValue(self, name, value):
         if not isinstance(value, list): 
            return value
@@ -2657,7 +2709,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 @oc.logging.with_logger()
 class ODAdAuthProvider(ODLdapAuthProvider):
     INVALID_CHARS = ['"', '/', '[', ']', ':', ';', '|', '=', ',', '+', '*', '?', '<', '>'] #'\\'
-    DEFAULT_ATTRS = ['distinguishedName', 'displayName', 'sAMAccountName', 'name', 'cn', 'homeDrive', 'homeDirectory', 'profilePath', 'memberOf', 'proxyAddresses', 'userPrincipalName', 'primaryGroupID']
+    DEFAULT_ATTRS = ['distinguishedName', 'displayName', 'sAMAccountName', 'name', 'cn', 'homeDrive', 'homeDirectory', 'profilePath', 'memberOf', 'proxyAddresses', 'userPrincipalName', 'primaryGroupID', 'objectSid' ]
 
     def __init__(self, manager, name, config):
         super().__init__(manager, name, config)
@@ -3033,6 +3085,12 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         # self.user_query_join_attributkey = self.user_query
         # self.user_query_join_attributkey.filter = self.user_query.filter.replace( '(sAMAccountName=%s)', user_filter_join_attributkey )
 
+        self.foreign_query = self.Query(
+            config.get('foreign_basedn', 'CN=ForeignSecurityPrincipals,' +self.user_query.basedn),
+            config.get('foreign_scope', self.user_query.scope),
+            config.get('foreign_filter', "(&(objectClass=foreignSecurityPrincipal)(objectSid=%s))"),
+            config.get('foreign_attrs',  ['cn', 'distinguishedName'] ) )
+
 
     def validate(self, userid, password, **params):
         """[validate]
@@ -3088,6 +3146,13 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
         return usersinfo[0]
 
+    def getforeignkeys(self, authinfo, user): 
+        self.logger.debug('') 
+        roles = []     
+        objectSid = user.get( 'objectSid' )
+        foreingdistinguished_name = self.getForeignDistinguishedName( authinfo, objectSid )
+        return foreingdistinguished_name
+
     def getroles(self, authinfo, **arguments): 
         self.logger.debug('') 
         roles = []     
@@ -3105,6 +3170,80 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             if not isinstance( roles, list ):
                 roles = [ roles ]
         return roles
+    
+    def getForeignDistinguishedName( self, authinfo:AuthInfo, objectSid:str ):
+        self.logger.debug('')
+        foreingdistinguished_name =  None
+
+        # objectSid is the original objectSid from the user domain
+        self.logger.debug( f"objectSid is {objectSid}")
+
+        if not isinstance(objectSid, str):
+            self.logger.debug( f"objectSid is not a str, return None")
+            return foreingdistinguished_name
+
+        # look for objectSid inside the metadirecotry LDAP
+        filter = ldap_filter.filter_format( self.foreign_query.filter, [ objectSid ] )
+        self.logger.debug( f"ldap.filter {filter}")
+        self.logger.debug( f"ldap search_all basedn={self.foreign_query.basedn} filter={filter} attrs={self.foreign_query.attrs}" )
+
+        foreingdistinguished_name = self.search_all(   conn=authinfo.conn, 
+                                                        basedn=self.foreign_query.basedn, 
+                                                        scope=self.foreign_query.scope, 
+                                                        filter=filter, 
+                                                        attrs=self.foreign_query.attrs )
+
+        self.logger.debug( f"ldap search result {type(foreingdistinguished_name)} {foreingdistinguished_name}")
+
+        if not isinstance( foreingdistinguished_name, list ) or len( foreingdistinguished_name ) == 0:
+            # foreign sid not exist in metadirectory 
+            foreingdistinguished_name =  None
+
+        self.logger.debug( f"return {type(foreingdistinguished_name)} {foreingdistinguished_name}")
+        return foreingdistinguished_name
+
+
+    def _isMemberOf( self, foreingkeys_distinguished_name:str, groupdistinguished_name:str ):
+        self.logger.debug('')
+
+        # look for objectSid inside the metadirecotry LDAP
+        filter = ldap_filter.filter_format( self.foreign_query.filter, [ objectSid ] )
+        self.logger.debug( f"ldap.filter {filter}")
+        self.logger.debug( f"ldap search_all basedn={self.foreign_query.basedn} filter={filter} attrs={self.foreign_query.attrs}" )
+
+        foreing_distinguished_name = self.search_one(   conn=authinfo.conn, 
+                                                        basedn=self.foreign_query.basedn, 
+                                                        scope=self.foreign_query.scope, 
+                                                        filter=filter, 
+                                                        attrs=self.foreign_query.attrs )
+
+        self.logger.debug( f"ldap search result {type(foreing_distinguished_name)} {foreing_distinguished_name}")
+
+        if not isinstance( foreing_distinguished_name, list ) or len( foreing_distinguished_name ) == 0:
+            # foreign sid not exist in metadirectory 
+            foreing_distinguished_name =  None
+
+        self.logger.debug( f"return {type(foreing_distinguished_name)} {foreing_distinguished_name}")
+        return foreing_distinguished_name
+        
+        
+    def isMemberOf( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
+        self.logger.debug('')
+        memberof = False
+        foreing_distinguished_name = user.get('foreing_distinguished_name')
+        self.logger.debug( f"foreing_distinguished_name is {foreing_distinguished_name}")
+
+        if not isinstance(foreing_distinguished_name, list):
+            self.logger.debug( f"foreing_distinguished_name is not a list, return False")
+            return memberof
+
+        for userdistinguished_name in foreing_distinguished_name:
+            if super().isMemberOf( authinfo, userdistinguished_name, groupdistinguished_name):
+                memberof = True
+                break
+        self.logger.debug( f"isMemberOf return {memberof}")
+        return memberof
+
 
 @oc.logging.with_logger()
 class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
