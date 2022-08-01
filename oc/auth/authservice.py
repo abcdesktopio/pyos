@@ -797,19 +797,23 @@ class ODAuthTool(cherrypy.Tool):
 
         memberOf = condition.get('memberOf') or condition.get('memberof')
         if type(memberOf) is str:
+            # read the memberOf LDAP attribut of objectClass=user
+            # use string compare to test if is MemberOf
             result     = isMemberOf( roles, memberOf )
             if result == condition.get('expected'):
                 compiled_result = True
-            
-            if compiled_result is False:
+            else:
+                # read the member LDAP attribut with objectClass=group
                 # check if the provider object is an ODAdAuthMetaProvider
                 # and auth object is an AuthInfo
+                # kwargs can contain 'provider' and 'auth' entries
                 meta_provider = kwargs.get('provider')
                 auth = kwargs.get('auth')
                 if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
                     # call the isMember method to run LDAP Qeury and 
                     # read the member attribut in group
                     # This is not the user's memberOf 
+                    self.logger.debug( f"isMemberOf query to provider={meta_provider.name}")
                     result = meta_provider.isMemberOf( auth, user, memberOf )
                     if result == condition.get('expected'):
                         compiled_result = True
@@ -832,7 +836,8 @@ class ODAuthTool(cherrypy.Tool):
             # always use 'int' type format
             # from https://docs.microsoft.com/en-us/windows/win32/adschema/a-primarygroupid
             # Ldap-Display-Name	primaryGroupID
-            # Size	4 bytes
+            # Size 4 bytes
+            # convert str to int
             if isinstance(primaryGroup,str):
                 try:
                     primaryGroup = int(primaryGroup)
