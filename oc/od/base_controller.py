@@ -11,16 +11,14 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 # 
-
 import logging
 import ipaddress
 import cherrypy
 import oc.logging
-from netaddr import IPNetwork, IPAddress
 
+from netaddr import IPNetwork, IPAddress
 from oc.cherrypy import WebAppError, getclientipaddr
 from oc.od.services import services
-
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +30,20 @@ class BaseController(object):
           self.ipnetworklistfilter = None
           self.init_ipfilter( config )
 
-     def init_ipfilter( self, config ):
+     def init_ipfilter( self, config:dict ):
+          """init_ipfilter
+               load config dict
+               read 'permitip' network list
+               set self.ipnetworklistfilter entries as IPNetwork object
+
+          Args:
+              config (dict): configuration
+          """
           if not isinstance(config,dict):
                return
 
-          ipfilterlist = self.config.get( 'permitip')
-          if type( ipfilterlist ) is not list:
+          ipfilterlist = self.config.get('permitip')
+          if not isinstance(ipfilterlist,list):
                return
           
           self.ipnetworklistfilter = []
@@ -45,7 +51,7 @@ class BaseController(object):
                try:
                     ipnetwork = IPNetwork( ipfilter )
                except Exception as e:
-                    self.logger.error( 'invalid value %s, skipping warning: %s', ipfilter, str(e) )
+                    self.logger.error( f"invalid value={ipfilter} type={type(ipfilter)}, skipping error {e}" )
                     continue
                self.ipnetworklistfilter.append( ipnetwork )
 
@@ -78,23 +84,24 @@ class BaseController(object):
 
           return (auth, user)
 
-     def fail_ip( self, ipAddr=None ):
+     def fail_ip( self, ipAddr:str=None ):
           if not isinstance( ipAddr, str):
                ipAddr = getclientipaddr()
           services.fail2ban.fail_ip( ipAddr )
 
-     def fail_login( self, login):
+     def fail_login( self, login:str):
           self.logger.debug('')
           isban =  services.fail2ban.fail_login( login )
+          return isban
 
-     def isban_ip( self, ipAddr=None ):
+     def isban_ip( self, ipAddr:str=None ):
           if not isinstance( ipAddr, str):
                ipAddr = getclientipaddr()
           isban = services.fail2ban.isban( ipAddr, collection_name=services.fail2ban.ip_collection_name )
           self.logger.debug(f"isban {ipAddr} return {isban}")
           return isban
 
-     def isban_login( self, login):
+     def isban_login( self, login:str):
           self.logger.debug('')
           isban =  services.fail2ban.isban( login, collection_name=services.fail2ban.login_collection_name )
           self.logger.debug(f"isban {login} return {isban}")
@@ -119,15 +126,13 @@ class BaseController(object):
                raise cherrypy.HTTPError(status=403)
 
      def ipfilter( self ):
-          if type( self.ipnetworklistfilter ) is not list :
+          if not isinstance(self.ipnetworklistfilter, list) :
                return True
-
           ipclient = getclientipaddr()
-          
-          if ipclient is not None:
+          if isinstance(ipclient, str):
                for ipnetwork in self.ipnetworklistfilter:
                     if IPAddress(ipclient) in ipnetwork:
-                         self.logger.debug( 'ipsource %s is permited in network %s', ipclient, ipnetwork)
+                         self.logger.debug( f"ipsource {ipclient} is permited in network {ipnetwork}")
                          return True
-          self.logger.info( 'ipsource %s access denied', ipclient)
+          self.logger.info( f"ipsource {ipclient} access is denied, not in network list {self.ipnetworklistfilter}")
           return False
