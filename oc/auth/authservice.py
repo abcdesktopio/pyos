@@ -1401,8 +1401,8 @@ class ODAuthManagerBase(object):
             name ([str]): [key of the providers dict]
             provider ([ODAuthProviderBase]): [ODAuthProviderBase]
         """
-        assert isinstance(name, str) , 'bad provider name parameter'
-        assert isinstance(provider, ODAuthProviderBase) , 'bad provider parameters'
+        assert isinstance(name, str), 'bad provider name parameter'
+        assert isinstance(provider, ODAuthProviderBase), 'bad provider parameters'
         self.providers[name] = provider  
        
     def authenticate(self, provider, **arguments):
@@ -2793,9 +2793,13 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
         return kerberos_realm
 
-    def getadlogin( self, userid ):
-        adlogin = None
-        if self.domain:
+    def getadlogin( self, userid:str ):
+        adlogin = userid
+        assert isinstance( userid, str), 'bad userid parameter'
+        ar = userid.split('\\')
+        if len(ar)>2:
+            raise AuthenticationFailureError('invalid login format') 
+        if len(ar)==1 and isinstance(self.domain, str):
             adlogin = self.domain + '\\' + userid
         else:
             adlogin = userid
@@ -2888,14 +2892,14 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
         
         userdn = self.getuserdn(authinfo.conn, token)
-        if not userdn: 
+        if not isinstance(userdn, str): 
             return []
 
         return [entry['cn'] for entry in self.search(authinfo.conn, self.group_query.basedn, ldap3.SUBTREE, '(member:1.2.840.113556.1.4.1941:=%s)' % userdn, ['cn'])]
     
 
     
-    def issafeAdAuthusername(self, username):
+    def issafeAdAuthusername(self, username:str):
         """[issafeAdAuthusername]
             return True if username can be a safe sAMAccountName
             protect against injection
@@ -2905,7 +2909,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         Returns:
             [bool]: [True or False]
         """
-
         if not isinstance(username, str): 
             return False
 
@@ -2932,7 +2935,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         Returns:
             [bool]: [True or False]
         """
-
         if not isinstance(password, str): 
             return False
 
@@ -2972,7 +2974,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
     def getconnection(self, userid:str, password:str ):
         self.logger.debug('')
         if self.auth_type == 'NTLM':
-            # add the domain name to format login as DOMAIN\USER
+            # add the domain name to format login as DOMAIN\USER if need
             userid = self.getadlogin(userid)
         if self.auth_type == 'KERBEROS':
             # create a Kerberos TGT 
@@ -3213,7 +3215,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
        
         foreingdistinguished_list = []
         # read the foreingdn.get('distinguishedName') in each entries in the list of dict
-        for foreingdn in foreingdistinguished_name.values():
+        for foreingdn in query_foreingdistinguished_name:
             if isinstance(foreingdn, dict) and foreingdn.get('distinguishedName'):
                 foreingdistinguished_list.append( foreingdn.get('distinguishedName') )
 
