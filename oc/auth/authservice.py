@@ -2922,7 +2922,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
         return True
 
-    def issafeAdAuthpassword(self, password):
+    def issafeAdAuthpassword(self, password:str):
         """[issafeAdAuthpassword]
             return True if password can be a safe password
             protect against injection
@@ -2969,7 +2969,8 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         return bReturn
 
 
-    def getconnection(self, userid, password ):
+    def getconnection(self, userid:str, password:str ):
+        self.logger.debug('')
         if self.auth_type == 'NTLM':
             # add the domain name to format login as DOMAIN\USER
             userid = self.getadlogin(userid)
@@ -2980,7 +2981,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
 
     def listprinter( self, filter, **params):
-        self.logger.info('')
+        self.logger.debug('')
         printerlist = []
 
         userid     = params.get( 'userid', self.userid )
@@ -3020,7 +3021,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
     
     def listsite(self, **params):       
-        self.logger.info('')
+        self.logger.debug('')
 
         dictsite = {}
         len_dictsite = 0
@@ -3112,9 +3113,11 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         Returns:
             [type]: [description]
         """
+        self.logger.debug('')
         return super().validate(userid, password, **params)
 
     def authenticate(self, userid, password, **params):
+        self.logger.debug('')
         if not self.issafeAdAuthusername(userid) or not self.issafeAdAuthpassword(password):
             raise InvalidCredentialsError('Unsafe credentials')
        
@@ -3130,7 +3133,8 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         authinfo = AuthInfo(provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
         
-    def getuserinfo(self, authinfo, **arguments):       
+    def getuserinfo(self, authinfo, **arguments):  
+        self.logger.debug('')     
         userid = arguments.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
         self.logger.info( 'ODAdAuthMetaProvider:ldap.filter %s', filter)
@@ -3155,11 +3159,9 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
         return usersinfo[0]
 
-    def getforeignkeys(self, authinfo, user): 
-        self.logger.debug('') 
-        roles = []     
-        objectSid = user.get( 'objectSid' )
-        foreingdistinguished_name = self.getForeignDistinguishedName( authinfo, objectSid )
+    def getforeignkeys(self, authinfo:AuthInfo, user:AuthUser): 
+        self.logger.debug('')
+        foreingdistinguished_name = self.getForeignDistinguishedName( authinfo, user.get( 'objectSid' ) )
         return foreingdistinguished_name
 
     def getroles(self, authinfo, **arguments): 
@@ -3210,38 +3212,14 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             return None
        
         foreingdistinguished_list = []
+        # read the foreingdn.get('distinguishedName') in each entries in the list of dict
         for foreingdn in foreingdistinguished_name.values():
-            if isinstance( foreingdn, dict  ) and foreingdn.get('distinguishedName'):
+            if isinstance(foreingdn, dict) and foreingdn.get('distinguishedName'):
                 foreingdistinguished_list.append( foreingdn.get('distinguishedName') )
 
-        self.logger.debug( f"return {type(foreingdistinguished_list)} {foreingdistinguished_list}")
+        self.logger.debug( f"return type={type(foreingdistinguished_list)} data={foreingdistinguished_list}")
         return foreingdistinguished_list
-
-
-    def _isMemberOf( self, foreingkeys_distinguished_name:str, groupdistinguished_name:str ):
-        self.logger.debug('')
-
-        # look for objectSid inside the metadirecotry LDAP
-        filter = ldap_filter.filter_format( self.foreign_query.filter, [ objectSid ] )
-        self.logger.debug( f"ldap.filter {filter}")
-        self.logger.debug( f"ldap search_all basedn={self.foreign_query.basedn} filter={filter} attrs={self.foreign_query.attrs}" )
-
-        foreing_distinguished_name = self.search_one(   conn=authinfo.conn, 
-                                                        basedn=self.foreign_query.basedn, 
-                                                        scope=self.foreign_query.scope, 
-                                                        filter=filter, 
-                                                        attrs=self.foreign_query.attrs )
-
-        self.logger.debug( f"ldap search result {type(foreing_distinguished_name)} {foreing_distinguished_name}")
-
-        if not isinstance( foreing_distinguished_name, list ) or len( foreing_distinguished_name ) == 0:
-            # foreign sid not exist in metadirectory 
-            foreing_distinguished_name =  None
-
-        self.logger.debug( f"return {type(foreing_distinguished_name)} {foreing_distinguished_name}")
-        return foreing_distinguished_name
-        
-        
+       
     def isMemberOf( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
         self.logger.debug('')
         memberof = False
@@ -3300,7 +3278,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         else:
             raise AuthenticationError(f"Implicit login user %s does not exist in directory service {userid}")
 
-        data = {    'userid': userid, 'dn':     userdn }
+        data = { 'userid': userid, 'dn': userdn }
 
         # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
         claims =  { 'environment': self.createauthenv(userid, password=None) }
