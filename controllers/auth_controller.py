@@ -231,7 +231,6 @@ class AuthController(BaseController):
 
         cherrypy.response.timeout = 180
         args = cherrypy.request.json
-
         if not isinstance(args, dict):
             raise cherrypy.HTTPError(400)
 
@@ -246,9 +245,10 @@ class AuthController(BaseController):
         
         # if the request need a prelogin
         if services.prelogin.enable and ( services.prelogin.request_match(ipsource) or http_attribut_to_force_auth_prelogin ) :
-            userid = args.get('userid')
+            userid = args.get( services.prelogin.http_attribut )
+            self.logger.debug( f"auth {services.prelogin.http_attribut}={userid}" )
             if not isinstance(userid, str):
-                self.logger.error( 'invalid auth parameters userid %s', type(userid) )
+                self.logger.error( f"invalid auth parameters {services.prelogin.http_attribut} type={type(userid)}" )
                 if isinstance( services.prelogin.prelogin_url_redirect_on_error, str ):
                     raise cherrypy.HTTPRedirect( services.prelogin.prelogin_url_redirect_on_error )
                 else:     
@@ -278,7 +278,7 @@ class AuthController(BaseController):
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
                 self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
-                self.fail_ip( ipsource ) # ban the ipsource addr
+                # self.fail_ip( ipsource ) # ban the ipsource addr
                 if isinstance( services.prelogin.prelogin_url_redirect_on_error, str ):
                     raise cherrypy.HTTPRedirect( services.prelogin.prelogin_url_redirect_on_error )
                 else:     
