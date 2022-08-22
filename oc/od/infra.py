@@ -41,19 +41,8 @@ class ODAPIError(ODError):
 #
 # return the infra object from the settings configuration file
 # raise NotImplementedError if not found
-def selectInfra( arguments=None ):
-    myinfra = None
-    stack_mode = settings.stack_mode
-    logger.info( 'infra mode is %s', stack_mode)
-    if stack_mode == 'standalone' :     
-        # standalone means a docker just installed        
-        myinfra = ODInfra(arguments)    
-    elif stack_mode == 'kubernetes' :
-        # kubernetes means a docker and kubernetes installed        
-        myinfra = ODInfraKubernetes(arguments)
-    else:
-        raise NotImplementedError('ODInfra:infra  %s is not implemented', stack_mode )  
-        
+def selectInfra( arguments=None ):      
+    myinfra = ODInfraKubernetes(arguments)   
     return myinfra
 
 
@@ -321,9 +310,7 @@ class ODInfra(object):
             str: ip address
         """
         ip_addr = None
-        try:
-            if lookfornetworkid is None:
-                lookfornetworkid = settings.defaultnetworknetuserid            
+        try:     
             container = self.getDesktopContainer( containerid )
             networksettings = container.attrs.get('NetworkSettings')
             if networksettings is not None:
@@ -333,6 +320,11 @@ class ODInfra(object):
                     if networkid == lookfornetworkid:
                         ip_addr = vn.get('IPAddress')
                         break
+                    if lookfornetworkid is None:
+                        # get the first entry
+                        ip_addr = vn.get('IPAddress')
+                        break
+
         except (KeyError, Exception) as e:
                 self.logger.warning('Error - ip_addr not found: %s', e)
         return ip_addr
