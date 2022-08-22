@@ -245,7 +245,7 @@ class AuthController(BaseController):
         
         # if the request need a prelogin
         if services.prelogin.enable and ( services.prelogin.request_match(ipsource) or http_attribut_to_force_auth_prelogin ) :
-            userid = args.get( services.prelogin.http_attribut )
+            userid = args.get( 'userid' )
             self.logger.debug( f"auth {services.prelogin.http_attribut}={userid}" )
             if not isinstance(userid, str):
                 self.logger.error( f"invalid auth parameters {services.prelogin.http_attribut} type={type(userid)}" )
@@ -278,7 +278,7 @@ class AuthController(BaseController):
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
                 self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
-                # self.fail_ip( ipsource ) # ban the ipsource addr
+                self.fail_ip( ipsource ) # ban the ipsource addr
                 if isinstance( services.prelogin.prelogin_url_redirect_on_error, str ):
                     raise cherrypy.HTTPRedirect( services.prelogin.prelogin_url_redirect_on_error )
                 else:     
@@ -396,7 +396,7 @@ class AuthController(BaseController):
         self.logger.debug( cherrypy.request.headers )
         ipsource = getclientipaddr()
         self.logger.debug('prelogin request from ip source %s', ipsource)
-        
+  
         # can raise exception 
         self.isban_ip(ipsource)
 
@@ -411,20 +411,21 @@ class AuthController(BaseController):
         
         # if http request has services.prelogin.http_attribut
         # use services.prelogin.http_attribut value has userid
-        if isinstance( services.prelogin.http_attribut, str) :
+        if isinstance( services.prelogin.http_attribut, str):
             http_userid = cherrypy.request.headers.get(services.prelogin.http_attribut)
+            self.logger.debug( f"read http attribut http_userid={http_userid}")
             if isinstance( http_userid, str ):
                 userid = http_userid
-        
-        if not isinstance( userid, str) or len(userid) == 0:
-            self.logger.error('prelogin invalid userid parameter format')
+
+        if not isinstance(userid, str) or len(userid) == 0:
+            self.logger.error(f"prelogin invalid userid={userid} parameter type={type(userid)}")
             raise cherrypy.HTTPError(400, 'invalid userid request parameter')
 
         # if the param id url quoted
         # always decode it 
-        self.logger.info('prelogin request raw param userid=%s', userid)
+        self.logger.info(f"prelogin request raw param userid={userid}")
         userid = urllib.parse.unquote(userid)
-        self.logger.info('prelogin decoded param userid=%s', userid)
+        self.logger.info(f"prelogin decoded param userid={userid}")
 
         # build html response
         html_data = services.prelogin.prelogin_html( userid=userid )
