@@ -21,33 +21,88 @@ import oc.od.acl
 import threading
 import copy
 import oc.od.settings
-
-from oc.od.infra import ODInfra
+import pymongo
+from bson import json_util, ObjectId
+import time
 
 logger = logging.getLogger(__name__)
 
 
 @oc.logging.with_logger()
 class ODApps:
+
     """ ODApps
         manage application list 
     """
-    def __init__(self):
+    def __init__(self, mongoconfig=None ):
         self.lock = threading.Lock()
         self.myglobal_list = {}
         self.build_image_counter = 0
         self.cached_image_counter = 0
+        # define public attributs forwarded to webbrowser
         self.public_attr_list   = [ 
-            'id',           'launch',       'name',         
-            'icon',         'icondata',       
-            'keyword',      'uniquerunkey',     
-            'cat',          'args',         'execmode',     'showinview',           'displayname',  
-            'mimetype',     'path',         'desktopfile',  'executablefilename',   'secrets_requirement' ]
+            'id',           'launch',           'name',         'icon',         'icondata',
+            'keyword',      'uniquerunkey',     'cat',          'args',         'execmode',
+            'showinview',   'displayname',      'mimetype',     'path',         'desktopfile',
+            'executablefilename',   'secrets_requirement' ]
+        # define private attributs keep
+        self.private_attr_list  = [ 'sha_id',  'acl',  'rules', 'privileged', 'security_opt', 'host_config' ]
+        self.thread_sleep_insert = 5
+        self.thead_event = None
+        # mongo db defines
+        if mongoconfig :
+            self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig)
+            self.databasename = 'applications'
+            self.index_name = 'id' # id is the name of the image repoTags[0]
+            self.image_collection_name = 'image'
+            self.init_collection( collection_name=self.image_collection_name)
 
-        self.private_attr_list  = [ 
-            'sha_id', 'acl',  'rules', 'privileged', 'security_opt', 'host_config' ]
+    def init_collection( self, collection_name ):
+        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore)
+        db = mongo_client[self.databasename]
+        col = db[collection_name]
+        try:
+            col.create_index( [ (self.index_name, pymongo.ASCENDING) ], unique=True )
+        except Exception as e:
+            self.logger.info( e )
+        mongo_client.close()
 
- 
+    def get_collection(self, collection_name ):
+        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore)
+        db = mongo_client[self.databasename]
+        return db[collection_name]
+
+    def append_app_to_collection( self, app ):
+        if not isinstance( app, dict):
+            return False
+        myapp = app.copy() # copy
+        collection = self.get_collection( self.image_collection_name )
+        bfind = collection.find_one({ self.index_name: app.get('id')})
+        append_app = self.updateorinsert( collection=collection, bUpdate=bfind, app=myapp  )
+        if isinstance(append_app, pymongo.results.InsertOneResult ) or isinstance(append_app, pymongo.results.UpdateResult) :
+           return append_app.acknowledged
+        return False
+
+    def remove_app_to_collection( self, app ):
+        if not isinstance( app, dict):
+            return False
+        collection = self.get_collection( self.image_collection_name )
+        bdelete = collection.delete_one({ self.index_name: app.get('id')})
+        if isinstance(bdelete, pymongo.results.DeleteResult ) :
+           return bdelete.acknowledged
+        return False
+
+    def updateorinsert( self, collection, bUpdate, app  ):
+        if bUpdate:
+            q = collection.replace_one( { self.index_name: app.get('id')}, app)
+        else:
+            q = collection.insert_one(app)
+        return q
+
+    def list_app_images( self ):
+        collection = self.get_collection( self.image_collection_name )
+        return list( collection.find() )
+
 
     def makeicon_url(self, filename ):
         self.img_path = '/img/app/'
@@ -126,7 +181,7 @@ class ODApps:
         else:
             self.cached_image_counter = self.cached_image_counter + 1 
 
-        return mybuild_applist
+        return self.myglobal_list
 
     
     def updatemap(self, mymap, app, attr):
@@ -266,56 +321,111 @@ class ODApps:
             filtered_app_dict[key] = newapp
         return filtered_app_dict
 
+    def safe_load_label_json( self, name, labels, label, default_value=None ):
+        load_json = default_value # default return value
+        data = labels.get(label)
+        if data is None:
+            pass
+        elif isinstance(data, dict):
+            load_json = data
+        elif isinstance(data, str) :
+            try:
+                load_json = json.loads(data)
+            except Exception as e:
+                self.logger.error( 'image:%s invalid label=%s, json format %s, skipping label', name, label, e)
+                self.logger.error( 'image:%s label=%s data=%s', name, label, data )
+        else:
+            self.logger.debug( f"image:{name} label:{label} type is not detected:{type(data)}" )
+        return load_json
 
-    def imagetoapp( self, image ):
-        """[imagetoapp]
-            return an abcdesktop image object from a docker image
+    def safe_secrets_requirement_prefix( self, secrets_requirement, namespace ):
+        mylist = []
+        muststartwith = namespace + '/'
+        for secret in secrets_requirement:
+            if isinstance(secret, str ):
+                if not secret.startswith( muststartwith ):
+                    secret =  muststartwith + secret
+                mylist.append( secret )
+            else:
+                self.logger.error( 'skipping bad data in secrets_requirement')
+        return mylist
+
+    def build_applist(self):
+        self.logger.debug('')
+        mydict = {}
+        apps = self.list_app_images()
+        if isinstance( apps, list):
+            for myapp in apps:
+                self.logger.debug( f"build_applist add {myapp['id']}")
+                mydict[ myapp['id'] ] = myapp
+        return mydict
+
+    def get_json_applist(self, filter=True):
+        #
+        # a = json_util.dumps(self.myglobal_list)
+        # json_sanitized = json.loads(a)
+        #
+        myapplist = copy.deepcopy( self.myglobal_list )
+        for k in myapplist.keys():
+            app = myapplist[k]
+            if isinstance(app, dict) and app.get('_id'):
+                if filter is True:
+                    del app['_id']
+        return myapplist
+
+    def get_json_app( self, image_id, filter=True):
+        myapp = None
+        app=self.find_app_by_id( image_id )
+        if isinstance(app, dict):
+            myapp = app.copy()
+            if filter is True:
+                if myapp.get('_id'):
+                    del myapp['_id']
+        return myapp
+
+    def json_imagetoapp( self, json_image):
+        """[json_imagetoapp]
+            return an abcdesktop image object from a json image format
+            to get json image format run command
+
+            $ crictl  inspecti abcdesktopio/2048.d:dev > cri_2048.json
+            $ curl -X PUT -H 'Content-Type: text/javascript' http://ABCDESKTOP/API/manager/image -d @cri_2048.json
+
+            $ docker inspect abcdesktopio/2048.d:dev > docker_2048.json
+            $ curl -X PUT -H 'Content-Type: text/javascript' http://ABCDESKTOP/API/manager/image -d @docker_2048.json
+
             return None if failed
         Args:
-            image ([docker image]): [docker image]
+            json_image ([json OCI image]): [docker image or OCI image]
         """
-
-        def safe_load_label_json( name, labels, label, default_value=None ): 
-            load_json = default_value # default return value
-            data = labels.get(label)
-            if isinstance(data, str) :     
-                try:
-                    load_json = json.loads(data)
-                except Exception as e:
-                    self.logger.error( 'image:%s invalid label=%s, json format %s, skipping label', name, label, e)
-                    self.logger.error( 'image:%s label=%s data=%s', name, label, data )
-            return load_json 
-
-        def safe_secrets_requirement_prefix( secrets_requirement, namespace ):
-            mylist = []
-            muststartwith = namespace + '/' 
-            for secret in secrets_requirement:
-                if isinstance(secret, str ):
-                    if not secret.startswith( muststartwith ):
-                       secret =  muststartwith + secret
-                    mylist.append( secret )
-                else:
-                    self.logger.error( 'skipping bad data in secrets_requirement')
-            return mylist
-
         myapp = None
-        labels = image.get('Labels')
-        if type(labels) is not dict: # skip image if no labels
+        if not isinstance( json_image, dict ):
             return None
 
-        repoTags = image.get('RepoTags')
-        if type(repoTags) is not list: # skip image if no repoTags 
+        repoTags = json_image.get('RepoTags') or json_image.get('status',{}).get('repoTags')
+        if not isinstance(repoTags,list): # skip image if no repoTags
             return None
-
-        sha_id = image.get('Id')    
-
-        # Read all data came from Labels images value
         imageid = repoTags[0]
-      
-        # inspect the docker image
-        inspect_dict = ODInfra().inspectimage( imageid )
+        # read the image Id
+        # docker output format use Id
+        #
+        # crictl  inspecti abcdesktopio/2048.d:dev > cri_2048.json
+        # docker inspect abcdesktopio/2048.d:dev > docker_2048.json
+        #
+        sha_id = json_image.get('Id') or json_image.get('status',{}).get('id')
+        if not isinstance(sha_id,str): # skip image if no Id or id
+            return None
+
+        # read the config
+        inspect_dict = None
+        if isinstance( json_image.get('Config'), dict ):
+            # this is a docker image format
+            inspect_dict = json_image.get('Config')
+        else:
+            inspect_dict = json_image
+
         # read the CMD with fallback for compatibiliy with old version release
-        cmd = inspect_dict.get('Config').get('Cmd', '/composer/appli-dockerentrypoint.sh' )
+        cmd = inspect_dict.get('Cmd', '/composer/appli-dockerentrypoint.sh' )
         if isinstance( cmd, list ):
             # fix error in deprecated image format in release 2.0
             if cmd[0] == 'bash' and len(cmd) == 1:
@@ -323,9 +433,18 @@ class ODApps:
                 self.logger.warning( f"fixing cmd entry for image {imageid} update to {cmd}")
 
         # read WORKING with fallback for compatibiliy with old version release
-        workingdir = inspect_dict.get('Config').get('WorkingDir', oc.od.settings.getballoon_homedirectory() ) 
+        workingdir = inspect_dict.get('WorkingDir', oc.od.settings.getballoon_homedirectory() )
+
         # read USER with fallback for compatibiliy with old version release
-        user = inspect_dict.get('Config').get('User', oc.od.settings.getballoon_name() ) 
+        user = inspect_dict.get('User') or json_image.get('status',{}).get('username') or oc.od.settings.getballoon_name()
+
+        # read the labels dict
+        if isinstance( inspect_dict.get('Labels'), dict ):
+            # this is a docker image format
+            labels = inspect_dict.get('Labels')
+        else:
+            labels = json_image
+
         # read oc specific value
         desktopfile = labels.get('oc.desktopfile')
         icon = labels.get('oc.icon')
@@ -346,30 +465,34 @@ class ODApps:
         usedefaultapplication = labels.get('oc.usedefaultapplication')
         execmode = labels.get('oc.execmode')
         run_inside_pod = labels.get('oc.run_inside_pod', False)
+        image_pull_policy = labels.get('image_pull_policy', 'IfNotPresent' )
+        image_pull_secrets = labels.get('image_pull_secrets')
 
-        if usedefaultapplication is not None:
-            usedefaultapplication = json.loads(usedefaultapplication)
+        try:
+            if isinstance(usedefaultapplication, str ):
+                usedefaultapplication = json.loads(usedefaultapplication)
+        except Exception as e:
+            pass
 
         # safe load convert json data json
-        rules = safe_load_label_json( imageid, labels, 'oc.rules' )
+        rules = self.safe_load_label_json( imageid, labels, 'oc.rules' )
         if rules:
             self.logger.debug( '%s has rules %s', name, rules )
-        acl   = safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
-        secrets_requirement = safe_load_label_json( imageid, labels, 'oc.secrets_requirement' )
+        acl   = self.safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
+        secrets_requirement = self.safe_load_label_json( imageid, labels, 'oc.secrets_requirement' )
        
-
         if secrets_requirement is not None: 
             # type of secrets_requirement must be list
             if isinstance( secrets_requirement, str ):
                 secrets_requirement = [ secrets_requirement ]
-            secrets_requirement = safe_secrets_requirement_prefix( secrets_requirement, oc.od.settings.namespace)
+            secrets_requirement = self.safe_secrets_requirement_prefix( secrets_requirement, oc.od.settings.namespace)
 
-        security_opt = safe_load_label_json(imageid, labels, 'oc.security_opt' )
-        host_config  = safe_load_label_json(imageid, labels, 'oc.host_config', default_value={})
+        security_opt = self.safe_load_label_json(imageid, labels, 'oc.security_opt' )
+        host_config  = self.safe_load_label_json(imageid, labels, 'oc.host_config', default_value={})
         host_config  = oc.od.settings.filter_hostconfig( host_config )
         
         executablefilename = None
-        if path is not None:
+        if isinstance(path,str):
             executablefilename = os.path.basename(path)
 
         mimelist = self.labeltoList(mimetype)
@@ -414,67 +537,80 @@ class ODApps:
                 'legacyfileextensions': legacyfileextensionslist,
                 'host_config' : host_config,
                 'secrets_requirement' : secrets_requirement,
-                'run_inside_pod' : run_inside_pod
+                'run_inside_pod' : run_inside_pod,
+                'image_pull_policy' : image_pull_policy,
+                'image_pull_secrets': image_pull_secrets
             }
 
         return myapp
  
-    def build_applist(self):
+    def add_json_image_to_collection( self, json_image:str ):
+        applist = None
+        # if json image is a list add each image in list
+        if isinstance( json_image, list ):
+            applist = []
+            for image in json_image:
+                myapp = self.json_imagetoapp( image )
+                if isinstance( myapp, dict ):
+                    if self.append_app_to_collection( myapp ):
+                        applist.append( myapp )
+
+        if isinstance( json_image, dict ):
+            myapp = self.json_imagetoapp( json_image )
+            if isinstance( myapp, dict ):
+                if self.append_app_to_collection( myapp ):
+                    applist = myapp
+        return applist
+
+    def remove_app( self, documentKey ):
+        return self.cached_applist(bRefresh=True)
+
+    def add_app( self, myapp):
         self.logger.debug('')
-        mydict = {}
-        localimage_list = ODInfra().findimages( filters={'dangling': False, 'label': 'oc.type=app'} )
-        for image in localimage_list:
+        bReturn = False
+        if isinstance(myapp,dict) :
+            # Lock here
+            self.lock.acquire()
             try:
-                myapp = self.imagetoapp(image)
-                if type(myapp) is dict:
-                    # self.logger.debug (f"adding new image {myapp['id']}")
-                    # self.logger.debug( f"cmd {myapp['cmd']}" )
-                    mydict[ myapp['id'] ] = myapp
-            except Exception as e:
-                self.logger.error('Image id:%s failed invalid value: %s', image, e)
-        return mydict
+                # add new application to myglobal_list dict
+                self.myglobal_list[ myapp['id'] ] = myapp
+                bReturn = True
+            finally:
+                self.lock.release()
+            self.logger.debug( 'updated global applist %s', myapp['id'])
+        return bReturn
 
-    def add_image( self, image_name ):
-        myapp = None
+    @staticmethod
+    def get_id_from_sha_id( sha_id ):
+        _sha_id = sha_id
+        # "sha_id": "sha256:390745577d89afad703253423624187bdb31f33008320946c335c20a87f0f5f6"
+        # get 390745577d89afad703253423624187bdb31f33008320946c335c20a87f0f5f6
+        if isinstance(sha_id, str):
+            ar_sha_id = sha_id.split(':')
+            if isinstance( ar_sha_id, list ) and len(ar_sha_id) > 1:
+                _sha_id = ar_sha_id[1]
+        return _sha_id
 
-        if image_name is None:
-            return myapp
+    def find_app_by_id(self, image_id):
+        app = None
+        for k in self.myglobal_list.keys():
+            sha_id = self.myglobal_list[k].get('sha_id')
+            id_from_sha_id = ODApps.get_id_from_sha_id( sha_id )
+            if  id_from_sha_id == image_id or \
+                self.myglobal_list[k].get('sha_id') == image_id or \
+                self.myglobal_list[k].get('id') == image_id :
+                app = self.myglobal_list[k]
+                break
+        return app
 
-        # query dockerd to get all properties of the new image
-        image_list_lookfor = ODInfra().findimages( name=image_name )
-        # there is only one image
-        for image in image_list_lookfor:
-            myapp = self.imagetoapp( image )
-            if type(myapp) is dict :
-                # Lock here
-                self.lock.acquire()
-                try:
-                    # add new application to myglobal_list dict
-                    self.myglobal_list[ myapp['id'] ] = myapp
-                finally:
-                    self.lock.release()
-                self.logger.debug( 'updated global applist %s', myapp['id'])
-        return myapp
-
-
-    def del_image( self, image_sha_id ):
+    def del_image( self, image_id ):
         # Lock here
-        bDeleted = False
-        self.lock.acquire()
-        try:
-            # remove application to myglobal_list dict
-            for k in self.myglobal_list.keys():
-                if self.myglobal_list[k].get('sha_id') == image_sha_id:
-                    del self.myglobal_list[ k ]
-                    self.logger.debug( 'image %s %s DELETED', k, image_sha_id )
-                    bDeleted = True
-                    break
-        except Exception as e:
-            self.logger.error( e )
-        finally:
-            self.lock.release()
-        if not bDeleted :
-            self.logger.debug( 'image %s NOT DELETED', image_sha_id )
+        bDeleted = None
+        app = self.find_app_by_id( image_id )
+        if isinstance( app , dict ):
+            bDeleted = self.remove_app_to_collection(app)
+        return bDeleted
+
 
     def findappbyname(self, authinfo, keyname):
         """find application by kyname
@@ -516,5 +652,4 @@ class ODApps:
         appid = mimemap.get(keyname)
         if appid:
             app = userappdict.get( appid )
-
         return app # can be None if not found
