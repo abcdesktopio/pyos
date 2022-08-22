@@ -15,6 +15,7 @@ import logging
 import oc.logging
 import pymongo
 import pymongo.errors
+from urllib.parse import urlparse
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
@@ -54,6 +55,13 @@ class MongoClientConfig(object):
         data = '%s:%s' % (self.serverfqdn, self.serverport) if self.serverport else self.serverfqdn
         return data
 
+    def gethost(self):
+        urlconfig = urlparse(self.serverfqdn)
+        host = urlconfig.hostname
+        if urlconfig.port:
+            host += ':' + str( urlconfig.port )
+        return host
+
 
 @oc.logging.with_logger()
 class ODMongoDatastoreClient(ODDatastoreClient):
@@ -70,6 +78,48 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         # set to 5000 (5 seconds). 
         self.socketTimeoutMS  = 2000  
         self.serverSelectionTimeoutMS = 2000
+
+
+    def config_replicaset( self, replicaset_name ):
+        mongoclientcfg = MongoClientConfig( self.serverfqdn, self.serverport )
+        host = mongoclientcfg.gethost()
+        config = { '_id': replicaset_name, 'members': [ { '_id':0, 'host': host } ] }
+        return config
+
+    def create_replicaset( self, replicaset_name ):
+        self.logger.info(f"create replicaset {replicaset_name}")
+        c = MongoClient(self.serverfqdn, self.serverport, directConnection=True )
+        try:
+            # set a default configuration 
+            config = self.config_replicaset( replicaset_name )
+            repl_status = c.admin.command("replSetInitiate", config, allowable_errors=True)
+        except pymongo.errors.OperationFailure as e:
+            if e.code == 23: # already initialized
+                # another process has done before
+                self.logger.info( f"{self.serverfqdn} already use replicatset")
+                return True
+            else:
+                self.logger.error( e )
+        except Exception as e:
+            self.logger.error( e )
+            return False
+
+    def getstatus_replicaset( self, replicaset_name):
+        self.logger.info(f"read replicaset {replicaset_name} status")
+        c = MongoClient(self.serverfqdn, self.serverport, directConnection=True )
+        try:
+            repl_status = c.admin.command("replSetGetStatus")
+            if isinstance( repl_status, dict ):
+                if int(repl_status.get('ok')) == 1:
+                    # repl_status.get('set') == replicaset_name
+                    self.logger.info( f"{self.serverfqdn} already uses replicatset {repl_status.get('set')}")
+                    return True
+        except pymongo.errors.OperationFailure as e:
+            if e.code == 94: # no replset config has been received
+                self.logger.info("no replset config has been received")
+        except Exception as e:
+            self.logger.error( e )
+        return False
 
     # Store database call
     # return None is not found or failure
