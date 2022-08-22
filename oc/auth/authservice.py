@@ -3186,7 +3186,12 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
     
     def getForeignDistinguishedName( self, authinfo:AuthInfo, objectSid:str ):
         self.logger.debug('')
-        foreingdistinguished_name =  None
+
+        # read
+        # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/5aa09c90-c5db-4e97-98d0-b7cdd6bc1bfe
+        # https://social.technet.microsoft.com/wiki/contents/articles/51367.active-directory-foreign-security-principals-and-special-identities.aspx
+        #
+        foreingdistinguished_name = None
 
         # objectSid is the original objectSid from the user domain
         self.logger.debug( f"objectSid is {objectSid}")
@@ -3194,8 +3199,12 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         if not isinstance(objectSid, str):
             self.logger.debug( f"objectSid is not a str, return None")
             return foreingdistinguished_name
-
+        #
         # look for objectSid inside the metadirecotry LDAP
+        # A Foreign Security Principal (FSP) is an object created by the system
+        # to represent a security principal in a trusted external forest.
+        # These objects are created in the Foreign Security Principals container of the domain.
+        #
         filter = ldap_filter.filter_format( self.foreign_query.filter, [ objectSid ] )
         self.logger.debug( f"ldap.filter {filter}")
         self.logger.debug( f"ldap search_all basedn={self.foreign_query.basedn} filter={filter} attrs={self.foreign_query.attrs}" )
@@ -3212,14 +3221,17 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             # foreign sid not exist in metadirectory 
             self.logger.debug( f"objectSid={objectSid} is not found, return None")
             return None
-       
+        
         foreingdistinguished_list = []
         # read the foreingdn.get('distinguishedName') in each entries in the list of dict
-        for foreingdn in query_foreingdistinguished_name:
-            if isinstance(foreingdn, dict) and foreingdn.get('distinguishedName'):
-                foreingdistinguished_list.append( foreingdn.get('distinguishedName') )
+        # do not use map reduce it's too long than this simplest lines
+        for foreingdn_dict in query_foreingdistinguished_name:
+            if isinstance(foreingdn_dict, dict):
+                dn = foreingdn_dict.get('distinguishedName')
+                if isinstance(dn, str):
+                    foreingdistinguished_list.append( dn )
 
-        self.logger.debug( f"return type={type(foreingdistinguished_list)} data={foreingdistinguished_list}")
+        self.logger.debug( f"return foreingdistinguished_list={foreingdistinguished_list}" )
         return foreingdistinguished_list
        
     def isMemberOf( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
@@ -3271,7 +3283,10 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         userinfo = self.search_one( conn=conn, basedn=q.basedn, scope=q.scope, filter=ldap_filter.filter_format(q.filter, [userid]), attrs=q.attrs, **params)
         if isinstance(userinfo, dict):
             userdn = userinfo.get('dn')
+            #
+            # safe add always 'userid' and 'name' attributs
             # Add always userid entry, make sure this entry exists
+            #
             if not isinstance( userinfo.get('userid'), str) :
                 userinfo['userid'] = userinfo.get(self.useruidattr)
             # Add always name entry
