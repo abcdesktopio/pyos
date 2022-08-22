@@ -73,8 +73,7 @@ class ODDesktopJWToken(object):
     # the code should never use
     # only for test 
     def decode( self, payload ):
-        data = None
         if payload is None:
-            raise ValueError('invalid payload data')            
+            raise ValueError('invalid payload data')           
         data = jwt.decode(payload, self.jwt_publickey, algorithms=self.algorithms[0])
         return data
