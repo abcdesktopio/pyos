@@ -39,6 +39,7 @@ class ODAcl():
         """
         if acl is None :
             # no acl has been defined
+            # this is not an error
             return False
 
         if not isinstance( acl, dict)  :
