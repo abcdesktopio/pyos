@@ -14,6 +14,7 @@
 # 
 
 import logging
+from pydoc import doc
 import cherrypy
 
 from oc.od.base_controller import BaseController
@@ -28,7 +29,7 @@ from oc.od.services import services
 
 logger = logging.getLogger(__name__)
 
-@cherrypy.tools.allow(methods=['GET','PUT','DELETE'])
+@cherrypy.tools.allow(methods=['GET','PUT','DELETE','PATCH'])
 @cherrypy.config(**{ 'tools.auth.on': False })
 class ManagerController(BaseController):
 
@@ -54,7 +55,8 @@ class ManagerController(BaseController):
         # disable trace log 
         cherrypy.response.notrace = True
         # True to force an application list refresh
-        return oc.od.services.services.apps.cached_applist(True)
+        oc.od.services.services.apps.cached_applist(True)
+        return oc.od.services.services.apps.get_json_applist(filter=True)
 
     # updateactivedirectorysite request is protected by is_permit_request()
     @cherrypy.expose
@@ -109,6 +111,89 @@ class ManagerController(BaseController):
             return self.handle_desktop_GET( args )
         elif cherrypy.request.method == 'DELETE':
             return self.handle_desktop_DELETE( args )
+
+    @cherrypy.expose
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out()
+    def image( self, image=None ):
+        self.is_permit_request()
+        if cherrypy.request.method == 'GET':
+            return self.handle_image_GET( image )
+        elif cherrypy.request.method == 'PUT':
+            return self.handle_image_PUT( cherrypy.request.json )
+        elif cherrypy.request.method == 'DELETE':
+            return self.handle_image_DELETE( image )
+        elif cherrypy.request.method == 'PATCH':
+            return self.handle_image_PATCH( image, cherrypy.request.json )
+
+    def handle_image_GET( self, image ):
+        self.logger.debug('')
+        if image is None:
+            # this is a list request
+            return oc.od.services.services.apps.get_json_applist()
+        elif isinstance( image, str):
+            app = oc.od.services.services.apps.get_json_app( image_id=image )
+            if isinstance( app, dict):
+                return app
+            else:
+                cherrypy.response.status = 404
+                return "Not found"
+        else:
+            raise Exception( 'invalid request')
+
+
+    def handle_image_PUT( self, json_images ):
+        self.logger.debug('')
+        json_put = None
+        if isinstance( json_images, list ) or isinstance( json_images, dict ) :
+            json_put = oc.od.composer.add_application_image( json_images )
+        else:
+            raise Exception( 'invalid request')
+        return json_put
+
+    def handle_image_DELETE( self, image ):
+        self.logger.debug('')
+        # image can be an sha_id or an repotag
+        # it is always a str type
+        if not isinstance( image, str):
+            raise Exception( 'invalid request')
+
+        app = oc.od.services.services.apps.find_app_by_id( image_id=image)
+        if isinstance( app, dict):
+            del_image = oc.od.composer.del_application_image( image )
+            return del_image
+        else: 
+            cherrypy.response.status = 404
+            return "Not found"
+
+    def handle_image_PATCH( self, image=None, json_images=None ):
+        self.logger.debug('')
+        # image can be an sha_id or an repotag
+        # it is always a str type
+        if image is None:
+            # flush applist cache bRefresh=True
+            oc.od.services.services.apps.cached_applist( bRefresh=True )
+            # return the updated list
+            return oc.od.services.services.apps.get_json_applist()
+
+        if isinstance( json_images, list):
+            # PATCH only the firest entry
+            json_images = json_images[0]
+
+        if isinstance( image, str ) and isinstance( json_images, dict) :
+            app = oc.od.services.services.apps.find_app_by_id( image_id=image )
+            if isinstance(app, dict):
+                app_patch = None
+                app_add = oc.od.services.services.apps.add_json_image_to_collection( json_images )
+                if isinstance( app_add, dict) :
+                    app_patch = oc.od.services.services.apps.get_json_app( app_add.get('id') )
+                return app_patch
+            else:
+                cherrypy.response.status = 404
+                return "Not found"
+        else:
+            raise Exception('invalid request')
+
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
