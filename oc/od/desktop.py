@@ -13,6 +13,7 @@
 # 
 
 import logging
+from re import M
 import oc.logging
 import json
 logger = logging.getLogger(__name__)
@@ -167,6 +168,15 @@ class ODDesktop(object):
         if status.lower() == 'terminating':
            return True
         return False
+
+    def get_default_ipaddr(self,interface_name=None):
+        mydefault_ipaddr = None
+        if isinstance( interface_name, str) and isinstance( self._desktop_interfaces, dict ):
+            if isinstance( self._desktop_interfaces.get(interface_name), dict ):
+                mydefault_ipaddr = self._desktop_interfaces.get(interface_name).get('ips')
+        if mydefault_ipaddr is None:
+            mydefault_ipaddr = self._ipAddr
+        return mydefault_ipaddr
 
     @property 
     def desktop_interfaces(self):
