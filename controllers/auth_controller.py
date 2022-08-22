@@ -262,10 +262,9 @@ class AuthController(BaseController):
                 # if the provider exists and is a ODAdAuthProvider
                 if isinstance( provider, oc.auth.authservice.ODAdAuthProvider ):
                     # look for a provider object using the provider name
-                    # add the activdeirectory domain prefix to the userid
-                    # DOMAIN\user
+                    # add the domain ad prefix
                     userid = provider.getadlogin(userid)
-                    self.logger.debug( f"userid rewrite with domain prefix as {userid}" )
+                    self.logger.info( 'userid rewrite as %s', userid )
 
             loginsessionid = args.get('loginsessionid')
             if not isinstance(loginsessionid, str):
