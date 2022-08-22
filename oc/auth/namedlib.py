@@ -41,6 +41,10 @@ def normalize_name(name, encoding='utf-8', tolower=True):
       
     return newname
 
+
+def normalize_name_dnsname( name ):
+    return normalize_name( name )[0:62]
+
 def normalize_name_tolabel( name ):
     return normalize_name(name)
 
@@ -62,15 +66,11 @@ def normalize_containername(name):
     return newname
 
 def normalize_imagename(name):
-    return name.rsplit('/',1)[-1].rsplit('.',1)[0].split(':',1)[0].replace('.', '-')
+    return str( name.rsplit('/',1)[-1].rsplit('.',1)[0].split(':',1)[0].replace('.', '-') )
 
 
 def normalize_alnum( c ):
-  if c.isalnum() :
-    return c
-  else:
-    return '_'
-
+  return c if c.isalnum() else '_'
 
 def normalize_char( c ):
   if c.isalnum() or c == '-' or c == '_':
