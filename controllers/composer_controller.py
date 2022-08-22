@@ -179,11 +179,14 @@ class ComposerController(BaseController):
             return Results.error( message='invalid parameters' )
 
         containerid = args.get('containerid')
-        if type( containerid ) is not str:      
+        if not isinstance( containerid, str) :
             return Results.error( message='invalid parameter containerid')
         
-        result = oc.od.composer.stopContainerApp(auth, user, containerid)
-        if result :            
+        podname = args.get('podname')
+        if not isinstance( podname, str) :
+            return Results.error( message='invalid parameter podname')
+        result = oc.od.composer.stopContainerApp(auth, user, podname, containerid)
+        if result :
             return Results.success(result=result)
         return Results.error('failed to stop container')
 
@@ -199,15 +202,19 @@ class ComposerController(BaseController):
             return Results.error( message=str(e) )
 
         args = cherrypy.request.json
-        if type(args) is not dict:
+        if not isinstance( args, dict):
             return Results.error( message='invalid parameters' )
 
         containerid = args.get('containerid')
-        if type( containerid ) is not str:      
+        if not isinstance( containerid, str) :
             return Results.error( message='invalid parameter containerid')
-        
-        result = oc.od.composer.logContainerApp(auth, user, containerid)
-        if result is not None:            
+
+        podname = args.get('podname')
+        if not isinstance( podname, str) :
+            return Results.error( message='invalid parameter podname')
+
+        result = oc.od.composer.logContainerApp(auth, user, podname, containerid)
+        if result :
             return Results.success(result=result)
         return Results.error('failed to get log container')
 
@@ -224,15 +231,19 @@ class ComposerController(BaseController):
             return Results.error( message=str(e) )
 
         args = cherrypy.request.json
-        if type(args) is not dict:
+        if not isinstance( args, dict):
             return Results.error( message='invalid parameters' )
 
         containerid = args.get('containerid')
-        if type( containerid ) is not str:      
+        if not isinstance( containerid, str) :
             return Results.error( message='invalid parameter containerid')
+
+        podname = args.get('podname')
+        if not isinstance( podname, str) :
+            return Results.error( message='invalid parameter podname')
         
-        result = oc.od.composer.envContainerApp(auth, user, containerid)
-        if result is not None:            
+        result = oc.od.composer.envContainerApp(auth, user, podname, containerid)
+        if result :
             return Results.success(result=result)
         return Results.error('failed to get log container')
 
@@ -249,14 +260,18 @@ class ComposerController(BaseController):
             return Results.error( message=str(e) )
 
         args = cherrypy.request.json
-        if type(args) is not dict:
+        if not isinstance( args, dict):
             return Results.error( message='invalid parameters' )
 
         containerid = args.get('containerid')
-        if type( containerid ) is not str:      
+        if not isinstance( containerid, str) :
+            return Results.error( message='invalid parameter containerid')
+
+        podname = args.get('podname')
+        if not isinstance( podname, str) :
             return Results.error( message='invalid parameter containerid')
         
-        result = oc.od.composer.removeContainerApp(auth, user, containerid)
+        result = oc.od.composer.removeContainerApp(auth, user, podname, containerid)
         if result is not None:            
             return Results.success(result=result)
         return Results.error('failed to remove container')
