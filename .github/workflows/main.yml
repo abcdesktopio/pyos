@@ -20,6 +20,10 @@ jobs:
     
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+    
+      - name: dump-github
+        run: echo ${{ github }}
+        
       - name: Repository Dispatch
         uses: peter-evans/repository-dispatch@v2
         with:
