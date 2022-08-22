@@ -16,69 +16,35 @@
 
 import logging
 from tokenize import String
+import requests
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
 
 import oc.od.settings as settings # Desktop settings lib
 import oc.pyutils
-import oc.od.infra
 import oc.logging
 import oc.od.orchestrator
 
 from oc.od.services import services
-from oc.od.infra import ODError  # Desktop Infrastructure Class lib
 from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+from oc.od.error import ODError
+import oc.od.appinstancestatus
 import oc.od.desktop
 
 import subprocess
 import threading
 import json
 
-from docker.models.images               import Image
-from docker.models.containers           import Container    # only for type
-from kubernetes.client.models.v1_pod    import V1Pod        # only for type
-
-
 logger = logging.getLogger(__name__)
+
 
 """ 
     all functions are called by composer_controller
 """
 
-def selectOrchestrator(arguments=None):
-    """select Orchestrator 
-       return a docker Orchestrator if oc.od.settings.stack_mode == 'standalone'
-       return a kubernetes ODOrchestratorKubernetes if oc.od.settings.stack_mode == 'kubernetes'       
-
-    Args:
-        arguments ([type], optional): arguments to init Orchestrator. Defaults to None.
-
-    Raises:
-        NotImplementedError: if oc.od.settings.stack_mode not in [ 'standalone', 'kubernetes' ]
-        NotImplementedError: if init orchestrator.__init__ config failed
-
-    Returns:
-        [ODOrchestrator]: [description]
-    """
-    myOrchestrator = None
-    myOrchestratorClass = None
-    if oc.od.settings.stack_mode == 'standalone' :     
-        # standalone means a docker just installed        
-        myOrchestratorClass = oc.od.orchestrator.ODOrchestrator
-    
-    elif oc.od.settings.stack_mode == 'kubernetes' :
-        # kubernetes means a docker and kubernetes installed        
-        myOrchestratorClass = oc.od.orchestrator.ODOrchestratorKubernetes
-
-    if myOrchestratorClass is None:
-        raise NotImplementedError('Orchestrator stack=%s is not implemented', oc.od.settings.stack_mode )  
-    
-    myOrchestrator = myOrchestratorClass( arguments )
-    if myOrchestrator is None:
-        raise NotImplementedError('Orchestrator stack=%s class=%s can not be instantiated', oc.od.settings.stack_mode, str(myOrchestratorClass) )  
-    
+def selectOrchestrator():
+    myOrchestrator = oc.od.orchestrator.selectOrchestrator()
     return myOrchestrator
-
 
 def opendesktop(authinfo, userinfo, args ):
     """open a new or return a desktop
@@ -236,7 +202,7 @@ def finddesktop_quiet( authinfo, userinfo, appname=None ):
         return None
    
     myOrchestrator = selectOrchestrator()
-    kwargs = { 'defaultnetworknetuserid': oc.od.settings.defaultnetworknetuserid, 'appname': appname }
+    kwargs = { 'appname': appname }
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)      
     return myDesktop
 
@@ -253,7 +219,7 @@ def finddesktop( authinfo, userinfo, appname=None ):
     """
     services.messageinfo.push(userinfo.userid, 'Looking for your desktop.')        
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
-    kwargs = { 'defaultnetworknetuserid': oc.od.settings.defaultnetworknetuserid, 'appname': appname }
+    kwargs = { 'appname': appname }
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)     
     return myDesktop
 
@@ -270,7 +236,7 @@ def prepareressources( authinfo, userinfo ):
     myOrchestrator.prepareressources( authinfo=authinfo, userinfo=userinfo )
     
 
-def stopContainerApp(auth, user, containerid):
+def stopContainerApp(auth, user, podname, containerid):
     """stop container application if the container belongs to the user 
     Args:
         authinfo (AuthInfo): authentification data
@@ -287,17 +253,19 @@ def stopContainerApp(auth, user, containerid):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( auth, user )
-        
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
        raise ODError( 'stopcontainer::findDesktopByUser not found')
 
+    if not myOrchestrator.isPodBelongToUser( auth, user, podname ):
+        services.fail2ban.fail_login( user.userid )
+        raise ODError( 'stopcontainer::invalid user')
+
     services.accounting.accountex('api', 'container_app')
-    myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.stopContainerApp( auth, user, containerid )
+    result = myOrchestrator.stopContainerApp( auth, user, podname, containerid )
     return result
 
 
-def logContainerApp(authinfo, userinfo, containerid):
+def logContainerApp(authinfo, userinfo, podname, containerid):
     logger.info('stopcontainer' )
 
     # new Orchestrator Object
@@ -307,13 +275,16 @@ def logContainerApp(authinfo, userinfo, containerid):
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
        raise ODError( 'findDesktopByUser not found')
 
+    if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
+        services.fail2ban.fail_login( userinfo.userid )
+        raise ODError( 'isPodBelongToUser::invalid user')
+
     services.accounting.accountex('api', 'log_container_app' )
-    myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.logContainerApp( authinfo, userinfo, containerid )
+    result = myOrchestrator.logContainerApp( authinfo, userinfo, podname, containerid )
     return result
 
 
-def removeContainerApp(authinfo, userinfo, container_id):
+def removeContainerApp(authinfo, userinfo, podname, container_id):
     logger.info('removeContainerApp')
 
     # new Orchestrator Object
@@ -323,9 +294,13 @@ def removeContainerApp(authinfo, userinfo, container_id):
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
        raise ODError( 'findDesktopByUser not found')
 
+
+    if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
+        services.fail2ban.fail_login( userinfo.userid )
+        raise ODError( 'isPodBelongToUser::invalid user')
+
     services.accounting.accountex('api', 'remove_container_app' )
-    myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.removeContainerApp( authinfo, userinfo, container_id )
+    result = myOrchestrator.removeContainerApp( authinfo, userinfo, podname, container_id )
     return result
 
 def getsecretuserinfo( authinfo, userinfo ):
@@ -333,8 +308,6 @@ def getsecretuserinfo( authinfo, userinfo ):
     myOrchestrator = selectOrchestrator()   
     secretuserinfo = myOrchestrator.getsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
-
-
 
 def listContainerApp(authinfo, userinfo):
     # new Orchestrator Object
@@ -344,13 +317,13 @@ def listContainerApp(authinfo, userinfo):
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
        raise ODError( 'listContainerApp:findDesktopByUser not found')
 
-    myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.listContainerApps( authinfo, userinfo )
+    result = myOrchestrator.listContainerApps( authinfo, userinfo, myDesktop, services.apps )
+
     return result
 
 
 
-def envContainerApp(authinfo, userinfo, containerid ):
+def envContainerApp(authinfo, userinfo, podname, containerid ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
@@ -358,9 +331,12 @@ def envContainerApp(authinfo, userinfo, containerid ):
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
        raise ODError( 'envContainerApp:findDesktopByUser not found')
 
+    if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
+        services.fail2ban.fail_login( userinfo.userid )
+        raise ODError( 'isPodBelongToUser::invalid user')
+
     services.accounting.accountex('api', 'env_container_app')
-    myOrchestrator.nodehostname = myDesktop.nodehostname
-    result = myOrchestrator.envContainerApp( authinfo, userinfo, containerid )
+    result = myOrchestrator.envContainerApp( authinfo, userinfo, podname, containerid )
     return result
 
 
@@ -421,18 +397,10 @@ def createDesktopArguments( authinfo, userinfo, args ):
     # get value from configuration files to build dict
     #                        
     myCreateDesktopArguments = { 
-    
-            # set the default network id to bind network interface
-            # use only in docker and swarn mode 
-            # not used by kubernetes mode 
-        'defaultnetworknetuserid': settings.defaultnetworknetuserid,
             # set the default command to start the container
         'command': [ '/composer/docker-entrypoint.sh' ],
             # set command args
         'args'  : [],
-            # set the getdesktop_homedirectory_type
-            # can be volume or nfs 
-        'homedirectory_type': settings.desktop['homedirectorytype'],
             # set the homedir for balloon running inside the docker container 
             # by default /home/balloon
         'balloon_homedirectory': settings.getballoon_homedirectory(),
@@ -518,7 +486,6 @@ def createdesktop( authinfo, userinfo, args  ):
         # logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
             messageinfo.push('Webhooking network services')
-       
         messageinfo.push('Starting up internal services')
         processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
         messageinfo.push('Internal services started')
@@ -546,25 +513,6 @@ def openapp( auth, user={}, kwargs={} ):
     appname  = kwargs.get('image')        # name of the image
     userargs = kwargs.get('args')         # get arguments for apps for example a file name
 
-    # new Orchestrator Object
-    myOrchestrator = selectOrchestrator()  
-
-    # find the desktop for the current user 
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user, **kwargs )
-    if not isinstance( myDesktop, ODDesktop):
-        raise ODError( 'openapp:findDesktopByUser not found')
-
-    myOrchestrator.nodehostname = myDesktop.nodehostname
-    kwargs[ 'homedirectory_type' ] = settings.desktop['homedirectorytype']
-
-    # Check limit apps counter
-    max_app_counter = oc.od.settings.desktop['policies'].get('max_app_counter')
-    if isinstance( max_app_counter, int ):
-        # count running applications
-        running_user_applications_counter = myOrchestrator.countRunningContainerforUser( auth, user )
-        if running_user_applications_counter > max_app_counter:
-            raise ODError( f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
-
     # get application object from application name
     app = getapp(auth, appname)
     if not isinstance( app, dict ):
@@ -577,11 +525,29 @@ def openapp( auth, user={}, kwargs={} ):
         logger.error( 'SECURITY Warning applist has been modified or updated')
         raise ODError('Application access is denied by security policy')
 
+    # new App instance Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+
+    # find the desktop for the current user
+    myDesktop = myOrchestrator.findDesktopByUser( auth, user, **kwargs )
+    if not isinstance( myDesktop, ODDesktop):
+        raise ODError( 'openapp:findDesktopByUser not found')
+
+    # Check limit apps counter
+    max_app_counter = oc.od.settings.desktop['policies'].get('max_app_counter')
+    if isinstance( max_app_counter, int ):
+        # count running applications
+        running_user_applications_counter = myOrchestrator.countRunningAppforUser( auth, user, myDesktop )
+        if running_user_applications_counter > max_app_counter:
+            raise ODError( f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
+
+    """
+    Deprecated
     # Check if the image is has the uniquerunkey Label set
     if app.get('uniquerunkey'):
         logger.debug(f"app {appname} has an uniqu key property set" )
         appinstance = myOrchestrator.getappinstance(auth, user, app )            
-        if myOrchestrator.isinstance_app( appinstance ):
+        if myOrchestrator.is_instance_app( appinstance ):
             logger.debug('Another container with the same uniquerunkey %s is running for userid %s', app.get('uniquerunkey'), user.userid)
             cmd,result = launch_app_in_process(myOrchestrator, app, appinstance, userargs)
             services.accounting.accountex('container', 'reused')
@@ -593,18 +559,15 @@ def openapp( auth, user={}, kwargs={} ):
     
     logger.debug( 'no application instance %s is running, create a new one', str(appname) )                  
     services.accounting.accountex('api', 'openapp')
+    """
 
-    appinstance = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
-    if not isinstance(appinstance, Container) and not isinstance(appinstance, V1Pod ):
-        raise ODError('Failed to run application return %s', type(appinstance) )
-
-    logger.info('app %s is started', appinstance.id)
-
-    runwebhook( appinstance )
-   
-    # default return value
-    openapp_dict =  { 'container_id': appinstance.id, 'state': appinstance.message }
-    return openapp_dict
+    appinstancestatus = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
+    if not isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus ):
+        raise ODError(f"Failed to run application return {type(appinstancestatus)}")
+    logger.info(f"app {appinstancestatus.id} is {appinstancestatus.message}")
+    runwebhook( appinstancestatus )
+    # default return value appinstancestatus dict format to json format
+    return appinstancestatus.to_dict()
 
 def callwebhook(webhookcmd, messageinfo=None, timeout=60):
     logger.debug( f"callwebhook exec {webhookcmd}" )
@@ -650,8 +613,8 @@ def notify_user( access_userid, access_type, method, data ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()  
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
-    cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
     if isinstance( myDesktop, ODDesktop) :
+        cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
         myOrchestrator.execininstance(myDesktop.id, cmd)
     
 
@@ -748,3 +711,58 @@ def listAllSecretsByUser(authinfo, userinfo ):
     secrets_type_list = list( map(lambda x: x.get('type'), secrets_dict.values() ) )
     # return list
     return secrets_type_list
+
+
+def notify_endpoint( url ):
+    try:
+        response = requests.get(url)
+        if isinstance( response, requests.models.Response ):
+            return response.ok
+    except Exception as e:
+        logger.error( e )
+    return False
+
+
+def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addresses):
+    for pyos_endpoint_address in pyos_endpoint_addresses:
+        if oc.od.settings.developer_instance == True:
+            pyos_endpoint_address = '127.0.0.1'
+        url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
+        notify_thread = threading.Thread(target=notify_endpoint, kwargs={'url': url } )
+        notify_thread.start()
+
+def add_application_image( json_images ):
+    # add entry from mongodb
+    json_put =  oc.od.services.services.apps.add_json_image_to_collection( json_images )
+
+    if json_put is not None:
+        # new Orchestrator Object
+        myOrchestrator = selectOrchestrator()
+        # list all pyos endpoints (port and address)
+        (pyos_endpoint_port, pyos_endpoint_addresses) = myOrchestrator.listEndpointAddresses( 'pyos' )
+        if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
+            # create a thread for each pyos_endpoint_addresses and call buildapplist
+            notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
+
+        if isinstance( json_put, dict ):
+            myOrchestrator.pullimage_on_all_nodes( json_put )
+        elif isinstance( json_put, list ):
+            for app in json_put:
+                myOrchestrator.pullimage_on_all_nodes( app )
+            
+    return json_put
+
+
+def del_application_image( image ):
+    # remove entry from mongodb
+    del_image = oc.od.services.services.apps.del_image( image )
+
+    if del_image is True:
+        # new Orchestrator Object
+        myOrchestrator = selectOrchestrator()
+        # list all pyos endpoints
+        (pyos_endpoint_port, pyos_endpoint_addresses) = myOrchestrator.listEndpointAddresses( 'pyos' )
+        if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
+            # notify all pyos endpoint to reload applist from mongodb database
+            notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
+    return del_image
