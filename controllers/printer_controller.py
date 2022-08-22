@@ -180,7 +180,7 @@ class PrinterController(BaseController):
 
         printer = printers[0]
         
-        myOrchestrator = oc.od.composer.selectOrchestrator()
+        myOrchestrator = oc.od.orchestrator.ODOrchestratorBase.selectOrchestrator()
         try:
             # network printers use Samba share by default  
             credentials = myOrchestrator.findSecretByUser(auth, user, 'cifs')  
