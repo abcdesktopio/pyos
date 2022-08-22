@@ -51,8 +51,8 @@ class ODFail2ban:
         db = mongo_client[self.databasename]
         col = db[collection_name]
         try:
-            col.ensure_index( [( self.index_name, pymongo.ASCENDING )] )
-            col.ensure_index( self.index_date, expireAfterSeconds=self.banexpireAfterSeconds)
+            col.create_index( [( self.index_name, pymongo.ASCENDING )] )
+            col.create_index( [( self.index_date, pymongo.DESCENDING )], expireAfterSeconds=self.banexpireAfterSeconds)
         except Exception as e:
             self.logger.info( e )
         mongo_client.close()
