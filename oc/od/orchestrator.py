@@ -1038,6 +1038,8 @@ class ODOrchestrator(ODOrchestratorBase):
         # if add is a ODDekstop use to_dict to convert ODDesktop to dict 
         # else app is a dict 
         
+        self.logger.debug( f"type(app) is {type(app)}" )
+
         if isinstance( app, dict ) :
             sourcedict.update( app )
             myinfra = self.createInfra( self.nodehostname )
@@ -1046,7 +1048,9 @@ class ODOrchestrator(ODOrchestratorBase):
                 container_ip = myinfra.getDesktopIpAddr( containerid, network.id )
                 sourcedict.update( { 'container_ip': container_ip } )
             myinfra.close()
-        if isinstance(app, ODDesktop ):
+
+        elif isinstance(app, ODDesktop ):
+            self.logger.debug( f"app is ODDesktop" )
             sourcedict.update( app.to_dict().copy() )
             # desktop_interface is a dict 
             # { 
@@ -1054,9 +1058,13 @@ class ODOrchestrator(ODOrchestratorBase):
             #   'net1': {'mac': '2a:94:43:e0:f4:46', 'ips': '192.168.9.137'     }, 
             #   'net2': {'mac': '1e:50:5f:b7:85:f6', 'ips': '161.105.208.143'   }
             # }
+            self.logger.debug( f"type(desktop_interfaces) is {type(app.desktop_interfaces)}" )
             if isinstance(app.desktop_interfaces, dict ):
+                self.logger.debug( f"desktop_interfaces is {app.desktop_interfaces}" )
                 for interface in app.desktop_interfaces.keys():
+                    self.logger.debug( f"{interface} is {app.desktop_interfaces.get(interface)}" )
                     ipAddr = app.desktop_interfaces.get(interface).get('ips')
+                    self.logger.debug( f"{interface} has ip addr {ipAddr}" )
                     sourcedict.update( { interface: ipAddr } )
 
         # Complete with user data
@@ -3002,8 +3010,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # At least one container is still running,
             self.on_desktoplaunchprogress("Your pod is running.")   
 
-        myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
-        self.logger.debug('watch read_namespaced_pod created' )
+        myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo)
+        self.logger.debug('watch read_namespaced_pod created')
+
+        self.logger.debug(f"desktop phase:{myPod.status.phase} has interfaces properties {myDesktop.desktop_interfaces}")
 
         self.logger.debug('watch filldictcontextvalue creating' )
         # set desktop web hook
@@ -3182,16 +3192,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         desktop_container_name = None
         desktop_interfaces     = None
 
-        # read metadata annotations 'k8s.v1.cni.cncf.io/network-status'
-        network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
+        # read metadata annotations 'k8s.v1.cni.cncf.io/networks-status'
+        network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/networks-status' )
+        self.logger.debug( f"pod.metadata.annotations.get('k8s.v1.cni.cncf.io/networks-status') is {network_status}" )
         if isinstance( network_status, str ):
-            # k8s.v1.cni.cncf.io/network-status is set 
+            # k8s.v1.cni.cncf.io/networks-status is set 
             # load json formated string 
             network_status = json.loads( network_status )
 
         if isinstance( network_status, list ):
             desktop_interfaces = {}
+            self.logger.debug( f"network_status is {network_status}" )
             for interface in network_status :
+                self.logger.debug( f"reading interface {interface}" )
                 if not isinstance( interface, dict ):
                     continue
 
