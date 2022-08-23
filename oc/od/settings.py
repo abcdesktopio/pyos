@@ -28,6 +28,7 @@ namespace = 'abcdesktop'
 
 mongoconfig = None  # Mongodb config Object Class
 
+authprovider = {}  # auth provider dict
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
 menuconfig   = {}  # default menu config
@@ -41,6 +42,9 @@ balloon_gid = 4096  # default group id
 balloon_name = 'balloon'
 balloon_shell = '/bin/bash'
 balloon_passwd = 'lmdpocpetit'
+
+# developer specific params
+developer_instance = False
 
 
 DEFAULT_SHM_SIZE = '64M' # default size of shared memeory
@@ -371,17 +375,9 @@ def init_config_stack():
        read stack.network for docker
        read stack.kubernetesdefaultdomain for kubernetes
     """
-    global stack_mode
     global defaultnetworknetuser
     global kubernetes_default_domain
     global namespace
-
-    stack_mode = gconfig.get('stack.mode', None)
-    if  stack_mode not in [ 'kubernetes', 'standalone' ] :
-        logger.error("invalid stack.mode value")
-        logger.error("stack.mode must be set to 'standalone' for docker only daemon")
-        logger.error("or set to 'kubernetes' for kubernetes support.")
-        exit(-1)
 
     defaultnetworknetuser = gconfig.get('stack.network', 'abcdesktop_netuser')    
     kubernetes_default_domain = gconfig.get('stack.kubernetesdefaultdomain', 'abcdesktop.svc.cluster.local')
@@ -547,7 +543,6 @@ def filter_hostconfig( host_config ):
 def init_desktop():
     global desktophostconfig
     global applicationhostconfig
-    global stack_mode
     global desktopkubernetesresourcelimits
  
     global desktop
@@ -617,9 +612,10 @@ def init_desktop():
     # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
 
     desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
-    desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'volume')
+    desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
+    desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt/abcdesktop')
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim', 'abcdesktop-pvc' )
-    desktop['nodeselector']             = gconfig.get('desktop.nodeselector', {} )    
+    desktop['nodeselector']             = gconfig.get('desktop.nodeselector')    
     desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
     desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
     desktop['useinternalfqdn']          = gconfig.get('desktop.useinternalfqdn', False ) 
@@ -674,7 +670,6 @@ def init_balloon():
 
 
 def init_config_memcached():
-    global stack_mode
     global memconnectionstring
     global kubernetes_default_domain
     # Build memcached memconnectionstring
@@ -683,9 +678,7 @@ def init_config_memcached():
  
     if memcachedhostname is None:
         memcachedhostname = 'memcached' # this is the default value in docker mode
-        logger.info( 'stackmode is %s', stack_mode)
-        if stack_mode == 'kubernetes':
-            memcachedhostname += '.' + kubernetes_default_domain # this is the default value in docker mode
+        memcachedhostname += '.' + kubernetes_default_domain # this is the default value in docker mode
         logger.info( 'memcachedhostname is %s', memcachedhostname)
     try:
         memcachedipaddr = socket.gethostbyname(memcachedhostname)
@@ -705,7 +698,6 @@ def get_mongoconfig():
     #   try to read the MONGODB_URL env var
     #       if not set 
     #           use localhost
-    global stack_mode
     global kubernetes_default_domain
 
     # read mongodb_url env var in upper case and lower case
@@ -724,8 +716,7 @@ def get_mongoconfig():
     mongodbhost = None
     if mongodburl is None:
         mongodbhost = 'mongodb' # this is the default value in docker mode
-        if stack_mode == 'kubernetes':
-            mongodbhost += '.' + kubernetes_default_domain # this is the default value in docker mode
+        mongodbhost += '.' + kubernetes_default_domain # this is the default value in docker mode
         mongodburl = 'mongodb://' + mongodbhost + ':27017'
         logger.info( 'mongodburl is %s', mongodburl)
     else:
@@ -801,41 +792,44 @@ def init_config_mongodb():
 
 
 def init_config_auth():
+    global authprovider
     global authmanagers
-    
-    def parse_provider_configref( authmanagers, provider_type ):
-        logger.debug( f"parsing provider type {provider_type}" )
-        expcfg = pyutils.get_setting(authmanagers, provider_type )
-        if isinstance( expcfg, dict ):
-            for name,cfg in expcfg.items(): 
-                configref_name = cfg.get('config_ref')
-                if isinstance( configref_name, str ) :
-                    logger.debug( f"config {name} as use configref_name={configref_name}" )
-                    config_ref = gconfig.get(configref_name)
-                    if not isinstance(config_ref, dict):
-                        logger.error( f"config {name} can not read configref_name={configref_name}, skipping" )
-                        continue
-                        
-                    firstkey = next(iter(config_ref)) # Using next() + iter(), getting first key in dictionary
-                    logger.debug( f"reading config_ref key {firstkey}" )
-                    conncfg = config_ref.get( firstkey )
-                    if isinstance(conncfg, dict):
-                        logger.debug( f"apply update config to {name}" )
-                        cfg.update({    **conncfg,
-                                        'basedn':  conncfg.get('ldap_basedn'),
-                                        'timeout': conncfg.get('ldap_timeout', 15),
-                                        'secure':  conncfg.get('ldap_protocol') == 'ldaps'
-                        })
-                    else:
-                        logger.error( f"{configref_name} is not a dict, invalid format type={type(conncfg)}" )
 
-    # load authmanagers from config file
+    def parse_provider_configref( authmanagers, provider_type ):
+        expcfg = pyutils.get_setting(authmanagers, provider_type )
+        if expcfg:
+            for name,cfg in expcfg.items(): 
+                cfgref = cfg.get('config_ref')
+                if cfgref is None: 
+                    continue
+                    
+                # conncfg = gconfig.get(cfgref, {}).get(name, None)
+                conncfg = list(gconfig.get(cfgref,{}).values())[0]
+                if conncfg: 
+                    cfg.update({    **conncfg,
+                                    'basedn':  conncfg.get('ldap_basedn'),
+                                    'timeout': conncfg.get('ldap_timeout', 15),
+                                    'secure':  conncfg.get('ldap_protocol') == 'ldaps'
+                    })
+                    logger.debug(cfg)
+
+
+    authprovider = gconfig.get('authprovider', {})    
+    logger.debug(authprovider)
+
     authmanagers = gconfig.get('authmanagers', {})
+
     # load configref for all providers
     parse_provider_configref( authmanagers, 'implicit.providers')
     parse_provider_configref( authmanagers, 'explicit.providers')
     parse_provider_configref( authmanagers, 'metaexplicit.providers')
 
+
+def getAuthProvider(name):
+    provider = authprovider.get(name, {})
+    provider['provider'] = name
+    logger.debug('%s => %s', name, provider)
+    return provider
 
 #
 # init_config_check return True if
@@ -907,12 +901,16 @@ def make_b64data_from_iconfile(filename):
     Returns:
         str: encoded content file
     """
+    strencode = None
     img_path = 'img/app/'
     filepath = os.path.normpath( img_path + filename )
-    f = open(filepath, 'r')
-    file_data = f.read()
-    f.close()
-    strencode = base64.b64encode( file_data.encode('utf8') ).decode('utf-8') 
+    try:
+        f = open(filepath, 'r')
+        file_data = f.read()
+        f.close()
+        strencode = base64.b64encode( file_data.encode('utf8') ).decode('utf-8') 
+    except Exception as e:
+        logger.error( e )
     return strencode
 
       
@@ -923,7 +921,7 @@ def init_dock():
     for key in dock.keys():
         filename = dock[key].get( 'icon' )
         dock[key]['icondata'] = make_b64data_from_iconfile( filename )
-    logger.info("default user dock %s ", str( dock ))
+        # logger.info("default user dock %s ", str( dock ))
 
 
 def get_default_appdict():
@@ -949,6 +947,12 @@ def load():
 def init():
     logger.info('Init configuration --- ')
     load() 
+
+    # developer specific config
+    # only to use for local pyos instance, 
+    # if developer_instance is set to True then pyos is not supposed to run inside kubernetes pod 
+    global developer_instance
+    developer_instance =  gconfig.get('developer_instance', False )
 
     # load default menu config
     init_menuconfig()

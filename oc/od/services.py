@@ -1,11 +1,10 @@
 from errno import ESTALE
 import logging
 import oc.od.settings as settings
-import oc.od.infra
 import oc.od.orchestrator
 import oc.od.dockerwatcher
 import oc.od.kuberneteswatcher
-import oc.od.imagewatcher
+import oc.od.apps
 
 logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
@@ -36,8 +35,12 @@ class ODServices(object):
         """
         self.init_messageinfo()
         self.init_accounting()
-        self.init_datastore()
-        self.init_datacache() # to cache private key
+
+        if not self.init_datastore():
+            logger.error( 'Connection refused to database or error')
+            exit(-2)
+
+        self.init_datacache()
         self.init_auth()
         self.init_internaldns()
         self.init_resolvnetbios()
@@ -56,8 +59,6 @@ class ODServices(object):
                 * kuberneteswatcher
         """
         self.logger.debug('')
-        if isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher):
-            self.dockerwatcher.start()
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             self.kuberneteswatcher.start()
 
@@ -69,17 +70,6 @@ class ODServices(object):
                 * kuberneteswatcher
         """
         self.logger.debug('')
-        # stop thread dockerwatcher if instance exists
-        if isinstance( self.dockerwatcher, oc.od.dockerwatcher.ODDockerWatcher) :
-            try:
-                self.logger.debug( 'dockerwatcher stop')
-                self.dockerwatcher.stop()
-                self.logger.debug( 'dockerwatcher stopped')
-            except Exception as e:
-                self.logger.error(e)
-        else:
-            self.logger.debug( 'self.dockerwatcher is not defined')
-
         # stop thread imagewatcher if instance exists
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             try:
@@ -91,18 +81,18 @@ class ODServices(object):
         else:
             self.logger.debug( 'self.kuberneteswatcher is not defined')
 
-
+        '''
         # stop thread imagewatcher if instance exists
-        if hasattr(self, 'imagewatcher') and isinstance( self.imagewatcher, oc.od.imagewatcher.ODImageWatcher):
+        if isinstance( self.apps, oc.od.apps.ODApps ):
             try:
-                self.logger.debug( 'imagewatcher stop')
-                self.imagewatcher.stop()
-                self.logger.debug( 'imagewatcher stopped')
+                self.logger.debug( 'appswatcher stop')
+                self.apps.stop()
+                self.logger.debug( 'appswatcher stopped')
             except Exception as e:
                 self.logger.error(e)
         else:
-            self.logger.debug( 'self.imagewatcher is not defined')
-
+            self.logger.debug( 'self.apps is not defined')
+        '''
         self.logger.debug('done')
 
 
@@ -174,8 +164,24 @@ class ODServices(object):
 
     def init_datastore(self):
         self.logger.info('')
+        replicaset_name = 'rs0'
         import oc.datastore
         self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongoconfig)
+        '''
+        # check if replicaset is configured
+        if not self.datastore.getstatus_replicaset(replicaset_name):
+           self.logger.info(f"replicaset {replicaset_name} does not exist")
+           # create a replicaset
+            create_replicaset = self.datastore.create_replicaset(replicaset_name)
+            # if create_replicaset is None or False
+            # create_replicaset can return None but this is not a failure
+            if not create_replicaset :
+                # reread if replicaset is configured
+                create_replicaset = self.datastore.getstatus_replicaset(replicaset_name)
+            return create_replicaset
+        self.logger.info(f"replicaset {replicaset_name} exist")
+        '''
+        return True
 
     def init_datacache(self):
         self.logger.info('')
@@ -214,7 +220,7 @@ class ODServices(object):
         self.logger.info('')
         import oc.od.apps 
         # Build applist cache data
-        self.apps = oc.od.apps.ODApps()
+        self.apps = oc.od.apps.ODApps(mongoconfig=settings.mongoconfig)
         self.apps.cached_applist(bRefresh=True)
 
     def init_dockerwatcher( self ):
@@ -224,11 +230,6 @@ class ODServices(object):
     def init_kuberneteswatcher( self ):
         self.logger.info('')
         self.kuberneteswatcher = oc.od.kuberneteswatcher.ODKubernetesWatcher()
-
-    def init_imagewatcher( self ):
-        self.logger.info('')
-        self.imagewatcher = oc.od.imagewatcher.ODImageWatcher()
-
 
 # use services to access 
 services = ODServices()
@@ -241,68 +242,18 @@ def init_infra():
     """
     logger.info('')
 
-    #
-    # stack mode in configuration file can be 
-    # - 'standalone'     
-    # - 'kubernetes'
-    detected_stack_mode = 'standalone'  # default value
-    
-    # get the stack mode from configuration file
-    stack_mode = settings.stack_mode
-    logger.info( 'Configuration file stack_mode is set to %s' , stack_mode)
-
-    # Now detecting stack mode
-    # standalone means a docker just installed        
-    # standalone is always supported because only dockerd is need
-    myOrchestrator = oc.od.orchestrator.ODOrchestrator()            
-    if myOrchestrator.is_configured():
-       detected_stack_mode = 'standalone'
-    
-    # Try to use stack_mode = 'kubernetes':
-    # if kubernetes is configured, use kubernetes
-    # note swarm is not supported anymore
+    # Check kubernetes config 
     myOrchestrator = oc.od.orchestrator.ODOrchestratorKubernetes()
-    if myOrchestrator.is_configured():
-       detected_stack_mode = 'kubernetes'
-
-    if stack_mode != detected_stack_mode:
-        logger.warning('Configuration mismatch : stack mode is %s, detected stack mode is %s', stack_mode, detected_stack_mode)
-        if stack_mode == 'standalone':
-            # kubernetes is installed and configuration ask to use dockerd only
-            # Allow it       
-            pass
-        elif stack_mode == 'kubernetes':             
-            if detected_stack_mode == 'standalone' :
-                # can not run a kubernetes config on docker only without kubernetes installed
-                logger.error('Config file is set to kubernetes but no kubernetes detected')
-                logger.error('docker info is detected as standalone')
-                logger.error('this is a mistake report the error and exit')
-                logger.error('invalid stack mode parameter : %s', stack_mode)
-                exit(-1)
-    logger.info('mode is using : %s', stack_mode) 
-     
-    settings.defaultnetworknetuserid = None
-
-    if stack_mode == 'standalone':
-      # get the netuser network id 
-      infra = oc.od.infra.ODInfra()
-      network = infra.getnetworkbyname(settings.defaultnetworknetuser)
-      if network is None:        
-        logger.error('%s is not found ', settings.defaultnetworknetuser)
-        logger.error('Create network %s before starting od.py', settings.defaultnetworknetuser)
-        exit(-1)
-      else:
-        settings.defaultnetworknetuserid = network.id
-      logger.info('default overlay network: %s - id %s', settings.defaultnetworknetuser, settings.defaultnetworknetuserid)
-
-
-
+    if not myOrchestrator.is_configured():
+       logger.error('Config fkubernetes is not detected')
+       exit(-1)
 
 def init():
     # init all services 
     services.init()
     
-    # init docker or kubernetes infra
+    # init kubernetes infra
+    # check if kubernetes is configured
     init_infra()
 
     # now list images application
@@ -311,9 +262,5 @@ def init():
     # run docker watcher for images and network object
     # watch image pull rm event
     # watch network create destroy event
-    services.init_dockerwatcher()
+    # services.init_dockerwatcher()
     services.init_kuberneteswatcher()
-
-    # run image watcher for images ain mongodb
-    # watch image pull event
-    services.init_imagewatcher()

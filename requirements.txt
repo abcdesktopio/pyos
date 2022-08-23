@@ -1,9 +1,8 @@
 haversine==2.5.1
 chevron==0.14.0
 kubernetes>=23.3.0
-setuptools-rust
 CherryPy>=18.6.0
-cryptography==36.0.2
+cryptography
 dnspython==2.2.1
 docker>=5.0.0
 GeoIP>=1.3.2
