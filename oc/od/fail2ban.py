@@ -2,15 +2,16 @@ import logging
 import oc.datastore
 import pymongo
 import datetime
+from netaddr import IPNetwork, IPAddress
 
 logger = logging.getLogger(__name__)
-
 @oc.logging.with_logger()
 class ODFail2ban:
 
     def __init__(self, mongoconfig, fail2banconfig={}):
         self.failmaxvaluebeforeban = fail2banconfig.get('failsbeforeban', 5 ) # specify a positive non-zero value 
         self.banexpireAfterSeconds = fail2banconfig.get('banexpireafterseconds', 30*60 )
+        self.protectedNetworks    = fail2banconfig.get('protectednetworks', [] )
         self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig)
         self.databasename = 'fail2ban'
         self.ip_collection_name = 'ipaddr'
@@ -83,14 +84,23 @@ class ODFail2ban:
 
     def fail( self, value, collection_name ):
         myfail = None
-       
-        utc_timestamp = datetime.datetime.utcnow()
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
         myfail = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=1 ) 
         return myfail
 
     def fail_ip( self, value ):
+        #
+        # do not ban ip address if ip addess is in protectedNetworks
+        for network in self.protectedNetworks:
+            try:
+                if IPAddress(value) in IPNetwork( network ):
+                    # skip this ip
+                    self.logger.debug( f"ip address {value} is not banned, inside protected network {network}" )
+                    return
+            except Exception as e:
+                self.logger.error( e )
+        
         return self.fail( value, collection_name = self.ip_collection_name )
 
     def fail_login( self, value ):
