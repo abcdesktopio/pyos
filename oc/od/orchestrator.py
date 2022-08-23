@@ -823,8 +823,8 @@ class ODOrchestrator(ODOrchestratorBase):
             volume_filter.append( oc.od.settings.balloon_homedirectory )
 
         if isinstance( app.get('secrets_requirement'), list ):
-            for s in app.get('secrets_requirement'):
-                volume_filter.append( oc.od.settings.desktop['secretsrootdirectory'] + s )
+            for secret in app.get('secrets_requirement'):
+                volume_filter.append( oc.od.settings.desktop['secretsrootdirectory'] + secret )
     
         (volumesbind, volumes) = self.getvolumebindforapplication( storage_container.attrs["HostConfig"]["Binds"], volume_filter )
 
@@ -1073,6 +1073,7 @@ class ODOrchestrator(ODOrchestratorBase):
                     moustachedata[k] = sourcedict[k]
 
         moustachedata.update( oc.od.settings.desktop['webhookdict'] )
+        self.logger.debug( f"moustachedata={moustachedata}" )
         webhookcmd = chevron.render( mustachecmd, moustachedata )
         return webhookcmd
 
@@ -2154,30 +2155,30 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def filldictcontextvalue( self, authinfo, userinfo, desktop, network_config, network_name=None, appinstance_id=None ):
 
+        fillvalue = network_config
+
+        self.logger.debug( f"type(network_config) is {type(network_config)}" )
         # check if network_config is str, dict or list
-        if type( network_config ) is str :
+        if isinstance( network_config, str) :
             fillvalue = self.fillwebhook(   mustachecmd=network_config, 
                                             app=desktop, 
                                             authinfo=authinfo, 
                                             userinfo=userinfo, 
                                             network_name=network_name, 
                                             containerid=appinstance_id )
-            return fillvalue
 
-        if type( network_config ) is dict :
+        elif isinstance( network_config, dict) :
             fillvalue = {}
             for k in network_config.keys():
                 fillvalue[ k ] = self.filldictcontextvalue( authinfo, userinfo, desktop, network_config[ k ], network_name, appinstance_id )
-            return fillvalue    
 
-        if type( network_config ) is list :
+        elif isinstance( network_config, list) :
             fillvalue = [None] * len(network_config)
             for i, item in enumerate(network_config):
                 fillvalue[ i ] = self.filldictcontextvalue( authinfo, userinfo, desktop, item, network_name, appinstance_id )
-            return fillvalue  
     
-        # not used type
-        return network_config
+        self.logger.debug(f"filldictcontextvalue return fillvalue={fillvalue}")
+        return fillvalue
 
     def findRunningPodforUserandImage( self, authinfo, userinfo, app):
         self.logger.info('')
@@ -3182,13 +3183,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         desktop_interfaces     = None
 
         # read metadata annotations 'k8s.v1.cni.cncf.io/network-status'
-        network_status_json_string = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
-        if isinstance( network_status_json_string, str ):
+        network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
+        if isinstance( network_status, str ):
             # k8s.v1.cni.cncf.io/network-status is set 
             # load json formated string 
-            network_status_json = json.loads( network_status_json_string )
+            network_status = json.loads( network_status )
+
+        if isinstance( network_status, list ):
             desktop_interfaces = {}
-            for interface in network_status_json :
+            for interface in network_status :
+                if not isinstance( interface, dict ):
+                    continue
+
                 name = interface.get('interface')
                 ips = interface.get('ips')
                 mac = interface.get('mac')
