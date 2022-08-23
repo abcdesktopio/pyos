@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ODPrelogin:
 
     def __init__(self, config, memcache_connection_string ):
-        self.maxlogintimeout = 120
+        self.maxlogintimeout = int(config.get('maxlogintimeout',120))
         self.mustache_data = None
         self.prelogin_url = config.get('url')
         self.memcache = oc.sharecache.ODMemcachedSharecache( memcache_connection_string )
@@ -43,29 +43,28 @@ class ODPrelogin:
 
 
     def update_prelogin_mustache_data(self):
-        self.logger.debug( 'prelogin_mustache_data update cache read %s',  self.prelogin_url )
+        self.logger.debug( f"prelogin_mustache_data update cache read {self.prelogin_url}" )
         r = requests.get(self.prelogin_url, allow_redirects=False, verify=False )
         self.mustache_data = r.content.decode('utf-8')
         # self.logger.debug( self.mustache_data  )
 
 
     def prelogin_verify( self, sessionid, userid ):
-        self.logger.info( 'prelogin_verify starting' )
+        self.logger.debug( 'prelogin_verify starting' )
         if not isinstance(sessionid, str) or not isinstance(userid, str):
-            self.logger.error( 'prelogin_verify invalid sessionid or userid type' )
+            self.logger.error( "prelogin_verify invalid sessionid or userid type" )
             return False
-        self.len_sessionid()
         if len( sessionid ) != self.len_sessionid():
-            self.logger.error( 'prelogin_verify bad sessionid params invalid len(sessionid)=%d, expected len %d', len(sessionid), self.len_sessionid() )
+            self.logger.error( f"prelogin_verify bad sessionid params invalid len(sessionid)={len(sessionid)}, expected len={self.len_sessionid()}" )
             return False
         self.memcacheclient = self.memcache.createclient()
-        self.logger.info( 'prelogin_verify asking cached data key=%s ', sessionid )
+        self.logger.debug( f"prelogin_verify asking cached data key={sessionid}" )
         cacheduserid = self.memcacheclient.get( key=sessionid )
         # do not delete key, to permit reload from user's web browser
         # delete occurs in expired timeout value
         # self.memcacheclient.delete( key=sessionid, noreply=True )
         userid = userid.upper()
-        self.logger.info( 'prelogin_verify compare %s == %s', str(cacheduserid), str(userid) )
+        self.logger.debug( f"prelogin_verify compare {cacheduserid}=={userid}" )
         # cacheduserid use only upper case
         return userid == cacheduserid
 
@@ -87,18 +86,18 @@ class ODPrelogin:
             try: 
                 self.update_prelogin_mustache_data()
             except Exception as e:
-                self.logger.error( str(e) )
+                self.logger.error( e )
                 return str(e)   # return error as html_data
 
         # set data to memcached
         self.memcacheclient = self.memcache.createclient()
         userid = userid.upper() # always cache data in upper case only 
-        self.logger.info( 'prelogin_html setting key=%s value=%s timeout=%d', sessionid, userid, self.maxlogintimeout )
+        self.logger.info( f"prelogin_html setting key={sessionid} value={userid} timeout={self.maxlogintimeout}" )
         bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxlogintimeout )
         if not isinstance( bset, bool) or bset == False:
-            self.logger.error( 'memcacheclient:set failed to set data key=%s value=%s ', sessionid, userid )
+            self.logger.error( f"memcacheclient:set failed to set data key={sessionid} value={userid}" )
         html_data = chevron.render( self.mustache_data, prelogindict )
-        self.logger.debug( html_data )
+        # self.logger.debug( html_data )
         return html_data
              
     def request_match(self, ipsource) :
