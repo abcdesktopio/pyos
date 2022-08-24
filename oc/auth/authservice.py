@@ -1820,7 +1820,7 @@ class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
 @oc.logging.with_logger()
 class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
-    DEFAULT_ATTRS = [ 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name', 'memberOf' ]
+    DEFAULT_ATTRS = [ 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name' ]
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
             self.scope = scope
@@ -2089,17 +2089,26 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def getroles(self, authinfo, **params):  
         self.logger.debug('') 
-        if self.auth_only :
-            return []
+        roles = []
 
-        token = authinfo.token            
-        q = self.user_query
-        result = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [token]), ['memberOf'], **params)
-        # return [dn.split(',',2)[0].split('=',2)[1] for dn in result['memberOf']] if result else []
-        memberOf = result.get('memberOf', [])
-        if isinstance(memberOf, str):
-             memberOf = [ memberOf ]    # always a list
-        return memberOf
+        # auth_only do not use ldap query
+        if self.auth_only : 
+            # return empty list
+            return roles
+
+        try:
+            token = authinfo.token            
+            q = self.user_query
+            result = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [token]), ['memberOf'], **params)
+            # return [dn.split(',',2)[0].split('=',2)[1] for dn in result['memberOf']] if result else []
+            roles = result.get('memberOf', [])
+            if not isinstance(roles, list):
+                roles = [ roles ] # always a list
+        except Exception as e:
+            self.logger.error( e )
+            # return empty list if an exception occurs
+
+        return roles
 
     def getuserdnldapconnection(self, userid):
         # rewrite the userid with full dn
@@ -3168,7 +3177,14 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
     def getroles(self, authinfo, **arguments): 
         self.logger.debug('') 
-        roles = []     
+        roles = []
+        
+        # auth_only do not use ldap query
+        if self.auth_only : 
+            # return empty list
+            return roles
+
+        # memberOf must always exists in Active Directory
         userid = arguments.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
         self.logger.info( 'ODAdAuthMetaProvider:ldap.filter %s', filter)
@@ -3182,6 +3198,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             roles = userinfo.get('memberOf',[])
             if not isinstance( roles, list ):
                 roles = [ roles ]
+
         return roles
     
     def getForeignDistinguishedName( self, authinfo:AuthInfo, objectSid:str ):
@@ -3190,7 +3207,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/5aa09c90-c5db-4e97-98d0-b7cdd6bc1bfe
         # https://social.technet.microsoft.com/wiki/contents/articles/51367.active-directory-foreign-security-principals-and-special-identities.aspx
         #
-        foreingdistinguished_name =  None
+        foreingdistinguished_name = None
 
         # objectSid is the original objectSid from the user domain
         self.logger.debug( f"objectSid is {objectSid}")
