@@ -163,8 +163,6 @@ prelogin = {}
 
 # logmein
 logmein = {}
-
-_user_attribut      = None
 logmein_url_redirect_on_error  = None
 logmein_http_attribut      = None
 logmein_enable             = False
