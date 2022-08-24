@@ -105,15 +105,16 @@ class AuthController(BaseController):
         Returns:
             JSON Results
         """
-        bReturn = None
+        result = None
+        url = '/'
         if services.auth.isidentified:
             # nothing to do
             # keep dekstop running
             services.auth.logout()
-            bReturn = Results.success()
+            result = Results.success( result = {'url': url} )
         else:
-            bReturn = Results.error( message='invalid user credentials' )  
-        return bReturn
+            result = Results.error( message='invalid user credentials', result = {'url': url}  )  
+        return result
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -129,15 +130,15 @@ class AuthController(BaseController):
             JSON Results
 
         """
-        bReturn = None
-        
+        result = None
+        url = '/'
         if services.auth.isidentified:
-            bReturn = None
-            user = services.auth.user
-            auth = services.auth.auth  
             # remove the pod/container          
-            if oc.od.composer.removedesktop(auth, user) is False:
-                bReturn = Results.error( message='removedesktop failed' )
+            removedesktop = oc.od.composer.removedesktop(services.auth.auth, services.auth.user)
+            if removedesktop is True:
+                result = Results.success( result = {'url': url} )
+            else:
+                result = Results.error( message='removedesktop failed', result={'url': url} )
 
             # Always removeCookie routehostcookiename
             removeCookie( oc.od.settings.routehostcookiename )
@@ -145,14 +146,11 @@ class AuthController(BaseController):
             # Always call logout auth services 
             # nothing to do
             services.auth.logout() 
-            
-            if bReturn is None:
-                bReturn = Results.success()
 
         else:
-            bReturn = Results.error( message='invalid user credentials' )
+            result = Results.error( message='invalid user credentials', result = {'url': url} )
         
-        return bReturn
+        return result
             
     def build_redirecthtmlpage(self, jwt_user_token):
         # do not use cherrypy.HTTPRedirect
