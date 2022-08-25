@@ -88,7 +88,6 @@ class AuthController(BaseController):
 
         """
         return Results.success(result=services.auth.isauthenticated)
-    
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -252,19 +251,6 @@ class AuthController(BaseController):
                 else:     
                     raise cherrypy.HTTPError(401, 'invalid auth parameters')
 
-            # read the provider name
-            provider_name = args.get('provider')
-            # look for a provider object using the provider name
-            if isinstance(provider_name, str):
-                provider = services.auth.findprovider( provider_name )
-                # if the provider exists and is a ODAdAuthProvider
-                if isinstance( provider, oc.auth.authservice.ODAdAuthProvider ):
-                    # look for a provider object using the provider name
-                    # add the activdeirectory domain prefix to the userid
-                    # DOMAIN\user
-                    userid = provider.getadlogin(userid)
-                    self.logger.debug( f"userid rewrite with domain prefix as {userid}" )
-
             loginsessionid = args.get('loginsessionid')
             if not isinstance(loginsessionid, str):
                 self.logger.error( 'invalid auth parameters loginsessionid %s', type(loginsessionid) )
@@ -290,11 +276,11 @@ class AuthController(BaseController):
             # use metalogin provider by default
             self.logger.info( 'auth is using metalogin provider' )
             response = services.auth.metalogin(**args)
-        elif isinstance(provider, str ):
-            self.logger.info( 'provider set to %s, use login provider', args.get('provider') )
+        elif isinstance(provider, str ) and len(provider) > 0:
+            self.logger.info( f"provider set to {provider}, use login provider" )
             response = services.auth.login(**args)
         else:
-            self.logger.info( 'ValueError provider excepet str get %s ', str(type(provider)) )
+            self.logger.info( f"ValueError provider expect str get {type(provider)}" )
             raise cherrypy.HTTPError(400, 'Bad provider parameter')
         self.logger.info( 'login done' )
 
