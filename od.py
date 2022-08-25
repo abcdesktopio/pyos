@@ -177,7 +177,7 @@ class API(object):
             return the pyos build information as json format
             load json data file version.json in current directory
         """
-        data = { 'date': 'undefined', 'commit': 'undefined' }
+        data = { 'date': 'undefined', 'commit': 'undefined' } # default undefined values
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
             json_file = open('version.json')
