@@ -22,7 +22,7 @@ jobs:
     steps:
     
       - name: dump-github
-        run: echo ${{ github }}
+        run: echo ${{ github.ref_name }}
         
       - name: Repository Dispatch
         uses: peter-evans/repository-dispatch@v2
@@ -30,4 +30,4 @@ jobs:
           token: ${{ secrets.TOKEN_DISPATCH }}
           repository: abcdesktopio/oc.pyos
           event-type: dispatch-from-pyos
-          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
+          client-payload: '{"ref": "${{ github.ref_name }}", "sha": "${{ github.sha }}"}'
