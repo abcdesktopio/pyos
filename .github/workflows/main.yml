@@ -6,7 +6,7 @@ name: main
 # events but only for the master branch
 on:
   push:
-    branches: [main]
+    branches: ['3.0']
   pull_request:
     branches: ['3.0']
 
