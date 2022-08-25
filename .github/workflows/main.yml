@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: ['3.0']
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -26,3 +26,4 @@ jobs:
           token: ${{ secrets.TOKEN_DISPATCH }}
           repository: abcdesktopio/oc.pyos
           event-type: dispatch-from-pyos
+          client-payload: '{"ref": "${{ github.ref_name }}", "sha": "${{ github.sha }}"}'
