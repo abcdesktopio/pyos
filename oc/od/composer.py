@@ -732,6 +732,14 @@ def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addres
         notify_thread.start()
 
 def add_application_image( json_images ):
+    """add_application_image
+
+    Args:
+        json_images (str): list of json image
+
+    Returns:
+        json: _description_
+    """
     # add entry from mongodb
     json_put =  oc.od.services.services.apps.add_json_image_to_collection( json_images )
 
