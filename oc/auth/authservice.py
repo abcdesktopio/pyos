@@ -2990,47 +2990,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             self.krb5_authenticate( userid, password )
         return super().getconnection(userid, password )
 
-
-    def listprinter( self, filter, **params):
-        self.logger.debug('')
-        printerlist = []
-
-        userid     = params.get( 'userid', self.userid )
-        password   = params.get( 'password',self.password )                
-        
-        if isinstance(filter, str):
-           filter = '(&' + self.printer_query.filter + filter + ')'
-        else:
-           filter = self.printer_query.filter
-        self.logger.debug('filter %s', filter)
-        try:
-            # self.logger.debug('getconnection')
-            conn = self.getconnection( userid, password )
-            result = self.paged_search(conn, self.printer_query.basedn, filter, self.printer_query.attrs)
-            # self.logger.debug('result %s', result)
-            len_printers = len(result)
-            self.logger.info('query result count:%d %s %s ', len_printers, self.printer_query.basedn, filter )
-
-            for dn in result:
-                attrs = result.get(dn)
-                # attrs must be a dict
-                if not isinstance( attrs, dict): 
-                    self.logger.error( 'attrs must be a dict, return data from ldap attrs %s', str(type( attrs )))
-                    continue
-                myobject = {}             
-                for a in self.printer_query.attrs:
-                    myobject[a] = self.decodeValue( a, attrs.get(a) )                
-                printerlist.append(myobject)
-            
-        except Exception as e:
-            self.logger.error( e )
-        finally:
-            conn.unbind()
-
-        return printerlist
-
-
-    
     def listsite(self, **params):       
         self.logger.debug('')
 
