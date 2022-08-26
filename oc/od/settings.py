@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 defaultConfigurationFilename = 'od.config'
 
-config  = {}	# use for application config and global config	
-gconfig = {}	# use for global config
+config  = {}	    # use for application config and global config
+gconfig = {}	    # use for global config
 supportedLocals = []
 
-# Default namespace used by kubernetes 
+# Default namespace used by kubernetes is abcdesktop
 namespace = 'abcdesktop' 
 
 mongoconfig = None  # Mongodb config Object Class
@@ -194,11 +194,6 @@ desktopwebhookdict         = {}     # addtional dict data
 websocketrouting = None
 
 
-printercupsdriverLanguageDict = {}  # Dict to map Printer Language to cupsd driver
-printercupsembeddedList = []        # List printer embedded inside the user container
-user_execute_policy = False
-network_control_policy = False
-
 webdaventryname = None  # name of the entry of mount point
 webdavurl = None  # url to mount webdav
 webdavgroupfilter = False  # boolean use group filter
@@ -310,12 +305,6 @@ DEFAULT_DESKTOP_POD_CONFIG = {
                         'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
         } 
 }
-
-def getuser_execute_policy():
-    return user_execute_policy
-
-def getnetwork_control_policy():
-    return network_control_policy
 
 def getballoon_name():
     return balloon_name
@@ -441,13 +430,6 @@ def init_defaulthostfqdn():
     # if not set autologin is denied 
     services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True} )
     logger.info('services http request denied: %s', services_http_request_denied)
-
-
-def init_printercupsdict():
-    global printercupsdriverLanguageDict
-    global printercupsembeddedList
-    printercupsdriverLanguageDict = gconfig.get( 'printer.cupsdriverLanguageMap',   {'default': 'drv:///sample.drv/generic.ppd'} )
-    printercupsembeddedList       = gconfig.get( 'printer.cupsPrinterEmbeddedList', [] )
 
 def init_logmein():
     global logmein
@@ -873,16 +855,6 @@ def init_internaldns_config():
     internaldns['server']      = gconfig.get('internaldns.server',      None)
     internaldns['enable']      = gconfig.get('internaldns.enable',      False)
 
-def init_policy():
-    global user_execute_policy
-    global network_control_policy
-
-    user_execute_policy = gconfig.get('user_execute_policy', False)  # by default user_execute_policy is disabled    
-    network_control_policy = gconfig.get('network_control_policy', False) # by default network_control_policy is disabled
-
-    logger.info('User Execute Policy is %s', user_execute_policy)
-    logger.info('Network Control Policy is %s', network_control_policy)
-
 
 def init_locales():
     global supportedLocales
@@ -992,12 +964,7 @@ def init():
     # init gconfig how to route web socket
     init_websocketrouting()
 
-    # init policy
-    init_policy()
-
-    # init printers dict
-    init_printercupsdict()
-
+    # init locales vars
     init_locales()
 
     # init janus cluster
