@@ -604,7 +604,6 @@ def init_desktop():
     desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
     desktop['useinternalfqdn']          = gconfig.get('desktop.useinternalfqdn', False ) 
     desktop['uselocaltime']             = gconfig.get('desktop.uselocaltime', False ) 
-    desktop['postponeapp']              = gconfig.get('desktop.postponeapp')
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
 
@@ -617,6 +616,9 @@ def init_desktop():
                         'PULSE_SERVER'          : '/tmp/.pulse.sock',
                         'CUPS_SERVER'           : '/tmp/.cups.sock',
                         'X11LISTEN'             : 'tcp '} )
+
+    # add default env local rules vars if not set 
+    desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
 
     init_balloon()
 
