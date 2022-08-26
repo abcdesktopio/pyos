@@ -172,7 +172,6 @@ desktop_pod                = {}
 desktop                    = { 'secretsrootdirectory': '/var/secrets/' }
 
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
-desktopservicestcpport = { 'x11server': 6081, 'spawner': 29786, 'broadcast': 29784, 'pulseaudio': 4714 }
 
 # fake network default interface ip address Only for reverse proxy
 # if not set use the default_host_url hostname as defaul ip address
