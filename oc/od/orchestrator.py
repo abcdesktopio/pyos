@@ -83,6 +83,8 @@ class ODOrchestratorBase(object):
 
         # container name is x-UUID
         self.graphicalcontainernameprefix   = 'x'   # graphical container letter prefix x for x11
+         # container name is a-UUID
+        self.spawnercontainernameprefix     = 'a'   # graphical container letter prefix a for spwaner
         # printer name is c-UUID
         self.printercontainernameprefix     = 'c'   # printer container letter prefix c for cups
         # sound name is s-UUID
@@ -90,17 +92,21 @@ class ODOrchestratorBase(object):
         # sound name is p-UUID
         self.filercontainernameprefix       = 'f'   # file container letter prefix f for file service
         # init name is i-UUID
-        self.initcontainernameprefix        = 'i'   # file container letter prefix i for init
-        # init name is o-UUID
-        self.storagecontainernameprefix     = 'o'   # file container letter prefix o for secret storage
-         # init name is h-UUID
-        self.sshcontainernameprefix         = 'h'   # file container letter prefix h for ssh
+        self.initcontainernameprefix        = 'i'   # init container letter prefix i for init
+        # storage name is o-UUID
+        self.storagecontainernameprefix     = 'o'   # storage container letter prefix o for secret storage
+        # ssh name is h-UUID
+        self.sshcontainernameprefix         = 'h'   # ssh container letter prefix h for ssh
+        # webshell name is w-UUID
+        self.webshellcontainernameprefix    = 'w'   # webshell container letter prefix w
         # name separtor only for human read 
         self.rdpcontainernameprefix         = 'r'   # file container letter prefix r for xrdp
         # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
 
         self.nameprefixdict = { 'graphical' : self.graphicalcontainernameprefix,
+                                'spawner'   : self.spawnercontainernameprefix,
+                                'webshell'  : self.webshellcontainernameprefix,
                                 'printer'   : self.printercontainernameprefix,
                                 'sound'     : self.soundcontainernameprefix,  
                                 'filer'     : self.filercontainernameprefix,
@@ -394,7 +400,7 @@ class ODOrchestratorBase(object):
             if bListen['x11server'] is False:
                 messageinfo = 'Starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
-                bListen['x11server'] = self.waitForServiceListening( desktop, port=oc.od.settings.desktopservicestcpport['x11server'] )
+                bListen['x11server'] = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['graphical'].get('tcpport') )
                 self.logger.info('service:x11server return %s', str(bListen['x11server']))
                 nCount += 1
 
@@ -402,7 +408,7 @@ class ODOrchestratorBase(object):
             if bListen['spawner'] is False:
                 messageinfo = 'Starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
-                bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktopservicestcpport['spawner'] )
+                bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['spawner'].get('tcpport') )
                 self.logger.info('service:spawner return %s', str(bListen['spawner']))  
                 nCount += 1
 
@@ -2509,8 +2515,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                         appinstance_id = None )
 
         appinstance.webhook = fillednetworkconfig.get('webhook')
-   
-       
         return appinstance
 
     def createdesktop(self, authinfo, userinfo, **kwargs):
@@ -2737,6 +2741,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             dnspolicy = 'None'
             dnsconfig = network_config.get('internal_dns')
 
+        for currentcontainertype in oc.od.settings.desktop_pod.keys() :
+            if self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                label_servicename = 'service_' + currentcontainertype
+                # tcpport is a number, convert it as str for a label value
+                label_value = str( oc.od.settings.desktop_pod[currentcontainertype].get('tcpport','enabled') )
+                labels.update( { label_servicename: label_value } )
 
         currentcontainertype = 'graphical'
         self.logger.debug('pod container creating %s', currentcontainertype )
