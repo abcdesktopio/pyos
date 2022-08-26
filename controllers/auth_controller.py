@@ -417,6 +417,7 @@ class AuthController(BaseController):
             self.logger.error('prelogin_html failed')
             raise cherrypy.HTTPError(400, 'Configuration file error, invalid prelogin_url')
 
+        cherrypy.response.headers['Cache-Control'] = 'no-cache'
         cherrypy.response.headers['Content-Type'] = 'text/html;charset=utf-8'
         return html_data.encode('utf-8')
 
