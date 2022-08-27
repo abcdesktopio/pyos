@@ -139,6 +139,17 @@ class AuthUser(dict):
     def isValid( self ):
         return not(not self.get('userid') )
 
+    def getPosixAccount( self ):
+        posixattrs = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory' ]
+        posixaccount = None
+        posixdata = self.get('posix')
+        if isinstance( posixdata, dict):
+            posixaccount = {}
+            for k in posixattrs:
+                posixaccount[ k ] = self.get(k)
+        return posixaccount
+        
+
 #
 # define AuthInfo
 class AuthInfo(object):
@@ -626,6 +637,7 @@ class ODAuthTool(cherrypy.Tool):
 
         return auth_data_reduce
 
+
     def update_token( self, auth, user, roles=None ):        
         """update_token
 
@@ -650,6 +662,13 @@ class ODAuthTool(cherrypy.Tool):
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
         # create jwt_user_reduce
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid'), 'nodehostname': user.get('nodehostname') }
+
+        # if useraccount is a posix account 
+        # add posix attributs to jwt data 
+        posixaccount = user.getPosixAccount()
+        if isinstance( posixaccount, dict ):
+            jwt_user_reduce.update( posixaccount )
+
         # create jwt_role_reduce (futur usage) 
         # roles=None as default parameter 
         jwt_role_reduce = {} 
@@ -1819,8 +1838,13 @@ class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
 
 @oc.logging.with_logger()
 class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
-
-    DEFAULT_ATTRS = [ 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name' ]
+    # common attributs 
+    # from InetOrgPerson objectClass Types
+    # 
+    DEFAULT_ATTRS = [ 'objectClass', 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name' ]
+    # from https://ldapwiki.com/wiki/PosixAccount
+    # PosixAccount ObjectClass Types 
+    DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory' ]
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
             self.scope = scope
@@ -1885,6 +1909,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_ATTRS ))
+
+        self.posixaccount_query = self.Query(
+            config.get('basedn'), 
+            config.get('scope', ldap3.SUBTREE),
+            config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
+            config.get('attrs', ODLdapAuthProvider.DEFAULT_POSIXACCOUNT_ATTRS ))
 
         # query groups
         self.group_query = self.Query(
@@ -2064,6 +2094,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         else: 
             q = self.user_query
             userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
+                        
             if isinstance(userinfo, dict):
                 # Add always userid entry, make sure this entry exists
                 if not isinstance( userinfo.get('userid'), str) :
@@ -2071,6 +2102,16 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # Add always name entry
                 if not isinstance( userinfo.get('name'), str) :
                     userinfo['name'] = userinfo.get(self.useridattr)
+
+            if 'PosixAccount' in userinfo.get('objectClass', [] ):
+                # this account is a PosixAccount
+                # requery to read attributs uid, uidNumber, gidNumber, homeDirectory
+                self.logger.debug( f"account is a PosixAccount objectClass={userinfo.get('objectClass')}")
+                self.logger.debug( "query for PosixAccount attributs")
+                q = self.posixaccount_query
+                posixuserinfo =  self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
+                userinfo['posix'] = posixuserinfo
+            
         return userinfo
 
     def isinrole(self, token, role, **params):
