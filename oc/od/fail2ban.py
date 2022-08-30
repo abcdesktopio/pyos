@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class ODFail2ban:
 
     def __init__(self, mongoconfig, fail2banconfig={}):
+        self.enable = fail2banconfig.get('enable') # specify a positive non-zero value 
         self.failmaxvaluebeforeban = fail2banconfig.get('failsbeforeban', 5 ) # specify a positive non-zero value 
         self.banexpireAfterSeconds = fail2banconfig.get('banexpireafterseconds', 30*60 )
         self.protectedNetworks    = fail2banconfig.get('protectednetworks', [] )
@@ -90,6 +91,11 @@ class ODFail2ban:
         return myfail
 
     def fail_ip( self, value ):
+
+        # if ban is not enable nothing to do
+        if not self.enable: 
+            return
+
         #
         # do not ban ip address if ip addess is in protectedNetworks
         for network in self.protectedNetworks:
@@ -104,6 +110,9 @@ class ODFail2ban:
         return self.fail( value, collection_name = self.ip_collection_name )
 
     def fail_login( self, value ):
+        # if ban is not enable nothing to do
+        if not self.enable: 
+            return
         return self.fail( value, collection_name = self.login_collection_name )
 
     def isban( self, value, collection_name ):
@@ -112,6 +121,9 @@ class ODFail2ban:
         Args:
             ipAddr (str): return True if the ipAddr is ban
         """
+          # if ban is not enable nothing to do
+        if not self.enable: 
+            return False
 
         bReturn = False 
 
