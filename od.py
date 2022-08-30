@@ -168,7 +168,8 @@ class API(object):
 
         # drop message too long
         # OSError: [Errno 90] Message too long
-        message = message[:4096] # suppose to be 4096
+        if isinstance( message, str):
+            message = message[:4096] # suppose to be 4096
 
         # message = message.encode("ascii","ignore")
         logger.info(f"{cherrypy.request.path_info}  {message}")
