@@ -1842,9 +1842,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     # from InetOrgPerson objectClass Types
     # 
     DEFAULT_ATTRS = [ 'objectClass', 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name' ]
+
+
     # from https://ldapwiki.com/wiki/PosixAccount
     # PosixAccount ObjectClass Types 
     DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory' ]
+    
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
             self.scope = scope
@@ -2103,14 +2106,15 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 if not isinstance( userinfo.get('name'), str) :
                     userinfo['name'] = userinfo.get(self.useridattr)
 
-            if 'PosixAccount' in userinfo.get('objectClass', [] ):
+            if 'posixAccount' in userinfo.get('objectClass', [] ):
                 # this account is a PosixAccount
                 # requery to read attributs uid, uidNumber, gidNumber, homeDirectory
                 self.logger.debug( f"account is a PosixAccount objectClass={userinfo.get('objectClass')}")
                 self.logger.debug( "query for PosixAccount attributs")
                 q = self.posixaccount_query
                 posixuserinfo =  self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
-                userinfo['posix'] = posixuserinfo
+                if isinstance(posixuserinfo, dict):
+                    userinfo['posix'] = posixuserinfo
             
         return userinfo
 
