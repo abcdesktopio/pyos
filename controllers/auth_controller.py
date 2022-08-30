@@ -263,7 +263,7 @@ class AuthController(BaseController):
                 self.logger.debug(f"prelogin_verify is false sessionid={loginsessionid}, userid={userid}")
                 self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
                 # self.fail_ip( ipsource ) # ban the ipsource addr
-                return Results.error( message='invalid auth request, verify request failed', status=401 )
+                return Results.error( message='invalid auth request, verify prelogin request failed', status=401 )
 
         # do login
         # Check if provider is set   
@@ -278,7 +278,7 @@ class AuthController(BaseController):
             response = services.auth.login(**args)
         else:
             self.logger.info( f"ValueError provider expect str get {type(provider)}" )
-            return Results.error( message='Bad provider parameter', status=401 )
+            return Results.error( message='missing provider parameter', status=401 )
         self.logger.debug( 'login done' )
 
 
@@ -402,6 +402,7 @@ class AuthController(BaseController):
         
         # if http request has services.prelogin.http_attribut
         # use services.prelogin.http_attribut value has userid
+        # overwrite userid parameter
         if isinstance( services.prelogin.http_attribut, str):
             http_userid = cherrypy.request.headers.get(services.prelogin.http_attribut)
             self.logger.debug( f"read http attribut http_userid={http_userid}")
@@ -420,9 +421,9 @@ class AuthController(BaseController):
 
         # build html response
         html_data = services.prelogin.prelogin_html( userid=userid )
-        if html_data is None:
+        if not isinstance(html_data, str) or len(html_data) == 0 :
             self.logger.error('prelogin_html failed')
-            raise cherrypy.HTTPError(400, 'Configuration file error, invalid prelogin_url')
+            raise cherrypy.HTTPError(400, 'Configuration file error, prelogin_html failed')
 
         cherrypy.response.headers['Cache-Control'] = 'no-cache'
         cherrypy.response.headers['Content-Type'] = 'text/html;charset=utf-8'
