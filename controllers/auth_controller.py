@@ -281,13 +281,16 @@ class AuthController(BaseController):
             return Results.error( message='missing provider parameter', status=401 )
         self.logger.debug( 'login done' )
 
-
-        # can raise excetion 
+        # checkloginresponseresult can raise exception 
         try:
             self.logger.debug( 'login checkloginresponseresult' )
             self.checkloginresponseresult( response )  
         except Exception as e:
-            return Results.error ( status=401, message='failed to check login response result' )
+            message = 'failed to check login response result' 
+            code    = 401
+            if e._message: message = e._message
+            if e.code: code=e.code
+            return Results.error ( status=code, message=message )
         
         services.accounting.accountex('login', 'success')
         services.accounting.accountex('login', response.result.auth.providertype )
@@ -563,7 +566,7 @@ class AuthController(BaseController):
         # if it's an error
         if not response.success:
             self.logger.error( f"services auth.login error {response.reason}" )
-            raise cherrypy.HTTPError(401, response.reason )  
+            raise cherrypy.HTTPError(response.code, response.reason )  
 
 
     @cherrypy.expose
