@@ -178,7 +178,6 @@ desktop_pod                = {}
 desktop                    = { 'secretsrootdirectory': '/var/secrets/' }
 
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
-desktopservicestcpport = { 'x11server': 6081, 'spawner': 29786, 'broadcast': 29784, 'pulseaudio': 4714 }
 
 # fake network default interface ip address Only for reverse proxy
 # if not set use the default_host_url hostname as defaul ip address
@@ -325,6 +324,9 @@ def getnetwork_control_policy():
 
 def getballoon_name():
     return balloon_name
+
+def getballoon_shell():
+    return balloon_shell
 
 def getballoon_uid():
     """[summary]
@@ -620,7 +622,6 @@ def init_desktop():
     desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
     desktop['useinternalfqdn']          = gconfig.get('desktop.useinternalfqdn', False ) 
     desktop['uselocaltime']             = gconfig.get('desktop.uselocaltime', False ) 
-    desktop['postponeapp']              = gconfig.get('desktop.postponeapp')
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
 
@@ -633,6 +634,9 @@ def init_desktop():
                         'PULSE_SERVER'          : '/tmp/.pulse.sock',
                         'CUPS_SERVER'           : '/tmp/.cups.sock',
                         'X11LISTEN'             : 'tcp '} )
+
+    desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
+
 
     init_balloon()
 
