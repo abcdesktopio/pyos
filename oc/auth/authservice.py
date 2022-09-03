@@ -11,7 +11,6 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 # 
-
 import logging
 import time
 import cherrypy
@@ -139,6 +138,27 @@ class AuthUser(dict):
     def isValid( self ):
         return not(not self.get('userid') )
 
+    def getPosixAccount( self ):
+        posixattrs = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory' ]
+        posixaccount = None
+        posixdata = self.get('posix')
+        if isinstance( posixdata, dict):
+            posixaccount = {}
+            for k in posixattrs:
+                posixaccount[ k ] = posixdata.get(k)
+        return posixaccount
+  
+    def isPosixAccount( self ):
+        bPosix = isinstance( self.get('posix'), dict)
+        return bPosix
+
+    @staticmethod
+    def getdefaultPosixAccount( uid, uidNumber, gidNumber, cn=None, homeDirectory=None  ):
+        defaultposixAccount = { 'uid':uid, 'uidNumber':uidNumber, 'gidNumber':gidNumber }
+        if isinstance(cn, str): defaultposixAccount['cn'] = cn 
+        if isinstance(homeDirectory, str): defaultposixAccount['cn'] = cn 
+        return defaultposixAccount
+
 #
 # define AuthInfo
 class AuthInfo(object):
@@ -184,6 +204,9 @@ class AuthInfo(object):
 
     def get_claims(self, key):
         return self.claims.get(key)
+
+    def set_claims( self, claims):
+        self.claims = claims
 
     def get_localaccount(self):
         localaccount = None
@@ -626,6 +649,7 @@ class ODAuthTool(cherrypy.Tool):
 
         return auth_data_reduce
 
+
     def update_token( self, auth, user, roles=None ):        
         """update_token
 
@@ -650,6 +674,13 @@ class ODAuthTool(cherrypy.Tool):
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
         # create jwt_user_reduce
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid'), 'nodehostname': user.get('nodehostname') }
+
+        # if useraccount is a posix account 
+        # add posix attributs to jwt data 
+        posixaccount = user.getPosixAccount()
+        if isinstance( posixaccount, dict ):
+            jwt_user_reduce.update( { 'posix': posixaccount } )
+
         # create jwt_role_reduce (futur usage) 
         # roles=None as default parameter 
         jwt_role_reduce = {} 
@@ -1246,18 +1277,18 @@ class ODAuthTool(cherrypy.Tool):
             # uncomment this line only to dump password in clear text format
             # self.logger.debug( 'mgr.getuserinfo arguments=%s', arguments)   
             self.logger.debug( f"mgr.getuserinfo provider={provider} start")          
-            user = mgr.getuserinfo(provider, auth, **arguments)
+            userinfo = mgr.getuserinfo(provider, auth, **arguments)
             self.logger.debug( f"mgr.getuserinfo provider={provider} done")  
-            if not isinstance(user, dict ):
-                raise AuthenticationFailureError(f"getuserinfo return {type(user)} provider={provider}")
- 
-            # userid = user.get('userid')
-            # if not isinstance(userid, str):
-            #    raise AuthenticationFailureError('getuserinfo return invalid userid provider=%s', provider)
-            
-            # make sure to use the same case sensitive if we change provider
-            # user['userid'] = userid.upper()
-            
+            if not isinstance(userinfo, dict ):
+                raise AuthenticationFailureError(f"getuserinfo return {type(userinfo)} provider={provider}")
+
+            # 
+            # create claims with auth and userinfo
+            self.logger.debug( f"mgr.createclaims provider={provider} start") 
+            mgr.createclaims(provider, auth, userinfo, **arguments )
+            self.logger.debug( f"mgr.createclaims provider={provider} done") 
+
+        
             self.logger.debug( f"mgr.getroles provider={provider} start")             
             roles = mgr.getroles(provider, auth, **arguments)
             self.logger.debug( f"mgr.getroles provider={provider} done") 
@@ -1272,7 +1303,7 @@ class ODAuthTool(cherrypy.Tool):
             # runs the rules to get associated labels tag
             if pdr.rules:
                 self.logger.debug( "compiledrules start")      
-                auth.data['labels'] = self.compiledrules( pdr.rules, user, roles )
+                auth.data['labels'] = self.compiledrules( pdr.rules, userinfo, roles )
                 self.logger.debug( "compiledrules done")      
                 self.logger.info( f"compiled rules get labels {auth.data['labels']}")
 
@@ -1280,10 +1311,12 @@ class ODAuthTool(cherrypy.Tool):
             if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
             
+            # auth query time compute
             server_endoflogin_utctimestamp = datetime.datetime.now().timestamp()*1000
             auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
+
             # build a AuthCache as response result 
-            myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles }, auth_duration_in_milliseconds=auth_duration_in_milliseconds ) 
+            myauthcache = AuthCache( { 'auth': vars(auth), 'user': userinfo, 'roles': roles }, auth_duration_in_milliseconds=auth_duration_in_milliseconds ) 
 
             response.update(    manager=mgr, 
                                 result=myauthcache, 
@@ -1314,6 +1347,7 @@ class ODAuthTool(cherrypy.Tool):
         return response
 
 
+
     def su(self, source_provider_name, arguments):
 
         # look for the current provider source_provider_name
@@ -1342,6 +1376,9 @@ class ODAuthTool(cherrypy.Tool):
 
     def getuserinfo(self, provider, authinfo, manager=None, **arguments):
         return self.findmanager(provider, manager).getuserinfo(provider, authinfo, **arguments)
+
+    def createclaims(self, provider, authinfo, userinfo, manager=None, **arguments):
+        return self.findmanager(provider, manager).createclaims(provider, authinfo, userinfo, **arguments)
 
     def getroles(self, provider, authinfo, manager=None, **arguments):
         return self.findmanager(provider, manager).getroles(provider, authinfo, **arguments)
@@ -1407,6 +1444,10 @@ class ODAuthManagerBase(object):
        
     def authenticate(self, provider, **arguments):
         return self.getprovider(provider, True).authenticate(**arguments)
+
+    def createclaims(self, provider, auth, userinfo, **arguments):
+        provider = self.getprovider(provider, raise_error=True)
+        return provider.createclaims(auth, userinfo, **arguments)
 
     def getuserinfo(self, provider, token, **arguments):
         userinfo =  self.getprovider(provider, True).getuserinfo(token, **arguments)
@@ -1605,9 +1646,11 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.default = config.get('default', False )
         self.auth_only = config.get('auth_only', False )
         self.showclientdata = config.get('showclientdata', True )
-        self.default_user_if_not_exist = config.get('defaultuser', 'balloon' )
-        self.default_passwd_if_not_exist = config.get('defaultpassword', 'lmdpocpetit' )
-        self.auth_protocol = config.get('auth_protocol', { 'localaccount': False } )
+        self.default_user_if_not_exist      = config.get('defaultuid', 'balloon' )
+        self.default_passwd_if_not_exist    = config.get('defaultpassword', 'lmdpocpetit' )
+        self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', 4096 )
+        self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', 4096 )
+        self.auth_protocol = config.get('auth_protocol', {} )
        
     def authenticate(self, **params):
         raise NotImplementedError()
@@ -1642,24 +1685,54 @@ class ODAuthProviderBase(ODRoleProviderBase):
             if isinstance(serviceaccount_login, str) and isinstance(serviceaccount_password, str):
                 bReturn = True
         return bReturn
+
+    def getdefault_posix_uid(self, userinfo , user):
+        """getdefault_posix_uid
+            return a default uid if user if not a posix account
+
+        Args:
+            userinfo (_type_): _description_
+            user (_type_): _description_
+        """
+        return user
+
         
-    def generateLocalAccount(self, user, password ):
-        if not isinstance( user, str ):
-            user = self.default_user_if_not_exist
-        if not isinstance( password, str ):
+    def generateLocalAccount(self, userinfo, user, password ):
+        
+        uid = None
+        uidNumber = self.default_uidNumber_if_not_exist
+        gidNumber = self.default_gidNumber_if_not_exist
+
+        posixAccount = userinfo.get('posix')
+        if isinstance( posixAccount, dict ):
+            uid = posixAccount.get('uid')
+            uidNumber = posixAccount.get('uidNumber')
+            gidNumber = posixAccount.get('gidNumber')
+
+        if not isinstance( uid, str ): 
+            uid = self.getdefault_posix_uid( userinfo, user )
+
+        if not isinstance( password, str ): 
             password = self.default_passwd_if_not_exist
-        hashes = {  'user'  : user,
+        
+        hashes = {  'uid'  : uid,
+                    'uidNumber': uidNumber,
+                    'gidNumber': gidNumber,
                     'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) }
         return hashes
     
-    def createauthenv(self, userid, password):
+    def createauthenv(self, userinfo, userid, password):
         self.logger.debug('createauthenv')
         default_authenv = {}
-        if self.auth_protocol.get('localaccount') is True:
-            dict_hash = self.generateLocalAccount( user=userid, password=password ) 
-            default_authenv.update( { 'localaccount' : dict_hash } )
-
+        dict_hash = self.generateLocalAccount( userinfo, user=userid, password=password ) 
+        default_authenv.update( { 'localaccount' : dict_hash } )
         return default_authenv
+
+    def createclaims( self, authinfo, userinfo, **arguments):
+        userid = self.default_user_if_not_exist
+        password = self.default_passwd_if_not_exist
+        claims = {  'environment': self.createauthenv(userinfo, userid, password) }
+        authinfo.set_claims(claims)
 
     def generateRawCredentials(self, userid, password, domain=None ):
         dict_raw = { 'user': userid, 'password':password }
@@ -1797,11 +1870,9 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         return user
 
     def authenticate(self, userid=None, password=None, **params):
-        claims =  { 'environment': self.createauthenv(userid, password) }
         data = { 'userid': userid }
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, claims=claims, token=userid, data=data)
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, claims=None, token=userid, data=data)
         return authinfo
-
 
 class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
 
@@ -1819,8 +1890,16 @@ class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
 
 @oc.logging.with_logger()
 class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
+    # common attributs 
+    # from InetOrgPerson objectClass Types
+    # 
+    DEFAULT_ATTRS = [ 'objectClass', 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name' ]
 
-    DEFAULT_ATTRS = [ 'cn', 'sn', 'description', 'employeeType', 'givenName', 'jpegPhoto', 'mail', 'ou', 'title', 'uid', 'distinguishedName', 'displayName', 'name' ]
+
+    # from https://ldapwiki.com/wiki/PosixAccount
+    # PosixAccount ObjectClass Types 
+    DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory' ]
+    
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
             self.scope = scope
@@ -1858,10 +1937,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit')   # change to /usr/sbin/kinit on macOS
         # auth_protocol is a dict of auth protocol, will be injected inside the container
         self.auth_protocol = config.get('auth_protocol', { 'ntlm': False, 'cntlm': False, 'kerberos': False, 'citrix': False} )
-        # if ldif is not set (None) 
-        # add ldif user information auth_protocol to inform that this object contains ldif data 
-        if self.auth_protocol.get('ldif') is None:
-            self.auth_protocol['ldif'] = True
 
         self.LDAP_PAGE_SIZE = 8 
         # citrix template file 
@@ -1885,6 +1960,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_ATTRS ))
+
+        self.posixaccount_query = self.Query(
+            config.get('basedn'), 
+            config.get('scope', ldap3.SUBTREE),
+            config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
+            config.get('attrs', ODLdapAuthProvider.DEFAULT_POSIXACCOUNT_ATTRS ))
 
         # query groups
         self.group_query = self.Query(
@@ -1953,11 +2034,15 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # validate can raise exception 
         # like invalid credentials
         (userdn, conn) = self.validate(userid, password)   
-        claims = { 'environment': self.createauthenv(userid, password) }
         data = { 'userid': userid, 'dn': userdn }
-        claims.update( { 'userid': userid, 'password': password } )
         
-        return AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        return AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=None, data=data, protocol=self.auth_protocol, conn=conn)
+
+
+    def createclaims( self, authinfo, userinfo, userid, password,  **arguments):
+        claims = { 'userid': userid, 'password': password }
+        claims['environment'] =  self.createauthenv(userinfo, userid, password)
+        authinfo.set_claims(claims)
 
     def krb5_validate(self, userid, password):
         conn = None
@@ -2051,7 +2136,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         
         if self.auth_only:
             raise AuthenticationError('auth_only is set to True, but ldap.bind need to complete auth')
-
    
     def getuserinfo(self, authinfo, **params):        
         # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
@@ -2064,6 +2148,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         else: 
             q = self.user_query
             userinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
+                        
             if isinstance(userinfo, dict):
                 # Add always userid entry, make sure this entry exists
                 if not isinstance( userinfo.get('userid'), str) :
@@ -2071,6 +2156,17 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # Add always name entry
                 if not isinstance( userinfo.get('name'), str) :
                     userinfo['name'] = userinfo.get(self.useridattr)
+
+            if 'posixAccount' in userinfo.get('objectClass', [] ):
+                # this account is a PosixAccount
+                # requery to read attributs uid, uidNumber, gidNumber, homeDirectory
+                self.logger.debug( f"account is a PosixAccount objectClass={userinfo.get('objectClass')}")
+                self.logger.debug( "query for PosixAccount attributs")
+                q = self.posixaccount_query
+                posixuserinfo =  self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
+                if isinstance(posixuserinfo, dict):
+                    userinfo['posix'] = posixuserinfo
+            
         return userinfo
 
     def isinrole(self, token, role, **params):
@@ -2386,12 +2482,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return self.kerberos_realm
 
 
-    def createauthenv(self, userid, password):
+    def createauthenv(self, userinfo, userid, password):
         
-        # 
-        # if self.auth_protocol.get('localaccount') is True
-        # add self.generateLocalAccount( user=userid, password=password ) 
-        default_authenv = super().createauthenv(userid, password)
+        # create a localaccount entry in default_authenv dict
+        default_authenv = super().createauthenv(userinfo, userid, password)
 
         # if kerberos is enabled
         if self.auth_protocol.get('kerberos') is True:
@@ -2787,6 +2881,22 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             filter=config.get('site_filter', '(objectClass=subnet)'),
             attrs=config.get('site_attrs',['cn', 'siteObject', 'location']) )
 
+
+    def getdefault_posix_uid(self, userinfo , user):
+        """getdefault_posix_uid
+            return a default uid if user if not a posix account
+
+        Args:
+            userinfo (_type_): _description_
+            user (_type_): _description_
+        """
+        uid = None
+        if isinstance( userinfo, dict):
+            uid = userinfo.get('sAMAccountName')
+        if not isinstance( uid, str ):
+            uid = super().getdefault_posix_uid(userinfo , user)
+        return uid
+
     def get_kerberos_realm( self ):
         """[return the kerberos realm]
 
@@ -2836,10 +2946,14 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     'ad_domain': self.domain,
                     'dn': userdn
         }
-        claims = {  'environment': self.createauthenv(userid, password) }
-        claims.update( { 'userid': userid, 'password': password, 'domain': self.domain } )
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=None, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
+
+
+    def createclaims( self, authinfo, userinfo, userid, password,  **arguments):
+        claims = {  'environment': self.createauthenv(userinfo, userid, password) }
+        claims.update( { 'userid': userid, 'password': password, 'domain': self.domain } )
+        authinfo.set_claims(claims)
 
     def getuserinfo(self, authinfo, **params):
   
@@ -2990,47 +3104,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             self.krb5_authenticate( userid, password )
         return super().getconnection(userid, password )
 
-
-    def listprinter( self, filter, **params):
-        self.logger.debug('')
-        printerlist = []
-
-        userid     = params.get( 'userid', self.userid )
-        password   = params.get( 'password',self.password )                
-        
-        if isinstance(filter, str):
-           filter = '(&' + self.printer_query.filter + filter + ')'
-        else:
-           filter = self.printer_query.filter
-        self.logger.debug('filter %s', filter)
-        try:
-            # self.logger.debug('getconnection')
-            conn = self.getconnection( userid, password )
-            result = self.paged_search(conn, self.printer_query.basedn, filter, self.printer_query.attrs)
-            # self.logger.debug('result %s', result)
-            len_printers = len(result)
-            self.logger.info('query result count:%d %s %s ', len_printers, self.printer_query.basedn, filter )
-
-            for dn in result:
-                attrs = result.get(dn)
-                # attrs must be a dict
-                if not isinstance( attrs, dict): 
-                    self.logger.error( 'attrs must be a dict, return data from ldap attrs %s', str(type( attrs )))
-                    continue
-                myobject = {}             
-                for a in self.printer_query.attrs:
-                    myobject[a] = self.decodeValue( a, attrs.get(a) )                
-                printerlist.append(myobject)
-            
-        except Exception as e:
-            self.logger.error( e )
-        finally:
-            conn.unbind()
-
-        return printerlist
-
-
-    
     def listsite(self, **params):       
         self.logger.debug('')
 
@@ -3143,6 +3216,11 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         claims = { 'userid': userid, 'password': password, 'domain': self.domain }
         authinfo = AuthInfo(provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
+
+    def createclaims( self, authinfo, userinfo, userid, password, **arguments):
+        claims = { 'userid': userid, 'password': password, 'domain': self.domain }
+        authinfo.set_claims(claims)
+
         
     def getuserinfo(self, authinfo, **arguments):  
         self.logger.debug('')     
@@ -3315,3 +3393,5 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
 
         authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
+
+    
