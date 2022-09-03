@@ -49,7 +49,8 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
                         'webdav':           ODSecretWEBDAV,
                         'ldif':             ODSecretLDIF,
                         'vnc':              ODSecretVNC,
-                        'citrix':           ODSecretCitrix }
+                        'citrix':           ODSecretCitrix,
+                        'localaccount':     ODSecretLocalAccount }
                         
     # get the class from the secret_type
     secret_cls = secret_cls_dict.get( secret_type, ODSecret )
@@ -247,6 +248,12 @@ class ODSecretLDIF( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='ldif' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='ldif'
+
+class ODSecretLocalAccount( ODSecret ):
+    ''' Create a secret used for userinfo ldif '''
+    def __init__( self, namespace, kubeapi, prefix=None, secret_type='localaccount' ):
+        super().__init__( namespace, kubeapi, prefix, secret_type)
+        self.access_type='localaccount'
 
 class ODSecretVNC( ODSecret ):
     ''' Create a secret used for vnc password '''
