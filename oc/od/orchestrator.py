@@ -114,6 +114,7 @@ class ODOrchestratorBase(object):
         self.printerservertype      = 'cupsserver'
         self.soundservertype        = 'pulseserver'
         self.endpoint_domain        = 'desktop'
+        self.ephemeral_container    = 'ephemeral_container'
         self.name = 'base'
 
     def get_containername( self, currentcontainertype, userid, myuuid ):
@@ -285,7 +286,7 @@ class ODOrchestratorBase(object):
             if bListen['x11server'] is False:
                 messageinfo = f"Starting desktop graphical service {nCount}/{nTimeout}"
                 callback_notify(messageinfo)
-                bListen['x11server'] = self.waitForServiceListening( desktop, port=oc.od.settings.desktopservicestcpport['x11server'] )
+                bListen['x11server'] = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['graphical'].get('tcpport') )
                 self.logger.info('service:x11server return %s', str(bListen['x11server']))
                 nCount += 1
 
@@ -293,7 +294,7 @@ class ODOrchestratorBase(object):
             if bListen['spawner'] is False:
                 messageinfo = f"Starting desktop spawner service {nCount}/{nTimeout}"
                 callback_notify(messageinfo)
-                bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktopservicestcpport['spawner'] )
+                bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['spawner'].get('tcpport') )
                 self.logger.info('service:spawner return %s', str(bListen['spawner']))  
                 nCount += 1
 
@@ -654,6 +655,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
             self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
+            self.default_volumes['run']       = { 'name': 'run',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '128M' } }
+            self.default_volumes_mount['run'] = { 'name': 'run',  'mountPath': '/var/run/desktop' }
+
             self.default_volumes['x11unix'] = { 'name': 'x11unix',  'emptyDir': { 'medium': 'Memory' } }
             self.default_volumes_mount['x11unix'] = { 'name': 'x11unix',  'mountPath': '/tmp/.X11-unix' }
 
@@ -797,64 +801,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     ]
     ''' 
 
-    def safeget_localaccount_confimap( self, userinfo, configmap_type ):
-        """safeget_localaccount_confimap
-            This section code should be removed if the kubernetes cluster use a stable etc cluster
-            Fix issues if etcd clusters are unstable
-
-        Args:
-            userinfo (AuthUser): user data
-            configmap_type (str): 'localaccount' define in oc.od.configmap.selectConfigMap
-
-        Returns:
-            tuple: (ODConfigMapLocalAccount, client.models.v1_config_map.V1ConfigMap)
-        """
-       
-        configmap_localaccount = None
-        configmap_localaccount_data = None
-
-        nCounterReadConfigMap = 0
-        maxCounterReadEtcdRetry = 5
-
-        #
-        # this section code is to debug some issues 
-        # when a node create a configmap, another node can find or read it 
-        # the call on the another node may failed in production
-
-        #
-        # this section code tries to fix and get the configmap data
-        # the read call and the nCounterReadConfigMap up to maxCounterReadEtcdRetry 
-        # issues occurs if etcd clusters are unstable or do not run on dedicated machines or isolated environments
-        #
-        while nCounterReadConfigMap < maxCounterReadEtcdRetry:
-            nCounterReadConfigMap = nCounterReadConfigMap + 1
-            configmap_localaccount = oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type=configmap_type )
-            # the read call is dummy only to read safe test
-            configmap_localaccount_data = configmap_localaccount.read( userinfo=userinfo) 
-            configmap_localaccount_name = configmap_localaccount.get_name( userinfo=userinfo )
-            if isinstance( configmap_localaccount_data, client.models.v1_config_map.V1ConfigMap):
-                self.logger.info(f"Configmap {configmap_localaccount_name} has been read successfully try={nCounterReadConfigMap}" )
-                break
-            if nCounterReadConfigMap > maxCounterReadEtcdRetry:
-                # do not map passwd, group and shaddow files
-                # use default emdedded in the container image
-                self.logger.error( 'ETCD fatal error') 
-                self.logger.error( f"Configmap {configmap_localaccount_name} is unreadable but it has been created successfully")
-                self.logger.error( 'do not map custom passwd, group and shaddow')
-                self.logger.error( 'rollback uses default emdedded passwd, group and shaddow in the container image')
-            else:
-                # the config map localaccount MUST exist, be it seems not 
-                # i down know what to do except sleeping
-                # the configmap is unreadable but it has been created succefully on another node
-                # may be waiting for an etc sync 
-                # counter [ 1, 2, 3, 4, 5 ] -> sleep time [ 0.5, 1, 1.5, 2, 2.5 ]
-                sleeptime = nCounterReadConfigMap/2 #  sleeptime in float
-                self.logger.error(f"Configmap {configmap_localaccount_name} is unreadable but it has been created successfully previously")
-                self.logger.error(f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
-                self.on_desktoplaunchprogress( f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for {sleeptime}s on etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
-                time.sleep(nCounterReadConfigMap/2)
-
-        return (configmap_localaccount, configmap_localaccount_data)
 
     def build_volumes_secrets( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
@@ -1024,6 +970,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def build_volumes_vnc( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
+        
         self.logger.debug('')
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
@@ -1042,28 +989,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (volumes, volumes_mount)
 
     def build_volumes_localaccount( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
-        self.logger.debug('')
+
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
-        # if a config map localaccount exist
-        configmap_localaccount = oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount'  )
-        configmap_localaccount_data = configmap_localaccount.read( userinfo=userinfo )
-        if isinstance( configmap_localaccount_data, client.models.v1_config_map.V1ConfigMap):
-            self.logger.debug(f"Configmap {configmap_localaccount_data.metadata.name} has been read successfully" )
-            # Note: configmaps are mounted read-only so that you can't touch the files
-            # Note: a config map is always mounted as 'readOnly': True
-            config_map_auth_name = configmap_localaccount.get_name( userinfo=userinfo )
-            # add passwd
-            volumes['passwd']       = { 'name': 'config-passwd', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['passwd'] = { 'name': 'config-passwd', 'mountPath': '/etc/passwd', 'subPath': 'passwd' }
-            # add shadow
-            volumes['shadow']       = { 'name': 'config-shadow', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['shadow'] = { 'name': 'config-shadow', 'mountPath': '/etc/shadow', 'subPath': 'shadow' }
-            # add group
-            volumes['group']       = { 'name': 'config-group', 'configMap': { 'name': config_map_auth_name } }
-            volumes_mount['group'] = { 'name': 'config-group', 'mountPath': '/etc/group', 'subPath': 'group' }
-        else:
-            self.logger.debug(f"Configmap localaccount is not defined" )
+        #
+        # mount secret in /var/secrets/abcdesktop
+        #
+        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
+        for secret_auth_name in mysecretdict.keys():
+            # https://kubernetes.io/docs/concepts/configuration/secret
+            # create an entry eq: 
+            # /var/secrets/abcdesktop/localaccount
+           
+            self.logger.debug( 'adding secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
+            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
+            # mode is 644 -> rw-r--r--
+            # Owing to JSON limitations, you must specify the mode in decimal notation.
+            # 644 in decimal equal to 420
+            volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+            volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+
         return (volumes, volumes_mount)
 
     def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
@@ -1094,8 +1039,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # set tmp volume
             volumes['tmp']       = self.default_volumes['tmp']
             volumes_mount['tmp'] = self.default_volumes_mount['tmp']
+            # set x11unix socket
             volumes['x11unix']   = self.default_volumes['x11unix']
             volumes_mount['x11unix'] = self.default_volumes_mount['x11unix']
+            # set run volume
+            volumes['run']       = self.default_volumes['run']
+            volumes_mount['run'] = self.default_volumes_mount['run']
+
 
         #
         # shm volume is shared between all container inside the desktop pod
@@ -1109,7 +1059,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # mount localaccount config map
         #
-        if volume_type in [ 'pod_desktop', 'pod_application' ] :
+        if volume_type in [ 'pod_desktop', 'pod_application',  'ephemeral_container' ] :
             (configmap_localaccount_volumes, configmap_localaccount_volumes_mount) = \
                 self.build_volumes_localaccount(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
             volumes.update( configmap_localaccount_volumes )
@@ -1321,6 +1271,36 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         else:
             self.logger.error( "removedesktop can not find desktop %s %s", authinfo, userinfo )
         return bReturn
+
+
+    def preparelocalaccount( self, localaccount ):
+        assert isinstance(localaccount, dict),f"invalid localaccount type {type(localaccount)}"
+        # read localaccount dict values
+        uid = localaccount.get('uid' )
+        sha512 = localaccount.get('sha512')
+        uidNumber =  localaccount.get('uidNumber' )
+        gidNumber =  localaccount.get('gidNumber' )
+
+        # crate dedicated line for each file
+        passwd_line = f"{uid}:x:{uidNumber}:{gidNumber}::{oc.od.settings.getballoon_homedirectory()}:{oc.od.settings.getballoon_shell()}"
+        group_line = f"{uid}:x:{gidNumber}\nsudo:x:27:{uid}"
+        shadow_line = f"{uid}:{sha512}:19080:0:99999:7:::"
+
+        # concat user information to file
+        # passwd 
+        # group
+        # shadow
+        passwd_file = oc.od.settings.DEFAULT_PASSWD_FILE + '\n' + passwd_line
+        group_file = oc.od.settings.DEFAULT_GROUP_FILE + '\n' + group_line
+        shadow_file = oc.od.settings.DEFAULT_SHADOW_FILE + '\n' + shadow_line
+        
+        mydict_config = { 
+            'passwd' : passwd_file, 
+            'shadow' : shadow_file, 
+            'group': group_file 
+        }
+
+        return mydict_config
             
     def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
         """[prepareressources]
@@ -1360,31 +1340,34 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret.create( authinfo, userinfo, data=userinfo )
                 self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
+        # look if the current account is a posix local account
         localaccount_data = authinfo.get_localaccount()
-        if isinstance( localaccount_data, dict ) :
-            # create /etc/passwd, /etc/group and /etc/shadow configmap entries
-            self.logger.debug('localaccount_configmap.create creating')
-            localaccount_configmap= oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount' )
-            localaccount_configmap_name = localaccount_configmap.get_name(userinfo=userinfo)
-            createdconfigmap = localaccount_configmap.create( authinfo, userinfo, data=localaccount_data )
-            if not isinstance( createdconfigmap, client.models.v1_config_map.V1ConfigMap):
-                self.logger.error((f"cannot create configmap localaccount {localaccount_configmap_name}"))
-            self.logger.debug('localaccount_configmap.create created')
-        else:
-            self.logger.debug( 'no localaccount_data is defined, no localaccount_configmap')
+        localaccount_files = self.preparelocalaccount( localaccount_data )
+        self.logger.debug('localaccount secret.create creating')
+        secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type='localaccount' )
+        # build a kubernetes secret with the auth values 
+        # values can be empty to be updated later
+        createdsecret = secret.create( authinfo, userinfo, data=localaccount_files )
+        if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
+            mysecretname = self.get_name( userinfo )
+            self.logger.error((f"cannot create secret {mysecretname}"))
+        self.logger.debug('localaccount secret.create created')
+
 
         # for each auth protocol enabled
-        self.logger.debug('secret.create creating')
+        
         local_secrets = authinfo.get_secrets()
-        for auth_env_built_key in local_secrets.keys():   
-            secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
-            # build a kubernetes secret with the auth values 
-            # values can be empty to be updated later
-            createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
-            if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
-                mysecretname = self.get_name( userinfo )
-                self.logger.error((f"cannot create secret {mysecretname}"))
-        self.logger.debug('secret.create created')
+        if isinstance( local_secrets, dict ) :
+            self.logger.debug('secret.create creating')
+            for auth_env_built_key in local_secrets.keys():   
+                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
+                # build a kubernetes secret with the auth values 
+                # values can be empty to be updated later
+                createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
+                if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
+                    mysecretname = self.get_name( userinfo )
+                    self.logger.error((f"cannot create secret {mysecretname}"))
+            self.logger.debug('secret.create created')
     
         # Create flexvolume secrets
         self.logger.debug('flexvolume secrets creating')
@@ -1848,7 +1831,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return pod
 
 
+    def updateSecurityContextWithUserInfo( self, currentcontainertype, userinfo, default_uidNumber, default_gidNumber ):
+        
+        securityContext = oc.od.settings.desktop_pod[currentcontainertype].get( 'securityContext' )
+        runAsUser  = securityContext.get('runAsUser')
+        runAsGroup = securityContext.get('runAsGroup')
+        if userinfo.isPosixAccount():
+            self.logger.debug("user is a posix account")
+            posixuser = userinfo.getPosixAccount()
+        else:
+            self.logger.debug("user is not a posix account, use default")
+            posixuser = AuthUser.getdefaultPosixAccount( 
+                uid=oc.od.settings.getballoon_name(),
+                uidNumber=oc.od.settings.oc.od.settings.getballoon_uid(),
+                gidNumber=oc.od.settings.oc.od.settings.getballoon_gid(),
+                homeDirectory=oc.od.settings.oc.od.settings.oc.od.settings.getballoon_homedirectory() 
+            )
 
+        #
+        # replace runAsUser and runAsGroup by posix account values
+        if isinstance( runAsUser, str ): 
+            securityContext['runAsUser']  = int( chevron.render( runAsUser, posixuser ) )
+        if isinstance( runAsGroup, str ): 
+            securityContext['runAsGroup'] = int( chevron.render( runAsGroup, posixuser ) )
+
+        return securityContext
 
     def createdesktop(self, authinfo, userinfo, **kwargs):
         self.logger.info('')
@@ -1936,7 +1943,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('container_graphical_name is %s', container_graphical_name )
 
         self.logger.debug('envlist creating')
-        # envdict to envlist
+
+        # replace in chevron key
+        # desktop.envlocal :  {
+        #       'UID'                   : '{{ uidNumber }}',
+        #       'GID'                   : '{{ gidNumber }}',
+        #       'LOGNAME'               : '{{ uid }}'
+        # by posix account value 
+        if userinfo.isPosixAccount():
+            posixAccount = userinfo.getPosixAccount()
+            for k, v in env.items():
+                env[k] = chevron.render( v, posixAccount )
+
+        # convert env dictionnary to env list format for kubernes
+        # env = { 'KEY': 'VALUE' }
+        # become a list of dict key/valye
+        # envlist = [ { 'name': 'KEY', 'value': 'VALUE' } ]
         envlist = []
         for k, v in env.items():
             # need to convert v as str : kubernetes supports ONLY string type to env value
@@ -1985,19 +2007,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.on_desktoplaunchprogress('Building data storage for your desktop')
 
 
-        self.logger.debug('secrets_requirement creating')
+        self.logger.debug('secrets_requirement creating for graphical')
+        currentcontainertype = 'graphical'
         secrets_requirement = None # default value add all secret if no filter 
         # get all secrets
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo )
         # by default give the abcdesktop/kerberos and abcdesktop/cntlm secrets inside the pod, if exist
-        secrets_type_requirement = oc.od.settings.desktophostconfig.get('secrets_requirement')
+        secrets_type_requirement = oc.od.settings.desktop_pod[currentcontainertype].get('secrets_requirement',[])
         if isinstance( secrets_type_requirement, list ):
             # list the secret entry by requirement type 
-            secrets_requirement = ['abcdesktop/vnc'] # always add the vnc passwork in the secret list 
+            secrets_requirement = ['abcdesktop/vnc'] # always add the vnc password in the secret list 
             for secretdictkey in mysecretdict.keys():
                 if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
                     secrets_requirement.append( secretdictkey )
-        self.logger.debug('secrets_requirement created')
+        else:
+            raise ValueError( f"invalid secrets_requirement type={type(secrets_type_requirement)} it must be a list")
+        self.logger.debug('secrets_requirement created for graphcial')
 
         self.logger.debug('volumes creating')
         # all volumes and secrets
@@ -2045,13 +2070,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # init container chown to change the owner of the home directory
             # init runAsUser 0 (root)
             # to allow chmod 'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
+
             self.logger.debug('pod container creating %s', currentcontainertype )
             securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext',  { 'runAsUser': 0 } )
             self.logger.debug('pod container %s use securityContext %s ', currentcontainertype, securityContext)
+
+            # update init command with the getPosixAccount dict value
+            initcommand = oc.od.settings.desktop_pod[currentcontainertype].get('command')
+            if userinfo.isPosixAccount() and isinstance( initcommand, list ):
+                posixAccount = userinfo.getPosixAccount()
+                for i in range(len(initcommand)):
+                    initcommand[i] = chevron.render( initcommand[i], posixAccount )
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                         'image':            oc.od.settings.desktop_pod[currentcontainertype].get('image'),       
-                                        'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
+                                        'command':          initcommand,
                                         'volumeMounts':     list_volumeMounts,
                                         'env':              envlist,
                                         'securityContext':  securityContext
@@ -2071,15 +2104,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # set default dns configuration 
         dnspolicy = oc.od.settings.desktop['dnspolicy']
         dnsconfig = oc.od.settings.desktop['dnsconfig']
-
         # overwrite default dns config by rules
         if type(network_config.get('internal_dns')) is dict:
             dnspolicy = 'None'
             dnsconfig = network_config.get('internal_dns')
 
 
+        for currentcontainertype in oc.od.settings.desktop_pod.keys() :
+            if self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                label_servicename = 'service_' + currentcontainertype
+                # tcpport is a number, convert it as str for a label value
+                label_value = str( oc.od.settings.desktop_pod[currentcontainertype].get('tcpport','enabled') )
+                labels.update( { label_servicename: label_value } )
+
+
+
         currentcontainertype = 'graphical'
         self.logger.debug('pod container creating %s', currentcontainertype )
+
+        securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
+
         # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2107,7 +2151,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                     'env': envlist,
                                     'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'volumeMounts': list_volumeMounts,
-                                    'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
+                                    'securityContext': securityContext,
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')
                                 }                                                             
                 ]
@@ -2127,13 +2171,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         for currentcontainertype in [ 'printer', 'sound' ] :
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 self.logger.debug('pod container creating %s', currentcontainertype )
+                securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(),  oc.od.settings.getballoon_gid() )
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                         'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
                         'env': envlist,
                         'volumeMounts': [ self.default_volumes_mount['tmp'] ],
-                        'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
+                        'securityContext': securityContext,
                         'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
                     }   
                 )
@@ -2143,12 +2188,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'ssh'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                     'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
                                     'env': envlist,
-                                    'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
+                                    'securityContext': securityContext,
                                     'volumeMounts': list_volumeMounts,
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
                                 }   
@@ -2171,12 +2217,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # use this volume as homedir to filer service 
             # if homedirvolume  :
             self.logger.debug('pod container creating %s', currentcontainertype )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                     'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                  
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
+                                    'securityContext': securityContext,
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                                      
                                 }   
             )
@@ -2186,12 +2234,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'storage'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                     'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                 
                                     'env': envlist,
                                     'volumeMounts':  list_pod_allvolumeMounts,
+                                    'securityContext': securityContext,
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
                                 }   
             )
@@ -2201,11 +2251,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'rdp'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
                                     'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'), 
-                                    'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),                                
+                                    'securityContext': securityContext,                                
                                     'env': envlist,
                                     'volumeMounts':  list_volumeMounts,
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
@@ -2876,12 +2927,18 @@ class ODAppInstanceBase(object):
 
         return envlist
 
+    def get_securitycontext(self, userinfo ):
+        securitycontext = oc.od.settings.desktop_pod.get( self.type ).get( 'securityContext', {})
+        runAssecuritycontext = self.orchestrator.updateSecurityContextWithUserInfo( self.type, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
+        securitycontext.update( runAssecuritycontext )
+        return securitycontext
+
 @oc.logging.with_logger()
 class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
     def __init__(self, orchestrator):
         super().__init__(orchestrator)
-        self.type = 'ephemeral_container'
+        self.type = self.orchestrator.ephemeral_container
 
     @staticmethod
     def isinstance( ephemeralcontainer ):
@@ -3081,6 +3138,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # "message":"Forbidden: cannot be set for an Ephemeral Container",
         # "field":"spec.ephemeralContainers[8].volumeMounts[0].subPath"}]},
         # "code":422}
+        
+        securitycontext = self.get_securitycontext( userinfo=userinfo )
 
         body = client.models.V1EphemeralContainer(  name=app_container_name,
                                                     env=envlist,
@@ -3088,7 +3147,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                                     command=app.get('cmd'),
                                                     target_container_name=myDesktop.container_name,
                                                     image_pull_policy=app.get('image_pull_policy'),
-                                                    volume_mounts = list_volumeMounts
+                                                    volume_mounts = list_volumeMounts,
+                                                    security_context = securitycontext
         )
 
         pod_ephemeralcontainers =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
@@ -3194,7 +3254,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def __init__(self, orchestrator):
         super().__init__( orchestrator)
-        self.type = orchestrator.applicationtype
+        self.type = self.orchestrator.applicationtype
 
     @staticmethod
     def isinstance( pod:client.models.v1_pod.V1Pod ):
@@ -3414,6 +3474,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         if isinstance( network_annotations, dict):
             annotations.update( network_annotations )
 
+        securitycontext = self.get_securitycontext( userinfo=userinfo )
+
         pod_manifest = {
             'apiVersion': 'v1',
             'kind': 'Pod',
@@ -3451,13 +3513,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                                     'command': command,
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
-                                    'securityContext': {
-                                             # permit sudo command inside the container False by default
-                                            'allowPrivilegeEscalation': oc.od.settings.desktop.get('allowPrivilegeEscalation'),
-                                            # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]
-                                            'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
-                                                              'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
-                                    },
+                                    'securityContext': securitycontext,
                                     'resources': oc.od.settings.desktopkubernetesresourcelimits
                                 }
                 ],
