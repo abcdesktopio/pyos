@@ -434,7 +434,7 @@ class ComposerController(BaseController):
                 'vncpassword'   :   desktop.vncPassword,
                 'authorization' :   jwtdesktoptoken, # contains desktop.uri (ipaddr)   
                 'websocketrouting': desktop.websocketrouting,
-                'websockettcpport': oc.od.settings.desktopservicestcpport['x11server'],
+                'websockettcpport': oc.od.settings.desktop_pod['graphical'].get('tcpport'),
                 'expire_in'     :   expire_in             
             })
 
