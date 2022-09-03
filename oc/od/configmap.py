@@ -198,19 +198,15 @@ class ODConfigMapLocalAccount( ODConfigMap ):
         self.DEFAULT_SHADOWFILE = ""
 
     def _create_dict(self, authinfo, userinfo,  arguments):   
-
-        # make sure that argument is dict
-        # if argument is not dict then set as empty dict to read default value
-        if not isinstance( arguments, dict ):
-            arguments = {}
-
+        
         # Default configmap dict
-        user   = arguments.get('user', oc.od.settings.balloon_name )
-        sha512 = arguments.get('sha512', crypt.crypt( oc.od.settings.balloon_passwd, crypt.mksalt(crypt.METHOD_SHA512)))
-
-        passwd_line = f"{user}:x:{oc.od.settings.balloon_uid}:{oc.od.settings.balloon_gid}::{oc.od.settings.balloon_homedirectory}:{oc.od.settings.balloon_shell}"
-        group_line = f"{user}:x:{oc.od.settings.balloon_gid}\nsudo:x:27:{user}"
-        shadow_line = f"{user}:{sha512}:19080:0:99999:7:::"
+        uid = arguments.get('uid' )
+        sha512 = arguments.get('sha512')
+        uidNumber =  arguments.get('uidNumber' )
+        gidNumber =  arguments.get('gidNumber' )
+        passwd_line = f"{uid}:x:{uidNumber}:{gidNumber}::{oc.od.settings.balloon_homedirectory}:{oc.od.settings.balloon_shell}"
+        group_line = f"{uid}:x:{gidNumber}\nsudo:x:27:{uid}"
+        shadow_line = f"{uid}:{sha512}:19080:0:99999:7:::"
 
         passwd_file = oc.od.settings.DEFAULT_PASSWD_FILE + '\n' + passwd_line
         group_file = oc.od.settings.DEFAULT_GROUP_FILE + '\n' + group_line
