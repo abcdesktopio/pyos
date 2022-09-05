@@ -227,6 +227,7 @@ class AuthController(BaseController):
         self.logger.debug('auth call start')
         cherrypy.response.timeout = 180
 
+        self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
        
         args = cherrypy.request.json
         if not isinstance(args, dict):
@@ -243,7 +244,7 @@ class AuthController(BaseController):
 
         # if force_auth_prelogin
         http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
-        
+        self.logger.debug( f"dump http_attribut_to_force_auth_prelogin http.header[{services.prelogin.http_attribut_to_force_auth_prelogin}] = {http_attribut_to_force_auth_prelogin}" )
         # if the request need a prelogin
         if services.prelogin.enable and ( services.prelogin.request_match(ipsource) or http_attribut_to_force_auth_prelogin ) :
             self.logger.debug(f"the request need a prelogin services.prelogin.enable={services.prelogin.enable}")
@@ -390,7 +391,8 @@ class AuthController(BaseController):
         self.logger.debug( cherrypy.request.headers )
         ipsource = getclientipaddr()
         self.logger.debug('prelogin request from ip source %s', ipsource)
-  
+        self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
+        
         # can raise exception 
         self.isban_ip(ipsource)
 
