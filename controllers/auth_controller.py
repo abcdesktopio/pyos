@@ -400,7 +400,11 @@ class AuthController(BaseController):
             self.logger.error('prelogin is disabled, but request ask for prelogin from %s', ipsource)
             raise cherrypy.HTTPError(400, 'Configuration file error, service is disabled')
 
-        if not services.prelogin.request_match( ipsource ):
+        http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
+        self.logger.debug( f"dump http_attribut_to_force_auth_prelogin http.header[{services.prelogin.http_attribut_to_force_auth_prelogin}] = {http_attribut_to_force_auth_prelogin}" )
+        
+        # if the request need a prelogin
+        if not isinstance(http_attribut_to_force_auth_prelogin, str) or not services.prelogin.request_match( ipsource ):
             self.logger.error('prelogin invalid network source error ipsource=%s', ipsource)
             self.fail_ip( ipsource ) # ban ipsource addr
             raise cherrypy.HTTPError(400, 'Invalid network source error')
@@ -412,6 +416,7 @@ class AuthController(BaseController):
             http_userid = cherrypy.request.headers.get(services.prelogin.http_attribut)
             self.logger.debug( f"read http attribut http_userid={http_userid}")
             if isinstance( http_userid, str ):
+                # overwrite userid with http header value
                 userid = http_userid
 
         if not isinstance(userid, str) or len(userid) == 0:
