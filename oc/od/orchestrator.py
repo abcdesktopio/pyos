@@ -1369,6 +1369,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
             self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
+            self.default_volumes['run']       = { 'name': 'run',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16M' } }
+            self.default_volumes_mount['run'] = { 'name': 'run',  'mountPath': '/var/run/desktop' }
+
+            self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
+            self.default_volumes_mount['log'] = { 'name': 'log',  'mountPath': '/var/log/desktop' }
+
             self.default_volumes['x11unix'] = { 'name': 'x11unix',  'emptyDir': { 'medium': 'Memory' } }
             self.default_volumes_mount['x11unix'] = { 'name': 'x11unix',  'mountPath': '/tmp/.X11-unix' }
 
@@ -1577,7 +1583,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             volumes['tmp']       = self.default_volumes['tmp']
             volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
             volumes['x11unix']   = self.default_volumes['x11unix']
-            volumes_mount['x11unix'] = self.default_volumes_mount['x11unix'] 
+            volumes_mount['x11unix'] = self.default_volumes_mount['x11unix']
+            # set run volume
+            # run volume is used to write run files
+            volumes['run']       = self.default_volumes['run']
+            volumes_mount['run'] = self.default_volumes_mount['run']
+            # set log volume
+            # log volume is used to write log files
+            volumes['log']       = self.default_volumes['log']
+            volumes_mount['log'] = self.default_volumes_mount['log']
 
         #
         # shm volume is shared between all container inside the desktop pod
