@@ -397,17 +397,20 @@ class AuthController(BaseController):
         self.isban_ip(ipsource)
 
         if not services.prelogin.enable:
-            self.logger.error('prelogin is disabled, but request ask for prelogin from %s', ipsource)
-            raise cherrypy.HTTPError(400, 'Configuration file error, service is disabled')
+            self.logger.error("prelogin service is disabled in configuration file")
+            raise cherrypy.HTTPError(400, "prelogin service is disabled in configuration file")
 
         http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
-        self.logger.debug( f"dump http_attribut_to_force_auth_prelogin http.header[{services.prelogin.http_attribut_to_force_auth_prelogin}] = {http_attribut_to_force_auth_prelogin}" )
+        self.logger.debug( f"read http_attribut_to_force_auth_prelogin http.header[{services.prelogin.http_attribut_to_force_auth_prelogin}] = {http_attribut_to_force_auth_prelogin}" )
         
         # if the request need a prelogin
-        if not isinstance(http_attribut_to_force_auth_prelogin, str) or not services.prelogin.request_match( ipsource ):
-            self.logger.error('prelogin invalid network source error ipsource=%s', ipsource)
+        is_http_attribut_exist = isinstance(http_attribut_to_force_auth_prelogin, str)
+        is_ipsource_match = services.prelogin.request_match( ipsource )
+        self.logger.debug( f"is_http_attribut_exist (str)={is_http_attribut_exist} is_ipsource_match={is_ipsource_match}")
+        if not is_http_attribut_exist and not is_ipsource_match:
+            self.logger.error(f"prelogin invalid network source error ipsource={ipsource} is_http_attribut {services.prelogin.http_attribut_to_force_auth_prelogin} exist={is_http_attribut_exist} is_ipsource_match={is_ipsource_match}")
             self.fail_ip( ipsource ) # ban ipsource addr
-            raise cherrypy.HTTPError(400, 'Invalid network source error')
+            raise cherrypy.HTTPError(400, 'prelogin service is denied, invalid request parameters')
         
         # if http request has services.prelogin.http_attribut
         # use services.prelogin.http_attribut value has userid
@@ -432,8 +435,8 @@ class AuthController(BaseController):
         # build html response
         html_data = services.prelogin.prelogin_html( userid=userid )
         if not isinstance(html_data, str) or len(html_data) == 0 :
-            self.logger.error('prelogin_html failed')
-            raise cherrypy.HTTPError(400, 'Configuration file error, prelogin_html failed')
+            self.logger.error('prelogin_html fetch {services.prelogin.prelogin_url} failed')
+            raise cherrypy.HTTPError(400, 'Configuration file error, prelogin url fetch failed')
 
         cherrypy.response.headers['Cache-Control'] = 'no-cache'
         cherrypy.response.headers['Content-Type'] = 'text/html;charset=utf-8'
