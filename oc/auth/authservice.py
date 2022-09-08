@@ -793,8 +793,7 @@ class ODAuthTool(cherrypy.Tool):
             if not isinstance( attribut, str ):
                 return False
             
-            if not isinstance( start_with, str ) and \
-               not isinstance( equal, str ):
+            if not isinstance( start_with, str ) or not isinstance( equal, str ):
                 return False
                 
             try:
@@ -921,7 +920,7 @@ class ODAuthTool(cherrypy.Tool):
             else:
                 self.logger.error( f"invalid primarygroupid type int is expected, get {type(primaryGroup)}" )
 
-        attribut_dict = condition.get('attibut')
+        attribut_dict = condition.get('attribut')
         if type(attribut_dict) is dict:
             attribut   = attribut_dict.get( 'attribut')
             startwith  = attribut_dict.get( 'startwith')
