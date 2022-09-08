@@ -27,6 +27,82 @@ logger = logging.getLogger(__name__)
 # it would generate cycling dependencies call in oc.logging functions
 #########
 
+def getclienthttp_header(header_name):
+    return cherrypy.request.headers.get(header_name)
+
+def getclienthttp_headers():
+    return cherrypy.request.headers
+
+def getclientremote_ip():
+    return cherrypy.request.remote.ip
+
+def getclientreal_ip():
+    realip = None
+    try:
+        _realip = cherrypy.request.headers.get('X-Real-IP')
+        if isinstance( _realip, str ):
+            # Check if realip is an ipAddr 
+            ipaddr = netaddr.IPAddress(_realip)
+            # reconvert to string make sure to remove garbage data 
+            # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
+            # str( ipaddr ) returns '127.0.0.1'
+            realip = str( ipaddr )
+    # No logging is possible inside getclientipaddr
+    except netaddr.core.AddrFormatError as e: 
+            # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
+        pass
+    except Exception as e: 
+        pass
+    return realip
+
+def getclientxforwardedfor_listip():
+    clientiplist = []
+    xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
+    if isinstance(xforwardedfor, str):
+        clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
+        # Check if clientip is an ipAddr 
+        # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
+        if isinstance( clientiplistxforwardedfor, list ):
+            for ipforwarded in clientiplistxforwardedfor:
+                try:
+                    # remove space in ipforwarded
+                    ipforwarded = ipforwarded.strip()
+                    # Check if ipaddr is an ipAddr 
+                    ipaddr = netaddr.IPAddress( ipforwarded )
+                    # reconvert to string safer way
+                    clientiplist.append( str(ipaddr) )
+                # No logging is possible inside getclientipaddr
+                except netaddr.core.AddrFormatError as e: 
+                    # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
+                    pass
+                except Exception as e : 
+                    pass
+    return clientiplist
+
+def getclientxforwardedfor_ip():
+    clientip = None
+    xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
+    if isinstance(xforwardedfor, str):
+        clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
+        try:
+            # Check if clientip is an ipAddr 
+            # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
+            if isinstance( clientiplistxforwardedfor, list ):
+                # Check if ipaddr is an ipAddr 
+                ipaddr = netaddr.IPAddress( clientiplistxforwardedfor[0] )
+                # reconvert to string make sure to remove garbage data 
+                # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
+                # str( ipaddr ) returns '127.0.0.1'
+                clientip = str( ipaddr )
+
+        # No logging is possible inside getclientipaddr
+        except netaddr.core.AddrFormatError as e: 
+            # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
+            pass
+        except Exception as e : 
+            pass
+    return clientip
+
 def getclientipaddr_dict():
     """getclientipaddr_dict
         return a dict of all client ip 'X-Forwarded-For', X-Real-IP', and 'remoteip'
@@ -44,54 +120,13 @@ def getclientipaddr_dict():
                   'X-Real-IP':  realip,
                   'remoteip': cherrypy.request.remote.ip }
     """
-    
-    xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
-    clientip = None # default value
-    realip   = None # default value
-
-    if isinstance(xforwardedfor, str):
-        clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
-        try:
-            # Check if clientip is an ipAddr 
-            # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
-            if isinstance( clientiplistxforwardedfor, list ):
-                # Check if ipaddr is an ipAddr 
-                ipaddr = netaddr.IPAddress( clientiplistxforwardedfor[0] )
-                # reconvert to string make sure to remove garbage data 
-                # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
-                # str( ipaddr ) returns '127.0.0.1'
-                clientip = str( ipaddr )
-        # No logging is possible inside getclientipaddr
-        except netaddr.core.AddrFormatError as e: 
-            # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
-            pass
-        except Exception as e : 
-            pass
-
-        realip = cherrypy.request.headers.get('X-Real-IP')
-        try:
-            _realip = cherrypy.request.headers.get('X-Real-IP')
-            if isinstance( _realip, str ):
-                # Check if realip is an ipAddr 
-                ipaddr = netaddr.IPAddress(_realip)
-                # reconvert to string make sure to remove garbage data 
-                # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
-                # str( ipaddr ) returns '127.0.0.1'
-                realip = str( ipaddr )
-        # No logging is possible inside getclientipaddr
-        except netaddr.core.AddrFormatError as e: 
-             # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
-            pass
-        except Exception as e: 
-            pass
-
-        # last entries are proxies join it using ','
-        # proxy ip is not used but set as :
-        # proxyip = ','.join(clientiplistxforwardedfor[1::])
+    remoteip = getclientremote_ip()
+    clientip = getclientxforwardedfor_ip()
+    realip   = getclientreal_ip()
 
     clientip_dict = { 'X-Forwarded-For' : clientip,
                       'X-Real-IP':  realip,
-                      'remoteip': cherrypy.request.remote.ip }
+                      'remoteip': remoteip }
 
     return clientip_dict
 
