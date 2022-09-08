@@ -102,7 +102,7 @@ class ODFail2ban:
             try:
                 if IPAddress(value) in IPNetwork( network ):
                     # skip this ip
-                    self.logger.debug( f"ip address {value} is not banned, inside protected network {network}" )
+                    self.logger.info( f"ip address {value} is not banned, inside protected network {network}" )
                     return
             except Exception as e:
                 self.logger.error( e )
