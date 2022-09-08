@@ -256,14 +256,14 @@ class AuthController(BaseController):
 
             loginsessionid = args.get('loginsessionid')
             if not isinstance(loginsessionid, str) or len(loginsessionid)==0:
-                self.logger.error( 'invalid auth parameters loginsessionid %s', type(loginsessionid) )
+                self.logger.error( f"invalid auth parameters loginsessionid type={type(loginsessionid)}" )
                 return Results.error( message='invalid auth parameters, request must use a prelogin session', status=401 )
 
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
                 self.logger.debug(f"prelogin_verify is false sessionid={loginsessionid}, userid={userid}")
-                self.logger.error( 'SECURITY WARNING prelogin_verify failed invalid ipsource=%s auth parameters userid %s', ipsource, userid )
-                # self.fail_ip( ipsource ) # ban the ipsource addr
+                self.logger.error(f"SECURITY WARNING prelogin_verify failed invalid ipsource={ipsource} auth parameters userid={userid}" )
+                self.fail_ip( ipsource ) # ban the ipsource addr
                 return Results.error( message='invalid auth request, verify prelogin request failed', status=401 )
 
         # do login
@@ -388,10 +388,9 @@ class AuthController(BaseController):
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
     def prelogin(self,userid=None):
-        self.logger.debug( cherrypy.request.headers )
+        self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
         ipsource = getclientipaddr()
         self.logger.debug('prelogin request from ip source %s', ipsource)
-        self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
         
         # can raise exception 
         self.isban_ip(ipsource)
@@ -406,7 +405,7 @@ class AuthController(BaseController):
         # if the request need a prelogin
         is_http_attribut_exist = isinstance(http_attribut_to_force_auth_prelogin, str)
         is_ipsource_match = services.prelogin.request_match( ipsource )
-        self.logger.debug( f"is_http_attribut_exist (str)={is_http_attribut_exist} is_ipsource_match={is_ipsource_match}")
+        self.logger.debug( f"{services.prelogin.http_attribut_to_force_auth_prelogin} type={type(http_attribut_to_force_auth_prelogin)} value={http_attribut_to_force_auth_prelogin} is_http_attribut_exist={is_http_attribut_exist} is_ipsource_match={is_ipsource_match}")
         if not is_http_attribut_exist and not is_ipsource_match:
             self.logger.error(f"prelogin invalid network source error ipsource={ipsource} is_http_attribut {services.prelogin.http_attribut_to_force_auth_prelogin} exist={is_http_attribut_exist} is_ipsource_match={is_ipsource_match}")
             self.fail_ip( ipsource ) # ban ipsource addr
