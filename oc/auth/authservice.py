@@ -46,7 +46,7 @@ from threading import Lock
 from collections import OrderedDict
 
 
-from oc.cherrypy import getclientipaddr
+from oc.cherrypy import getclientipaddr, getclientremote_ip, getclientreal_ip, getclientxforwardedfor_listip, getclienthttp_headers
 from netaddr import IPNetwork, IPAddress
 
 
@@ -724,14 +724,23 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
-        def isHttpHeader( user, headerdict ):
-            if type(headerdict) is not dict:
-                logger.warning('invalid value type http header %s, dict is expected in rule', type(headerdict) )
+        def isHttpHeader( requestheader, rulesheader ):
+            if not isinstance( rulesheader, dict):
+                logger.error(f"invalid value type http header %s, dict is expected in rule {type(rulesheader)}" )
                 return False  
 
-            for header in headerdict.keys():
-                headervalue = user.get('httpheaders').get(header)
-                if headervalue != headerdict[header] :
+            for headername in rulesheader.keys():
+                if requestheader.get(headername) != rulesheader.get(headername):
+                    return False
+            return True
+
+        def existHttpHeader( requestheader, rulesheader ):
+            if not isinstance( rulesheader, dict):
+                logger.error(f"invalid value type http header %s, dict is expected in rule {type(rulesheader)}" )
+                return False  
+
+            for headername in rulesheader:
+                if requestheader.get(headername) is None:
                     return False
             return True
 
@@ -758,9 +767,22 @@ class ODAuthTool(cherrypy.Tool):
                         return True
             return False
 
-        def isinNetwork( ipsource, network ):
-            if IPAddress(ipsource) in IPNetwork( network ):
-                return True
+        def _isinNetwork( ipsource, network ):
+            try:
+                if IPAddress(ipsource) in IPNetwork( network ):
+                    return True
+            except Exception as e:
+                logger.error( e )
+                return False
+            return False
+
+        def isinNetwork( ipsource, network ): 
+            if isinstance( ipsource, list ):
+                for ip in ipsource:
+                    if _isinNetwork( ip, network ):
+                        return True
+            elif isinstance( ipsource, str):
+                return _isinNetwork( ipsource, network )
             return False
 
         def isAttribut(user, attribut, start_with=None, equal=None ):
@@ -810,7 +832,13 @@ class ODAuthTool(cherrypy.Tool):
 
         httpheader = condition.get('httpheader')
         if type(httpheader) is dict:
-            result     = isHttpHeader( user, httpheader )
+            result     = isHttpHeader( getclienthttp_headers(), httpheader )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        httpheader = condition.get('existhttpheader')
+        if type(httpheader) is list:
+            result     = existHttpHeader( getclienthttp_headers(), httpheader )
             if result == condition.get( 'expected'):
                 compiled_result = True
 
@@ -844,6 +872,29 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         network = condition.get('network')
+        if type(network) is str:
+            ipsource = getclientremote_ip()
+            result = isinNetwork( ipsource, network )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        network = condition.get('network-x-forwarded-for')
+        if type(network) is str:
+            # getclientxforwardedfor_listip return a list of all ip addr
+            ipsources = getclientxforwardedfor_listip()
+            result = isinNetwork( ipsources, network )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        network = condition.get('network-x-real-ip')
+        if type(network) is str:
+            # getclientreal_ip return single ip addr
+            ipsource = getclientreal_ip()
+            result = isinNetwork( ipsource, network )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        network = condition.get('network-client-ip')
         if type(network) is str:
             ipsource = getclientipaddr()
             result = isinNetwork( ipsource, network )
@@ -889,12 +940,12 @@ class ODAuthTool(cherrypy.Tool):
         conditions  = rule.get('conditions')   
         expected    = rule.get('expected')
         if type(expected) is not bool:
-            self.logger.warning('invalid value type %s bool is expected in rule', type(expected) )
+            self.logger.warning(f"invalid value type {type(expected)}, bool is expected in rule" )
 
         results = []
         for condition in conditions :
             r = self.compiledcondition(condition, user, roles, **kwargs)
-            self.logger.debug('compiled_result=%s condition=%s', r, condition)
+            self.logger.debug(f"compiled_result={r} condition={condition}")
             results.append( r )
             
         if len(results) == 0:
@@ -1429,13 +1480,10 @@ class ODAuthManagerBase(object):
 
     def getuserinfo(self, provider, token, **arguments):
         userinfo =  self.getprovider(provider, True).getuserinfo(token, **arguments)
-
         if isinstance( userinfo, dict):
-            userinfo['httpheaders'] = cherrypy.request.headers
             # complete data from arguments
             for addionnalinfo in [ 'geolocation', 'utctimestamp']:
                 userinfo[addionnalinfo]=arguments.get(addionnalinfo)
-
         return userinfo
 
     def getroles(self, provider, authinfo, **arguments):
