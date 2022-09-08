@@ -27,6 +27,7 @@ supportedLocals = []
 namespace = 'abcdesktop' 
 
 mongoconfig = None  # Mongodb config Object Class
+fail2banconfig = None # Fail2ban config 
 
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
@@ -680,6 +681,7 @@ def init_config_memcached():
     memconnectionstring = str(memcachedipaddr) + ":" + str(memcachedport)
     logger.info('Memcached connection string is set to: %s', memconnectionstring)
 
+
 def get_mongoconfig():
     # try to use the mongodbserver in config file
     # if not set 
@@ -771,7 +773,6 @@ def read_kubernetes_resource_limits( hostconfig ):
         limits.update( { 'memory': str(mem_limit) } )
     return { 'limits': limits }
 
-
 def init_config_mongodb():
     """init mongodb config
     """
@@ -779,6 +780,13 @@ def init_config_mongodb():
     # Build mongo database
     mongoconfig = get_mongoconfig()
     logger.info('MongoDB connection string: %s' % mongoconfig)
+
+
+def init_config_fail2ban():
+    global fail2banconfig
+    fail2banconfig = gconfig.get('fail2ban', { 'enable' : False } )
+    logger.info(f"Fail2ban config: {fail2banconfig}" )
+
 
 
 def init_config_auth():
@@ -952,6 +960,9 @@ def init():
     # mongodb server 
     # after init_config_stack
     init_config_mongodb()
+
+    # fail2ban config
+    init_config_fail2ban()
 
     # memcached support
     # after init_config_stack
