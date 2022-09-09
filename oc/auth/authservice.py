@@ -45,7 +45,7 @@ from threading import Lock
 from collections import OrderedDict
 
 
-from oc.cherrypy import getclientipaddr
+from oc.cherrypy import getclientipaddr, getclientremote_ip, getclientreal_ip, getclientxforwardedfor_listip, getclienthttp_headers
 from netaddr import IPNetwork, IPAddress
 
 
@@ -147,7 +147,7 @@ class AuthUser(dict):
             for k in posixattrs:
                 posixaccount[ k ] = posixdata.get(k)
         return posixaccount
-  
+        
     def isPosixAccount( self ):
         bPosix = isinstance( self.get('posix'), dict)
         return bPosix
@@ -736,14 +736,23 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
-        def isHttpHeader( user, headerdict ):
-            if type(headerdict) is not dict:
-                logger.warning('invalid value type http header %s, dict is expected in rule', type(headerdict) )
+        def isHttpHeader( requestheader, rulesheader ):
+            if not isinstance( rulesheader, dict):
+                logger.error(f"invalid value type http header %s, dict is expected in rule {type(rulesheader)}" )
                 return False  
 
-            for header in headerdict.keys():
-                headervalue = user.get('httpheaders').get(header)
-                if headervalue != headerdict[header] :
+            for headername in rulesheader.keys():
+                if requestheader.get(headername) != rulesheader.get(headername):
+                    return False
+            return True
+
+        def existHttpHeader( requestheader, rulesheader ):
+            if not isinstance( rulesheader, list):
+                logger.error(f"invalid value type http header %s, list is expected in rule {type(rulesheader)}" )
+                return False  
+
+            for headername in rulesheader:
+                if requestheader.get(headername) is None:
                     return False
             return True
 
@@ -770,9 +779,31 @@ class ODAuthTool(cherrypy.Tool):
                         return True
             return False
 
-        def isinNetwork( ipsource, network ):
-            if IPAddress(ipsource) in IPNetwork( network ):
-                return True
+        def __isinNetwork( ipsource, network ):
+            try:
+                if IPAddress(ipsource) in IPNetwork( network ):
+                    return True
+            except Exception as e:
+                logger.error( e )
+                return False
+            return False
+
+        def _isinNetwork( ipsource, network ):
+            if isinstance( network, list ):
+                for n in network:
+                    if __isinNetwork( ipsource, n ):
+                        return True
+            elif isinstance( network, str ):
+                return __isinNetwork( ipsource, network )
+            return False
+
+        def isinNetwork( ipsource, network ): 
+            if isinstance( ipsource, list ):
+                for ip in ipsource:
+                    if _isinNetwork( ip, network ):
+                        return True
+            elif isinstance( ipsource, str):
+                return _isinNetwork( ipsource, network )
             return False
 
         def isAttribut(user, attribut, start_with=None, equal=None ):
@@ -783,8 +814,7 @@ class ODAuthTool(cherrypy.Tool):
             if not isinstance( attribut, str ):
                 return False
             
-            if not isinstance( start_with, str ) and \
-               not isinstance( equal, str ):
+            if not isinstance( start_with, str ) or not isinstance( equal, str ):
                 return False
                 
             try:
@@ -822,7 +852,13 @@ class ODAuthTool(cherrypy.Tool):
 
         httpheader = condition.get('httpheader')
         if type(httpheader) is dict:
-            result     = isHttpHeader( user, httpheader )
+            result     = isHttpHeader( getclienthttp_headers(), httpheader )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        httpheader = condition.get('existhttpheader')
+        if type(httpheader) is list:
+            result     = existHttpHeader( getclienthttp_headers(), httpheader )
             if result == condition.get( 'expected'):
                 compiled_result = True
 
@@ -856,7 +892,30 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         network = condition.get('network')
-        if type(network) is str:
+        if isinstance(network, str ) or isinstance(network, list ) :
+            ipsource = getclientipaddr()
+            result = isinNetwork( ipsource, network )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        network = condition.get('network-x-forwarded-for')
+        if isinstance(network, str ) or isinstance(network, list ) :
+            # getclientxforwardedfor_listip return a list of all ip addr
+            ipsources = getclientxforwardedfor_listip()
+            result = isinNetwork( ipsources, network )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        network = condition.get('network-x-real-ip')
+        if isinstance(network, str ) or isinstance(network, list ) :
+            # getclientreal_ip return single ip addr
+            ipsource = getclientreal_ip()
+            result = isinNetwork( ipsource, network )
+            if result == condition.get( 'expected'):
+                compiled_result = True
+
+        network = condition.get('network-client-ip')
+        if isinstance(network, str ) or isinstance(network, list ) :
             ipsource = getclientipaddr()
             result = isinNetwork( ipsource, network )
             if result == condition.get( 'expected'):
@@ -882,7 +941,7 @@ class ODAuthTool(cherrypy.Tool):
             else:
                 self.logger.error( f"invalid primarygroupid type int is expected, get {type(primaryGroup)}" )
 
-        attribut_dict = condition.get('attibut')
+        attribut_dict = condition.get('attribut')
         if type(attribut_dict) is dict:
             attribut   = attribut_dict.get( 'attribut')
             startwith  = attribut_dict.get( 'startwith')
@@ -901,23 +960,22 @@ class ODAuthTool(cherrypy.Tool):
         conditions  = rule.get('conditions')   
         expected    = rule.get('expected')
         if type(expected) is not bool:
-            self.logger.warning('invalid value type %s bool is expected in rule', type(expected) )
+            self.logger.warning(f"invalid value type {type(expected)}, bool is expected in rule" )
 
         results = []
         for condition in conditions :
             r = self.compiledcondition(condition, user, roles, **kwargs)
-            self.logger.debug('compiled_result=%s condition=%s', r, condition)
+            self.logger.debug(f"condition={condition} compiled_result={r}")
             results.append( r )
-            
+        
+        # if results is empty return False 
         if len(results) == 0:
             return False
 
-        compiled_result = True
-        for r in results:
-            compiled_result = r and compiled_result
-
+        compiled_result = all( results )
+        logger.debug( f"rules (compiled_result={compiled_result})==(expected=={expected})" )
         result = compiled_result == expected 
-       
+        logger.debug( f"rules return {result}" )
         return result
 
 
@@ -949,9 +1007,13 @@ class ODAuthTool(cherrypy.Tool):
         for name in rules.keys():
             try:
                 compiled_result = self.compiledrule( name, rules.get(name), user, roles, **kwargs )
+                logger.debug( f"rule={name} compiled_result={compiled_result}")
                 if compiled_result is True:
                     k = rules.get(name).get('label')
+                    # if a label exists
                     if k is not None:
+                        # set the label value
+                        # true by default or the load value
                         buildcompiledrules[ k ] = rules.get(name).get('load', 'true')
             except Exception as e:
                 self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
@@ -1281,14 +1343,14 @@ class ODAuthTool(cherrypy.Tool):
             self.logger.debug( f"mgr.getuserinfo provider={provider} done")  
             if not isinstance(userinfo, dict ):
                 raise AuthenticationFailureError(f"getuserinfo return {type(userinfo)} provider={provider}")
-
+ 
             # 
             # create claims with auth and userinfo
             self.logger.debug( f"mgr.createclaims provider={provider} start") 
             mgr.createclaims(provider, auth, userinfo, **arguments )
             self.logger.debug( f"mgr.createclaims provider={provider} done") 
-
-        
+            
+            
             self.logger.debug( f"mgr.getroles provider={provider} start")             
             roles = mgr.getroles(provider, auth, **arguments)
             self.logger.debug( f"mgr.getroles provider={provider} done") 
@@ -1451,13 +1513,10 @@ class ODAuthManagerBase(object):
 
     def getuserinfo(self, provider, token, **arguments):
         userinfo =  self.getprovider(provider, True).getuserinfo(token, **arguments)
-
         if isinstance( userinfo, dict):
-            userinfo['httpheaders'] = cherrypy.request.headers
             # complete data from arguments
             for addionnalinfo in [ 'geolocation', 'utctimestamp']:
                 userinfo[addionnalinfo]=arguments.get(addionnalinfo)
-
         return userinfo
 
     def getroles(self, provider, authinfo, **arguments):
@@ -1685,7 +1744,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             if isinstance(serviceaccount_login, str) and isinstance(serviceaccount_password, str):
                 bReturn = True
         return bReturn
-
+        
     def getdefault_posix_uid(self, userinfo , user):
         """getdefault_posix_uid
             return a default uid if user if not a posix account
@@ -1712,7 +1771,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         if not isinstance( uid, str ): 
             uid = self.getdefault_posix_uid( userinfo, user )
 
-        if not isinstance( password, str ): 
+        if not isinstance( password, str ):
             password = self.default_passwd_if_not_exist
         
         hashes = {  'uid'  : uid,
@@ -1937,6 +1996,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit')   # change to /usr/sbin/kinit on macOS
         # auth_protocol is a dict of auth protocol, will be injected inside the container
         self.auth_protocol = config.get('auth_protocol', { 'ntlm': False, 'cntlm': False, 'kerberos': False, 'citrix': False} )
+        # if ldif is not set (None) 
+        # add ldif user information auth_protocol to inform that this object contains ldif data 
+        if self.auth_protocol.get('ldif') is None:
+            self.auth_protocol['ldif'] = True
 
         self.LDAP_PAGE_SIZE = 8 
         # citrix template file 
@@ -2038,7 +2101,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         
         return AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=None, data=data, protocol=self.auth_protocol, conn=conn)
 
-
+        
     def createclaims( self, authinfo, userinfo, userid, password,  **arguments):
         claims = { 'userid': userid, 'password': password }
         claims['environment'] =  self.createauthenv(userinfo, userid, password)
