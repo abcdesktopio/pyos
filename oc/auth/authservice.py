@@ -953,18 +953,17 @@ class ODAuthTool(cherrypy.Tool):
         results = []
         for condition in conditions :
             r = self.compiledcondition(condition, user, roles, **kwargs)
-            self.logger.debug(f"compiled_result={r} condition={condition}")
+            self.logger.debug(f"condition={condition} compiled_result={r}")
             results.append( r )
-            
+        
+        # if results is empty return False 
         if len(results) == 0:
             return False
 
-        compiled_result = True
-        for r in results:
-            compiled_result = r and compiled_result
-
+        compiled_result = all( results )
+        logger.debug( f"rules (compiled_result={compiled_result})==(expected=={expected})" )
         result = compiled_result == expected 
-       
+        logger.debug( f"rules return {result}" )
         return result
 
 
@@ -996,9 +995,13 @@ class ODAuthTool(cherrypy.Tool):
         for name in rules.keys():
             try:
                 compiled_result = self.compiledrule( name, rules.get(name), user, roles, **kwargs )
+                logger.debug( f"rule={name} compiled_result={compiled_result}")
                 if compiled_result is True:
                     k = rules.get(name).get('label')
+                    # if a label exists
                     if k is not None:
+                        # set the label value
+                        # true by default or the load value
                         buildcompiledrules[ k ] = rules.get(name).get('load', 'true')
             except Exception as e:
                 self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
