@@ -881,7 +881,7 @@ class ODAuthTool(cherrypy.Tool):
 
         network = condition.get('network')
         if isinstance(network, str ) or isinstance(network, list ) :
-            ipsource = getclientremote_ip()
+            ipsource = getclientipaddr()
             result = isinNetwork( ipsource, network )
             if result == condition.get( 'expected'):
                 compiled_result = True
