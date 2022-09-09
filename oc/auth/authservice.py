@@ -735,8 +735,8 @@ class ODAuthTool(cherrypy.Tool):
             return True
 
         def existHttpHeader( requestheader, rulesheader ):
-            if not isinstance( rulesheader, dict):
-                logger.error(f"invalid value type http header %s, dict is expected in rule {type(rulesheader)}" )
+            if not isinstance( rulesheader, list):
+                logger.error(f"invalid value type http header %s, list is expected in rule {type(rulesheader)}" )
                 return False  
 
             for headername in rulesheader:
