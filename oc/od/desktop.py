@@ -96,13 +96,13 @@ class ODDesktop(object):
 
     @property
     def internaluri(self):
-        ''' describe how to reach the desktop from external access '''
-        ''' could be a ip address if oc.od.settings.desktopuseinternalfqdn is False '''
-        ''' in kubernetes mode should be formated as '''
-        ''' c37c3213-0b85-4b40-88b6-63767930878b.desktop.abcdesktop.svc.cluster.local. '''
-        ''' This value is used inside the token as hash parameter '''
-        ''' and then read by nginx to forward the request to the pod '''
-        ''' internaluri MUST always return a valid value '''
+        # describe how to reach the desktop from external access
+        # could be a ip address
+        # or in kubernetes mode should be formated as '''
+        # c37c3213-0b85-4b40-88b6-63767930878b.desktop.abcdesktop.svc.cluster.local. '''
+        # This value is used inside the token as hash parameter '''
+        # and then read by nginx to forward the request to the pod '''
+        # internaluri MUST always return a valid value '''
         uri = self._fqdn
         if not uri :
             uri = self._ipAddr
