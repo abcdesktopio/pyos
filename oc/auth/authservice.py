@@ -483,7 +483,8 @@ class ODAuthTool(cherrypy.Tool):
             self.logger.debug( f"current http request build cached odauthcache" ) 
             cherrypy.request.odauthcache = self.parse_auth_request()    
         else:
-            self.logger.debug( f"current http request has cached odauthcache" )            
+            # self.logger.debug( f"current http request has cached odauthcache" )
+            pass            
         return cherrypy.request.odauthcache 
 
     @property
@@ -512,20 +513,20 @@ class ODAuthTool(cherrypy.Tool):
 
     @property
     def isauthenticated(self):  
-        self.logger.debug('')
+        # self.logger.debug('')
         bReturn = self.current.isValidAuth()
-        self.logger.debug(f"isauthenticated return {bReturn}")
+        # self.logger.debug(f"isauthenticated return {bReturn}")
         return bReturn
     
     @property
     def isidentified(self):
-        self.logger.debug('')
+        # self.logger.debug('')
         bReturn = False
         if  self.isauthenticated:
             is_valid_user = self.current.isValidUser()
             if  is_valid_user:
                 bReturn = True
-        self.logger.debug(f"isidentified return {bReturn}")
+        # self.logger.debug(f"isidentified return {bReturn}")
         return bReturn
         
         # return self.current.isValidAuth() and self.current.isValidUser()
