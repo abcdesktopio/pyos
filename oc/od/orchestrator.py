@@ -13,7 +13,6 @@
 #
 
 import logging
-from tkinter import E
 import oc.logging
 from oc.od.apps import ODApps
 from oc.od.error import ODError
@@ -249,9 +248,10 @@ class ODOrchestratorBase(object):
         command = [ '/composer/connectcount.sh' ]      
         result = self.execwaitincontainer( desktop, command, timeout)
         if not isinstance(result,dict):
+            # do not raise exception 
             return nReturn
 
-        self.logger.info( 'command %s , exitcode %s output %s', command, str(result.get('ExitCode')), result.get('stdout') )
+        self.logger.info( f"command={command} exitcode {result.get('ExitCode')} output={result.get('stdout')}" )
         if result.get('ExitCode') == 0 and result.get('stdout'):
             try:
                 nReturn = int(result.get('stdout'))
@@ -661,9 +661,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1G' } }
             self.default_volumes_mount['log'] = { 'name': 'log',  'mountPath': '/var/log/desktop' }
 
-
-            self.default_volumes['x11unix'] = { 'name': 'x11unix',  'emptyDir': { 'medium': 'Memory' } }
-            self.default_volumes_mount['x11unix'] = { 'name': 'x11unix',  'mountPath': '/tmp/.X11-unix' }
+            self.default_volumes['x11socket'] = { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } }
+            self.default_volumes_mount['x11socket'] = { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' }
+            self.default_volumes['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } }
+            self.default_volumes_mount['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' }
+            self.default_volumes['cupsdsocket'] = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
+            self.default_volumes_mount['cupsdsocket'] = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
 
         except Exception as e:
             self.bConfigure = False
@@ -918,6 +921,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if not homedir_enabled:
             return (volumes, volumes_mount)
+
         self.on_desktoplaunchprogress('Building home dir data storage')
         volume_home_name = self.get_volumename( 'home', userinfo )
         # by default hostpath
@@ -1043,15 +1047,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # set tmp volume
             volumes['tmp']       = self.default_volumes['tmp']
             volumes_mount['tmp'] = self.default_volumes_mount['tmp']
-            # set x11unix socket
-            volumes['x11unix']   = self.default_volumes['x11unix']
-            volumes_mount['x11unix'] = self.default_volumes_mount['x11unix']
-            # set run volume
-            # run volume is used to write run files
+            # set x11unix socket, pulseaudiosocket and cupsdsocket
+            volumes['x11socket']   = self.default_volumes['x11socket']
+            volumes_mount['x11socket'] = self.default_volumes_mount['x11socket']
+            # pulseaudiosocket
+            volumes['pulseaudiosocket']   = self.default_volumes['pulseaudiosocket']
+            volumes_mount['pulseaudiosocket'] = self.default_volumes_mount['pulseaudiosocket']
+            # cupsdsocket
+            volumes['cupsdsocket']   = self.default_volumes['cupsdsocket']
+            volumes_mount['cupsdsocket'] = self.default_volumes_mount['cupsdsocket']
+            # set run volume use to write run files
             volumes['run']       = self.default_volumes['run']
             volumes_mount['run'] = self.default_volumes_mount['run']
-            # set log volume
-            # log volume is used to write log files
+            # set log volume use to write log files
             volumes['log']       = self.default_volumes['log']
             volumes_mount['log'] = self.default_volumes_mount['log']
 
