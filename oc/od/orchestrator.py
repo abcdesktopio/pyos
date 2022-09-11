@@ -1986,8 +1986,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # by posix account value 
         if userinfo.isPosixAccount():
             posixAccount = userinfo.getPosixAccount()
+            self.logger.debug( f"userinfo is a posix account {posixAccount}")
             for k, v in env.items():
-                env[k] = chevron.render( v, posixAccount )
+                new_value = chevron.render( v, posixAccount )
+                self.logger.debug( f"env[{k}]={env[k]} -> {new_value}" )
+                env[k] = new_value 
+        else:
+            self.logger.debug( f"userinfo is not a posix account")
 
         # convert env dictionnary to env list format for kubernes
         # env = { 'KEY': 'VALUE' }
