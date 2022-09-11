@@ -1387,20 +1387,33 @@ class ODAuthTool(cherrypy.Tool):
                                 reason=f"Authentication successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma
             
         except AuthenticationError as e:
-            response.reason = e.message
-            response.code = e.code
-        
+            e_message = 'AuthenticationError'
+            e_code = 401
+            if hasattr( e, 'message'): e_message = e.message
+            if hasattr( e, 'code'): e_code = e.code
+            response.reason = f"{e_message} {e_code}"
+            response.code = 500
+ 
+        except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
+            response.reason = f"{e.type} {e.description}"
+            response.code = 401
+
         except Exception as e:
-            response.reason = str(e) # default value
+            e_type = 500
+            e_description = 'Authentication exception error'
+            if hasattr( e, 'description'): e_description = e.description
+            if hasattr( e, 'type'): e_type = e.type
+            response.reason = f"{e_type} {e_description}"
+
+            # check if we can add more description of the error
             if hasattr( e, 'args'):
                 # try to extract the desc value 
                 if isinstance(e.args, tuple) and len(e.args) > 0:
                     try:
-                        response.reason = e.args[0].get('desc',str(e))
+                        response.reason = e.args[0].get('desc', response.reason)
                     except:
                         pass
             response.code = e.code if hasattr( e, 'code') else 500
-            response.error = e
 
         finally:
             # call finalize to clean conn if need
@@ -2325,6 +2338,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # bind to the ldap server
                 self.logger.debug( 'binding to the ldap server')
                 conn.bind()
+                self.logger.debug( 'bind to the ldap server done')
             return conn
 
         except ldap3.core.exceptions.LDAPBindError as e:
