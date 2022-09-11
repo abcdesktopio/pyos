@@ -1847,12 +1847,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return pod
 
-
-    def updateSecurityContextWithUserInfo( self, currentcontainertype, userinfo, default_uidNumber, default_gidNumber ):
-        
-        securityContext = oc.od.settings.desktop_pod[currentcontainertype].get( 'securityContext' )
-        runAsUser  = securityContext.get('runAsUser')
-        runAsGroup = securityContext.get('runAsGroup')
+    def alwaysgetPosixAccountUser(self, userinfo ):
         if userinfo.isPosixAccount():
             self.logger.debug("user is a posix account")
             posixuser = userinfo.getPosixAccount()
@@ -1864,7 +1859,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 gidNumber=oc.od.settings.oc.od.settings.getballoon_gid(),
                 homeDirectory=oc.od.settings.oc.od.settings.oc.od.settings.getballoon_homedirectory() 
             )
+        return posixuser
 
+    def updateSecurityContextWithUserInfo( self, currentcontainertype, userinfo, default_uidNumber, default_gidNumber ):
+        
+        securityContext = oc.od.settings.desktop_pod[currentcontainertype].get( 'securityContext' )
+        runAsUser  = securityContext.get('runAsUser')
+        runAsGroup = securityContext.get('runAsGroup')
+        
+        posixuser = self.alwaysgetPosixAccountUser( userinfo )
         #
         # replace runAsUser and runAsGroup by posix account values
         if isinstance( runAsUser, str ): 
@@ -1983,16 +1986,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #       'UID'                   : '{{ uidNumber }}',
         #       'GID'                   : '{{ gidNumber }}',
         #       'LOGNAME'               : '{{ uid }}'
-        # by posix account value 
-        if userinfo.isPosixAccount():
-            posixAccount = userinfo.getPosixAccount()
-            self.logger.debug( f"userinfo is a posix account {posixAccount}")
-            for k, v in env.items():
-                new_value = chevron.render( v, posixAccount )
-                self.logger.debug( f"env[{k}]={env[k]} -> {new_value}" )
-                env[k] = new_value 
-        else:
-            self.logger.debug( f"userinfo is not a posix account")
+        # by posix account value or default user account values
+        posixuser = self.alwaysgetPosixAccountUser( userinfo )
+        for k, v in env.items():
+            new_value = chevron.render( v, posixuser )
+            self.logger.debug( f"env[{k}]={env[k]} -> {new_value}" )
+            env[k] = new_value 
 
         # convert env dictionnary to env list format for kubernes
         # env = { 'KEY': 'VALUE' }
