@@ -1144,17 +1144,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             resp.run_forever(timeout) 
             err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
             self.logger.debug( f"desktop.name={desktop.name} container={desktop.container_name} command={command} return code {err}")
-            respdict = yaml.load(err, Loader=yaml.BaseLoader )            
+            respdict = yaml.load(err, Loader=yaml.BaseLoader )  
+            result['ExitCode'] = -1 # default value          
             result['stdout'] = resp.read_stdout()
-            # should be like:
-            # {"metadata":{},"status":"Success"}
+
+            #
+            # /composer/node/wait-port/node_modules/.bin/wait-port 10.1.101.196:6081
+            # Waiting for 10.1.101.196:6081.
+            # Connected!
+            #
+            # ExitCode is 0 if timeout 
             if isinstance(respdict, dict):
-                # status = Success or ExitCode = ExitCode
                 if respdict.get('status') == 'Success':
-                    result['ExitCode'] = 0
-                exit_code = respdict.get('ExitCode')
-                if exit_code is not None:
-                    result['ExitCode'] = exit_code
+                    if isinstance( result['stdout'], str ):
+                        if "Connected" in result['stdout']:
+                            result['ExitCode'] = 0
 
         except Exception as e:
             self.logger.error( f"command exec failed {e}") 
