@@ -317,10 +317,9 @@ class ODOrchestratorBase(object):
             raise ValueError('invalid desktop object type' )
         
         binding = f"{desktop.ipAddr}:{port}"
-        command = [ oc.od.settings.desktop_pod['graphical'].get('waitportbin'), '-t', str(timeout), binding ]       
+        command = [ oc.od.settings.desktop_pod['graphical'].get('waitportbin'), '-t', str(timeout), binding ]     
         result = self.execwaitincontainer( desktop, command, timeout)
-        self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
-     
+        self.logger.debug( f"command {command} return={result}")
         if isinstance(result, dict):      
             return result.get('ExitCode') == 0
         else:
@@ -1144,7 +1143,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
             resp.run_forever(timeout) 
             err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
-            self.logger.info( 'desktop.id=%s command=%s return code %s', desktop.id, command, str(err))
+            self.logger.debug( f"desktop.name={desktop.name} container={desktop.container_name} command={command} return code {err}")
             respdict = yaml.load(err, Loader=yaml.BaseLoader )            
             result['stdout'] = resp.read_stdout()
             # should be like:
@@ -1159,7 +1158,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         except Exception as e:
             self.logger.error( 'command exec failed %s', str(e)) 
-
+        self.logger.debug( f"return result={result}")
         return result
 
 
