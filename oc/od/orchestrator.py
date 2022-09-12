@@ -1348,14 +1348,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Create ODSecretLDIF, build userinfo object secret ldif cache
         # This section is necessary to get user photo in user_controller.py
         # dump the ldif in kubernetes secret 
-        if type(authinfo.protocol) is dict :
-            # if ldif is enabled
-            if authinfo.protocol.get('ldif') is True:
-                # create a ldif secret
-                self.logger.debug('oc.od.secret.ODSecretLDIF creating')
-                secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
-                secret.create( authinfo, userinfo, data=userinfo )
-                self.logger.debug('create oc.od.secret.ODSecretLDIF created')
+        # whoami entry point use the ldiff secret 
+        # create a ldif secret
+        self.logger.debug('oc.od.secret.ODSecretLDIF creating')
+        secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
+        secret.create( authinfo, userinfo, data=userinfo )
+        self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
         # look if the current account is a posix local account
         localaccount_data = authinfo.get_localaccount()
@@ -1471,7 +1469,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         dict_secret = self.list_dict_secret_data( authinfo, userinfo )
         raw_secrets = {}
         for key in dict_secret.keys():
-            raw_secrets.update( dict_secret[key] )
+            secret = dict_secret[key]
+            if isinstance(secret, dict) and secret.get('type') == 'abcdesktop/ldif':
+                raw_secrets.update( secret )
+                break
         return raw_secrets
 
 
