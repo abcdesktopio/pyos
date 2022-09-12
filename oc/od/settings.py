@@ -183,7 +183,6 @@ default_host_accesscontrol_allow_origin = None # host_accesscontrol_allow_origin
 desktopwebhookencodeparams = False  # url encode webhook params 
 desktopwebhookdict         = {}     # addtional dict data
 
-
 # String to route (container target_ip) or (public host url) default is
 # public host 
 websocketrouting = None
