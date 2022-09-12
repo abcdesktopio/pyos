@@ -1368,9 +1368,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error((f"cannot create secret {mysecretname}"))
         self.logger.debug('localaccount secret.create created')
 
-
         # for each auth protocol enabled
-        
         local_secrets = authinfo.get_secrets()
         if isinstance( local_secrets, dict ) :
             self.logger.debug('secret.create creating')
