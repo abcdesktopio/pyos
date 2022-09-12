@@ -50,13 +50,6 @@ developer_instance = False
 DEFAULT_SHM_SIZE = '64M' # default size of shared memeory
 
 defaultdomainname = None  # default local domain name to build fqdn
-
-# use for X509 Certificat
-clienttlskey = None     # Client TLS private Key file
-clienttlscert = None    # Client TLS certificat file
-tlscacert = None        # CA ROOT certificat file
-tls_assert_hostname = False
-
 memconnectionstring = None  # memcache connection syting format 'server:port'
 services_http_request_denied = {} # deny http request 
 
@@ -347,10 +340,6 @@ def getFQDN(hostname):
            fqdn = hostname + '.' + defaultdomainname
     return fqdn
 
-
-def getbase_url(hostname):
-    return 'tcp://' + getFQDN(hostname) + ':' + str(defaultdockertcpport)
-
 def init_webrtc():
     """Read webrtc configuration file
     """
@@ -467,39 +456,6 @@ def init_websocketrouting():
             exit(-1)
 
     logger.info('mode is %s', websocketrouting)
-  
-
-
-def init_tls():
-    global clienttlskey
-    global clienttlscert
-    global tlscacert
-    global defaultdockertcpport
-    global defaultdomainname
-
-    # How to connect to docker daemon
-    # TLS Section
-    clienttlskey = gconfig.get('daemondockertlskey', None)
-    clienttlscert = gconfig.get('daemondockertlscert', None)
-    tlscacert = gconfig.get('daemondockertlscacert', None)
-
-    # default docker daemon listen port tcp
-    defaultdockertcpport = gconfig.get('daemondockertcpport', 2376)
-    defaultdomainname = gconfig.get('daemondockerdomainname', None)
-
-    if clienttlskey is None:
-        logger.warning('SECURITY Warning clienttlskey is not set')
-    
-    if clienttlscert is None:
-        logger.warning('SECURITY Warning clienttlscert is not set')
-    
-    if tlscacert is None:
-        logger.warning('SECURITY Warning tlscacert is not set')
-
-    if clienttlskey is None or clienttlscert is None or tlscacert is None:
-        logger.warning('SECURITY Warning connection to docker daemon on host may failed or is insecure')
-        logger.warning('Read HOWTO-configure documentation')
-
 
 def filter_hostconfig( host_config ):
     """[filter_hostconfig]
@@ -935,9 +891,6 @@ def init():
 
     # load dock web
     init_dock()
-
-    # init TLS
-    init_tls()
 
     # load default hostname for redirect and reverse proxy use
     init_defaulthostfqdn()
