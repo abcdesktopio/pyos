@@ -387,7 +387,6 @@ def init_defaulthostfqdn():
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
     global default_server_ipaddr            # default ip addr to fake real ip source in geoip
-    global default_host_url_accesscontrol_allow_origin # to allow more than one fqdn 
     global routehostcookiename              # name of the cookie with the hostname value for an efficient LoadBalacing
     global services_http_request_denied     # denied http request uri
 
@@ -402,15 +401,6 @@ def init_defaulthostfqdn():
         logger.info('default_host_url: %s', default_host_url)
 
     default_host_url_is_securised = default_host_url.lower().startswith('https')
-
-    default_host_url_accesscontrol_allow_origin = gconfig.get('default_host_url_accesscontrol_allow_origin', [default_host_url] )
-    if not isinstance( default_host_url_accesscontrol_allow_origin, list):
-        logger.error('Invalid default_host_url_accesscontrol_allow_origin list in config file')
-        default_host_url_accesscontrol_allow_origin = [ default_host_url ]
-
-    if len( default_host_url_accesscontrol_allow_origin ) == 0:
-        default_host_url_accesscontrol_allow_origin = [ default_host_url ]
-        logger.warning('use default_host_url_accesscontrol_allow_origin list as %s', default_host_url_accesscontrol_allow_origin )
 
     default_server_ipaddr = gconfig.get('server.default.ipaddr')
     if default_server_ipaddr is None: 
