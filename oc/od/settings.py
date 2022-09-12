@@ -180,9 +180,6 @@ default_host_url        = None  # default FQDN host name to reach the web site
 default_host_url_is_securised = False  # is default_host_url securized https
 default_host_accesscontrol_allow_origin = None # host_accesscontrol_allow_origin
 
-defaultnetworknetuser   = None  # name of the default netuser network by default netuser
-defaultnetworknetuserid = None  # id of the default netuser network
-
 desktopwebhookencodeparams = False  # url encode webhook params 
 desktopwebhookdict         = {}     # addtional dict data
 
@@ -330,16 +327,6 @@ def getballoon_gid():
 def getballoon_homedirectory():
     return balloon_homedirectory
 
-def getFQDN(hostname):
-    ''' concat defaultdomainname to hostname set in configuration file  '''
-    ''' return hostname if defaultdomainname is not set                 '''
-    ''' or if hostname contains a dot                                   '''
-    fqdn = hostname 
-    if isinstance(hostname, str):        
-        if '.' not in hostname and defaultdomainname is not None :
-           fqdn = hostname + '.' + defaultdomainname
-    return fqdn
-
 def init_webrtc():
     """Read webrtc configuration file
     """
@@ -349,18 +336,13 @@ def init_webrtc():
     webrtc_server = gconfig.get('webrtc.server', None )
    
 
-
 def init_config_stack():
     """init_config_stack
-       read stack mode 'kubernetes' or 'standalone' in configuration file
-       read stack.network for docker
+       read namespace should be abcdesktop
        read stack.kubernetesdefaultdomain for kubernetes
     """
-    global defaultnetworknetuser
     global kubernetes_default_domain
     global namespace
-
-    defaultnetworknetuser = gconfig.get('stack.network', 'abcdesktop_netuser')    
     kubernetes_default_domain = gconfig.get('stack.kubernetesdefaultdomain', 'abcdesktop.svc.cluster.local')
     namespace = gconfig.get('namespace', 'abcdesktop')  
 
