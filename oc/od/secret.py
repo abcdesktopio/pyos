@@ -140,11 +140,12 @@ class ODSecret():
     @staticmethod
     def read_data( secret, key):
         data = None
-        try:
-            b64data = secret.data.get(key)
-            data = oc.od.secret.ODSecret.b64todata( b64data )
-        except Exception as e:
-            logger.error( 'failed to read secret key %s %s', str(key), e)
+        if isinstance( secret, client.models.v1_secret.V1Secret ):
+            try:
+                b64data = secret.data.get(key)
+                data = oc.od.secret.ODSecret.b64todata( b64data )
+            except Exception as e:
+                logger.error( f"failed to read secret key {key} {e}")
         return data 
 
     def _create_dict(self, authinfo, userinfo,  arguments):       
