@@ -155,8 +155,8 @@ class AuthUser(dict):
     @staticmethod
     def getdefaultPosixAccount( uid, uidNumber, gidNumber, cn=None, homeDirectory=None  ):
         defaultposixAccount = { 'uid':uid, 'uidNumber':uidNumber, 'gidNumber':gidNumber }
-        if isinstance(cn, str): defaultposixAccount['cn'] = cn 
-        if isinstance(homeDirectory, str): defaultposixAccount['cn'] = cn 
+        if isinstance(cn, str): defaultposixAccount['cn'] = cn
+        if isinstance(homeDirectory, str): defaultposixAccount['homeDirectory'] = homeDirectory
         return defaultposixAccount
 
 #
