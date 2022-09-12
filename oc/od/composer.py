@@ -430,7 +430,7 @@ def createDesktopArguments( authinfo, userinfo, args ):
  
 def resumedesktop( authinfo, userinfo, appname='' ):
     myOrchestrator = selectOrchestrator()
-    kwargs = { 'defaultnetworknetuserid': oc.od.settings.defaultnetworknetuserid, 'appname': appname }
+    kwargs = { 'appname': appname }
     myDesktop = myOrchestrator.resumedesktop(authinfo, userinfo, **kwargs)  
     return myDesktop
         
