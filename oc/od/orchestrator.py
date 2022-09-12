@@ -287,23 +287,23 @@ class ODOrchestratorBase(object):
                 messageinfo = f"Starting desktop graphical service {nCount}/{nTimeout}"
                 callback_notify(messageinfo)
                 bListen['x11server'] = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['graphical'].get('tcpport') )
-                self.logger.info('service:x11server return %s', str(bListen['x11server']))
-                nCount += 1
+                self.logger.debug(f"service:x11server return {bListen['x11server']}")
 
             # check if spawner is ready 
             if bListen['spawner'] is False:
                 messageinfo = f"Starting desktop spawner service {nCount}/{nTimeout}"
                 callback_notify(messageinfo)
                 bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['spawner'].get('tcpport') )
-                self.logger.info('service:spawner return %s', str(bListen['spawner']))  
-                nCount += 1
+                self.logger.info(f"service:spawner return {bListen['spawner']}")  
 
             if bListen['x11server'] is True and bListen['spawner'] is True:                       
                 callback_notify('Desktop services are ready after %d s' % (nCount) )              
                 return True
-            time.sleep(1) # wait a second
+            else:
+                nCount += 1
+            time.sleep(1) # wait 1 second
         # Can not chack process status     
-        self.logger.warning('waitForDesktopProcessReady not ready services status: %s', bListen )
+        self.logger.warning( f"waitForDesktopProcessReady not ready services status:{bListen}" )
         return False
 
       
@@ -314,7 +314,7 @@ class ODOrchestratorBase(object):
         # for the wait_port command and for the exec command         
         
         if type(desktop) is not ODDesktop:
-            raise ValueError('invalid desktop object type' )
+            return False
         
         binding = f"{desktop.ipAddr}:{port}"
         command = [ oc.od.settings.desktop_pod['graphical'].get('waitportbin'), '-t', str(timeout), binding ]     
@@ -1157,7 +1157,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     result['ExitCode'] = exit_code
 
         except Exception as e:
-            self.logger.error( 'command exec failed %s', str(e)) 
+            self.logger.error( f"command exec failed {e}") 
         self.logger.debug( f"return result={result}")
         return result
 
