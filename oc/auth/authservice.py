@@ -139,13 +139,16 @@ class AuthUser(dict):
         return not(not self.get('userid') )
 
     def getPosixAccount( self ):
-        posixattrs = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory' ]
         posixaccount = None
         posixdata = self.get('posix')
         if isinstance( posixdata, dict):
-            posixaccount = {}
-            for k in posixattrs:
-                posixaccount[ k ] = posixdata.get(k)
+            posixaccount = AuthUser.getdefaultPosixAccount( 
+                uid=posixdata.get('uid'),
+                uidNumber=posixdata.get('uidNumber'),
+                gidNumber=posixdata.get('gidNumber'),
+                cn=posixdata.get('cn'),
+                homeDirectory=posixdata.get('homeDirectory') 
+            )
         return posixaccount
         
     def isPosixAccount( self ):
@@ -154,9 +157,14 @@ class AuthUser(dict):
 
     @staticmethod
     def getdefaultPosixAccount( uid, uidNumber, gidNumber, cn=None, homeDirectory=None  ):
-        defaultposixAccount = { 'uid':uid, 'uidNumber':uidNumber, 'gidNumber':gidNumber }
-        if isinstance(cn, str): defaultposixAccount['cn'] = cn
-        if isinstance(homeDirectory, str): defaultposixAccount['homeDirectory'] = homeDirectory
+        # https://ldapwiki.com/wiki/PosixAccount
+        # The ObjectClass Type is defined as:
+        # OID: 1.3.6.1.1.1.2.0
+        # NAME: PosixAccount
+        # MUST: cn uid uidNumber gidNumber homeDirectory
+        if not isinstance(cn, str): cn = uid
+        if not isinstance(homeDirectory, str): homeDirectory='/home/' + str(uid)
+        defaultposixAccount = { 'cn':cn, 'uid':uid, 'uidNumber':uidNumber, 'gidNumber':gidNumber, 'homeDirectory':homeDirectory }
         return defaultposixAccount
 
 #
