@@ -1154,6 +1154,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # Connected!
             #
             # ExitCode is 0 if timeout 
+            # we must read the stdout to read Connected string
+            # this is bad
+            # need to fix the wait-port timeout exit code
+            #
             if isinstance(respdict, dict):
                 if respdict.get('status') == 'Success':
                     if isinstance( result['stdout'], str ):
@@ -1849,31 +1853,49 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return pod
 
-    def alwaysgetPosixAccountUser(self, userinfo ):
+    def alwaysgetPosixAccountUser(self, userinfo:AuthUser ) -> dict :
+        """alwaysgetPosixAccountUser
+
+        Args:
+            userinfo (AuthUser): auth user info
+
+        Returns:
+            dict: posic account dict 
+        """
         if userinfo.isPosixAccount():
             self.logger.debug("user is a posix account")
             posixuser = userinfo.getPosixAccount()
         else:
-            self.logger.debug("user is not a posix account, use default")
+            self.logger.debug("user is not a posix account, use configuration default values")
             posixuser = AuthUser.getdefaultPosixAccount( 
                 uid=oc.od.settings.getballoon_name(),
-                uidNumber=oc.od.settings.oc.od.settings.getballoon_uid(),
-                gidNumber=oc.od.settings.oc.od.settings.getballoon_gid(),
-                homeDirectory=oc.od.settings.oc.od.settings.oc.od.settings.getballoon_homedirectory() 
+                uidNumber=oc.od.settings.getballoon_uid(),
+                gidNumber=oc.od.settings.getballoon_gid(),
+                homeDirectory=oc.od.settings.getballoon_homedirectory() 
             )
         return posixuser
 
-    def updateSecurityContextWithUserInfo( self, currentcontainertype, userinfo, default_uidNumber, default_gidNumber ):
-        
-        securityContext = oc.od.settings.desktop_pod[currentcontainertype].get( 'securityContext' )
+    def updateSecurityContextWithUserInfo( self, currentcontainertype:str, userinfo:AuthUser ) -> dict:
+        """updateSecurityContextWithUserInfo
+
+        Args:
+            currentcontainertype (str): type of container
+            userinfo (AuthUser): auth user info
+
+        Returns:
+            dict: a securityContext dict with { 'runAsUser': UID , 'runAsGroup': GID }
+        """
+        securityContext = oc.od.settings.desktop_pod[currentcontainertype].get( 'securityContext', { 'runAsUser':  '{{ uidNumber }}', 'runAsGroup': '{{ gidNumber }}' } )
         runAsUser  = securityContext.get('runAsUser')
         runAsGroup = securityContext.get('runAsGroup')
         
         posixuser = self.alwaysgetPosixAccountUser( userinfo )
         #
         # replace runAsUser and runAsGroup by posix account values
+        # if 'runAsUser' exist in configuration file
         if isinstance( runAsUser, str ): 
             securityContext['runAsUser']  = int( chevron.render( runAsUser, posixuser ) )
+        # if 'runAsGroup' exist in configuration file
         if isinstance( runAsGroup, str ): 
             securityContext['runAsGroup'] = int( chevron.render( runAsGroup, posixuser ) )
 
@@ -1896,6 +1918,78 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             raise ValueError( f"invalid image type for {currentcontainertype} type={type(image)} data={image}")
 
         return imageforcurrentcontainertype
+
+
+    @staticmethod
+    def appendkubernetesfieldref(envlist):
+        assert isinstance(envlist, list),  f"env has invalid type {type(envlist)}, list is expected"
+        # kubernetes env formated dict
+        '''
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        '''
+        envlist.append( { 'name': 'NODE_NAME',      'valueFrom': { 'fieldRef': { 'fieldPath':'spec.nodeName' } } } )
+        envlist.append( { 'name': 'POD_NAME',       'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.name' } } } )
+        envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
+        envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
+
+
+    @staticmethod
+    def envdict_to_kuberneteslist(env:dict):
+        """ envdict_to_kuberneteslist
+            convert env dictionnary to env list format for kubernes
+            env = { 'KEY': 'VALUE' }
+            return a list of dict key/valye
+            envlist = [ { 'name': 'KEY', 'value': 'VALUE' } ]
+
+        Args:
+            env (dict): env var dict 
+
+        Returns:
+            list: list of { 'name': k, 'value': str(value) }
+        """
+        assert isinstance(env, dict),  f"env has invalid type {type(env)}, dict is expected"
+        envlist = []
+        for k, v in env.items():
+            # need to convert v as str : kubernetes supports ONLY string type to env value
+            envlist.append( { 'name': k, 'value': str(v) } )
+        return envlist
+
+    @staticmethod
+    def fillchevron_envdict( env: dict, posixuser:dict ):
+        """fillchevron_envdict
+            replace in chevron key
+            desktop.envlocal :  {
+                'UID'                   : '{{ uidNumber }}',
+                'GID'                   : '{{ gidNumber }}',
+                'LOGNAME'               : '{{ uid }}'
+            }
+            by posix account value or default user account values
+        Args:
+            env (dict): env var dict 
+            posixuser (dict): posix accont dict 
+        """
+        assert isinstance(env, dict),  f"env has invalid type {type(env)}, dict is expected"
+        assert isinstance(posixuser, dict),  f"posixuser has invalid type {type(posixuser)}, dict is expected"
+        for k, v in env.items():
+            new_value = chevron.render( v, posixuser )
+            env[k] = new_value 
+
                 
     def createdesktop(self, authinfo, userinfo, **kwargs):
         self.logger.info('')
@@ -1983,51 +2077,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('container_graphical_name is %s', container_graphical_name )
 
         self.logger.debug('envlist creating')
-        # replace in chevron key
-        # desktop.envlocal :  {
-        #       'UID'                   : '{{ uidNumber }}',
-        #       'GID'                   : '{{ gidNumber }}',
-        #       'LOGNAME'               : '{{ uid }}'
-        # by posix account value or default user account values
         posixuser = self.alwaysgetPosixAccountUser( userinfo )
-        for k, v in env.items():
-            new_value = chevron.render( v, posixuser )
-            self.logger.debug( f"env[{k}]={env[k]} -> {new_value}" )
-            env[k] = new_value 
-
-        # convert env dictionnary to env list format for kubernes
-        # env = { 'KEY': 'VALUE' }
-        # become a list of dict key/valye
-        # envlist = [ { 'name': 'KEY', 'value': 'VALUE' } ]
-        envlist = []
-        for k, v in env.items():
-            # need to convert v as str : kubernetes supports ONLY string type to env value
-            envlist.append( { 'name': k, 'value': str(v) } )
-
-      
-        '''
-        env:
-          - name: NODE_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: spec.nodeName
-          - name: POD_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
-          - name: POD_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: POD_IP
-            valueFrom:
-              fieldRef:
-                fieldPath: status.podIP
-        '''
-        envlist.append( { 'name': 'NODE_NAME',      'valueFrom': { 'fieldRef': { 'fieldPath':'spec.nodeName' } } } )
-        envlist.append( { 'name': 'POD_NAME',       'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.name' } } } )
-        envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
-        envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
+        # replace  'UID' : '{{ uidNumber }}' by value 
+        ODOrchestratorKubernetes.fillchevron_envdict( env, posixuser )
+        # convert env dictionnary to env list format for kubernetes
+        envlist = ODOrchestratorKubernetes.envdict_to_kuberneteslist( env )
+        ODOrchestratorKubernetes.appendkubernetesfieldref( envlist )
         self.logger.debug('envlist created')
 
         # look for desktop rules
@@ -2158,7 +2213,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'graphical'
         self.logger.debug('pod container creating %s', currentcontainertype )
 
-        securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
+        securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
         image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
         
         # define pod_manifest
@@ -2205,11 +2260,29 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         }
           
         # Add printer sound servives 
-        for currentcontainertype in [ 'printer', 'sound' ] :
+        for currentcontainertype in [ 'printer' ] :
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 self.logger.debug('pod container creating %s', currentcontainertype )
                 image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
-                securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(),  oc.od.settings.getballoon_gid() )
+                securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
+                pod_manifest['spec']['containers'].append( { 
+                        'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                        'image':image,                                    
+                        'env': envlist,
+                        'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                        'securityContext': securityContext,
+                        'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
+                    }   
+                )
+                self.logger.debug('pod container created %s', currentcontainertype )
+
+              # Add printer sound servives 
+        for currentcontainertype in [ 'sound' ] :
+            if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                self.logger.debug('pod container creating %s', currentcontainertype )
+                image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
+                securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo  )
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
@@ -2226,7 +2299,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'ssh'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
-            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
@@ -2256,7 +2329,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # use this volume as homedir to filer service 
             # if homedirvolume  :
             self.logger.debug('pod container creating %s', currentcontainertype )
-            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
@@ -2274,7 +2347,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'storage'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
-            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
@@ -2292,7 +2365,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'rdp'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
-            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
@@ -2955,24 +3028,19 @@ class ODAppInstanceBase(object):
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
             env.update(authinfo.data.get('environment', {}))
 
-        # convert the dict to list
-        envlist = []
-        for k, v in env.items():
-            # need to convert v as str : kubernetes supports ONLY string type to env value
-            envlist.append( { 'name': k, 'value': str(v) } )
+        self.logger.debug('envlist creating')
+        posixuser = self.orchestrator.alwaysgetPosixAccountUser( userinfo )
+        # replace  'UID' : '{{ uidNumber }}' by value 
+        ODOrchestratorKubernetes.fillchevron_envdict( env, posixuser )
 
-        # kubernetes env formated dict
-        envlist.append( { 'name': 'NODE_NAME',      'valueFrom': { 'fieldRef': { 'fieldPath':'spec.nodeName' } } } )
-        envlist.append( { 'name': 'POD_NAME',       'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.name' } } } )
-        envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
-        envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
-
+        # convert env dictionnary to env list format for kubernetes
+        envlist = ODOrchestratorKubernetes.envdict_to_kuberneteslist( env )
+        ODOrchestratorKubernetes.appendkubernetesfieldref( envlist )
+        
         return envlist
 
     def get_securitycontext(self, userinfo ):
-        securitycontext = oc.od.settings.desktop_pod.get( self.type ).get( 'securityContext', {})
-        runAssecuritycontext = self.orchestrator.updateSecurityContextWithUserInfo( self.type, userinfo, oc.od.settings.getballoon_uid(), oc.od.settings.getballoon_gid() )
-        securitycontext.update( runAssecuritycontext )
+        securitycontext = self.orchestrator.updateSecurityContextWithUserInfo( self.type, userinfo )
         return securitycontext
 
 @oc.logging.with_logger()
