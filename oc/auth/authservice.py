@@ -1376,7 +1376,7 @@ class ODAuthTool(cherrypy.Tool):
             response.code = e.code
         
         except Exception as e:
-            response.reason = str(e) # default value
+            response.reason = e.description if hasattr( e, 'description') else str(e)
             if hasattr( e, 'args'):
                 # try to extract the desc value 
                 if isinstance(e.args, tuple) and len(e.args) > 0:
@@ -2016,7 +2016,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if self.auth_type == 'KERBEROS':
             # can raise exception 
             self.krb5_validate( userid, password )
-            # can raise exception 
             self.krb5_authenticate( userid, password )
             if not self.auth_only :
                 conn = self.getconnection(userid, password) 
