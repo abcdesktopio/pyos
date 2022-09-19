@@ -153,17 +153,17 @@ def runwebhook( c, messageinfo=None ):
 def remove_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return removedesktop( authinfo, userinfo )
+    return myOrchestrator.removedesktop( authinfo, userinfo )
 
 def stop_container_byname( desktop_name:str, container ):
     myOrchestrator = selectOrchestrator()  
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return stopContainerApp( authinfo, userinfo, container )
+    return myOrchestrator.stopContainerApp( authinfo, userinfo, container )
 
 def list_container_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return listContainerApp(authinfo, userinfo)
+    return myOrchestrator.listContainerApp(authinfo, userinfo)
 
 def describe_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
@@ -178,9 +178,65 @@ def describe_container_byname( desktop_name:str , container_id:str ):
 def remove_container_byname(desktop_name: str, container_id:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return removeContainerApp(authinfo,userinfo,container_id=container_id)
+    return myOrchestrator.removeContainerApp(authinfo,userinfo,container_id=container_id)
 
 
+def fakednsquery( record, userid ):
+
+    ipdaddr = None
+    
+    # read interface name to to get ip addr
+    dnsinterface_name = oc.od.settings.fakedns.get('interfacename')
+    if not isinstance( dnsinterface_name , str ):
+        raise ODError( f"fakednsquery has invalid 'interfacename' value 'str' is expected type={type(dnsinterface_name)} in configuration file")
+
+    # fake an userinfo object
+    userinfo = AuthUser( { 'userid': userid } )
+    myOrchestrator = selectOrchestrator()   
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo=None, userinfo=userinfo )
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        return None
+    
+    desktop_interfaces = myDesktop.desktop_interfaces
+    if not isinstance( desktop_interfaces, dict ):
+        return None
+    
+    # read the ip value of remappded name of 'externalipaddr'
+    interface = desktop_interfaces.get( dnsinterface_name )
+    if isinstance( interface, dict ):
+        ipdaddr = interface.get('ips')
+        if isinstance( ipdaddr, list ):
+            ipdaddr = ipdaddr[0]
+
+    return ipdaddr
+
+def getdesktopdescription( authinfo, userinfo ):
+    description = {}
+    description['clientipaddr'] = getclientipaddr()
+    description['user'] = userinfo.get('userid')
+    desktop_interfaces = None
+    myOrchestrator = selectOrchestrator()    
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        return description
+    
+    desktop_interfaces = { 'net1': { 'ips' : '192.168.1.1'}, 'net2': { 'ips' : '192.168.9.1'} }
+    #desktop_interfaces = myDesktop.desktop_interfaces
+    if not isinstance( desktop_interfaces, dict ):
+        return description
+
+    # read the ip value of remappded name of 'externalipaddr'
+    interface = desktop_interfaces.get( oc.od.settings.desktopdescription.get('externalip') )
+    if isinstance( interface, dict ):
+        description['externalip'] = interface.get('ips')
+    # read the ip value of remappded name of 'internalipaddr'
+    interface = desktop_interfaces.get( oc.od.settings.desktopdescription.get('internalip') )
+    if isinstance( interface, dict ):
+        description['internalip'] = interface.get('ips')
+
+    description['sshconfig'] = oc.od.settings.desktopdescription.get('sshconfig')
+
+    return description
 
 def logdesktop( authinfo, userinfo ):
     """read the log from  the current desktop

@@ -27,7 +27,7 @@ import urllib
 
 from oc.od.services import services
 
-from oc.cherrypy import Results
+from oc.cherrypy import Results, getclientipaddr
 from oc.od.base_controller import BaseController
 
 
@@ -313,6 +313,23 @@ class ComposerController(BaseController):
         except Exception as e:
             self.logger.error( e )
             return Results.error( message=str(e) )
+
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def getdesktopdescription(self):
+        self.logger.debug('')
+
+        # check if request is allowed, raise an exception if deny
+        self.is_permit_request()
+
+        (auth, user ) = self.validate_env()
+        result = oc.od.composer.getdesktopdescription(auth, user)
+        if isinstance( result, dict ):
+            return Results.success(result=result)
+        else:
+            return Results.error('failed to getdesktopdescription')
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
