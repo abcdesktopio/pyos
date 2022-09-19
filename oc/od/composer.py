@@ -182,7 +182,7 @@ def remove_container_byname(desktop_name: str, container_id:str):
 
 
 def fakednsquery( userid ):
-
+    logger.debug( locals() )
     ipdaddr = None
     
     # read interface name to to get ip addr
@@ -195,14 +195,18 @@ def fakednsquery( userid ):
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser(authinfo=None, userinfo=userinfo )
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        logger.debug( f"findDesktopByUser {userid} return not found" )
         return None
     
     desktop_interfaces = myDesktop.desktop_interfaces
     if not isinstance( desktop_interfaces, dict ):
+        logger.debug( f"desktop has not desktop_interfaces" )
         return None # or myDesktop.ipAddr
     
     # read the ip value of remappded name of dnsinterface_name
+    logger.debug( f"dnsinterface_name={dnsinterface_name}" )
     interface = desktop_interfaces.get( dnsinterface_name )
+    logger.debug( f"desktop has desktop_interfaces={interface}" )
     if isinstance( interface, dict ):
         ipdaddr = interface.get('ips')
         if isinstance( ipdaddr, list ):
