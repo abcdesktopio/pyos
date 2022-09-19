@@ -200,7 +200,7 @@ def fakednsquery( userid ):
     
     desktop_interfaces = myDesktop.desktop_interfaces
     if not isinstance( desktop_interfaces, dict ):
-        logger.debug( f"desktop has not desktop_interfaces" )
+        logger.debug( f"desktop has no desktop_interfaces desktop_interfaces={desktop_interfaces}" )
         return None # or myDesktop.ipAddr
     
     # read the ip value of remappded name of dnsinterface_name
