@@ -37,6 +37,21 @@ class BaseController(object):
           class_filter=r'^(\w+)Controller$'
           self.controllerprefix = re.match(class_filter, self.__class__.__name__).group(1).lower()
 
+     def overwrite_requestpermission_ifnotset( self, method:str, permission:bool )->None:
+          """overwrite_requestpermission
+               if a requestpermission is not set, set it to permission
+
+          Args:
+              method (str): _description_
+              permission (bool): _description_
+          """
+
+          if isinstance( self.requestsallowed, dict):
+               if self.requestsallowed.get(method) is None:
+                    self.requestsallowed[method] = permission
+          else:
+               self.requestsallowed = { method: permission }
+
      def init_ipfilter( self, config:dict ):
           """init_ipfilter
                load config dict
