@@ -214,14 +214,15 @@ def getdesktopdescription( authinfo, userinfo ):
     description = {}
     description['clientipaddr'] = getclientipaddr()
     description['user'] = userinfo.get('userid')
+
     desktop_interfaces = None
     myOrchestrator = selectOrchestrator()    
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
         return description
     
-    desktop_interfaces = { 'net1': { 'ips' : '192.168.1.1'}, 'net2': { 'ips' : '192.168.9.1'} }
-    #desktop_interfaces = myDesktop.desktop_interfaces
+    # desktop_interfaces = { 'net1': { 'ips' : '192.168.1.1'}, 'net2': { 'ips' : '192.168.9.1'} }
+    desktop_interfaces = myDesktop.desktop_interfaces
     if not isinstance( desktop_interfaces, dict ):
         return description
 
@@ -233,9 +234,8 @@ def getdesktopdescription( authinfo, userinfo ):
     interface = desktop_interfaces.get( oc.od.settings.desktopdescription.get('internalip') )
     if isinstance( interface, dict ):
         description['internalip'] = interface.get('ips')
-
     description['sshconfig'] = oc.od.settings.desktopdescription.get('sshconfig')
-
+    
     return description
 
 def logdesktop( authinfo, userinfo ):
