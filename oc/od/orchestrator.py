@@ -1579,6 +1579,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # tmp volume is shared between all container inside the desktop pod
         # 
         if volume_type in [ 'pod_desktop', 'container_desktop', 'container_app' ] :
+            self.logger.debug( f"adding volume ['tmp', 'x11unix', 'run', 'log'] to {volume_type}" )
             # set tmp volume
             volumes['tmp']       = self.default_volumes['tmp']
             volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
@@ -1592,6 +1593,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # log volume is used to write log files
             volumes['log']       = self.default_volumes['log']
             volumes_mount['log'] = self.default_volumes_mount['log']
+            self.logger.debug( f"added volume ['tmp', 'x11unix', 'run', 'log'] to {volume_type}" )
 
         #
         # shm volume is shared between all container inside the desktop pod
@@ -1599,11 +1601,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if volume_type in [ 'pod_desktop', 'container_desktop' ] \
             and oc.od.settings.desktophostconfig.get('shm_size'):
                 # set shm memory volume
+                self.logger.debug( f"adding volume ['shm'] to {volume_type}" )
                 volumes['shm']       = self.default_volumes['shm']
                 volumes_mount['shm'] = self.default_volumes_mount['shm'] 
+                self.logger.debug( f"added volume ['shm'] to {volume_type}" )
 
        
         # if a config map localaccount exist
+        self.logger.debug( "looking for selectConfigMap configmap_type='localaccount'" )
         configmap_localaccount = oc.od.configmap.selectConfigMap( self.namespace, self.kubeapi, prefix=None, configmap_type='localaccount'  )
         configmap_localaccount_data = configmap_localaccount.read( userinfo=userinfo ) 
         if isinstance( configmap_localaccount_data, client.models.v1_config_map.V1ConfigMap):
@@ -1622,12 +1627,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             volumes_mount['group'] = { 'name': 'config-group', 'mountPath': '/etc/group', 'subPath': 'group' }
         else:
             self.logger.debug(f"Configmap localaccount is not defined" )
+        self.logger.debug( "look done for selectConfigMap configmap_type='localaccount'" )
 
         #
         # mount secret in /var/secrets/abcdesktop
         # always add vnc secret for 'pod_desktop'
-        if volume_type in [ 'pod_desktop'  ] :
-            # Add VNC password
+        self.logger.debug( f"checking volume_type={volume_type} in [ 'pod_desktop' ]" )
+        if volume_type in [ 'pod_desktop' ] :
+            # Add VNC password as volume secret
             mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
             # the should only be one secret type vnc
             secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
@@ -1638,10 +1645,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # 644 in decimal equal to 420
             volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
             volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
-
+        self.logger.debug( f"checked volume_type={volume_type} in [ 'pod_desktop' ]" )
+        
         #
         # mount secret in /var/secrets/abcdesktop
         #
+        self.logger.debug( f"listing list_dict_secret_data access_type='auth'" )
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         for secret_auth_name in mysecretdict.keys():
             # https://kubernetes.io/docs/concepts/configuration/secret
@@ -1649,11 +1658,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # /var/secrets/abcdesktop/ntlm
             # /var/secrets/abcdesktop/cntlm
             # /var/secrets/abcdesktop/kerberos
-
+            
+            self.logger.debug( f"checking {secret_auth_name} access_type='auth' " )
             # only mount secrets_requirement
             if isinstance( secrets_requirement, list ):
                 if secret_auth_name not in secrets_requirement:
+                    self.logger.debug( f"{secret_auth_name} is not in {secrets_requirement}" )
+                    self.logger.debug( f"{secret_auth_name} is skipped" )
                     continue
+
             self.logger.debug( 'adding secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
             secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
             # mode is 644 -> rw-r--r--
@@ -1661,18 +1674,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # 644 in decimal equal to 420
             volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
             volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
-
+            self.logger.debug( 'added secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
+        self.logger.debug( f"listed list_dict_secret_data access_type='auth'" )
 
         #
         # if type is self.x11servertype then keep user home dir data
         # else do not use the default home dir to metapplimode
         homedir_enabled = True
 
+        self.logger.debug( 'adding applyappinstancerules_homedir' )
         # if the pod or container is not an x11servertype
         if kwargs.get('type') != self.x11servertype:
             homedir_enabled = self.applyappinstancerules_homedir( authinfo, rules )
+        self.logger.debug( f"added applyappinstancerules_homedir homedir_enabled={homedir_enabled}" )
         
         if  homedir_enabled and kwargs.get('homedirectory_type') == 'persistentVolumeClaim':
+            self.logger.debug( "adding homedir volume" )
             self.on_desktoplaunchprogress('Building home dir data storage')
             volume_home_name = self.get_volumename( 'home', userinfo )
             # Map the home directory
@@ -1689,9 +1706,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             }
             self.logger.debug( 'volume mount : %s %s', 'home', volumes_mount['home'] )
             self.logger.debug( 'volumes      : %s %s', 'home', volumes['home'] )
+            self.logger.debug( "added homedir volume" )
 
         if isinstance( rules, dict ):
+            self.logger.debug( f"selecting volume by rules" )
             mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo, rules=rules.get('volumes') )
+            self.logger.debug( f"selected volume by rules" )
             for mountvol in mountvols:
                 fstype = mountvol.fstype
                 volume_name = self.get_volumename( mountvol.name, userinfo )
@@ -1987,16 +2007,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # for each auth protocol enabled
         self.logger.debug('secret.create creating')
         local_secrets = authinfo.get_secrets()
-        for auth_env_built_key in local_secrets.keys():   
+        for auth_env_built_key in local_secrets.keys(): 
+            self.logger.debug( f"oc.od.secret.selectSecret type={auth_env_built_key}")
             secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
             # build a kubernetes secret with the auth values 
             # values can be empty to be updated later
+            self.logger.debug( f"creating secret.create type={auth_env_built_key}")
             createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
             if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
                 mysecretname = self.get_name( userinfo )
-                self.logger.error((f"cannot create secret {mysecretname}"))
+                self.logger.error(f"cannot create secret {mysecretname}")
                 if allow_exception is True: 
                     raise Exception(f"cannot create secret {auth_env_built_key}")
+            else:
+                self.logger.debug( f"created secret.create type={auth_env_built_key}")
         self.logger.debug('secret.create created')
     
         # Create flexvolume secrets
@@ -2013,7 +2037,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype)
                 auth_secret = secret.create( authinfo, userinfo, arguments )
                 if auth_secret is None:
-                    self.logger.error( 'Failed to build auth secret fstype=%s', fstype )
+                    self.logger.error( f"Failed to build auth secret fstype={fstype}" )
         self.logger.debug('flexvolume secrets created')
 
     def get_annotations_lastlogin_datetime(self):
@@ -2084,7 +2108,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         dict_secret = self.list_dict_secret_data( authinfo, userinfo )
         raw_secrets = {}
         for key in dict_secret.keys():
-            raw_secrets.update( dict_secret[key] )
+            secret = dict_secret[key]
+            if isinstance(secret, dict) and secret.get('type') == 'abcdesktop/ldif':
+                raw_secrets.update( secret )
+                break
         return raw_secrets
 
 
@@ -2589,7 +2616,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'broadcast_cookie':  broadcast_cookie }
 
         # add authinfo labels
-        labels.update( authinfo.get_labels() )
+        for k,v in authinfo.get_labels().items():
+            abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_LABEL_NAME + k.lower()
+            env[ abcdesktopvarenvname ] = v
+            labels[k] = v
 
         # check if we run the desktop in metappli mode or desktop mode
         if type(appname) is str :
@@ -3076,14 +3106,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.info('')
 
         access_userid = userinfo.userid
-        access_provider = authinfo.provider
 
         try: 
-            field_selector = ''
-            label_selector = 'access_userid='    + access_userid + ',type=' + self.x11servertype
+            label_selector = 'access_userid=' + access_userid + ',type=' + self.x11servertype
         
-            if oc.od.settings.desktop['authproviderneverchange'] is True:
-                label_selector += ',' + 'access_provider='  + access_provider   
+            if isinstance( authinfo, AuthInfo) and oc.od.settings.desktop['authproviderneverchange'] is True:
+                label_selector += ',' + 'access_provider='  + authinfo.provider   
 
             #
             # pod_name = None
@@ -3097,7 +3125,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #    label_selector += ',type=' + self.x11servertype
             #
 
-            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector, field_selector=field_selector)
+            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
 
             if isinstance(myPodList, client.models.v1_pod_list.V1PodList) :
                 for myPod in myPodList.items:
