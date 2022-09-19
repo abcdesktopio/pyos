@@ -61,7 +61,7 @@ services_http_request_denied = {} # deny http request
 jira = None             # Jira tracker configuration 
 
 routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
-
+tipsinfoconfig = {}
 desktopdescription = {} # define a network interface name mapping 
 # like { 'internalip': 'eth1', 'externalip': 'net2'}
 
@@ -354,7 +354,9 @@ def init_webrtc():
     webrtc_enable = gconfig.get('webrtc.enable', False )
     webrtc_server = gconfig.get('webrtc.server', None )
    
-
+def init_tipsinfo():
+    global tipsinfoconfig
+    tipsinfoconfig = gconfig.get('tipsinfo', {})
 
 def init_config_stack():
     """init_config_stack
@@ -943,6 +945,9 @@ def init():
 
     # load default menu config
     init_menuconfig()
+
+    # init tipsinfo
+    init_tipsinfo()
 
     # load geolocation config
     init_geolocation()
