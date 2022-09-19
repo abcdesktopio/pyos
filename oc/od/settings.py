@@ -32,7 +32,8 @@ fail2banconfig = None # Fail2ban config
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
 menuconfig   = {}  # default menu config
-geolocation   = None  # default geolocation 
+geolocation  = None  # default geolocation 
+fakedns      = {}
 
 # User balloon define
 # Balloon is the default user used inside container
@@ -61,7 +62,10 @@ jira = None             # Jira tracker configuration
 
 routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
 
+desktopdescription = {} # define a network interface name mapping 
+# like { 'internalip': 'eth1', 'externalip': 'net2'}
 
+ENV_PREFIX_LABEL_NAME = "ABCDESKTOP_LABEL_"
 
 DEFAULT_PASSWD_FILE = "\
 root:x:0:0:root:/root:/bin/bash\n\
@@ -362,6 +366,7 @@ def init_config_stack():
     global defaultnetworknetuser
     global kubernetes_default_domain
     global namespace
+    global desktopdescription
 
     stack_mode = gconfig.get('stack.mode', None)
     if  stack_mode not in [ 'kubernetes', 'standalone' ] :
@@ -373,6 +378,11 @@ def init_config_stack():
     defaultnetworknetuser = gconfig.get('stack.network', 'abcdesktop_netuser')    
     kubernetes_default_domain = gconfig.get('stack.kubernetesdefaultdomain', 'abcdesktop.svc.cluster.local')
     namespace = gconfig.get('namespace', 'abcdesktop')  
+
+    desktopdescription = gconfig.get(
+        'desktop.description', 
+        { 'internalipaddr': None, 'internalipaddr': None}
+    )   
 
 def init_jira():
     global jira 
@@ -477,7 +487,9 @@ def init_websocketrouting():
 
     logger.info('mode is %s', websocketrouting)
   
-
+def init_fakedns():
+    global fakedns
+    fakedns = gconfig.get('fakedns', { 'enable': False, 'interfacename': 'eth0' } )
 
 def init_tls():
     global clienttlskey
@@ -934,6 +946,9 @@ def init():
 
     # load geolocation config
     init_geolocation()
+
+    # load fakedns config
+    init_fakedns()
 
     # init_jwt_config
     init_jwt_config()
