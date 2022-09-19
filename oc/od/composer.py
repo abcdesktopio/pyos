@@ -191,9 +191,17 @@ def fakednsquery( userid ):
         raise ODError( f"fakednsquery has invalid 'interfacename' value 'str' is expected type={type(dnsinterface_name)} in configuration file")
 
     # fake an userinfo object
-    userinfo = AuthUser( { 'userid': userid } )
+    myDesktop = None
     myOrchestrator = selectOrchestrator()   
-    myDesktop = myOrchestrator.findDesktopByUser(authinfo=None, userinfo=userinfo )
+    # try to find label value with insensitive case, lower and upper case
+    searchuserlist = [ userid, userid.lower(), userid.upper() ]
+    logger.debug( f"try to query {searchuserlist}" )
+    for nocaseuserid in searchuserlist:
+        userinfo = AuthUser( { 'userid': nocaseuserid } )
+        myDesktop = myOrchestrator.findDesktopByUser(authinfo=None, userinfo=userinfo )
+        if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+            break
+
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
         logger.debug( f"findDesktopByUser {userid} return not found" )
         return None
