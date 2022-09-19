@@ -15,6 +15,7 @@ import logging
 import ipaddress
 import cherrypy
 import oc.logging
+import re
 
 from netaddr import IPNetwork, IPAddress
 from oc.cherrypy import WebAppError, getclientipaddr
@@ -28,7 +29,13 @@ class BaseController(object):
      def __init__( self, config=None):
           self.config = config
           self.ipnetworklistfilter = None
-          self.init_ipfilter( config )
+          self.requestsallowed = None
+          if isinstance( config, dict ):
+               self.init_ipfilter( config )
+               self.requestsallowed = config.get('requestsallowed')
+               self.enable = config.get('enable', True ) # by default a controller is enabled
+          class_filter=r'^(\w+)Controller$'
+          self.controllerprefix = re.match(class_filter, self.__class__.__name__).group(1).lower()
 
      def init_ipfilter( self, config:dict ):
           """init_ipfilter
@@ -121,9 +128,33 @@ class BaseController(object):
           return bReturn
 
      def is_permit_request(self):
+          
+          if not self.enable :
+               raise cherrypy.HTTPError( 400, "The contolleur is disable in configuration file")
+
           if not self.ipfilter():
                # 403.6 - IP address rejected.
                raise cherrypy.HTTPError(status=403)
+
+          if isinstance( self.requestsallowed, dict ):
+               # read the request path
+               path = cherrypy.request.path_info
+               arg = path.split('/')
+               if len( arg ) < 3 : 
+                    # the min value is 3
+                    self.logger.error( 'request is denied' )
+                    raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
+
+               # read example
+               # 'getdesktopdescription' from str '/composer/getdesktopdescription'
+               request_info = arg[2]
+               # check if method is allowed in config file
+               is_allowed = self.requestsallowed.get( request_info )
+
+               # if is_allowed is None, do not raise Error
+               if is_allowed is False :
+                    self.logger.error( 'request is denied' )
+                    raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
 
      def ipfilter( self ):
           if not isinstance(self.ipnetworklistfilter, list) :
