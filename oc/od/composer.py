@@ -181,7 +181,7 @@ def remove_container_byname(desktop_name: str, container_id:str):
     return myOrchestrator.removeContainerApp(authinfo,userinfo,container_id=container_id)
 
 
-def fakednsquery( record, userid ):
+def fakednsquery( userid ):
 
     ipdaddr = None
     
@@ -199,9 +199,9 @@ def fakednsquery( record, userid ):
     
     desktop_interfaces = myDesktop.desktop_interfaces
     if not isinstance( desktop_interfaces, dict ):
-        return None
+        return None # or myDesktop.ipAddr
     
-    # read the ip value of remappded name of 'externalipaddr'
+    # read the ip value of remappded name of dnsinterface_name
     interface = desktop_interfaces.get( dnsinterface_name )
     if isinstance( interface, dict ):
         ipdaddr = interface.get('ips')
@@ -235,7 +235,7 @@ def getdesktopdescription( authinfo, userinfo ):
     if isinstance( interface, dict ):
         description['internalip'] = interface.get('ips')
     description['sshconfig'] = oc.od.settings.desktopdescription.get('sshconfig')
-    
+
     return description
 
 def logdesktop( authinfo, userinfo ):
