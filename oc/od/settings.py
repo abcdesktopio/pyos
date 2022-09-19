@@ -491,7 +491,7 @@ def init_websocketrouting():
   
 def init_fakedns():
     global fakedns
-    fakedns = gconfig.get('fakedns', { 'enable': False, 'interfacename': 'eth0' } )
+    fakedns = gconfig.get('fakedns', { 'interfacename': 'eth0' } )
 
 def init_tls():
     global clienttlskey
@@ -946,7 +946,7 @@ def init():
     # load default menu config
     init_menuconfig()
 
-    # init tipsinfo
+    # init tipsinfo config
     init_tipsinfo()
 
     # load geolocation config
