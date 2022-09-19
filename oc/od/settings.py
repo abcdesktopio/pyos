@@ -753,6 +753,14 @@ def init_controllers():
                                   'StoreController':   { 'wrapped_key': {} } 
                                 } )
 
+    # StoreController config must be a dict
+    if not isinstance( controllers.get('StoreController'), dict ):   
+         controllers['StoreController'] = { 'wrapped_key': {} }
+
+    # ManagerController config must be a dict
+    if not isinstance( controllers.get('ManagerController'), dict ):   
+         controllers['ManagerController'] = { 'permitip':    [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8', '169.254.0.0/16', '127.0.0.0/8' ] }
+
     if desktop['environmentlocal'].get('SET_DEFAULT_COLOR'):
         # wrapper for StoreController key value
         # config use default 'color'  
