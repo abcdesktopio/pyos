@@ -28,6 +28,7 @@ from oc.od.services import services
 import oc.od.composer 
 from oc.lib import removeCookie
 import oc.od.settings
+import json
 
 
 
@@ -488,7 +489,7 @@ class AuthController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def logmein(self, provider=None, userid=None ):
+    def logmein(self, provider=None, userid=None, format='html' ):
 
         ipsource = getclientipaddr()
         self.logger.debug('logmein request from ip source %s', ipsource)
@@ -561,10 +562,19 @@ class AuthController(BaseController):
         oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
 
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles  )
-        oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
-        cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
-        cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
-        return oauth_html_refresh_page
+        if format == 'json':
+            cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
+            jwt_user = { 'jwt_user_token': jwt_user_token }
+            result_jwt = Results.success( 'login success', result=jwt_user)
+            # convert result_jwt as str
+            result_str = json.dumps( result_jwt ) + '\n'
+            # encode with charset=utf-8
+            return result_str.encode('utf-8')
+        else:
+            oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
+            cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
+            cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
+            return oauth_html_refresh_page
 
 
     def checkloginresponseresult( self, response, msg='login' ):
