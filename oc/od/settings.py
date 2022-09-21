@@ -67,101 +67,9 @@ desktopdescription = {} # define a network interface name mapping
 
 ENV_PREFIX_LABEL_NAME = "ABCDESKTOP_LABEL_"
 
-DEFAULT_PASSWD_FILE = "\
-root:x:0:0:root:/root:/bin/bash\n\
-daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n\
-bin:x:2:2:bin:/bin:/usr/sbin/nologin\n\
-sys:x:3:3:sys:/dev:/usr/sbin/nologin\n\
-sync:x:4:65534:sync:/bin:/bin/sync\n\
-games:x:5:60:games:/usr/games:/usr/sbin/nologin\n\
-man:x:6:12:man:/var/cache/man:/usr/sbin/nologin\n\
-lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin\n\
-mail:x:8:8:mail:/var/mail:/usr/sbin/nologin\n\
-news:x:9:9:news:/var/spool/news:/usr/sbin/nologin\n\
-uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin\n\
-proxy:x:13:13:proxy:/bin:/usr/sbin/nologin\n\
-www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin\n\
-backup:x:34:34:backup:/var/backups:/usr/sbin/nologin\n\
-list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin\n\
-irc:x:39:39:ircd:/var/run/ircd:/usr/sbin/nologin\n\
-gnats:x:41:41:Gnats Bug-Reporting System (admin):/var/lib/gnats:/usr/sbin/nologin\n\
-nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n\
-_apt:x:100:65534::/nonexistent:/usr/sbin/nologin\n\
-messagebus:x:101:102::/nonexistent:/usr/sbin/nologin\n\
-pulse:x:102:104:PulseAudio daemon,,,:/var/run/pulse:/usr/sbin/nologin\n\
-sshd:x:4095:65534::/run/sshd:/usr/sbin/nologin"
-
-
-DEFAULT_SHADOW_FILE = "\
-root:*:19020:0:99999:7:::\n\
-daemon:*:19020:0:99999:7:::\n\
-bin:*:19020:0:99999:7:::\n\
-sys:*:19020:0:99999:7:::\n\
-sync:*:19020:0:99999:7:::\n\
-games:*:19020:0:99999:7:::\n\
-man:*:19020:0:99999:7:::\n\
-lp:*:19020:0:99999:7:::\n\
-mail:*:19020:0:99999:7:::\n\
-news:*:19020:0:99999:7:::\n\
-uucp:*:19020:0:99999:7:::\n\
-proxy:*:19020:0:99999:7:::\n\
-www-data:*:19020:0:99999:7:::\n\
-backup:*:19020:0:99999:7:::\n\
-list:*:19020:0:99999:7:::\n\
-irc:*:19020:0:99999:7:::\n\
-gnats:*:19020:0:99999:7:::\n\
-nobody:*:19020:0:99999:7:::\n\
-_apt:*:19020:0:99999:7:::\n\
-sshd:*:17987:0:99999:7:::\n\
-messagebus:*:19040:0:99999:7:::\n\
-pulse:*:19041:0:99999:7:::"
-
-DEFAULT_GROUP_FILE="\
-root:x:0:\n\
-daemon:x:1:\n\
-bin:x:2:\n\
-sys:x:3:\n\
-adm:x:4:\n\
-tty:x:5:\n\
-disk:x:6:\n\
-lp:x:7:\n\
-mail:x:8:\n\
-news:x:9:\n\
-uucp:x:10:\n\
-man:x:12:\n\
-proxy:x:13:\n\
-kmem:x:15:\n\
-dialout:x:20:\n\
-fax:x:21:\n\
-voice:x:22:\n\
-cdrom:x:24:\n\
-floppy:x:25:\n\
-tape:x:26:\n\
-sudo:x:27:balloon\n\
-audio:x:29:pulse\n\
-dip:x:30:\n\
-www-data:x:33:\n\
-backup:x:34:\n\
-operator:x:37:\n\
-list:x:38:\n\
-irc:x:39:\n\
-src:x:40:\n\
-gnats:x:41:\n\
-shadow:x:42:\n\
-utmp:x:43:\n\
-video:x:44:\n\
-sasl:x:45:\n\
-plugdev:x:46:\n\
-staff:x:50:\n\
-games:x:60:\n\
-users:x:100:\n\
-nogroup:x:65534:\n\
-lpadmin:x:101:root,balloon\n\
-messagebus:x:102:\n\
-ssl-cert:x:103:\n\
-pulse:x:104:\n\
-pulse-access:x:105:\n\
-ssh:x:4095:"
+DEFAULT_PASSWD_FILE = ''
+DEFAULT_SHADOW_FILE = ''
+DEFAULT_GROUP_FILE  = ''
 
 # prelogin
 prelogin = {}
@@ -266,49 +174,73 @@ ABCDESKTOP_CURRENT_RELEASE = 'dev'
 DEFAULT_IMAGE_TAG = ABCDESKTOP_CURRENT_RELEASE
 
 DEFAULT_DESKTOP_POD_CONFIG = {
-       'graphical' : { 'image': 'abcdesktopio/oc.user.18.04:' + DEFAULT_IMAGE_TAG,
+    'graphical' :   {   'image': 'abcdesktopio/oc.user.kubernetes.18.04:' + DEFAULT_IMAGE_TAG,
+                        'tcpport': 6081,
                         'pullpolicy':  'IfNotPresent',
                         'enable': True,
                         'acl':  { 'permit': [ 'all' ] },
                         'secrets_requirement' : [ 'abcdesktop/vnc', 'abcdesktop/kerberos' ],
                         'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port',
                         'resources': { 'requests': { 'memory': "320Mi",   'cpu': "250m" },  'limits'  : { 'memory': "1Gi",    'cpu': "1000m" } }
-                        # 'securityContext': {  'allowPrivilegeEscalation': True,
-                        #                        'capabilities': { 
-                        #                            'add':  ["SYS_ADMIN", "SYS_PTRACE"], 
-                        #                            'drop': None 
-                        #                        }
-                        # } 
-        },
-        'printer' :   { 'image': 'abcdesktopio/oc.cupsd.18.04:' + DEFAULT_IMAGE_TAG,
+                            # 'securityContext': {  'allowPrivilegeEscalation': True,
+                            #                        'capabilities': { 
+                            #                            'add':  ["SYS_ADMIN", "SYS_PTRACE"], 
+                            #                            'drop': None 
+                            #                        }
+                            # } 
+    },
+    'spawner' :    {    'enable': True,
+                        'tcpport': 29786,
+                        'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port',
+                        'healtzbin': '/usr/bin/curl',
+                        'acl':  { 'permit': [ 'all' ] } 
+    },
+    'broadcast' :  {    'enable': True,
+                        'tcpport': 29784,
+                        'acl':  { 'permit': [ 'all' ] } 
+    },
+    'webshell' :   {    'enable': True,
+                        'tcpport': 29781,
+                        'acl':  { 'permit': [ 'all' ] } 
+    },
+    'printer' :    {    'image': 'abcdesktopio/oc.cupsd.18.04:' + DEFAULT_IMAGE_TAG,
+                        'tcpport': 681,
                         'pullpolicy': 'IfNotPresent',
                         'enable': True,
                         'resources': { 'requests': { 'memory': "64Mi",    'cpu': "125m" },  'limits'  : { 'memory': "512Mi",  'cpu': "500m"  } },
                         'acl':  { 'permit': [ 'all' ] } 
-        },
-        'filer' :     { 'image': 'abcdesktopio/oc.filer:' + DEFAULT_IMAGE_TAG,
+    },
+    'printerfile':  {   'enable': True,
+                        'tcpport': 29782,
+                        'acl':  { 'permit': [ 'all' ] } 
+    },
+    'filer' :       {   'image': 'abcdesktopio/oc.filer:' + DEFAULT_IMAGE_TAG,
+                        'tcpport': 29783,
                         'pullpolicy':  'IfNotPresent',
                         'enable': True,
                         'acl':  { 'permit': [ 'all' ] } 
-        },
-        'storage' :   { 'image': 'abcdesktopio/pause:' + DEFAULT_IMAGE_TAG,
+    },
+    'storage' :     {   'image': 'abcdesktopio/pause:' + DEFAULT_IMAGE_TAG,
                         'pullpolicy':  'IfNotPresent',
                         'enable': True,
                         'acl':   { 'permit': [ 'all' ] },
                         'resources': { 'requests': { 'memory': "32Mi",    'cpu': "100m" },  'limits'  : { 'memory': "128Mi",  'cpu': "250m"  } }
-        },
-        'sound':      { 'image': 'abcdesktopio/oc.pulseaudio.18.04:' + DEFAULT_IMAGE_TAG,
+    },
+    'sound':        {   'image': 'abcdesktopio/oc.pulseaudio.18.04:' + DEFAULT_IMAGE_TAG,
+                        'tcpport': 4714,
                         'pullpolicy': 'IfNotPresent',
                         'enable': True,
                         'acl':  { 'permit': [ 'all' ] },
                         'resources': { 'requests': { 'memory': "8Mi",     'cpu': "50m"  },  'limits'  : { 'memory': "64Mi",   'cpu': "250m"  } } 
-        },
-        'init':       { 'image': 'busybox',
+    },
+    'init':         {   'image': 'busybox',
                         'enable': True,
                         'pullpolicy':  'IfNotPresent',
                         'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
-        } 
+    } 
 }
+
+
 
 def getballoon_name():
     return balloon_name
@@ -345,6 +277,15 @@ def getFQDN(hostname):
 
 def getbase_url(hostname):
     return 'tcp://' + getFQDN(hostname) + ':' + str(defaultdockertcpport)
+
+def init_localaccount():
+    global DEFAULT_PASSWD_FILE
+    global DEFAULT_GROUP_FILE
+    global DEFAULT_SHADOW_FILE
+    DEFAULT_PASSWD_FILE = loadfile('passwd')
+    DEFAULT_GROUP_FILE = loadfile('group')
+    DEFAULT_SHADOW_FILE = loadfile('shadow')
+
 
 def init_webrtc():
     """Read webrtc configuration file
@@ -903,6 +844,20 @@ def init_locales():
 def init_config_logging():
     pass
 
+def loadfile(filename:str)->str:
+    """loadfile
+
+    Args:
+        filename (str): name of file
+
+    Returns:
+        str: file content
+    """
+    filepath = os.path.normpath( filename )
+    f = open(filepath, 'r')
+    data = f.read()
+    f.close()
+    return data
 
 def make_b64data_from_iconfile(filename):
     """make_b64data_from_iconfile
@@ -935,26 +890,29 @@ def init_dock():
 def get_default_appdict():
     return dock
 
-def load():    
+def load_config():    
     global config
     global gconfig
 
     configpath = os.environ.get('OD_CONFIG_PATH', defaultConfigurationFilename)
-    logger.info("Loading configuration file '%s'" % configpath)
+    logger.info(f"Loading configuration file {configpath}")
     try:
-        if os.path.getsize(configpath) < 64 : # configuration file must always be more than 64 bytes
-            raise Exception('Invalid configuration file size')
-
         config = Config(configpath)
         gconfig = config.get('global', {}) # = cherrypy.gconfig 
     except Exception as e:
-        logger.error('Failed to load %s: %s', configpath, e)
+        logger.error(f"Failed to load configuration file {configpath} {e}")
         exit(-1)           
 
 
 def init():
-    logger.info('Init configuration --- ')
-    load() 
+    logger.info('Init configuration start')
+
+    # load config file od.config
+    # use global config and gconfig
+    load_config() 
+
+    # load passwd, group, shadow file
+    init_localaccount()
 
     # load default menu config
     init_menuconfig()
