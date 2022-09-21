@@ -400,7 +400,7 @@ class ODOrchestratorBase(object):
             if bListen['x11server'] is False:
                 messageinfo = 'Starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
-                bListen['x11server'] = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['graphical'].get('tcpport') )
+                bListen['x11server'] = self.waitForServiceListening( desktop, service='graphical' )
                 self.logger.info('service:x11server return %s', str(bListen['x11server']))
                 nCount += 1
 
@@ -408,7 +408,7 @@ class ODOrchestratorBase(object):
             if bListen['spawner'] is False:
                 messageinfo = 'Starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
-                bListen['spawner']  = self.waitForServiceListening( desktop, port=oc.od.settings.desktop_pod['spawner'].get('tcpport') )
+                bListen['spawner']  = self.waitForServiceListening( desktop, service='spawner' )
                 self.logger.info('service:spawner return %s', str(bListen['spawner']))  
                 nCount += 1
 
@@ -424,8 +424,36 @@ class ODOrchestratorBase(object):
 
         return False
 
+
+    def waitForServiceHealtz(self, desktop, service, timeout=1000):
+        '''    waitForServiceListening tcp port '''
+        self.logger.info('')
+        # Note the same timeout value is used twice
+        # for the wait_port command and for the exec command         
+        
+        if type(desktop) is not ODDesktop:
+            raise ValueError('invalid desktop object type' )
+
+        if not isinstance( oc.od.settings.desktop_pod[service].get('healtzbin'), str):
+            # no healtz binary command has been set
+            # no need to run command
+            return True
+        
+        port = port=oc.od.settings.desktop_pod[service].get('tcpport')
+        binding = f"http://{desktop.ipAddr}:{port}/{service}/healtz"
+        # ccurl --max-time 1 https://example.com/
+        command = [ oc.od.settings.desktop_pod[service].get('healtzbin'), '--max-time', str(timeout), binding ]       
+        result = self.execwaitincontainer( desktop, command, timeout)
+        self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
+     
+
+        if isinstance(result, dict):
+            return result.get('ExitCode') == 0
+        else:
+            return False
+
       
-    def waitForServiceListening(self, desktop, port, timeout=1000):     
+    def waitForServiceListening(self, desktop, service, timeout=1000):     
         '''    waitForServiceListening tcp port '''
         self.logger.info('')
         # Note the same timeout value is used twice
@@ -434,13 +462,17 @@ class ODOrchestratorBase(object):
         if type(desktop) is not ODDesktop:
             raise ValueError('invalid desktop object type' )
         
+        port = port=oc.od.settings.desktop_pod[service].get('tcpport')
         binding = '{}:{}'.format(desktop.ipAddr, str(port))
-        command = [ oc.od.settings.desktop_pod['graphical'].get('waitportbin'), '-t', str(timeout), binding ]       
+        command = [ oc.od.settings.desktop_pod[service].get('waitportbin'), '-t', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
         self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
      
         if isinstance(result, dict):      
-            return result.get('ExitCode') == 0
+            isportready = result.get('ExitCode') == 0
+            if isportready is True:
+                self.logger.debug( f"{binding} is up")
+                return self.waitForServiceHealtz(desktop, service, timeout)
         else:
             return False
 
