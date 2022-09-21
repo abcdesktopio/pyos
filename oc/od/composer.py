@@ -205,7 +205,7 @@ def fakednsquery( userid ):
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
         logger.debug( f"findDesktopByUser {userid} return not found" )
         return None
-    
+
     desktop_interfaces = myDesktop.desktop_interfaces
     if not isinstance( desktop_interfaces, dict ):
         logger.debug( f"desktop has no desktop_interfaces desktop_interfaces={desktop_interfaces}" )
