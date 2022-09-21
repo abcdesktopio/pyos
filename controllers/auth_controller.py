@@ -438,7 +438,7 @@ class AuthController(BaseController):
             self.logger.error('prelogin_html fetch {services.prelogin.prelogin_url} failed')
             raise cherrypy.HTTPError(400, 'Configuration file error, prelogin url fetch failed')
 
-        cherrypy.response.headers['Cache-Control'] = 'no-cache'
+        cherrypy.response.headers['Cache-Control'] = 'No-Store'
         cherrypy.response.headers['Content-Type'] = 'text/html;charset=utf-8'
         return html_data.encode('utf-8')
 
@@ -573,6 +573,7 @@ class AuthController(BaseController):
         else:
             oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
             cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
+            cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
             cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
             return oauth_html_refresh_page
 
