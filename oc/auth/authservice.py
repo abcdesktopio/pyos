@@ -1583,7 +1583,7 @@ class ODExplicitAuthManager(ODAuthManagerBase):
         """
         # if domain is defined then create an active directory auth provider 
         # else create a LDAP auth provider
-
+        self.logger.debug( locals() )
         provider = None 
         if self.isActiveDirectory( config ):
             provider = ODAdAuthProvider(self, name, config)
@@ -1638,6 +1638,7 @@ class ODExplicitMetaAuthManager(ODAuthManagerBase):
         Returns:
             [ODAdAuthMetaProvider]: [ODAdAuthMetaProvider instance]
         """
+        self.logger.debug( locals() )
         return ODAdAuthMetaProvider(self, name, config)
 
 @oc.logging.with_logger()
@@ -1646,6 +1647,7 @@ class ODImplicitAuthManager(ODAuthManagerBase):
         super().__init__(name, config)
 
     def createprovider(self, name, config):
+        self.logger.debug( locals() )
         provider = None
         if config.get('useExplicitIdentityProvider'):
             provider = ODImplicitTLSCLientAdAuthProvider(self, name, config)
