@@ -445,7 +445,6 @@ class ODOrchestratorBase(object):
         command = [ oc.od.settings.desktop_pod[service].get('healtzbin'), '--max-time', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
         self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
-     
 
         if isinstance(result, dict):
             return result.get('ExitCode') == 0
@@ -2653,6 +2652,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             env[ abcdesktopvarenvname ] = v
             labels[k] = v
 
+        for currentcontainertype in self.nameprefixdict.keys() :
+            if self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_SERVICE_NAME + currentcontainertype
+                env[ abcdesktopvarenvname ] = 'enabled'
+    
         # check if we run the desktop in metappli mode or desktop mode
         if type(appname) is str :
             # if appname is set then create a metappli labels
