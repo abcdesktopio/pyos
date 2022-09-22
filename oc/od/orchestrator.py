@@ -2400,6 +2400,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     oc.od.settings.desktop_pod[currentcontainertype].get('enable') == True
         return bReturn
 
+    def getimagecontainerfromauthlabels( self, currentcontainertype, authinfo ):
+        imageforcurrentcontainertype = None
+        image = oc.od.settings.desktop_pod[currentcontainertype].get('image')
+        if isinstance( image, str):
+            imageforcurrentcontainertype = image
+        elif isinstance( image, dict ):
+            imageforcurrentcontainertype = image.get('default')
+            labels = authinfo.get_labels()
+            if isinstance( labels, dict ):
+                for k in labels.keys():
+                    if image.get(k):
+                        imageforcurrentcontainertype=image.get(k)
+                        break
+        return imageforcurrentcontainertype
+
     
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
 
@@ -2789,12 +2804,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # init container chown to change the owner of the home directory
             # init runAsUser 0 (root)
             # to allow chmod 'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )  
             self.logger.debug('pod container creating %s', currentcontainertype )
             securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext',  { 'runAsUser': 0 } )
             self.logger.debug('pod container %s use securityContext %s ', currentcontainertype, securityContext)
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
-                                        'image':            oc.od.settings.desktop_pod[currentcontainertype].get('image'),       
+                                        'image':            image,       
                                         'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
                                         'volumeMounts':     list_volumeMounts,
                                         'env':              envlist,
@@ -2830,6 +2846,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         currentcontainertype = 'graphical'
         self.logger.debug('pod container creating %s', currentcontainertype )
+        image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
         # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2850,7 +2867,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
                 'containers': [ {   'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),
+                                    'image': image,
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'command': command,
                                     'args': args,
@@ -2877,10 +2894,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         for currentcontainertype in [ 'printer', 'sound' ] :
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 self.logger.debug('pod container creating %s', currentcontainertype )
+                image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
-                        'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
+                        'image': image,                                    
                         'env': envlist,
                         'volumeMounts': [ self.default_volumes_mount['tmp'] ],
                         'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
@@ -2893,10 +2911,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'ssh'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
-                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                    
+                                    'image': image,                                    
                                     'env': envlist,
                                     'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
                                     'volumeMounts': list_volumeMounts,
@@ -2921,10 +2940,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # use this volume as homedir to filer service 
             # if homedirvolume  :
             self.logger.debug('pod container creating %s', currentcontainertype )
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
-                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                  
+                                    'image': image,                                  
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                                      
@@ -2936,10 +2956,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'storage'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
-                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'),                                 
+                                    'image': image,                                 
                                     'env': envlist,
                                     'volumeMounts':  list_pod_allvolumeMounts,
                                     'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
@@ -2951,10 +2972,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'rdp'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
-                                    'image': oc.od.settings.desktop_pod[currentcontainertype].get('image'), 
+                                    'image': image, 
                                     'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),                                
                                     'env': envlist,
                                     'volumeMounts':  list_volumeMounts,
