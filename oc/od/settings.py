@@ -66,6 +66,7 @@ desktopdescription = {} # define a network interface name mapping
 # like { 'internalip': 'eth1', 'externalip': 'net2'}
 
 ENV_PREFIX_LABEL_NAME = "ABCDESKTOP_LABEL_"
+ENV_PREFIX_SERVICE_NAME = "ABCDESKTOP_SERVICE_"
 
 DEFAULT_PASSWD_FILE = ''
 DEFAULT_SHADOW_FILE = ''
@@ -76,11 +77,8 @@ prelogin = {}
 
 # logmein
 logmein = {}
-logmein_url_redirect_on_error  = None
-logmein_http_attribut      = None
-logmein_enable             = False
-logmein_network_list       = []
 
+# desktop
 desktop_pod                = {}
 desktop                    = { 'secretsrootdirectory': '/var/secrets/' }
 
