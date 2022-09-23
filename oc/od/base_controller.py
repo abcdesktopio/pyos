@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class BaseController(object):
 
      def __init__( self, config=None):
+          self.enable = True # by default a controller is enabled
           self.config = config
           self.ipnetworklistfilter = None
           self.requestsallowed = None
@@ -120,13 +121,15 @@ class BaseController(object):
           if not isinstance( ipAddr, str):
                ipAddr = getclientipaddr()
           isban = services.fail2ban.isban( ipAddr, collection_name=services.fail2ban.ip_collection_name )
-          self.logger.debug(f"isban {ipAddr} return {isban}")
+          if isban is True:
+               self.logger.info(f"isban {ipAddr} return {isban}")
           return isban
 
      def isban_login( self, login:str):
-          self.logger.debug('')
+          # self.logger.debug('')
           isban =  services.fail2ban.isban( login, collection_name=services.fail2ban.login_collection_name )
-          self.logger.debug(f"isban {login} return {isban}")
+          if isban is True:
+               self.logger.info(f"isban {login} return {isban}")
           return isban
 
      def is_ipsource_private(self):
