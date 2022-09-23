@@ -387,7 +387,7 @@ class ODOrchestratorBase(object):
         return {}
 
     def waitForDesktopProcessReady(self, desktop, callback_notify, nTimeout=42):
-        self.logger.info('')
+        self.logger.debug('')
 
         nCountMax = nTimeout
         # check if supervisor has stated all processs
@@ -419,6 +419,7 @@ class ODOrchestratorBase(object):
                 return True
 
             # wait 0.1    
+            self.logger.debug( 'sleeping for 0.5')
             time.sleep(0.5)
         
         # Can not chack process status     
@@ -429,7 +430,7 @@ class ODOrchestratorBase(object):
 
     def waitForServiceHealtz(self, desktop, service, timeout=100):
         '''    waitForServiceListening tcp port '''
-        self.logger.info('')
+        self.logger.debug('')
         # Note the same timeout value is used twice
         # for the wait_port command and for the exec command         
         
@@ -446,7 +447,7 @@ class ODOrchestratorBase(object):
         # ccurl --max-time 1 https://example.com/
         command = [ oc.od.settings.desktop_pod[service].get('healtzbin'), '--max-time', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
-        self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
+        self.logger.debug( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
 
         if isinstance(result, dict):
             return result.get('ExitCode') == 0
@@ -457,7 +458,7 @@ class ODOrchestratorBase(object):
     def waitForServiceListening(self, desktop, service, timeout=1000):     
         '''    waitForServiceListening tcp port '''
 
-        self.logger.info('')
+        self.logger.debug(locals())
         # Note the same timeout value is used twice
         # for the wait_port command and for the exec command         
         
@@ -482,14 +483,15 @@ class ODOrchestratorBase(object):
         command = [ oc.od.settings.desktop_pod[service].get('waitportbin'), '-t', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
      
-        if isinstance(result, dict):      
-            self.logger.debug( f"command {command} return { result.get('exit_code') } output { result.get('stdout') }" )
+        if isinstance(result, dict):
+            self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
             isportready = result.get('ExitCode') == 0
+            self.logger.debug( f"isportready={isportready}")
             if isportready is True:
-                self.logger.debug( f"{binding} is up")
+                self.logger.debug( f"binding {binding} is up")
                 return self.waitForServiceHealtz(desktop, service, timeout)
 
-        self.logger.debug( f"{binding} is down")
+        self.logger.debug( f"binding {binding} is down")
         return False
 
     @staticmethod
@@ -1857,11 +1859,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # {"metadata":{},"status":"Success"}
             if isinstance(respdict, dict):
                 # status = Success or ExitCode = ExitCode
-                if respdict.get('status') == 'Success':
-                    result['ExitCode'] = 0
                 exit_code = respdict.get('ExitCode')
-                if exit_code is not None:
+                if isinstance( exit_code, int):
                     result['ExitCode'] = exit_code
+                else:
+                    if respdict.get('status') == 'Success':
+                        result['ExitCode'] = 0
+
 
         except Exception as e:
             self.logger.error( 'command exec failed %s', str(e)) 
