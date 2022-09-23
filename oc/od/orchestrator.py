@@ -396,6 +396,7 @@ class ODOrchestratorBase(object):
         # loop
         # wait for a listen dict { 'x11server': True, 'spawner': True }
         while nCount < 42:
+            self.logger.debug( f"desktop services status bListen {bListen}" ) 
             # check if WebSockifyListening id listening on tcp port 6081
             if bListen['x11server'] is False:
                 messageinfo = 'Starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
@@ -411,13 +412,14 @@ class ODOrchestratorBase(object):
                 bListen['spawner']  = self.waitForServiceListening( desktop, service='spawner' )
                 self.logger.info('service:spawner return %s', str(bListen['spawner']))  
                 nCount += 1
-
-            if bListen['x11server'] is True and bListen['spawner'] is True:                       
+            
+            if bListen['x11server'] is True and bListen['spawner'] is True:     
+                self.logger.debug( "desktop services are ready" )                  
                 callback_notify('Desktop services are ready after %d s' % (nCount) )              
                 return True
 
-            # wait one second    
-            time.sleep(1)
+            # wait 0.1    
+            time.sleep(0.5)
         
         # Can not chack process status     
         self.logger.warning('waitForDesktopProcessReady not ready services status: %s', bListen )
@@ -425,7 +427,7 @@ class ODOrchestratorBase(object):
         return False
 
 
-    def waitForServiceHealtz(self, desktop, service, timeout=1000):
+    def waitForServiceHealtz(self, desktop, service, timeout=100):
         '''    waitForServiceListening tcp port '''
         self.logger.info('')
         # Note the same timeout value is used twice
@@ -454,26 +456,41 @@ class ODOrchestratorBase(object):
       
     def waitForServiceListening(self, desktop, service, timeout=1000):     
         '''    waitForServiceListening tcp port '''
+
         self.logger.info('')
         # Note the same timeout value is used twice
         # for the wait_port command and for the exec command         
         
         if type(desktop) is not ODDesktop:
             raise ValueError('invalid desktop object type' )
+
+        waitportbincommand = oc.od.settings.desktop_pod[service].get('waitportbin')
+        if not isinstance( waitportbincommand, str):
+            # no healtz binary command has been set
+            # no need to run command
+            self.logger.error(f"error in configuration file 'waitportbin' must be a string. Type read in config {type(waitportbincommand)}" )
+            raise oc.od.infra.ODAPIError( f"error in configuration file 'waitportbin' must be a string defined as healtz command line. type defined {type(waitportbincommand)}" )
         
-        port = port=oc.od.settings.desktop_pod[service].get('tcpport')
+        port = oc.od.settings.desktop_pod[service].get('tcpport')
+        if not isinstance( port, int):
+            # no healtz binary command has been set
+            # no need to run command
+            self.logger.error(f"error in configuration file 'tcpport' must be a int. Type read in config {type(port)}" )
+            raise oc.od.infra.ODAPIError( f"error in configuration file 'tcpport' must be a int. Type read in config {type(port)}" )
+        
         binding = '{}:{}'.format(desktop.ipAddr, str(port))
         command = [ oc.od.settings.desktop_pod[service].get('waitportbin'), '-t', str(timeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
-        self.logger.info( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
      
         if isinstance(result, dict):      
+            self.logger.debug( f"command {command} return { result.get('exit_code') } output { result.get('stdout') }" )
             isportready = result.get('ExitCode') == 0
             if isportready is True:
                 self.logger.debug( f"{binding} is up")
                 return self.waitForServiceHealtz(desktop, service, timeout)
-        else:
-            return False
+
+        self.logger.debug( f"{binding} is down")
+        return False
 
     @staticmethod
     def generate_xauthkey():
