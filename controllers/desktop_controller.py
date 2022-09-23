@@ -15,6 +15,7 @@
 import logging
 import oc.logging
 import cherrypy
+import json
 from oc.od.services import services
 from oc.cherrypy import Results
 from oc.od.base_controller import BaseController
@@ -36,6 +37,23 @@ class DesktopController(BaseController):
             # by default dns is denied if it is not explicit allowed
             self.overwrite_requestpermission_ifnotset( 'dns', False )
 
+
+    def handler_dns_json(self, dns):
+        cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
+        data = { 'ipaddr': dns }
+        # convert data as str
+        result_str = json.dumps( data ) + '\n'
+        # encode with charset=utf-8
+        return result_str.encode('utf-8')
+
+    def handler_dns_text(self, dns):
+        cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=utf-8'
+        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        result_str = dns + '\n'
+        return result_str.encode('utf-8')
+
+
+
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['GET'])
     def dns( self, *args ):
@@ -49,7 +67,11 @@ class DesktopController(BaseController):
             raise cherrypy.HTTPError( 401, f"The request attribut {self.http_header_name_authkey} is not authentified" )
 
         if cherrypy.request.method == 'GET':
-            return self.handle_networkinginterfaces_GET( args )
+            dnsvalue =  self.handle_networkinginterfaces_GET( args )
+            routecontenttype = {    'text/plain':  self.handler_dns_text,
+                                    'application/json': self.handler_dns_json }
+            orderedcontenttypelist = [ 'text/plain', 'application/json' ]
+            return self.getlambdaroute( routecontenttype, orderedcontenttypelist )( dnsvalue )
         else:
             raise cherrypy.HTTPError( 400, f"The request methot {cherrypy.request.method} not implemented" ) 
 
@@ -67,7 +89,8 @@ class DesktopController(BaseController):
             raise cherrypy.HTTPError( 400, "Invalid request") 
 
         # can raise exception
-        fakednsvalue = oc.od.composer.fakednsquery( userid )
+        #fakednsvalue = oc.od.composer.fakednsquery( userid )
+        fakednsvalue = '127.0.0.1'
         if not isinstance(fakednsvalue, str):
              raise cherrypy.HTTPError( 404, "Not found") 
 

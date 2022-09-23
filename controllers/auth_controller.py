@@ -11,7 +11,6 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-
 import logging
 import cherrypy
 import chevron
@@ -486,10 +485,33 @@ class AuthController(BaseController):
         return oauth_html_refresh_page
 
 
+    def handler_logmein_json(self, jwt_user_token):
+        cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
+        jwt_user = { 'jwt_user_token': jwt_user_token }
+        result_jwt = Results.success( 'login success', result=jwt_user)
+        # convert result_jwt as str
+        result_str = json.dumps( result_jwt ) + '\n'
+        # encode with charset=utf-8
+        return result_str.encode('utf-8')
+
+    def handler_logmein_html(self,jwt_user_token):
+        oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
+        cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
+        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
+        return oauth_html_refresh_page 
+
+    def handler_logmein_text(self, jwt_desktop):
+        cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=utf-8'
+        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        result_str = jwt_desktop + '\n'
+        return result_str.encode('utf-8')
+
+
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def logmein(self, provider=None, userid=None, format='html' ):
+    def logmein(self, provider=None, userid=None, format='deprecated' ):
 
         ipsource = getclientipaddr()
         self.logger.debug('logmein request from ip source %s', ipsource)
@@ -562,20 +584,13 @@ class AuthController(BaseController):
         oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
 
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles  )
-        if format == 'json':
-            cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
-            jwt_user = { 'jwt_user_token': jwt_user_token }
-            result_jwt = Results.success( 'login success', result=jwt_user)
-            # convert result_jwt as str
-            result_str = json.dumps( result_jwt ) + '\n'
-            # encode with charset=utf-8
-            return result_str.encode('utf-8')
-        else:
-            oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
-            cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
-            cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
-            cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
-            return oauth_html_refresh_page
+
+        routecontenttype = {    'text/html': self.handler_logmein_html, 
+                                'application/json': self.handler_logmein_json,
+                                'text/plain':  self.handler_logmein_text }
+        orderedcontenttypelist = [ 'text/html', 'application/json', 'text/plain' ]
+
+        return self.getlambdaroute( routecontenttype, orderedcontenttypelist )( jwt_user_token )
 
 
     def checkloginresponseresult( self, response, msg='login' ):
