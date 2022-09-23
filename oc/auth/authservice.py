@@ -25,6 +25,7 @@ import requests
 import json
 import crypt
 import datetime
+import re
 
 
 from ldap import filter as ldap_filter
@@ -471,7 +472,8 @@ class ODAuthTool(cherrypy.Tool):
             self.logger.debug( f"current http request build cached odauthcache" ) 
             cherrypy.request.odauthcache = self.parse_auth_request()    
         else:
-            self.logger.debug( f"current http request has cached odauthcache" )            
+            # self.logger.debug( f"current http request has cached odauthcache" ) 
+            pass           
         return cherrypy.request.odauthcache 
 
     @property
@@ -1688,12 +1690,25 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.default_user_if_not_exist = config.get('defaultuser', 'balloon' )
         self.default_passwd_if_not_exist = config.get('defaultpassword', 'lmdpocpetit' )
         self.auth_protocol = config.get('auth_protocol', { 'localaccount': False } )
+        self.regexp_validatation_dict = { 
+            'userid': { 
+                'regexp' : r"(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?",
+                'message': "userid consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character. regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')"
+             }
+        }
        
     def authenticate(self, **params):
         raise NotImplementedError()
 
     def getuserinfo(self, authinfo, **params):
         raise NotImplementedError()
+
+    def regexp_validadation( self, data, key  ):
+        regexp = self.regexp_validatation_dict.get(key)
+        pat = re.compile( regexp.get('regexp') )
+        match = re.fullmatch(pat, data)
+        if not match:
+            raise AuthenticationError( message= regexp.get('message') )
 
     def getclientdata(self):
         """getclientdata
@@ -1877,6 +1892,8 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         return user
 
     def authenticate(self, userid=None, password=None, **params):
+        if isinstance(userid,str):
+            self.regexp_validadation( userid, 'userid' )
         claims =  { 'environment': self.createauthenv(userid, password) }
         data = { 'userid': userid }
         authinfo = AuthInfo( provider=self.name, providertype=self.type, claims=claims, token=userid, data=data)
