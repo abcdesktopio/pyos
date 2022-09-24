@@ -89,8 +89,7 @@ class DesktopController(BaseController):
             raise cherrypy.HTTPError( 400, "Invalid request") 
 
         # can raise exception
-        #fakednsvalue = oc.od.composer.fakednsquery( userid )
-        fakednsvalue = '127.0.0.1'
+        fakednsvalue = oc.od.composer.fakednsquery( userid )
         if not isinstance(fakednsvalue, str):
              raise cherrypy.HTTPError( 404, "Not found") 
 
