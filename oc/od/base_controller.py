@@ -56,10 +56,13 @@ class BaseController(object):
           """
 
           # read 'Content-Type' header
-          request_content_type = cherrypy.request.headers.get('Content-Type')
+          request_header_content_type = cherrypy.request.headers.get('Content-Type')
           # get lambda_route use self.handler_logmein_html if not match
-          if isinstance(request_content_type, str):
-               request_content_type = request_content_type.lower()
+          if isinstance(request_header_content_type, str):
+               # example
+               # split( 'text/plain;charset=UTF-8' )
+               request_content_type = request_header_content_type.split(';')[0].lower()
+               # request_content_type = 'text/plain' in lower case
                lambda_route = routecontenttype.get( request_content_type )
                if lambda_route : 
                     return lambda_route
