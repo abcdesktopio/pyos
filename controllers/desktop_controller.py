@@ -66,6 +66,8 @@ class DesktopController(BaseController):
         if query_authname != self.dns_http_auth_key:
             raise cherrypy.HTTPError( 401, f"The request attribut {self.http_header_name_authkey} is not authentified" )
 
+        #
+        # application/json  mime type is defines in RFC 4627
         if cherrypy.request.method == 'GET':
             dnsvalue =  self.handle_networkinginterfaces_GET( args )
             routecontenttype = {    'text/plain':  self.handler_dns_text,

@@ -71,11 +71,15 @@ def api_build_error(status, message, traceback, version):
     if isinstance(ex, oc.cherrypy.WebAppError):
         cherrypy.response.status = ex.status
         result = ex.to_dict()
+        log_result = result
     else:
-        result = { 'status': cherrypy.response.status, 'status_message':status, 'message':message }
-
+        result = { 'status': cherrypy.response.status,  'message':message }
+        log_result = { 'status': cherrypy.response.status,  'message':message, 'traceback':str(traceback), 'version':version }
+    if cherrypy.config.get('tools.log_full.on'):
+        logger.info( log_result )
+    build_error = json.dumps( result ) + '\n'
     cherrypy.response.headers['Content-Type'] = 'application/json'
-    return cherrypy._json.encode(result)
+    return build_error.encode('utf-8')
 
 
 
@@ -160,15 +164,15 @@ class API(object):
         if hasattr(cherrypy.response, 'notrace'):
             return
 
-        message  = ''
-        if hasattr(cherrypy.request, 'result'):
-            message = cherrypy.request.result 
-        else:
-            message = cherrypy.response.body
+        message = b''
+        if isinstance( cherrypy.response.body, list):
+            for m in cherrypy.response.body:
+                message = message + m.rstrip(b' ')
+            message = message.rstrip(b' \n')
 
-        # drop message too long
-        # OSError: [Errno 90] Message too long
         if isinstance( message, str):
+            # drop message too long
+            # OSError: [Errno 90] Message too long
             message = message[:4096] # suppose to be 4096
 
         # message = message.encode("ascii","ignore")
