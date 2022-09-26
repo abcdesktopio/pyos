@@ -357,8 +357,9 @@ class AuthController(BaseController):
             (auth, user ) = self.validate_env()
 
             # build a login dict arg object with provider set to AD
-            args_login = {  'userid'  : user.userid,
-                            'password': password
+            args_login = {  
+                'userid'  : user.userid,
+                'password': password
             }
 
             response = services.auth.su( source_provider_name=auth.provider, arguments=args_login)  
