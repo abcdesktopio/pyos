@@ -70,10 +70,11 @@ class DesktopController(BaseController):
         # application/json  mime type is defines in RFC 4627
         if cherrypy.request.method == 'GET':
             dnsvalue =  self.handle_networkinginterfaces_GET( args )
-            routecontenttype = {    'text/plain':  self.handler_dns_text,
-                                    'application/json': self.handler_dns_json }
-            orderedcontenttypelist = [ 'text/plain', 'application/json' ]
-            return self.getlambdaroute( routecontenttype, orderedcontenttypelist )( dnsvalue )
+            routecontenttype = {
+                'text/plain':  self.handler_dns_text,
+                'application/json': self.handler_dns_json 
+            }
+            return self.getlambdaroute( routecontenttype, defaultcontenttype='application/json' )( dnsvalue )
         else:
             raise cherrypy.HTTPError( 400, f"The request methot {cherrypy.request.method} not implemented" ) 
 

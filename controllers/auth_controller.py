@@ -586,12 +586,13 @@ class AuthController(BaseController):
 
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles  )
 
-        routecontenttype = {    'text/html': self.handler_logmein_html, 
-                                'application/json': self.handler_logmein_json,
-                                'text/plain':  self.handler_logmein_text }
-        orderedcontenttypelist = [ 'text/html', 'application/json', 'text/plain' ]
+        routecontenttype = {    
+            'text/html': self.handler_logmein_html, 
+            'application/json': self.handler_logmein_json,
+            'text/plain':  self.handler_logmein_text 
+        }
 
-        return self.getlambdaroute( routecontenttype, orderedcontenttypelist )( jwt_user_token )
+        return self.getlambdaroute( routecontenttype, defaultcontenttype='text/html' )( jwt_user_token )
 
 
     def checkloginresponseresult( self, response, msg='login' ):
