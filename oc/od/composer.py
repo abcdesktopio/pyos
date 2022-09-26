@@ -80,6 +80,44 @@ def selectOrchestrator(arguments=None):
     return myOrchestrator
 
 
+def securitypoliciesmatchlabel( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
+    assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
+    assert isinstance(authinfo, AuthInfo), f"authinfo is not a AuthInfo {type(authinfo)}"
+    if not isinstance(labels_filter_list, list):
+        return True
+
+    labels_authinfo = authinfo.get_labels().keys()
+    labels_desktop  = desktop.labels.keys()
+    matches = {}
+    for require_label in labels_filter_list:
+        if require_label in labels_authinfo.keys():
+            matches[require_label] = False
+            if require_label in labels_desktop.keys():
+                matches[require_label] =True
+
+    logger.debug( f"checking label matching {matches}" )
+    result = all( matches.values() )
+    return result
+
+def securitypoliciesmatchlabelvalue( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
+    assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
+    assert isinstance(authinfo, AuthInfo), f"authinfo is not a AuthInfo {type(authinfo)}"
+    if not isinstance(labels_filter_list, list):
+        return True
+
+    labels_authinfo = authinfo.get_labels()
+    labels_desktop  = desktop.labels
+    # default matches value
+    # all( {} ) is True
+    matches = {} 
+    for require_label in labels_filter_list:
+        matches[require_label] = labels_authinfo.get(require_label) == labels_desktop.get(require_label)
+        logger.debug( f"match label {require_label} is {matches[require_label] }" )
+
+    result = all( matches.values() )
+    return result
+
+
 def opendesktop(authinfo, userinfo, args ):
     """open a new or return a desktop
     Args:
@@ -104,24 +142,44 @@ def opendesktop(authinfo, userinfo, args ):
     desktop = finddesktop( authinfo, userinfo, app )
     desktoptype = 'desktopmetappli' if app else 'desktop' 
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
-        logger.debug('Warm start, reconnecting to running desktop') 
-        services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop') 
-        # if the desktop exists resume the connection
-        services.accounting.accountex( desktoptype, 'resumed')
-        resumedesktop( authinfo, userinfo ) # update last connection datetime
-    else:
-        # create a new desktop
-        logger.debug( 'Cold start, creating your new desktop' )
-        services.messageinfo.push(userinfo.userid, 'Cold start, creating your new desktop')
-        desktop = createdesktop( authinfo, userinfo, args) 
-        if isinstance( desktop, oc.od.desktop.ODDesktop) :
-            services.accounting.accountex( desktoptype, 'createsucess')
+        # ok we find a desktop
+        # let's check if security policies match the desktop
+        services.messageinfo.push(userinfo.userid, 'Applying labels security policy')
+        # the list of uniq_labels_filter must be the same as the user label
+        if securitypoliciesmatchlabelvalue( desktop, authinfo, oc.od.settings.desktop.get('policies').get('user_uniq_labels')) :
+            logger.debug('Warm start, reconnecting to running desktop') 
+            services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop') 
+            # if the desktop exists resume the connection
+            services.accounting.accountex( desktoptype, 'resumed')
+            resumedesktop( authinfo, userinfo ) # update last connection datetime
+            return desktop
         else:
-            services.accounting.accountex( desktoptype, 'createfailed')
-            logger.error('Cannot create a new desktop') 
-            if isinstance( desktop, str) :
-                return desktop
-            return None
+            # security polcies does not match
+            # delete the current desktop
+            services.messageinfo.push(userinfo.userid, 'Deleting your running desktop. It does not match the security policies')  
+            # only remove the pod, do not delete secret configmap and everythings else
+            removed_desktop = removepodindesktop( authinfo, userinfo )
+            if removed_desktop is True:
+                services.messageinfo.push(userinfo.userid, 'Your desktop is deleted. creating a new on with new security polcies')
+                services.accounting.accountex( desktoptype, 'deletesuccess')
+            else:
+                logger.error(f"Cannot delete desktop {desktop}") 
+                services.accounting.accountex( desktoptype, 'deletefailed')
+                services.messageinfo.push(userinfo.userid, 'Your desktop can not be deleted to apply new security policies')
+                return None 
+    else:
+        services.messageinfo.push(userinfo.userid, 'Cold start, creating your new desktop')
+    # create a new desktop
+    logger.debug( 'Cold start, creating your new desktop' )
+    desktop = createdesktop( authinfo, userinfo, args) 
+    if isinstance( desktop, oc.od.desktop.ODDesktop) :
+        services.accounting.accountex( desktoptype, 'createsuccess')
+    else:
+        services.accounting.accountex( desktoptype, 'createfailed')
+        logger.error('Cannot create a new desktop') 
+        if isinstance( desktop, str) :
+            return desktop
+        return None
             
     return desktop
 
@@ -280,7 +338,6 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     # read the desktop object before removing
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
 
-
     # remove the desktop
     removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
     
@@ -296,6 +353,40 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     
     # remove the desktop
     return removed_desktop
+
+
+def removepodindesktop( authinfo:AuthInfo, userinfo:AuthUser ):
+    """removedesktop
+
+    Args:
+        authinfo (AuthInfo): authentification data
+        userinfo (AuthUser): user data 
+
+    Returns:
+        [bool]: True if the desktop is removed 
+    """
+    myOrchestrator = selectOrchestrator()    
+
+    # webrtc look for the desktop
+    # read the desktop object before removing
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
+
+    # remove the desktop
+    removed_desktop = myOrchestrator.removepodindesktop( authinfo, userinfo )
+    
+    # remove the janus stream
+    if  removed_desktop is True and \
+        isinstance( myDesktop, oc.od.desktop.ODDesktop) and \
+        isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
+        # if myDesktop exists AND webrtc is a ODJanusCluster then 
+        # remove the entry stream to 
+        # - free the listening port on the janus gateway
+        # - free the janus auth token 
+        services.webrtc.destroy_stream( myDesktop.name )
+    
+    # remove the desktop
+    return removed_desktop
+
 
 def finddesktop_quiet( authinfo, userinfo, appname=None ):
 
@@ -605,9 +696,10 @@ def createdesktop( authinfo, userinfo, args  ):
         services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
     else:
         if isinstance( myDesktop, str ):
+            # this is an error message
             messageinfo.push(myDesktop)
         else:
-            messageinfo.push('createDesktop error - myOrchestrator.createDesktop return None')
+            messageinfo.push(f"createDesktop error - myOrchestrator.createDesktop return {type(myDesktop)}")
     return myDesktop
 
 
