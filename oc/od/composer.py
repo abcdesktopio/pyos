@@ -132,15 +132,18 @@ def opendesktop(authinfo, userinfo, args ):
                         'timezone' :    TZ env inside the contianer }
 
     Returns:
-        [ODesktop]: Desktop Object
+        [ODesktop]: Desktop Object if success 
+        [str]: if failed      
     """
-    logger.info('')
+    logger.debug('')
     app = args.get('app')
-    
+    desktoptype = 'desktopmetappli' if app else 'desktop'
+
+    # start a message info 
     services.messageinfo.start(userinfo.userid, 'Looking for your desktop')
     # look for a desktop
     desktop = finddesktop( authinfo, userinfo, app )
-    desktoptype = 'desktopmetappli' if app else 'desktop' 
+   
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
         # ok we find a desktop
         # let's check if security policies match the desktop
@@ -166,20 +169,21 @@ def opendesktop(authinfo, userinfo, args ):
                 logger.error(f"Cannot delete desktop {desktop}") 
                 services.accounting.accountex( desktoptype, 'deletefailed')
                 services.messageinfo.push(userinfo.userid, 'Your desktop can not be deleted to apply new security policies')
-                return None 
+                return 'Your desktop can not be deleted to apply new security policies' 
     else:
         services.messageinfo.push(userinfo.userid, 'Cold start, creating your new desktop')
+    
+    #
+    # desktop is not found or has been deleted to match security policies
     # create a new desktop
+    #
     logger.debug( 'Cold start, creating your new desktop' )
     desktop = createdesktop( authinfo, userinfo, args) 
     if isinstance( desktop, oc.od.desktop.ODDesktop) :
         services.accounting.accountex( desktoptype, 'createsuccess')
     else:
         services.accounting.accountex( desktoptype, 'createfailed')
-        logger.error('Cannot create a new desktop') 
-        if isinstance( desktop, str) :
-            return desktop
-        return None
+        logger.error(f"Cannot create a new desktop return desktop={desktop}")
             
     return desktop
 
@@ -267,7 +271,7 @@ def fakednsquery( userid ):
     desktop_interfaces = myDesktop.desktop_interfaces
     if not isinstance( desktop_interfaces, dict ):
         logger.debug( f"desktop has no desktop_interfaces desktop_interfaces={desktop_interfaces}" )
-        return None # or myDesktop.ipAddr
+        return  myDesktop.ipAddr
     
     # read the ip value of remappded name of dnsinterface_name
     logger.debug( f"dnsinterface_name={dnsinterface_name}" )
