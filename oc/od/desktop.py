@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODDesktop(object):
 
-    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None, storage_container_id=None  ):
+    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None, storage_container_id=None, labels=None, websockettcpport=None  ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
@@ -41,10 +41,12 @@ class ODDesktop(object):
         self._desktop_interfaces    = desktop_interfaces
         self._websocketroute        = websocketroute
         self._websocketrouting      = websocketrouting
+        self._websockettcpport      = websockettcpport
         self._xauthkey              = xauthkey
         self._pulseaudio_cookie     = pulseaudio_cookie
         self._broadcast_cookie      = broadcast_cookie
         self._storage_container_id  = storage_container_id
+        self._labels = labels
 
     # id is the container id in docker mode
     # id is the pod id in kubernetes node
@@ -56,6 +58,10 @@ class ODDesktop(object):
     def id(self, val ):
         self._id = val
 
+    @property
+    def labels(self):
+        return self._labels
+        
     @property
     def name(self):
         return self._name
@@ -130,6 +136,10 @@ class ODDesktop(object):
     @status.setter
     def status(self, val ):
         self._status = val
+
+    @property
+    def websockettcpport(self):
+        return self._websockettcpport
     
     @property
     def ipAddr(self):
@@ -154,7 +164,6 @@ class ODDesktop(object):
     @websocketrouting.setter
     def websocketrouting(self, val):
         self._websocketrouting = val
-
 
     def isRunning(self):
         status = str(self._status)
