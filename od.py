@@ -48,21 +48,23 @@ class APIDispatcher(Dispatcher):
 def api_handle_error():
     ex_type, ex, ex_tb = sys.exc_info()
     
-    status = 0
+    status = 500
     result = None
     if isinstance(ex, oc.cherrypy.WebAppError):
         status = ex.status
         result = ex.to_dict()
     else:
-        status = 500 
-        message = 'Internal server error'
-        if ex:
-            message = message + ':' + str(ex)
-        result = { 'status': 500, 'message':message }
+        status = ex.code if hasattr( ex, 'code' ) else 500
+        message = ex.reason if hasattr( ex, 'reason' ) else 'Internal server error'
+        if hasattr( ex, '_message' ):
+            message = message + ' ' + ex._message
+        result = { 'status': status, 'message':message }
+
+    build_error = json.dumps( result ) + '\n'
 
     cherrypy.response.headers['Content-Type'] = 'application/json'
     cherrypy.response.status = status 
-    cherrypy.response.body = cherrypy._json.encode(result)
+    cherrypy.response.body = build_error.encode('utf-8')
 
 
 def api_build_error(status, message, traceback, version):
@@ -73,7 +75,10 @@ def api_build_error(status, message, traceback, version):
         result = ex.to_dict()
         log_result = result
     else:
-        result = { 'status': cherrypy.response.status,  'message':message }
+        result = {
+            'status': cherrypy.response.status,  
+            'message':message 
+        }
         log_result = { 'status': cherrypy.response.status,  'message':message, 'traceback':str(traceback), 'version':version }
     if cherrypy.config.get('tools.log_full.on'):
         logger.info( log_result )
@@ -176,7 +181,7 @@ class API(object):
             message = message[:4096] # suppose to be 4096
 
         # message = message.encode("ascii","ignore")
-        logger.info(f"{cherrypy.request.path_info}  {message}")
+        logger.info(f"{cherrypy.request.path_info} {message}")
     
     
     @cherrypy.expose
