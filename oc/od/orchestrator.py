@@ -1873,7 +1873,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return result
 
 
-    def removePod( self, myPod, propagation_policy = 'Foreground' ):
+    def removePod( self, myPod, propagation_policy = 'Foreground', grace_period_seconds = None ):
         """_summary_
             Remove a pod
             like command 'kubectl delete pods'
@@ -1900,9 +1900,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             # propagation_policy = 'Background'
             # propagation_policy = 'Foreground'
-            #grace_period_seconds = 0
-            delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy )
-            # delete_options = client.V1DeleteOptions(propagation_policy = propagation_policy, grace_period_seconds=grace_period_seconds )
+            # delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy )
+            delete_options = client.V1DeleteOptions( 
+                propagation_policy = propagation_policy, 
+                grace_period_seconds = grace_period_seconds )
             
             v1status = self.kubeapi.delete_namespaced_pod(  name=pod_name, 
                                                             namespace=self.namespace, 
@@ -1911,7 +1912,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                             # grace_period_seconds=grace_period_seconds )
 
         except ApiException as e:
-                self.logger.error( str(e) )
+            self.logger.error( str(e) )
 
         return v1status
 
@@ -1927,13 +1928,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     raise ValueError( 'Invalid V1Status type return by delete_namespaced_secret')
                 self.logger.debug('secret %s status %s', secret_name, v1status.status) 
                 if v1status.status != 'Success':
-                    self.logger.error(f"secret {secret_name} can not be deleted {str(v1status)}" ) 
+                    self.logger.error(f"secret {secret_name} can not be deleted {v1status}" ) 
                     bReturn = bReturn and False
                 
             except ApiException as e:
-                self.logger.error(f"secret {secret_name} can not be deleted {str(e)}") 
+                self.logger.error(f"secret {secret_name} can not be deleted {e}") 
                 bReturn = bReturn and False
-        self.logger.debug('removesecrets for %s return %s', userinfo.userid, str(bReturn) ) 
+        self.logger.debug(f"removesecrets for {userinfo.userid} return {bReturn})" ) 
         return bReturn 
    
 
@@ -1957,6 +1958,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.error('configmap name %s can not be deleted: error %s', configmap_name, e ) 
                 bReturn = bReturn and False
         return bReturn 
+
+    def removepodindesktop(self, authinfo, userinfo, myPod=None ):
+        # get the user's pod
+        if not isinstance(myPod, client.models.v1_pod.V1Pod ):
+            myPod = self.findPodByUser(authinfo, userinfo )
+
+        if isinstance(myPod, client.models.v1_pod.V1Pod ):
+            # delete this pod immediatly
+            v1status = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
+            if isinstance(v1status,client.models.v1_pod.V1Pod) :
+                # todo
+                # add test
+                return True
+        return False
+        
 
     def removedesktop(self, authinfo, userinfo, myPod=None ):
         """_summary_
@@ -3393,7 +3409,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                 desktop_interfaces = desktop_interfaces,
                                                 websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
                                                 websocketroute = pod.metadata.labels.get('websocketroute'),
-                                                storage_container_id = storage_container_id )
+                                                storage_container_id = storage_container_id,
+                                                labels = pod.metadata.labels )
         return myDesktop
 
     def countdesktop(self):        
