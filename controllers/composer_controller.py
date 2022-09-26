@@ -141,11 +141,16 @@ class ComposerController(BaseController):
             self.logger.debug('launchdesktop:LocaleSettingsLanguage')
             self.LocaleSettingsLanguage( user )
             self.logger.debug('launchdesktop:_launchdesktop')
-            return self._launchdesktop(auth, user, cherrypy.request.json)
+            result = self._launchdesktop(auth, user, cherrypy.request.json)
+            return result
 
         except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
+            status = e.code if hasattr( e, 'code' ) else 500
+            message = e.reason if hasattr( e, 'reason' ) else 'Internal server error'
+            if hasattr( e, '_message' ):
+                message = message + ' ' + e._message
+            result = Results.error( message=message, status=status )
+            return result
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -362,21 +367,30 @@ class ComposerController(BaseController):
             return Results.error( message=str(e) )
         
     def _launchdesktop(self, auth, user, args):
-        self.logger.info('')
+        self.logger.debug('')
+
+        #
+        # embeded inside a try/catch to make sure that we call 
+        # services.messageinfo.stop(user.userid) 
+        # in all case
+        # if an exception occurs 
+        # raise it again
+        #
         try:
-            appname = args.get('app')
+            # appname = args.get('app')
             
             # read the user ip source address for accounting and log history data
             webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
             args[ 'WEBCLIENT_SOURCEIPADDR' ] = webclient_sourceipaddr
 
             # open a new desktop
+            self.logger.debug( 'call oc.od.composer.opendesktop' )
             desktop = oc.od.composer.opendesktop( auth, user, args ) 
 
             # safe check for desktop type
             if not isinstance(desktop, oc.od.desktop.ODDesktop):   
                 if isinstance(desktop, str):     
-                    return Results.error(desktop)
+                    return Results.error(message=desktop)
                 else:
                     return Results.error('Desktop creation failed')
 
@@ -386,7 +400,7 @@ class ComposerController(BaseController):
                 # decide to trash it
                 services.messageinfo.push(user.userid, 'Your desktop is crashing. Delete desktop process is starting') 
                 oc.od.composer.removedesktop( auth, user )            
-                services.messageinfo.push(user.userid, 'Your desktop is crashing. Delete desktop done.')   
+                services.messageinfo.push(user.userid, 'Delete desktop done.')   
                 return Results.error('Desktop URI is None, creation failed')
             
             # build a jwt token with desktop.internaluri
@@ -398,10 +412,11 @@ class ComposerController(BaseController):
             # if loadbalancing support cookie persistance routing
             # cookie name is abcdesktop_host
             # match the worker node hostname to recieve next http request on this node
+            # send the request to the worker node where the pod is hosted
             if isinstance(desktop.nodehostname, str):
                 oc.lib.setCookie( oc.od.settings.routehostcookiename, desktop.nodehostname, path='/' )
 
-            # accounting data
+            # build an accounting data
             datadict={  **user,
                         'provider':     auth.providertype,
                         'date':         datetime.datetime.utcnow().isoformat(),
@@ -409,28 +424,19 @@ class ComposerController(BaseController):
                         'ipaddr':       webclient_sourceipaddr,
                         'node':         desktop.nodehostname,
                         'type':         'desktop'
-            } 
-
-            if type(appname) is str:
-                datadict['type'] = 'metappli'
-                datadict['app']  = appname
-           
+            }
+            # store the accouting data in collectionname 'loginHistory'
             services.datastore.addtocollection( databasename=user.userid, 
                                                 collectionname='loginHistory', 
                                                 datadict=datadict)
 
             target = desktop.ipAddr
-            if desktop.websocketrouting is None:
-                desktop.websocketrouting = oc.od.settings.websocketrouting
 
             if desktop.websocketrouting == 'bridge':
                 target = desktop.websocketroute
             
-
             expire_in = services.jwtdesktop.exp() 
-
             target_ip = self.get_target_ip_route( target, desktop.websocketrouting )
-
             return Results.success(result={
                 'target_ip'     :   target_ip,
                 'vncpassword'   :   desktop.vncPassword,
@@ -441,12 +447,10 @@ class ComposerController(BaseController):
             })
 
         except Exception as e:
-            self.logger.error( str(e) )
-            return Results.error( message=str(e) )
-
+            self.logger.error( e )
+            raise e
         finally:
-            if hasattr( user, 'userid'): 
-                services.messageinfo.stop(user.userid) # Stop message info log
+            services.messageinfo.stop(user.userid) # Stop message info log
 
 
     def get_target_ip_route(self, target, websocketrouting ):  
@@ -501,7 +505,7 @@ class ComposerController(BaseController):
             except Exception as e:
                 self.logger.error('Errror: %s', e)
 
-        self.logger.info('Route websocket to: %s', route)
+        self.logger.debug('Route websocket to: %s', route)
         return route
 
     @cherrypy.expose
