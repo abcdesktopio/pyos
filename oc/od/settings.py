@@ -171,75 +171,6 @@ list_hostconfigkey = [
 ABCDESKTOP_CURRENT_RELEASE = 'dev'
 DEFAULT_IMAGE_TAG = ABCDESKTOP_CURRENT_RELEASE
 
-DEFAULT_DESKTOP_POD_CONFIG = {
-    'graphical' :   {   'image': 'abcdesktopio/oc.user.kubernetes.18.04:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 6081,
-                        'pullpolicy':  'IfNotPresent',
-                        'enable': True,
-                        'acl':  { 'permit': [ 'all' ] },
-                        'secrets_requirement' : [ 'abcdesktop/vnc', 'abcdesktop/kerberos' ],
-                        'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port',
-                        'resources': { 'requests': { 'memory': "320Mi",   'cpu': "250m" },  'limits'  : { 'memory': "1Gi",    'cpu': "1000m" } }
-                            # 'securityContext': {  'allowPrivilegeEscalation': True,
-                            #                        'capabilities': { 
-                            #                            'add':  ["SYS_ADMIN", "SYS_PTRACE"], 
-                            #                            'drop': None 
-                            #                        }
-                            # } 
-    },
-    'spawner' :    {    'enable': True,
-                        'tcpport': 29786,
-                        'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port',
-                        'healtzbin': '/usr/bin/curl',
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'broadcast' :  {    'enable': True,
-                        'tcpport': 29784,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'webshell' :   {    'enable': True,
-                        'tcpport': 29781,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'printer' :    {    'image': 'abcdesktopio/oc.cupsd.18.04:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 681,
-                        'pullpolicy': 'IfNotPresent',
-                        'enable': True,
-                        'resources': { 'requests': { 'memory': "64Mi",    'cpu': "125m" },  'limits'  : { 'memory': "512Mi",  'cpu': "500m"  } },
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'printerfile':  {   'enable': True,
-                        'tcpport': 29782,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'filer' :       {   'image': 'abcdesktopio/oc.filer:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 29783,
-                        'pullpolicy':  'IfNotPresent',
-                        'enable': True,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'storage' :     {   'image': 'abcdesktopio/pause:' + DEFAULT_IMAGE_TAG,
-                        'pullpolicy':  'IfNotPresent',
-                        'enable': True,
-                        'acl':   { 'permit': [ 'all' ] },
-                        'resources': { 'requests': { 'memory': "32Mi",    'cpu': "100m" },  'limits'  : { 'memory': "128Mi",  'cpu': "250m"  } }
-    },
-    'sound':        {   'image': 'abcdesktopio/oc.pulseaudio.18.04:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 4714,
-                        'pullpolicy': 'IfNotPresent',
-                        'enable': True,
-                        'acl':  { 'permit': [ 'all' ] },
-                        'resources': { 'requests': { 'memory': "8Mi",     'cpu': "50m"  },  'limits'  : { 'memory': "64Mi",   'cpu': "250m"  } } 
-    },
-    'init':         {   'image': 'busybox',
-                        'enable': True,
-                        'pullpolicy':  'IfNotPresent',
-                        'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
-    } 
-}
-
-
-
 def getballoon_name():
     return balloon_name
 
@@ -533,7 +464,12 @@ def init_desktop():
     # check if desktophostconfig contains permit value
     applicationhostconfig = filter_hostconfig( applicationhostconfig )
 
-    desktop_pod = gconfig.get( 'desktop.pod', DEFAULT_DESKTOP_POD_CONFIG )
+    desktop_pod = gconfig.get( 'desktop.pod' )
+    if not isinstance( desktop_pod, dict ):
+        logger.error(f"desktop.pod is not defined or is not a dict, read type is {type(desktop.pod)}")
+        logger.error('this is a fatal error in configuration file')
+        sys.exit(-1)
+
 
     desktop['removehomedirectory'] = gconfig.get('desktop.removehomedirectory', False)
 
