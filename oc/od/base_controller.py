@@ -42,30 +42,19 @@ class BaseController(object):
 
      def getlambdaroute( self, routecontenttype:dict, listcontenttype:list ):
           """_summary_
-               read request headers.get('Content-Type')
-               read request headers.get('Accept')
-               return the lambda to render
+               read cherrypy.request.headers.elements('Accept')
+               return the lambda to render http response from routecontenttype argument
           Args:
-               routecontenttype (dict): 
-               {   'text/html': self.handler_logmein_html, 
+               routecontenttype (dict): {   
+                    'text/html':        self.handler_logmein_html, 
                     'application/json': self.handler_logmein_json,
-                    'text/plain':  self.handler_logmein_text } )
+                    'text/plain':       self.handler_logmein_text 
+               }
                listcontenttype [ 'text/html', 'application/json', 'text/plain' ]
+               the first entry of listcontenttype is the default if 'Accept' does not match
           Returns:
-               function: _description_
+               lambda function value (routecontenttype match value)
           """
-
-          # read 'Content-Type' header
-          request_header_content_type = cherrypy.request.headers.get('Content-Type')
-          # get lambda_route use self.handler_logmein_html if not match
-          if isinstance(request_header_content_type, str):
-               # example
-               # split( 'text/plain;charset=UTF-8' )
-               request_content_type = request_header_content_type.split(';')[0].lower()
-               # request_content_type = 'text/plain' in lower case
-               lambda_route = routecontenttype.get( request_content_type )
-               if lambda_route : 
-                    return lambda_route
 
           # read 'Accept' header
           matchvalues = {}
@@ -75,7 +64,8 @@ class BaseController(object):
                if accept_content_type in listcontenttype:
                     matchvalues[accept_content_type] = True
           
-          # text/html id first entry so by default
+          # the first entry is the default
+          # listcontenttype
           for contenttype in listcontenttype:
                if matchvalues.get( contenttype ):
                     return routecontenttype[contenttype]
