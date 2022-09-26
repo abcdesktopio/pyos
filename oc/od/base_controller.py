@@ -40,7 +40,7 @@ class BaseController(object):
           class_filter=r'^(\w+)Controller$'
           self.controllerprefix = re.match(class_filter, self.__class__.__name__).group(1).lower()
 
-     def getlambdaroute( self, routecontenttype:dict, listcontenttype:list ):
+     def getlambdaroute( self, routecontenttype:dict, defaultcontenttype:str ):
           """_summary_
                read cherrypy.request.headers.elements('Accept')
                return the lambda to render http response from routecontenttype argument
@@ -50,29 +50,22 @@ class BaseController(object):
                     'application/json': self.handler_logmein_json,
                     'text/plain':       self.handler_logmein_text 
                }
-               listcontenttype [ 'text/html', 'application/json', 'text/plain' ]
-               the first entry of listcontenttype is the default if 'Accept' does not match
+               defaultcontenttype(str): 'text/html'
+               default entry of routecontenttype if 'Accept' does not match
           Returns:
                lambda function value (routecontenttype match value)
           """
 
           # read 'Accept' header
-          matchvalues = {}
-          accepts = cherrypy.request.headers.elements('Accept')
+          accepts = cherrypy.request.headers.elements('Accept') # sorted by qvalue
+          routecontenttypekeys = routecontenttype.keys()
           for accept in accepts:
                accept_content_type = accept.value.lower()
-               if accept_content_type in listcontenttype:
-                    matchvalues[accept_content_type] = True
+               if accept_content_type in routecontenttypekeys:
+                    return routecontenttype[accept_content_type]
           
-          # the first entry is the default
-          # listcontenttype
-          for contenttype in listcontenttype:
-               if matchvalues.get( contenttype ):
-                    return routecontenttype[contenttype]
-                    
-          # always return the firest entry
-          # should be 'text/html' in most cases
-          return routecontenttype.get( listcontenttype[0] )
+          # return the default entry
+          return routecontenttype.get( defaultcontenttype )
 
 
      def overwrite_requestpermission_ifnotset( self, method:str, permission:bool )->None:
