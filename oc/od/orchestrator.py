@@ -399,7 +399,7 @@ class ODOrchestratorBase(object):
             self.logger.debug( f"desktop services status bListen {bListen}" ) 
             # check if WebSockifyListening id listening on tcp port 6081
             if bListen['x11server'] is False:
-                messageinfo = 'Starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
+                messageinfo = 'c. starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
                 bListen['x11server'] = self.waitForServiceListening( desktop, service='graphical' )
                 self.logger.info('service:x11server return %s', str(bListen['x11server']))
@@ -407,7 +407,7 @@ class ODOrchestratorBase(object):
 
             # check if spawner is ready 
             if bListen['spawner'] is False:
-                messageinfo = 'Starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
+                messageinfo = 'c. starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
                 bListen['spawner']  = self.waitForServiceListening( desktop, service='spawner' )
                 self.logger.info('service:spawner return %s', str(bListen['spawner']))  

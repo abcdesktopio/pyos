@@ -622,7 +622,7 @@ class AuthController(BaseController):
         # can raise exception
         (auth, user ) = self.validate_env()
         # push a start message to database cache info
-        services.messageinfo.start( user.userid, f"Launching desktop")
+        services.messageinfo.start( user.userid, f"b. launching desktop")
         # launch the user desktop 
         return self.root.composer._launchdesktop( auth, user, args)
 

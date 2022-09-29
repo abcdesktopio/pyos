@@ -140,18 +140,18 @@ def opendesktop(authinfo, userinfo, args ):
     desktoptype = 'desktopmetappli' if app else 'desktop'
 
     # start a message info 
-    services.messageinfo.start(userinfo.userid, 'Looking for your desktop')
+    services.messageinfo.start(userinfo.userid, 'b. looking for your desktop')
     # look for a desktop
     desktop = finddesktop( authinfo, userinfo, app )
    
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
         # ok we find a desktop
         # let's check if security policies match the desktop
-        services.messageinfo.push(userinfo.userid, 'Applying labels security policy')
+        services.messageinfo.push(userinfo.userid, 'a. applying labels security policy')
         # the list of uniq_labels_filter must be the same as the user label
         if securitypoliciesmatchlabelvalue( desktop, authinfo, oc.od.settings.desktop.get('policies').get('user_uniq_labels')) :
             logger.debug('Warm start, reconnecting to running desktop') 
-            services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop') 
+            services.messageinfo.push(userinfo.userid, 'c. warm start, reconnecting to your running desktop') 
             # if the desktop exists resume the connection
             services.accounting.accountex( desktoptype, 'resumed')
             resumedesktop( authinfo, userinfo ) # update last connection datetime
@@ -159,19 +159,19 @@ def opendesktop(authinfo, userinfo, args ):
         else:
             # security polcies does not match
             # delete the current desktop
-            services.messageinfo.push(userinfo.userid, 'Deleting your running desktop. It does not match the security policies')  
+            services.messageinfo.push(userinfo.userid, 'b. eleting your running desktop. It does not match the security policies')  
             # only remove the pod, do not delete secret configmap and everythings else
             removed_desktop = removepodindesktop( authinfo, userinfo )
             if removed_desktop is True:
-                services.messageinfo.push(userinfo.userid, 'Your desktop is deleted. creating a new on with new security polcies')
+                services.messageinfo.push(userinfo.userid, 'b. your desktop is deleted. creating a new on with new security polcies')
                 services.accounting.accountex( desktoptype, 'deletesuccess')
             else:
                 logger.error(f"Cannot delete desktop {desktop}") 
                 services.accounting.accountex( desktoptype, 'deletefailed')
-                services.messageinfo.push(userinfo.userid, 'Your desktop can not be deleted to apply new security policies')
+                services.messageinfo.push(userinfo.userid, 'e. our desktop can not be deleted to apply new security policies')
                 return 'Your desktop can not be deleted to apply new security policies' 
     else:
-        services.messageinfo.push(userinfo.userid, 'Cold start, creating your new desktop')
+        services.messageinfo.push(userinfo.userid, 'b. cold start, creating your new desktop')
     
     #
     # desktop is not found or has been deleted to match security policies
@@ -271,7 +271,7 @@ def fakednsquery( userid ):
     desktop_interfaces = myDesktop.desktop_interfaces
     if not isinstance( desktop_interfaces, dict ):
         logger.debug( f"desktop has no desktop_interfaces desktop_interfaces={desktop_interfaces}" )
-        return  myDesktop.ipAddr
+        return None
     
     # read the ip value of remappded name of dnsinterface_name
     logger.debug( f"dnsinterface_name={dnsinterface_name}" )
@@ -289,7 +289,6 @@ def getdesktopdescription( authinfo, userinfo ):
     description['clientipaddr'] = getclientipaddr()
     description['user'] = userinfo.get('userid')
 
-    desktop_interfaces = None
     myOrchestrator = selectOrchestrator()    
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
@@ -414,7 +413,7 @@ def finddesktop( authinfo, userinfo, appname=None ):
     Returns:
         [ODesktop]: oc.od.desktop.ODDesktop Desktop Object or None if not found
     """
-    services.messageinfo.push(userinfo.userid, 'Looking for your desktop.')        
+    # services.messageinfo.push(userinfo.userid, 'looking for your desktop.')        
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
     kwargs = { 'defaultnetworknetuserid': oc.od.settings.defaultnetworknetuserid, 'appname': appname }
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)     
@@ -691,19 +690,19 @@ def createdesktop( authinfo, userinfo, args  ):
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
         # logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
-            messageinfo.push('Webhooking network services')
+            messageinfo.push('c. webhooking network services')
        
-        messageinfo.push('Starting up internal services')
+        messageinfo.push('c. starting up internal services')
         processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
-        messageinfo.push('Internal services started')
+        messageinfo.push('c. internal services started')
         logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
         services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
     else:
         if isinstance( myDesktop, str ):
             # this is an error message
-            messageinfo.push(myDesktop)
+            messageinfo.push("e. " + myDesktop)
         else:
-            messageinfo.push(f"createDesktop error - myOrchestrator.createDesktop return {type(myDesktop)}")
+            messageinfo.push(f"e. createDesktop error - myOrchestrator.createDesktop return {type(myDesktop)}")
     return myDesktop
 
 
@@ -789,23 +788,23 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
         if isinstance( proc, subprocess.CompletedProcess) :
             proc.check_returncode()
             if messageinfo:
-                messageinfo.push('Webhooking updated service successfully')
+                messageinfo.push('c. webhooking updated service successfully')
             logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
             exitCode = proc.returncode
         else:
             logger.error( f"command {webhookcmd} subprocess.run return {str(type(proc))}" )
             if messageinfo:
-                messageinfo.push(f"Webhooking updated service error, read the log file ")
+                messageinfo.push(f"e. webhooking updated service error, read the log file ")
     except subprocess.CalledProcessError as e:
         if messageinfo:
-            messageinfo.push(f"Webhooking updated service error {e}" )
+            messageinfo.push(f"e. webhooking updated service error {e}" )
         logger.error( f"command failed CalledProcessError {webhookcmd} error={e}")
     except subprocess.TimeoutExpired as e :
         logger.error( f"command TimeoutExpired {webhookcmd} error={e}" )
     except Exception as e:
         logger.error( f"command exception {webhookcmd} error={e}" )
         if messageinfo:
-            messageinfo.push(f"command exception {webhookcmd} error={e}" )
+            messageinfo.push(f"e. webhooking command exception error={e}" )
         logger.error( e )
     return exitCode
 
