@@ -26,6 +26,7 @@ import json
 import crypt
 import datetime
 import re
+from urllib.parse import urlparse
 
 
 from ldap import filter as ldap_filter
@@ -1939,12 +1940,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.type = 'ldap'
 
         # default ldap auth protocol is SIMPLE
-        self.auth_type  = config.get('auth_type', 'SIMPLE').upper() 
-        # default ldap service account is None 
-        serviceaccount = config.get('serviceaccount', { 'login':None, 'password':None } )
-        if isinstance(serviceaccount,dict):
-            self.userid = serviceaccount.get('login')
-            self.password = serviceaccount.get('password')
+        self.auth_type  = config.get('auth_type', 'SIMPLE').upper()
+
+        # create a service account to bind on ldap
+        # add self.userid set to None if not defined in config file
+        # add self.password set to None if not defined in config file
+        self.loadserviceaccount( config )
         
         self.users_ou = config.get('users_ou', config.get('basedn') ) 
         self.servers = config.get('servers', []) 
@@ -2003,6 +2004,34 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('group_scope', self.user_query.scope),
             config.get('group_filter', "(&(objectClass=Group)(cn=%s))"),
             config.get('group_attrs'))
+
+
+    def loadserviceaccount( self, config ):
+        def readvaluefromfile( data:str ) -> str:
+            """readvaluefromfile
+                if data starts with 'file://'
+                    open the path and return the first line of the file
+                else
+                    return data
+            Args:
+                data (str): value to check 
+
+            Returns:
+                same as parameter: file content if start with 'file://' else data
+            """
+            if isinstance( data, str ):
+                fileurlparse = urlparse( data ) 
+                if fileurlparse.scheme == 'file':
+                    f = open( fileurlparse.path, 'r' )
+                    data = f.readline().rstrip()
+                    f.close()
+            return data
+
+        serviceaccount = config.get('serviceaccount', { 'login':None, 'password':None } )
+        # self.userid set to None if not defined in config file
+        self.userid = readvaluefromfile( serviceaccount.get('login') )
+        # self.password set to None if not defined in config file
+        self.password = readvaluefromfile( serviceaccount.get('password') )
 
 
     @staticmethod
