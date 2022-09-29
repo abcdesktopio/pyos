@@ -13,6 +13,7 @@
 
 import logging
 import cherrypy		
+import json
 
 import oc.od.janus
 import oc.od.tracker
@@ -75,8 +76,22 @@ class CoreController(BaseController):
         return { 'id': id, 'callbackurl': callbackurl }
 
 
+    def handler_messageinfo_json(self, messageinfo):
+        cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
+        data = Results.success(message=messageinfo)
+        # convert data as str
+        result_str = json.dumps( data ) + '\n'
+        # encode with charset=utf-8
+        return result_str.encode('utf-8')
+
+    def handler_messageinfo_text(self, messageinfo):
+        cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=utf-8'
+        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        result_str = messageinfo + '\n'
+        return result_str.encode('utf-8')
+
+
     @cherrypy.expose
-    @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getmessageinfo(self):     
         
@@ -86,9 +101,9 @@ class CoreController(BaseController):
             self.logger.error( e )
             return Results.error( message=str(e) )
         
-        message = ''
-        
-        if isinstance( user, oc.auth.authservice.AuthUser ): 
-            message = services.messageinfo.popflush(user.userid)
-
-        return Results.success(message,result={'message':message})
+        message = services.messageinfo.popflush(user.userid)
+        routecontenttype = {
+            'text/plain':  self.handler_messageinfo_text,
+            'application/json': self.handler_messageinfo_json 
+        }
+        return self.getlambdaroute( routecontenttype, defaultcontenttype='application/json' )( message )
