@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 #
 # defined some AuthenticationError
 class AuthenticationError(Exception):
-    def __init__(self,message='Something went bad',code=500):
+    def __init__(self,message='Something went bad',code=401):
         self.message = message
         self.code = code
 
@@ -81,7 +81,7 @@ class AuthenticationFailureError(AuthenticationError):
         self.code = code
 
 class ExternalAuthError(AuthenticationError):
-    def __init__(self,message='Authentication failure',code=500):
+    def __init__(self,message='Authentication failure',code=401):
         self.message = message
         self.code = code 
 
@@ -855,26 +855,32 @@ class ODAuthTool(cherrypy.Tool):
 
         memberOf = condition.get('memberOf') or condition.get('memberof')
         if type(memberOf) is str:
-            # read the memberOf LDAP attribut of objectClass=user
-            # use string compare to test if is MemberOf
-            result     = isMemberOf( roles, memberOf )
-            if result == condition.get('expected'):
-                compiled_result = True
+            self.logger.debug('memberOf checking for ODAdAuthMetaProvider')
+            # read the member LDAP attribut with objectClass=group
+            # check if the provider object is an ODAdAuthMetaProvider
+            # and auth object is an AuthInfo
+            # kwargs can contain 'provider' and 'auth' entries
+            meta_provider = kwargs.get('provider')
+            auth = kwargs.get('auth')
+            if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
+                # call the isMember method to run LDAP Qeury and 
+                # read the member attribut in group
+                # This is not the user's memberOf 
+                self.logger.debug('This is a ODAdAuthMetaProvider and auth is AuthInfo')
+                self.logger.debug( f"isMemberOf query to provider={meta_provider.name}")
+                result = meta_provider.isMemberOf( auth, user, memberOf )
+                self.logger.debug( f"meta_provider.isMemberOf -> result={result}")
+                self.logger.debug( f"result == condition.get('expected')")
+                self.logger.debug( f"test {result} == {condition.get('expected')}")
+                if result == condition.get('expected'):
+                    compiled_result = True
             else:
-                # read the member LDAP attribut with objectClass=group
-                # check if the provider object is an ODAdAuthMetaProvider
-                # and auth object is an AuthInfo
-                # kwargs can contain 'provider' and 'auth' entries
-                meta_provider = kwargs.get('provider')
-                auth = kwargs.get('auth')
-                if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
-                    # call the isMember method to run LDAP Qeury and 
-                    # read the member attribut in group
-                    # This is not the user's memberOf 
-                    self.logger.debug( f"isMemberOf query to provider={meta_provider.name}")
-                    result = meta_provider.isMemberOf( auth, user, memberOf )
-                    if result == condition.get('expected'):
-                        compiled_result = True
+                # read the memberOf LDAP attribut of objectClass=user
+                # use string compare to test if is MemberOf
+                self.logger.debug('not a ODAdAuthMetaProvider')
+                result     = isMemberOf( roles, memberOf )
+                if result == condition.get('expected'):
+                    compiled_result = True
 
         geolocation = condition.get('geolocation')
         if type(geolocation) is dict:
@@ -941,6 +947,7 @@ class ODAuthTool(cherrypy.Tool):
             if result == condition.get('expected'):
                 compiled_result = True
 
+        self.logger.debug( f"compiledcondition -> {compiled_result}")
         return compiled_result
 
     def compiledrule( self, name, rule, user, roles, **kwargs ):        
@@ -990,6 +997,7 @@ class ODAuthTool(cherrypy.Tool):
         #                       'expected' : False,
         #                       'label': 'noinnet' }
         #
+        self.logger.debug('')
 
         buildcompiledrules = {}
         if not isinstance( rules, dict ):
@@ -1119,6 +1127,8 @@ class ODAuthTool(cherrypy.Tool):
         # managername  = 'metaexplicit'
         # providername = 'metadirectory'
         # check if metalogin manager and provider are defined
+
+        self.logger.debug('')
         ( mgr_meta, provider_meta ) = self.get_metalogin_manager_provider()
         if mgr_meta is None or provider_meta is None:
             # no metaexplicit manager has been defined
@@ -1248,6 +1258,8 @@ class ODAuthTool(cherrypy.Tool):
         provider = None
 
         for p in providers:
+            if p.domain is None:
+                continue
             if p.domain.upper() == domain :
                 self.logger.debug( 'provider.name %s match for domain=%s', p.name, domain) 
                 provider = p
@@ -1285,7 +1297,7 @@ class ODAuthTool(cherrypy.Tool):
             providers = self.listprovider(manager_name=manager)           
             provider  = self.finddefaultprovider( providers=providers )
             if provider is None:
-                raise AuthenticationFailureError('No authentication default provider can be found')
+                raise AuthenticationFailureError(message='No authentication default provider can be found')
         return provider
 
 
@@ -2086,7 +2098,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.run_kinit( krb5ccname, userid, password )
         except Exception as e:
             self.remove_krb5ccname( krb5ccname )
-            raise AuthenticationError(f"kerberos credentitials validation failed {str(e)}")
+            raise AuthenticationError( f"kerberos credentitials validation failed {str(e)}")
 
     def authenticate(self, userid, password, **params):
         # validate can raise exception 
@@ -3361,7 +3373,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         return foreingdistinguished_list
        
     def isMemberOf( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
-        self.logger.debug('')
+        self.logger.debug('ODAdAuthMetaProvider')
         memberof = False
         foreing_distinguished_name = user.get('foreing_distinguished_name')
         self.logger.debug( f"foreing_distinguished_name is {foreing_distinguished_name}")

@@ -399,7 +399,7 @@ class ODOrchestratorBase(object):
             self.logger.debug( f"desktop services status bListen {bListen}" ) 
             # check if WebSockifyListening id listening on tcp port 6081
             if bListen['x11server'] is False:
-                messageinfo = 'c. starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
+                messageinfo = 'c.Starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
                 bListen['x11server'] = self.waitForServiceListening( desktop, service='graphical' )
                 self.logger.info('service:x11server return %s', str(bListen['x11server']))
@@ -407,7 +407,7 @@ class ODOrchestratorBase(object):
 
             # check if spawner is ready 
             if bListen['spawner'] is False:
-                messageinfo = 'c. starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
+                messageinfo = 'c.Starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
                 callback_notify(messageinfo)
                 bListen['spawner']  = self.waitForServiceListening( desktop, service='spawner' )
                 self.logger.info('service:spawner return %s', str(bListen['spawner']))  
@@ -415,7 +415,7 @@ class ODOrchestratorBase(object):
             
             if bListen['x11server'] is True and bListen['spawner'] is True:     
                 self.logger.debug( "desktop services are ready" )                  
-                callback_notify('Desktop services are ready after %d s' % (nCount) )              
+                callback_notify('c.Desktop services are ready after %d s' % (nCount) )              
                 return True
 
             # wait 0.1    
@@ -1596,7 +1596,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 sleeptime = nCounterReadConfigMap/2 #  sleeptime in float
                 self.logger.error(f"Configmap {configmap_localaccount_name} is unreadable but it has been created successfully previously")
                 self.logger.error(f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
-                self.on_desktoplaunchprogress( f"Configmap localaccount {configmap_localaccount_name} can not be read, waiting for {sleeptime}s on etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
+                self.on_desktoplaunchprogress( f"b.Configmap localaccount {configmap_localaccount_name} can not be read, waiting for {sleeptime}s on etcd {nCounterReadConfigMap}/{maxCounterReadEtcdRetry}")
                 time.sleep(nCounterReadConfigMap/2)
 
         return (configmap_localaccount, configmap_localaccount_data)
@@ -1740,7 +1740,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         if  homedir_enabled and kwargs.get('homedirectory_type') == 'persistentVolumeClaim':
             self.logger.debug( "adding homedir volume" )
-            self.on_desktoplaunchprogress('Building home dir data storage')
+            self.on_desktoplaunchprogress('b.Building home dir data storage')
             volume_home_name = self.get_volumename( 'home', userinfo )
             # Map the home directory
             volumes['home'] = { 'name': volume_home_name } # home + userid 
@@ -1777,7 +1777,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
                 driver_type =  self.namespace + '/' + fstype
 
-                self.on_desktoplaunchprogress('Building flexVolume storage data for driver ' + driver_type )
+                self.on_desktoplaunchprogress('b.Building flexVolume storage data for driver ' + driver_type )
 
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype )
                 
@@ -2778,7 +2778,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                         appinstance_id = None )
         self.logger.debug('rules created')
 
-        self.on_desktoplaunchprogress('Building data storage for your desktop')
+        self.on_desktoplaunchprogress('b.Building data storage for your desktop')
 
 
         self.logger.debug('secrets_requirement creating')
@@ -3028,17 +3028,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # we are ready to create our Pod 
         myDesktop = None
-        self.on_desktoplaunchprogress('Creating your desktop')
+        self.on_desktoplaunchprogress('b.Creating your desktop')
         self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
         pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
 
         if not isinstance(pod, client.models.v1_pod.V1Pod ):
-            self.on_desktoplaunchprogress('Create Pod failed.' )
+            self.on_desktoplaunchprogress('e.Create Pod failed.' )
             raise ValueError( 'Invalid create_namespaced_pod type')
 
         number_of_container_started = 0
         number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
-        self.on_desktoplaunchprogress(f"Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
+        self.on_desktoplaunchprogress(f"c.Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
         object_type = None
         message = 'read list_namespaced_event'
         number_of_container_started = 0
@@ -3065,9 +3065,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
             object_type = event_object.type
             if isinstance(event_object.message, str) and len(event_object.message)>0:
-                message = f"{object_type.lower()} {event_object.message}"     
+                # message = f"b. {object_type.lower()} {event_object.message}" 
+                message = f"b.{event_object.message}"      
             else:
-                message = f"{object_type.lower()} {event_object.reason}"
+                message = f"b.{event_object.reason}"
                 
             self.logger.info(message)
             self.on_desktoplaunchprogress( message )
@@ -3079,7 +3080,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if object_type == 'Normal' and event_object.reason == 'Started' :
                 # add number_of_container_started counter 
                 number_of_container_started += 1
-                self.on_desktoplaunchprogress( f"Waiting for containers {number_of_container_started}/{number_of_container_to_start}" )
+                self.on_desktoplaunchprogress( f"c.Waiting for containers {number_of_container_started}/{number_of_container_to_start}" )
                 # if the number of container to start is expected, all containers should be started 
                 if number_of_container_started >= number_of_container_to_start:
                     w.stop() # do not wait any more
@@ -3091,13 +3092,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # look only for for the ontainer_graphical_name
                     if c.name == container_graphical_name:
                         if c.started is True :
-                            startedmsg =  f"{c.name} is ready" 
+                            startedmsg =  f"c.{c.name} is ready" 
                             self.logger.debug( startedmsg )
-                            self.on_desktoplaunchprogress(  startedmsg )
+                            self.on_desktoplaunchprogress( startedmsg )
                         if c.ready is True :
                             # the graphical container is ready 
                             # do not wait for other containers
-                            readymsg = f"{c.name} is ready"
+                            readymsg = f"c.{c.name} is ready"
                             self.logger.debug( readymsg )
                             self.on_desktoplaunchprogress( readymsg )
                             w.stop()
@@ -3128,9 +3129,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_event = event.get('object')
             # if podevent type is pod
             if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
-                self.on_desktoplaunchprogress( f"Your {pod_event.kind} is {event_type.lower()} " )           
+                self.on_desktoplaunchprogress( f"c.Your {pod_event.kind} is {event_type.lower()} " )           
                 if isinstance( pod_event.status.pod_ip, str):     
-                    self.on_desktoplaunchprogress(f"Your pod gets ip address {pod_event.status.pod_ip} from network plugin")        
+                    self.on_desktoplaunchprogress(f"c.Your pod gets ip address {pod_event.status.pod_ip} from network plugin")        
                     self.logger.info( 'pod_event.status.phase %s', pod_event.status.phase )
                     #
                     # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
@@ -3146,7 +3147,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         w.stop()    
                 else:
                     self.logger.info("Your pod has no ip address, waiting for network plugin")
-                    self.on_desktoplaunchprogress("Your pod is waiting for an ip address from network plugin")   
+                    self.on_desktoplaunchprogress("c.Your pod is waiting for an ip address from network plugin")   
         self.logger.debug('watch list_namespaced_pod created' )
 
         self.logger.debug('watch read_namespaced_pod creating' )
@@ -3157,7 +3158,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return f"Your pod does not start, status {myPod.status.phase}" 
         else:
             # At least one container is still running,
-            self.on_desktoplaunchprogress("Your pod is running.")   
+            self.on_desktoplaunchprogress("c.Your pod is running.")   
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo)
         self.logger.debug('watch read_namespaced_pod created')

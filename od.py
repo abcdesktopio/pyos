@@ -55,9 +55,11 @@ def api_handle_error():
         result = ex.to_dict()
     else:
         status = ex.code if hasattr( ex, 'code' ) else 500
-        message = ex.reason if hasattr( ex, 'reason' ) else 'Internal server error'
-        if hasattr( ex, '_message' ):
-            message = message + ' ' + ex._message
+        message = 'Internal server error'
+        for m in [ 'reason', 'message', '_message']:
+            if hasattr( ex, m ):
+                message = ex.m
+                break
         result = { 'status': status, 'message':message }
 
     build_error = json.dumps( result ) + '\n'
