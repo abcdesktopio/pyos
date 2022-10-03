@@ -85,7 +85,7 @@ def whoami(auth, user):
         'name':             None,  
         'photo':            None,
         'provider':         None, 
-        'provider_type':    None, 
+        'providertype':    None, 
         'target_ip':        None,
         'container_id':     None,
         'hostedby':         None
