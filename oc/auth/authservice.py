@@ -1384,7 +1384,7 @@ class ODAuthTool(cherrypy.Tool):
             response.update(    manager=mgr, 
                                 result=myauthcache, 
                                 success=True, 
-                                reason=f"Authentication successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma
+                                reason=f"a.Authentication successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma
             
         except AuthenticationError as e:
             response.reason = e.message
