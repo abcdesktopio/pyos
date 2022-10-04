@@ -3038,7 +3038,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         number_of_container_started = 0
         number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
-        self.on_desktoplaunchprogress(f"c.Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
+        self.on_desktoplaunchprogress(f"b.Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
         object_type = None
         message = 'read list_namespaced_event'
         number_of_container_started = 0
@@ -3080,7 +3080,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if object_type == 'Normal' and event_object.reason == 'Started' :
                 # add number_of_container_started counter 
                 number_of_container_started += 1
-                self.on_desktoplaunchprogress( f"c.Waiting for containers {number_of_container_started}/{number_of_container_to_start}" )
+                self.on_desktoplaunchprogress( f"b.Waiting for containers {number_of_container_started}/{number_of_container_to_start}" )
                 # if the number of container to start is expected, all containers should be started 
                 if number_of_container_started >= number_of_container_to_start:
                     w.stop() # do not wait any more
@@ -3092,13 +3092,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # look only for for the ontainer_graphical_name
                     if c.name == container_graphical_name:
                         if c.started is True :
-                            startedmsg =  f"c.{c.name} is ready" 
+                            startedmsg =  f"b.{c.name} is ready" 
                             self.logger.debug( startedmsg )
                             self.on_desktoplaunchprogress( startedmsg )
                         if c.ready is True :
                             # the graphical container is ready 
                             # do not wait for other containers
-                            readymsg = f"c.{c.name} is ready"
+                            readymsg = f"b.{c.name} is ready"
                             self.logger.debug( readymsg )
                             self.on_desktoplaunchprogress( readymsg )
                             w.stop()
@@ -3129,7 +3129,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_event = event.get('object')
             # if podevent type is pod
             if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
-                self.on_desktoplaunchprogress( f"c.Your {pod_event.kind} is {event_type.lower()} " )           
+                self.on_desktoplaunchprogress( f"b.Your {pod_event.kind} is {event_type.lower()} " )           
                 if isinstance( pod_event.status.pod_ip, str):     
                     self.on_desktoplaunchprogress(f"c.Your pod gets ip address {pod_event.status.pod_ip} from network plugin")        
                     self.logger.info( 'pod_event.status.phase %s', pod_event.status.phase )
@@ -3147,7 +3147,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         w.stop()    
                 else:
                     self.logger.info("Your pod has no ip address, waiting for network plugin")
-                    self.on_desktoplaunchprogress("c.Your pod is waiting for an ip address from network plugin")   
+                    self.on_desktoplaunchprogress("b.Your pod is waiting for an ip address from network plugin")   
         self.logger.debug('watch list_namespaced_pod created' )
 
         self.logger.debug('watch read_namespaced_pod creating' )
@@ -3158,7 +3158,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return f"Your pod does not start, status {myPod.status.phase}" 
         else:
             # At least one container is still running,
-            self.on_desktoplaunchprogress("c.Your pod is running.")   
+            self.on_desktoplaunchprogress("b.Your pod is running.")   
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo)
         self.logger.debug('watch read_namespaced_pod created')
