@@ -38,7 +38,6 @@ class UserController(BaseController):
         try:
             return services.auth.getuserinfo(arguments.get('token_provider'), arguments.get('token'))
         except Exception as e:
-            self.logger.error( str(e) )
             return {'userid': None, 'name': None}
 
     @cherrypy.expose
@@ -46,13 +45,7 @@ class UserController(BaseController):
     @cherrypy.tools.json_in()
     def getlocation(self):
         self.logger.debug('')
-
-        try:
-            (auth, user) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-        
+        (auth, user) = self.validate_env() 
         location = oc.od.user.getlocation( auth )
         return Results.success(result=location)
 

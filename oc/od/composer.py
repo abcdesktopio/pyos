@@ -250,7 +250,7 @@ def fakednsquery( userid ):
     # read interface name to to get ip addr
     dnsinterface_name = oc.od.settings.fakedns.get('interfacename')
     if not isinstance( dnsinterface_name , str ):
-        raise ODError( f"fakednsquery has invalid 'interfacename' value 'str' is expected type={type(dnsinterface_name)} in configuration file")
+        raise ODError( status=400, message=f"fakednsquery has invalid 'interfacename' value 'str' is expected type={type(dnsinterface_name)} in configuration file")
 
     # fake an userinfo object
     myDesktop = None
@@ -451,7 +451,7 @@ def stopContainerApp(auth, user, containerid):
     myDesktop = myOrchestrator.findDesktopByUser( auth, user )
         
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
-       raise ODError( 'stopcontainer::findDesktopByUser not found')
+       raise ODError(status=404,message='stopcontainer::findDesktopByUser not found')
 
     services.accounting.accountex('api', 'container_app')
     myOrchestrator.nodehostname = myDesktop.nodehostname
@@ -467,7 +467,7 @@ def logContainerApp(authinfo, userinfo, containerid):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
 
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
-       raise ODError( 'findDesktopByUser not found')
+       raise ODError( status=404, message='findDesktopByUser not found')
 
     services.accounting.accountex('api', 'log_container_app' )
     myOrchestrator.nodehostname = myDesktop.nodehostname
@@ -483,7 +483,7 @@ def removeContainerApp(authinfo, userinfo, container_id):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
-       raise ODError( 'findDesktopByUser not found')
+       raise ODError( status=404, message='findDesktopByUser not found')
 
     services.accounting.accountex('api', 'remove_container_app' )
     myOrchestrator.nodehostname = myDesktop.nodehostname
@@ -504,7 +504,7 @@ def listContainerApp(authinfo, userinfo):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
-       raise ODError( 'listContainerApp:findDesktopByUser not found')
+       raise ODError( status=404, message='listContainerApp:findDesktopByUser not found')
 
     myOrchestrator.nodehostname = myDesktop.nodehostname
     result = myOrchestrator.listContainerApps( authinfo, userinfo )
@@ -518,7 +518,7 @@ def envContainerApp(authinfo, userinfo, containerid ):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
-       raise ODError( 'envContainerApp:findDesktopByUser not found')
+       raise ODError( status=404, message='envContainerApp:findDesktopByUser not found')
 
     services.accounting.accountex('api', 'env_container_app')
     myOrchestrator.nodehostname = myDesktop.nodehostname
@@ -726,7 +726,7 @@ def openapp( auth, user={}, kwargs={} ):
     # find the desktop for the current user 
     myDesktop = myOrchestrator.findDesktopByUser( auth, user, **kwargs )
     if not isinstance( myDesktop, ODDesktop):
-        raise ODError( 'openapp:findDesktopByUser not found')
+        raise ODError( status=404, message='openapp:findDesktopByUser not found')
 
     myOrchestrator.nodehostname = myDesktop.nodehostname
     kwargs[ 'homedirectory_type' ] = settings.desktop['homedirectorytype']
@@ -737,19 +737,19 @@ def openapp( auth, user={}, kwargs={} ):
         # count running applications
         running_user_applications_counter = myOrchestrator.countRunningContainerforUser( auth, user )
         if running_user_applications_counter > max_app_counter:
-            raise ODError( f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
+            raise ODError( status=400, message=f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
 
     # get application object from application name
     app = getapp(auth, appname)
     if not isinstance( app, dict ):
-        raise ODError( f"app {appname} not found")
+        raise ODError( status=404, message=f"app {appname} not found")
 
     # verify if app is allowed 
     # this can occur only if the applist has been (hacked) modified 
     # or applist has been updated in background 
     if not services.apps.is_app_allowed( auth, app ) :
         logger.error( 'SECURITY Warning applist has been modified or updated')
-        raise ODError('Application access is denied by security policy')
+        raise ODError( status=401, message='Application access is denied by security policy')
 
     # Check if the image is has the uniquerunkey Label set
     if app.get('uniquerunkey'):
@@ -770,7 +770,7 @@ def openapp( auth, user={}, kwargs={} ):
 
     appinstance = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
     if not isinstance(appinstance, Container) and not isinstance(appinstance, V1Pod ):
-        raise ODError('Failed to run application return %s', type(appinstance) )
+        raise ODError( message='Failed to run application return %s' % type(appinstance) )
 
     logger.info('app %s is started', appinstance.id)
 
@@ -832,7 +832,7 @@ def notify_user( access_userid, access_type, method, data ):
 def getapp(authinfo, name):
     app = services.apps.findappbyname(authinfo, name)
     if app is None:
-        raise ODError('Fatal error - Cannot find image associated to application %s: ' % name)
+        raise ODError(message='Fatal error - Cannot find image associated to application %s: ' % name)
     return app
 
 
@@ -840,7 +840,7 @@ def launch_app_in_process(orchestrator, app, appinstance, userargs):
     cmd = [ app['path'],  app['args'], userargs ]
     result = orchestrator.execininstance(appinstance, cmd)
     if type(result) is not dict:
-        raise ODError('execininstance error')
+        raise ODError(message= 'execininstance error result is not a dict')
     return (cmd, result)
 
 def garbagecollector( expirein, force=False ):

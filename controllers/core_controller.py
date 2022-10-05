@@ -94,13 +94,7 @@ class CoreController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_in()
     def getmessageinfo(self):     
-        
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-        
+        (_, user ) = self.validate_env()
         message = services.messageinfo.popflush(user.userid)
         routecontenttype = {
             'text/plain':  self.handler_messageinfo_text,

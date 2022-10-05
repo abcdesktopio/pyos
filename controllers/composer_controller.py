@@ -50,27 +50,23 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def ocrun(self):
         self.logger.debug('')
-        
-        try:
-            (auth, user ) = self.validate_env()
-            args = cherrypy.request.json
-            if not isinstance(args, dict):
-                return Results.error( message='invalid parameters' )
+        (auth, user ) = self.validate_env()
+        args = cherrypy.request.json
+        if not isinstance(args, dict):
+            raise cherrypy.HTTPError( status=400, message='invalid parameters')
 
-            # appname must exists
-            appname = args.get('image')
-            if not isinstance(appname, str):
-                return Results.error('Missing parameter image')
+        # appname must exists
+        appname = args.get('image')
+        if not isinstance(appname, str):
+            raise cherrypy.HTTPError( status=400, message='invalid image parameters')
 
-            # add lang to user dict
-            self.LocaleSettingsLanguage( user )
-            # open the app
-            result = oc.od.composer.openapp( auth, user, args )
-            return Results.success(result=result)
-
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
+        # add lang to user dict
+        self.LocaleSettingsLanguage( user )
+        # open the app
+        result = oc.od.composer.openapp( auth, user, args )
+        if not isinstance( result, dict):
+             raise cherrypy.HTTPError( status=400, message='ocrun error')
+        return Results.success(result=result)
         
        
     
@@ -83,22 +79,16 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def launchmetappli(self):
-
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-        
+  
+        (auth, user ) = self.validate_env()
         if type(cherrypy.request.json) is not dict:
-            return Results.error( message='invalid parameters' )
-
+            raise cherrypy.HTTPError( status=400, message='invalid parameters')
         args = cherrypy.request.json.copy()
         appname = args.get('app')
         appargs = args.get('args')
         querystring = args.get('querystring')
-        if not appname:
-            return Results.error('Missing parameters app')
+        if not isinstance(appname, str):
+            raise cherrypy.HTTPError( status=400, message='invalid app parameters')
 
         # decode appargs URL decode string
         if type(appargs) is str:
@@ -129,6 +119,8 @@ class ComposerController(BaseController):
      
         return self._launchdesktop(auth, user, args)
 
+
+    '''
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
@@ -151,70 +143,67 @@ class ComposerController(BaseController):
                 message = message + ' ' + e._message
             result = Results.error( message=message, status=status )
             return result
+    '''
+
+    @cherrypy.expose
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out()
+    def launchdesktop(self):
+        self.logger.debug('launchdesktop:validate_env')
+        (auth, user ) = self.validate_env()
+        # add lang to user dict   
+        self.logger.debug('launchdesktop:LocaleSettingsLanguage')
+        self.LocaleSettingsLanguage( user )
+        self.logger.debug('launchdesktop:_launchdesktop')
+        result = self._launchdesktop(auth, user, cherrypy.request.json)
+        return result
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getlogs(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-        
+        (auth, user ) = self.validate_env()
         logs = oc.od.composer.logdesktop(auth, user)
-        if logs :            
-            return Results.success(result=logs)
-        return Results.error('failed to read log')
+        return Results.success(result=logs)
 
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def stopcontainer(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         args = cherrypy.request.json
         if type(args) is not dict:
-            return Results.error( message='invalid parameters' )
+            return cherrypy.HTTPError( status=400, message='invalid args parameters')
 
         containerid = args.get('containerid')
         if type( containerid ) is not str:      
-            return Results.error( message='invalid parameter containerid')
+            return cherrypy.HTTPError( status=400, message='invalid containerid parameters')
         
         result = oc.od.composer.stopContainerApp(auth, user, containerid)
         if result :            
             return Results.success(result=result)
-        return Results.error('failed to stop container')
+        raise cherrypy.HTTPError( status=400, message='failed to stop container')
 
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def logcontainer(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         args = cherrypy.request.json
         if type(args) is not dict:
-            return Results.error( message='invalid parameters' )
+            return cherrypy.HTTPError( status=400, message='invalid parameters')
 
         containerid = args.get('containerid')
         if type( containerid ) is not str:      
-            return Results.error( message='invalid parameter containerid')
+            return cherrypy.HTTPError( status=400, message='invalid parameters containerid')
         
         result = oc.od.composer.logContainerApp(auth, user, containerid)
         if result is not None:            
             return Results.success(result=result)
-        return Results.error('failed to get log container')
+        raise cherrypy.HTTPError( status=400, message='failed to get log container')
 
 
     @cherrypy.expose
@@ -222,49 +211,38 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def envcontainer(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         args = cherrypy.request.json
         if type(args) is not dict:
-            return Results.error( message='invalid parameters' )
+            raise cherrypy.HTTPError( status=400, message='invalid parameters' )
 
         containerid = args.get('containerid')
         if type( containerid ) is not str:      
-            return Results.error( message='invalid parameter containerid')
+            raise cherrypy.HTTPError( status=400, message='invalid parameters' )
         
         result = oc.od.composer.envContainerApp(auth, user, containerid)
-        if result is not None:            
-            return Results.success(result=result)
-        return Results.error('failed to get log container')
-
+        if result is None:
+            raise cherrypy.HTTPError( status=500, message='failed to get log container')
+        return Results.success(result=result)
     
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def removecontainer(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         args = cherrypy.request.json
         if type(args) is not dict:
-            return Results.error( message='invalid parameters' )
+            return cherrypy.HTTPError( status=400, message='invalid parameters' )
 
         containerid = args.get('containerid')
         if type( containerid ) is not str:      
-            return Results.error( message='invalid parameter containerid')
+            return cherrypy.HTTPError( status=400, message='invalid parameter containerid')
         
         result = oc.od.composer.removeContainerApp(auth, user, containerid)
         if result is not None:            
             return Results.success(result=result)
-        return Results.error('failed to remove container')
+        raise cherrypy.HTTPError( status=400, message='failed to remove container')
 
 
     @cherrypy.expose
@@ -272,52 +250,38 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def listcontainer(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-            result = oc.od.composer.listContainerApp(auth, user)
-            if type(result) is list:     
-                return Results.success(result=result)
-            else:
-                return Results.error('failed to read container list')
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )       
-
+        (auth, user ) = self.validate_env()
+        result = oc.od.composer.listContainerApp(auth, user)
+        return Results.success(result=result)
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def refreshdesktoptoken(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
+        (auth, user ) = self.validate_env()
+        appname = None
+        args = cherrypy.request.json
+        if isinstance(args, dict):
+            appname = args.get('app')
+        desktop = oc.od.composer.finddesktop_quiet(authinfo=auth, userinfo=user, appname=appname) 
+        # check desktop object
+        if not isinstance(desktop, oc.od.desktop.ODDesktop):  
+            raise cherrypy.HTTPError( status=400, message='finddesktop_quiet does not return a desktop object')          
+        if not hasattr(desktop, 'internaluri') :
+            raise cherrypy.HTTPError( status=400, message='finddesktop_quiet does not return a valid desktop object')  
+        if desktop.internaluri is None:
+            raise cherrypy.HTTPError( status=400, message='finddesktop_quiet returns a desktop object with desktop.internaluri as None, unreachable')
+        
+        # build new jwtdesktop
+        jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
+        self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
 
-            appname = None
-            args = cherrypy.request.json
-            if isinstance(args, dict):
-                appname = args.get('app')
+        return Results.success(result={
+                'authorization' : jwtdesktoptoken,  # the desktop.ipAddr encrypted
+                'expire_in'     : services.jwtdesktop.exp() # jwt TTL
+        })
 
-            desktop = oc.od.composer.finddesktop_quiet(authinfo=auth, userinfo=user, appname=appname) 
-            # check desktop object
-            if not isinstance(desktop, oc.od.desktop.ODDesktop):                
-                return Results.error('finddesktop_quiet return None object')
-            if not hasattr(desktop, 'internaluri') :
-                return Results.error('finddesktop_quiet return invalid desktop object')
-            if desktop.internaluri is None:                
-                return Results.error('finddesktop_quiet return desktop.internaluri is None, unreachable')
-            
-            # build new jwtdesktop
-            jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-            self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
-
-            return Results.success(result={
-                    'authorization' : jwtdesktoptoken,  # the desktop.ipAddr encrypted
-                    'expire_in'     : services.jwtdesktop.exp() # jwt TTL
-            })
-
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
 
 
     @cherrypy.expose
@@ -325,46 +289,38 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     def getdesktopdescription(self):
         self.logger.debug('')
-
         # check if request is allowed, raise an exception if deny
         self.is_permit_request()
-
+        # check if user is authenticated and identified, raise an exception if not
         (auth, user ) = self.validate_env()
         result = oc.od.composer.getdesktopdescription(auth, user)
-        if isinstance( result, dict ):
-            return Results.success(result=result)
-        else:
-            return Results.error('failed to getdesktopdescription')
+        if not isinstance( result, dict ):
+            raise cherrypy.HTTPError( status=400, message='failed to getdesktopdescription')
+        return Results.success(result=result)
+
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getuserapplist(self):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-            userappdict = {}
-
-            # list all applications allowed for this user (auth)
-            appdict = services.apps.user_appdict( auth, filtered_public_attr_list=True)
-
-            # list all default application from the config file allowed for this user (auth)
-            defaultappdict= services.apps.default_appdict( auth, settings.get_default_appdict(), filtered_public_attr_list=True )
-
-            # user application list is the default applist + the user application list
-            # add defaultappdict 
-            # defaultappdict id the first one to get filemanager as first entry if in dock 
-            userappdict.update( defaultappdict )
-            # add appdict
-            userappdict.update( appdict )
-
-            # return value is a list, convert dict to list
-            userapplist = list( userappdict.values() )
-            # return succes data 
-            return Results.success(result=userapplist)    
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
+        
+        (auth, user ) = self.validate_env()
+        userappdict = {}
+        # list all applications allowed for this user (auth)
+        appdict = services.apps.user_appdict( auth, filtered_public_attr_list=True)
+        # list all default application from the config file allowed for this user (auth)
+        defaultappdict= services.apps.default_appdict( auth, settings.get_default_appdict(), filtered_public_attr_list=True )
+        # user application list is the default applist + the user application list
+        # add defaultappdict 
+        # defaultappdict id the first one to get filemanager as first entry if in dock 
+        userappdict.update( defaultappdict )
+        # add appdict
+        userappdict.update( appdict )
+        # return value is a list, convert dict to list
+        userapplist = list( userappdict.values() )
+        # return succes data 
+        return Results.success(result=userapplist)    
         
     def _launchdesktop(self, auth, user, args):
         self.logger.debug('')
@@ -511,13 +467,9 @@ class ComposerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
-    def listsecrets(self):
-        try:
-            (auth, user ) = self.validate_env()
-            # list secrets
-            secrets = oc.od.composer.listAllSecretsByUser( auth, user)
-            list_secrets = list( secrets )
-            return Results.success(result=list_secrets)
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
+    def listsecrets(self):    
+        (auth, user ) = self.validate_env()
+        # list secrets
+        secrets = oc.od.composer.listAllSecretsByUser( auth, user)
+        list_secrets = list( secrets )
+        return Results.success(result=list_secrets)

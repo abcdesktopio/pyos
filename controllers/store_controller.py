@@ -21,7 +21,6 @@ from oc.od.base_controller import BaseController
 
 logger = logging.getLogger(__name__)
 
-
 @cherrypy.config(**{ 'tools.auth.on': True })
 @oc.logging.with_logger()
 class StoreController(BaseController):
@@ -34,14 +33,8 @@ class StoreController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def set(self):
-
         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-        
+        (auth, user ) = self.validate_env()
         arguments = cherrypy.request.json
         if type(arguments) is not dict :
             return Results.error( message='invalid parameters' )
@@ -54,9 +47,9 @@ class StoreController(BaseController):
             if services.datastore.setstoredvalue(userid, key , value) is True:
                 return Results.success()
             else:
-                Results.error('setstoredvalue failed') 
+                raise cherrypy.HTTPError( status=400, message='setstoredvalue failed') 
         else:
-            Results.error('invalid params') 
+            raise cherrypy.HTTPError( status=400, message='invalid params') 
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -64,16 +57,12 @@ class StoreController(BaseController):
     def get(self):
 
         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-                
+        (auth, user ) = self.validate_env()
+       
         arguments = cherrypy.request.json
 
         if type(arguments) is not dict :
-            return Results.error( message='invalid parameters' )
+            raise cherrypy.HTTPError( status=400, message='invalid parameters' )
 
         userid = user.userid
         value = None
@@ -84,7 +73,7 @@ class StoreController(BaseController):
             value = self.wrapped_get(userid, key)
         
         if value is None:
-            return Results.error('value not found: userid = %s, key = %s' % (userid,key), 404)
+            raise cherrypy.HTTPError( status=400, message='value not found: userid = %s, key = %s' % (userid,key))
         
         return Results.success(result=value)
 
@@ -107,24 +96,16 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.allow(methods=['POST'])
     def getcollection(self):
-
-         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-        
-        
+        (auth, user ) = self.validate_env()
         userid = user.userid
         arguments = cherrypy.request.json
         if type(arguments) is not dict:
-            return Results.error('bad request invalid parameters')
+            raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
 
         key = arguments.get('key')
         # only 'loginHistory' or 'callHistory' is allowed
         if key not in ['loginHistory', 'callHistory']:
-            return Results.error('denied key value')
+            raise cherrypy.HTTPError( status=400, message='denied key value')
 
         return self._getcollection(userid, key)
     
@@ -134,20 +115,14 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.allow(methods=['GET'])
     def collection(self, key):
-        # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         userid = user.userid
         if type(key) is not str:
-            return Results.error('bad request invalid parameters')
+            raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
 
         # only 'loginHistory' or 'callHistory' is allowed
         if key not in ['loginHistory', 'callHistory']:
-            return Results.error('denied key value')
+            raise cherrypy.HTTPError( status=400, message='denied key value')
 
         return self._getcollection(userid, key)
     
@@ -159,24 +134,19 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     def setcollection(self):
         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
-
+        (auth, user ) = self.validate_env()
+    
         userid = user.userid
         arguments = cherrypy.request.json
         
         if type(arguments) is not dict:
-            return Results.error('bad request invalid parameters')
+            raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
 
         key = arguments.get('key')
         value = arguments.get('value')
 
         if key not in ['callHistory']:
-            return Results.error('collection name denied')
+            raise cherrypy.HTTPError( status=400, message='collection name denied')
             
         return self._addtocollection(userid, key, value)        
 
@@ -186,12 +156,7 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     def getlog(self):
         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         return self._getcollection('log', cherrypy.request.json.get('key'))
 
 
@@ -200,12 +165,7 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()    
     def getacl(self):
         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         return self._getcollection('acl', cherrypy.request.json.get('key'))
 
 
@@ -213,18 +173,11 @@ class StoreController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def setacl(self):
-        # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        # Check auth   
+        (auth, user ) = self.validate_env()
         arguments = cherrypy.request.json
-
         if type(arguments) is not dict:
-            return Results.error('bad request invalid parameters')
-
+            raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
         return self._addtocollection('acl', arguments.get('key', None), arguments.get('value', None))
 
 
@@ -234,16 +187,11 @@ class StoreController(BaseController):
     def updateacl(self):
         
         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         arguments = cherrypy.request.json
 
         if type(arguments) is not dict:
-            return Results.error('bad request invalid parameters')
+            raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
 
         dbname = 'acl'
         key = arguments.get('key')
@@ -253,7 +201,7 @@ class StoreController(BaseController):
         if all([dbname, key, req]) and services.datastore.updatestoredvalue(dbname, key, req, value) is True:
             return Results.success()
 
-        return Results.error('set data error')
+        raise cherrypy.HTTPError( status=400, message='set data error')
 
 
     @cherrypy.expose
@@ -261,19 +209,12 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     def deleteacl(self):
         # Check auth 
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user ) = self.validate_env()
         arguments = cherrypy.request.json
-
         if type(arguments) is not dict:
-            return Results.error('bad request invalid parameters')
+            raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
 
         dbname = 'acl'
-
         key = arguments.get('key')
         value = arguments.get('value')
 
@@ -288,12 +229,11 @@ class StoreController(BaseController):
         if all([dbname, key]):
             value = services.datastore.getcollection(dbname, key)
         if value is None:
-            return Results.error('key:%s not found' % key, 404)
+            raise cherrypy.HTTPError( status=400, message=f"key:{key} not found")
         return Results.success(result=value)
     
 
     def _addtocollection(self, dbname, key, value):        
         if all([dbname, key]) and services.datastore.addtocollection(dbname, key, value) is True:
             return Results.success()           
-        else:
-            return Results.error( message='addtocollection failed') 
+        raise cherrypy.HTTPError( status=400, message='addtocollection failed') 

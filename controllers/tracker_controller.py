@@ -37,12 +37,7 @@ class TrackerController(BaseController):
     def issue(self):
         """[summary]
         """
-        try:
-            (auth, user) = self.validate_env()
-        except Exception as e:
-            logger.error( e )
-            return Results.error( message=str(e) )
-
+        (auth, user) = self.validate_env()
 
         arguments   = cherrypy.request.json
         myjira      = oc.od.tracker.jiraclient()

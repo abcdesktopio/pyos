@@ -27,16 +27,19 @@ bStopBugingWarningTLSmesssage = False
 logger = logging.getLogger(__name__)
 
 class ODError(Exception):
-    def __init__(self,message):
+    def __init__(self,status=500,message='unkown error'):
         super().__init__(message)
+        self.status = status
+        self.message=message
 
 class ODResourceNotFound(ODError):
-    def __init__(self,message):
-        super().__init__(message)
+    def __init__(self,status=500,message='unkown ressource error'):
+        super().__init__(status,message)
+
 
 class ODAPIError(ODError):
-    def __init__(self,message):
-        super().__init__(message)
+    def __init__(self,status=500,message='unkown API error'):
+        super().__init__(status,message)
 
 #
 # return the infra object from the settings configuration file
