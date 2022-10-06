@@ -868,10 +868,9 @@ class ODAuthTool(cherrypy.Tool):
                 # This is not the user's memberOf 
                 self.logger.debug('This is a ODAdAuthMetaProvider and auth is AuthInfo')
                 self.logger.debug( f"isMemberOf query to provider={meta_provider.name}")
-                result = meta_provider.isMemberOf( auth, user, memberOf )
+                result = meta_provider.isMemberOf( auth, memberOf )
                 self.logger.debug( f"meta_provider.isMemberOf -> result={result}")
-                self.logger.debug( f"result == condition.get('expected')")
-                self.logger.debug( f"test {result} == {condition.get('expected')}")
+                self.logger.debug( f"result == condition.get('expected') -> {result} == {condition.get('expected')}")
                 if result == condition.get('expected'):
                     compiled_result = True
             else:
@@ -1161,7 +1160,6 @@ class ODAuthTool(cherrypy.Tool):
             self.logger.error( 'skipping metalogin, no metauser found' )
             return self.login(provider, manager, **arguments)
 
-
         # 
         # postpone with user domain sid 
         roles = provider_meta.getroles( auth, **arguments)
@@ -1173,8 +1171,6 @@ class ODAuthTool(cherrypy.Tool):
         if not oc.od.acl.ODAcl().isAllowed( auth, provider_meta.acls ):
             raise AuthenticationDenied( 'Access is denied by security policy')
         
-       
-
         new_login = metauser.get( provider_meta.join_key_ldapattribut )
 
         if not isinstance( new_login, str ):
@@ -1202,34 +1198,40 @@ class ODAuthTool(cherrypy.Tool):
           
         userloginresponse = self.login(**arguments)
 
-        if  hasattr( userloginresponse, 'success')  and  \
-            userloginresponse.success is True       and  \
-            hasattr( userloginresponse, 'result')   and  \
-            isinstance( userloginresponse.result, AuthCache ) : 
+        if  hasattr( userloginresponse, 'success')  and  userloginresponse.success is True and  \
+            hasattr( userloginresponse, 'result')   and  isinstance( userloginresponse.result, AuthCache ) : 
 
             # now it's time to query for foreign keys to the meta provider
             # if the metaprovider has rules defined
             # then compile data using rules
             # and runs the rules to get associated labels tag
+            # on most case it use the memberof 
 
-            objectSid = userloginresponse.result.user.get('objectSid')
-            self.logger.debug( f"userlogin has objectSid={objectSid}")
 
-            # look for entries set with the user domain sid in the meta directory provider
-            metauser['foreing_distinguished_name'] = provider_meta.getforeignkeys( auth, userloginresponse.result.user )
+            # 
+            # do authenticate using the user's credential to the metadirectory provider
+            #
+            try:
+                # close previous auth
+                provider_meta.finalize(auth)
+                # replay an new auth to the provider_meta with the new login and the password
+                metaAuthInfoForUser = provider_meta.authenticate ( new_userid, arguments['password'] ) 
+                # compile rules with the new usermetaauthinfo
+                metaAuthInfoForUserLabels = self.compiledrules( provider_meta.rules, metauser, roles, provider=provider_meta, auth=metaAuthInfoForUser )
+                # dump metaAuthInfoForUserLabels
+                self.logger.info( f"compiled rules metaAuthInfoForUserLabels {metaAuthInfoForUserLabels}" )
+                # update the  auth.data['labels'] with the new metaAuthInfoForUserLabels
+                auth.data['labels'].update( metaAuthInfoForUserLabels )
+                # dump updated auth.data['labels']
+                self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+                # buid a AuthCache as response result 
+                metaauthcache = AuthCache( { 'auth': vars(auth), 'user': metauser, 'roles': roles } ) 
+                # merge userloginresponse with metaauthdata
+                userloginresponse.result.merge( metaauthcache )
 
-            # meta user knows the foreingkeys from the user domain
-            # can query to memberof 
-            # set auth to get a connection with auth.conn
-            # set provider to meta_provider to query to the meta directory service 
-            auth.data['labels'] = self.compiledrules( provider_meta.rules, metauser, roles, provider=provider_meta, auth=auth )
-            self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
-
-            # buid a AuthCache as response result 
-            metaauthcache = AuthCache( { 'auth': vars(auth), 'user': metauser, 'roles': roles } ) 
-              
-            # merge userloginresponse with metaauthdata
-            userloginresponse.result.merge( metaauthcache )
+            except Exception as e:
+                # no authenticate 
+                self.logger.error( f"skipping metalogin, authenticate failed {e}")
 
         return userloginresponse
 
@@ -1404,7 +1406,7 @@ class ODAuthTool(cherrypy.Tool):
 
         finally:
             # call finalize to clean conn if need
-            if isinstance( auth, AuthInfo )  and hasattr( mgr, 'finalize' ) and callable(mgr.finalize) :
+            if isinstance( auth, AuthInfo ) :
                 mgr.finalize(provider, auth, **arguments)
 
         return response
@@ -3229,11 +3231,16 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         # self.user_query_join_attributkey.filter = self.user_query.filter.replace( '(sAMAccountName=%s)', user_filter_join_attributkey )
 
         self.foreign_query = self.Query(
-            config.get('foreign_basedn', 'CN=ForeignSecurityPrincipals,' +self.user_query.basedn),
+            config.get('foreign_basedn', 'CN=ForeignSecurityPrincipals,' + self.user_query.basedn),
             config.get('foreign_scope', self.user_query.scope),
             config.get('foreign_filter', "(&(objectClass=foreignSecurityPrincipal)(objectSid=%s))"),
             config.get('foreign_attrs',  ['cn', 'distinguishedName'] ) )
 
+        self.foreingmemberof_query = self.Query(
+            config.get('foreingmemberof_basedn', 'CN=ForeignSecurityPrincipals,' + self.user_query.basedn),
+            config.get('foreingmemberof_scope', self.user_query.scope),
+            config.get('foreingmemberof_filter', "(memberof:1.2.840.113556.1.4.1941:=%s)"),
+            config.get('foreingmemberof_attrs',  ['cn', 'distinguishedName'] ) )
 
     def validate(self, userid, password, **params):
         """[validate]
@@ -3371,8 +3378,30 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
         self.logger.debug( f"return foreingdistinguished_list={foreingdistinguished_list}" )
         return foreingdistinguished_list
-       
-    def isMemberOf( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
+
+    def isMemberOf(self, authinfo, groupdistinguished_name: str):
+        memberof = False
+        q = self.foreingmemberof_query
+        filter = ldap_filter.filter_format( q.filter, [ groupdistinguished_name ] )
+        try:
+            self.logger.debug ( "run ldapquery isMember FSP:ForeignSecurityPrincipals" )
+            self.logger.debug ( f"search_base={q.basedn}, search_scope={q.scope}, search_filter={filter}" )
+            self.logger.debug ( "starting query" )
+            memberof = authinfo.conn.search( search_base=q.basedn, search_filter=filter, search_scope=q.scope )
+            self.logger.debug ( f"end of query authinfo.conn.search return {memberof}" )
+            if memberof:
+                self.logger.debug ( "start dumping data query" )
+                for entry in authinfo.conn.response:
+                    self.logger.debug(entry)
+                self.logger.debug ( "end of dumping data query" )
+        except Exception as e:
+            self.logger.error( e )
+
+        self.logger.debug ( f"return memberof={memberof}" )
+        return memberof
+        
+
+    def isMemberOfForeingSecuriyPrincipalsbyObjectSid( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
         self.logger.debug('ODAdAuthMetaProvider')
         memberof = False
         foreing_distinguished_name = user.get('foreing_distinguished_name')
