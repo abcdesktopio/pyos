@@ -26,6 +26,7 @@ import json
 import crypt
 import datetime
 import re
+import copy
 from urllib.parse import urlparse
 
 
@@ -1128,9 +1129,14 @@ class ODAuthTool(cherrypy.Tool):
         # check if metalogin manager and provider are defined
 
         self.logger.debug('')
+
+        # take time to mesure time of login call
+        server_utctimestamp = self.mesuretimeserver_utctimestamp(arguments=arguments)
+
         ( mgr_meta, provider_meta ) = self.get_metalogin_manager_provider()
-        if mgr_meta is None or provider_meta is None:
-            # no metaexplicit manager has been defined
+        if  not isinstance( mgr_meta, ODExplicitMetaAuthManager) or \
+            not isinstance( provider_meta, ODAdAuthMetaProvider):
+            # no metaexplicit manager has been defined or no metaexplicit provider has been defined 
             self.logger.info( 'skipping metalogin, no metaexplicit manager or no metadirectory provider has been defined')
             return self.login(provider, manager, **arguments)
 
@@ -1141,7 +1147,7 @@ class ODAuthTool(cherrypy.Tool):
             auth = provider_meta.authenticate( provider_meta.userid, provider_meta.password )  
         except Exception as e:
             # no authenticate 
-            self.logger.error( 'skipping metalogin, authenticate failed %s', str(e))
+            self.logger.error( f"skipping metalogin, authenticate failed {e}")
             return self.login(provider, manager, **arguments)
 
         #
@@ -1154,7 +1160,7 @@ class ODAuthTool(cherrypy.Tool):
             # no user provider has been found
             self.logger.error( 'skipping metalogin, no metauser getuserinfo  %s', str(e))
             return self.login(provider, manager, **arguments)
-        if metauser is None:
+        if not isinstance( metauser, dict):
             # no user provider has been found
             # an error occurs in meta directory query
             self.logger.error( 'skipping metalogin, no metauser found' )
@@ -1181,23 +1187,27 @@ class ODAuthTool(cherrypy.Tool):
         (new_domain,new_userid) = ODAdAuthProvider.splitadlogin( new_login )
         new_provider = self.findproviderbydomainprefix( providers=providers_list, domain=new_domain ) 
 
-        if new_provider is None:
-            self.logger.error( 'provider %s to authenticate %s is not defined', new_domain, new_userid )
-            raise AuthenticationFailureError('Provider %s to authenticate %s is not defined' % (new_domain, new_userid) )
-            # return self.login(provider, manager, **arguments)
+        if not isinstance(new_provider, ODAdAuthProvider ):
+            self.logger.error( f"provider domain={new_domain} to authenticate user={new_userid} is not defined" )
+            raise AuthenticationFailureError(f"Can't find a provider for domain={new_domain} to authenticate user={new_userid}, check your config file" )
 
-        self.logger.info( 'metadirectory translating user auth')
-        self.logger.info( 'metadirectory replay from provider %s->%s', provider_meta.name, new_provider.name )
-        self.logger.info( 'metadirectory replay from user %s->%s', str(arguments.get('userid')) , new_userid )
-        self.logger.info( 'metadirectory replay from domain %s->%s', provider_meta.domain, new_domain )
+        # now we have found a new provider 
+        # dump this info in log file
+        # and them run auth
+        self.logger.info( f"metadirectory translating user auth")
+        self.logger.info( f"metadirectory replay from provider {provider_meta.name} -> {new_provider.name}" )
+        self.logger.info( f"metadirectory replay from user {arguments.get('userid')} -> {new_userid}" )
+        self.logger.info( f"metadirectory replay from domain {provider_meta.domain} -> {new_domain}" )
 
         # update login with new data from meta directory
         arguments[ 'userid'   ] = new_userid
         arguments[ 'provider' ] = new_provider.name
         arguments[ 'manager'  ] = 'explicit'
-          
+
+        # let's authenticate user with this provider 
         userloginresponse = self.login(**arguments)
 
+        # if auth is successful 
         if  hasattr( userloginresponse, 'success')  and  userloginresponse.success is True and  \
             hasattr( userloginresponse, 'result')   and  isinstance( userloginresponse.result, AuthCache ) : 
 
@@ -1213,21 +1223,49 @@ class ODAuthTool(cherrypy.Tool):
             #
             try:
                 # close previous auth
+                self.logger.debug('close previous auth')
+                # in kerberos auth mode 
+                # we could keep TGT in memory
+                # but for ntlm there is no stored in memory object
+                # so we need to call provider_meta.finalize
+                # and replay another auth 
                 provider_meta.finalize(auth)
+
+                #
+                # newmetaprovider is a metaprovider with user auth config
+                # the newmetaprovider is ephemral
+                # make a copy of this provider_meta
+                # to update the object's attributs 
+                newmetaprovider = provider_meta.deepcopy()
+                # update authentification 
+                # get the domain, realm, kerberos config from the user domain
+                # and set it to the new meta provider 
+                newmetaprovider.updateauthentificationconfigfromprovider( new_provider )
+
                 # replay an new auth to the provider_meta with the new login and the password
-                metaAuthInfoForUser = provider_meta.authenticate ( new_userid, arguments['password'] ) 
+                self.logger.debug('replay an new auth to the provider_meta with the new login and the password')
+                metaAuthInfoForUser = newmetaprovider.authenticate( arguments[ 'userid' ], arguments['password'] ) 
                 # compile rules with the new usermetaauthinfo
-                metaAuthInfoForUserLabels = self.compiledrules( provider_meta.rules, metauser, roles, provider=provider_meta, auth=metaAuthInfoForUser )
+                self.logger.debug('compiledrules')
+                metaAuthInfoForUserLabels = self.compiledrules( newmetaprovider.rules, metauser, roles, provider=newmetaprovider, auth=metaAuthInfoForUser )
                 # dump metaAuthInfoForUserLabels
                 self.logger.info( f"compiled rules metaAuthInfoForUserLabels {metaAuthInfoForUserLabels}" )
                 # update the  auth.data['labels'] with the new metaAuthInfoForUserLabels
                 auth.data['labels'].update( metaAuthInfoForUserLabels )
                 # dump updated auth.data['labels']
                 self.logger.info( 'compiled rules get labels %s', auth.data['labels'] )
+                # overwrite the previous login auth_duration_in_milliseconds
+                # with the metalogin auth_duration_in_milliseconds
+                auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
+                #
                 # buid a AuthCache as response result 
-                metaauthcache = AuthCache( { 'auth': vars(auth), 'user': metauser, 'roles': roles } ) 
+                metaauthcache = AuthCache( 
+                    dict_token={ 'auth': vars(auth), 'user': metauser, 'roles': roles }, 
+                    auth_duration_in_milliseconds=auth_duration_in_milliseconds 
+                ) 
                 # merge userloginresponse with metaauthdata
                 userloginresponse.result.merge( metaauthcache )
+                userloginresponse.reason=f"a.Authentication on {provider_meta.getdisplaydescription()} via {new_provider.getdisplaydescription()} successful in {auth_duration_in_milliseconds:.2f} s"  # float two digits after comma
 
             except Exception as e:
                 # no authenticate 
@@ -1303,6 +1341,23 @@ class ODAuthTool(cherrypy.Tool):
         return provider
 
 
+    def mesuretimeserver_utctimestamp( self, arguments ):
+        # mesure time betwwen client and serveur at the first time 
+        # before all auth processing
+        # show profiler time diff
+        user_utctimestamp = arguments.get('utctimestamp')
+        server_utctimestamp = datetime.datetime.now().timestamp()*1000
+        if isinstance(user_utctimestamp, int):
+            # convert server_utctimestamp to milliseconds
+            # server_utctimestamp = float(datetime.datetime.utcnow().timestamp()) * 1000
+            arguments['difftime'] = server_utctimestamp - user_utctimestamp
+            self.logger.info(f"Diff between server-client {arguments['difftime']} in milliseconds")
+        return server_utctimestamp
+
+    def mesuretimeserver_auth_duration( self,server_utctimestamp):
+        server_endoflogin_utctimestamp = datetime.datetime.now().timestamp()*1000
+        auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
+        return auth_duration_in_milliseconds
 
 
     def login(self, provider, manager=None, **arguments):        
@@ -1311,16 +1366,8 @@ class ODAuthTool(cherrypy.Tool):
             auth = None
             response = AuthResponse(self)
 
-            # mesure time betwwen client and serveur at the first time 
-            # before all auth processing
-            # show profiler time diff
-            user_utctimestamp = arguments.get('utctimestamp')
-            server_utctimestamp = datetime.datetime.now().timestamp()*1000
-            if isinstance(user_utctimestamp, int):
-                # convert server_utctimestamp to milliseconds
-                # server_utctimestamp = float(datetime.datetime.utcnow().timestamp()) * 1000
-                arguments['difftime'] = server_utctimestamp - user_utctimestamp
-                self.logger.info(f"Diff between server-client {arguments['difftime']} in milliseconds")
+            # take time to mesure time of login call
+            server_utctimestamp = self.mesuretimeserver_utctimestamp(arguments=arguments)
 
             # if provider is None, it must be an explicit manager 
             if not isinstance(provider, str):
@@ -1378,15 +1425,17 @@ class ODAuthTool(cherrypy.Tool):
             if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
                 raise AuthenticationDenied( 'Access is denied by security policy')
             
-            server_endoflogin_utctimestamp = datetime.datetime.now().timestamp()*1000
-            auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
+            auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
             # build a AuthCache as response result 
-            myauthcache = AuthCache( { 'auth': vars(auth), 'user': user, 'roles': roles }, auth_duration_in_milliseconds=auth_duration_in_milliseconds ) 
+            myauthcache = AuthCache( 
+                { 'auth': vars(auth), 'user': user, 'roles': roles }, 
+                auth_duration_in_milliseconds=auth_duration_in_milliseconds 
+            ) 
 
             response.update(    manager=mgr, 
                                 result=myauthcache, 
                                 success=True, 
-                                reason=f"a.Authentication successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma
+                                reason=f"a.Authentication on { pdr.getdisplaydescription() } successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma
             
         except AuthenticationError as e:
             response.reason = e.message
@@ -1712,6 +1761,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
              }
         }
        
+    def getdisplaydescription( self ):
+        return self.displayname
+    
     def authenticate(self, **params):
         raise NotImplementedError()
 
@@ -1971,11 +2023,15 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.usercnattr = config.get('usercnattr', 'cn') 
         self.useruidattr = config.get('useruidattr', 'uid')
         self.domain = config.get('domain')
-        self.kerberos_realm = config.get('kerberos_realm') # must be str od a dict of realm domain/value
+        self.kerberos_realm = config.get('kerberos_realm') # must be str or a dict of realm domain/value
         self.kerberos_krb5_conf = config.get('krb5_conf')
-        # self.kerberos_service_identifier = config.get('krb5_service_identifier', '')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
-        self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit')   # change to /usr/sbin/kinit on macOS
+
+        # not used 
+        # self.kerberos_service_identifier = config.get('krb5_service_identifier', '')
+        # self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit')   # change to /usr/sbin/kinit on macOS
+        #
+
         # auth_protocol is a dict of auth protocol, will be injected inside the container
         self.auth_protocol = config.get('auth_protocol', { 'ntlm': False, 'cntlm': False, 'kerberos': False, 'citrix': False} )
         # if ldif is not set (None) 
@@ -2018,6 +2074,44 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('group_scope', self.user_query.scope),
             config.get('group_filter', "(&(objectClass=Group)(cn=%s))"),
             config.get('group_attrs'))
+
+
+    def getdisplaydescription( self ):
+        displaydescription = super().getdisplaydescription()
+        if self.auth_type == 'KERBEROS':
+            displaydescription = self.kerberos_realm
+        elif self.auth_type == 'NTLM':
+            displaydescription = self.domain
+        return displaydescription
+
+    def deepcopy( self ):
+        self.logger.debug('')
+        newprovider = copy.deepcopy( self )
+        return newprovider
+
+
+    def updateauthentificationconfigfromprovider( self, provider:ODAuthProviderBase ) -> ODAuthProviderBase :
+        """ updateauthentificationconfig
+            copy authentification attribut config from provider
+                - domain
+                - kerberos_realm
+                - kerberos_krb5_conf
+                - kerberos_ktutil
+            update self
+            use to support authnetification on microsoft active direcory trust relationship 
+        Args:
+            newprovider (ODAuthProviderBase): new provider to be updated
+
+        Returns:
+            ODAuthProviderBase: updated provider
+        """
+        self.logger.debug('')
+        assert isinstance( provider, ODLdapAuthProvider), f"bad provider type {type(provider)}"
+
+        self.domain = provider.domain
+        self.kerberos_realm = provider.kerberos_realm
+        self.kerberos_krb5_conf =  provider.kerberos_krb5_conf
+        self.kerberos_ktutil =  provider.kerberos_ktutil
 
 
     def loadserviceaccount( self, config ):
@@ -2068,7 +2162,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
 
     def validate(self, userid, password, **params):
-
+        self.logger.debug( f"validate={userid}" )
         userdn = None   # set default value
         conn   = None   # set default value
 
@@ -2080,7 +2174,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.krb5_validate( userid, password )
             self.krb5_authenticate( userid, password )
             if not self.auth_only :
-                conn = self.getconnection(userid, password) 
+                # krb5_authenticate has been done 
+                # already_authenticate is True
+                conn = self.getconnection(userid, password ) 
+                userdn = self.getuserdn(conn, userid)
         elif self.auth_type == 'SIMPLE':
             # can raise exception 
             self.simple_validate(userid, password)   
@@ -2094,15 +2191,17 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return (userdn, conn)
 
     def krb5_authenticate(self, userid, password ):
+        self.logger.debug( f"krb5_authenticate user={userid}" )
         try:
             userid = userid.upper()
             krb5ccname = self.get_krb5ccname( userid )
             self.run_kinit( krb5ccname, userid, password )
         except Exception as e:
             self.remove_krb5ccname( krb5ccname )
-            raise AuthenticationError( f"kerberos credentitials validation failed {str(e)}")
+            raise AuthenticationError( f"kerberos credentitials validation failed {e}")
 
     def authenticate(self, userid, password, **params):
+        self.logger.debug( "authenticate user={userid}" )
         # validate can raise exception 
         # like invalid credentials
         (userdn, conn) = self.validate(userid, password)   
@@ -2259,6 +2358,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # auth_only do not use ldap query
         if self.auth_only : 
             # return empty list
+            self.logger.debug(f"provider {self.name} is a auth_only={self.auth_only}, no roles can be read return {roles}") 
             return roles
 
         try:
@@ -2273,6 +2373,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.logger.error( e )
             # return empty list if an exception occurs
 
+        self.logger.debug(f"roles on provider {self.name}, read {roles}" ) 
         return roles
 
     def getuserdnldapconnection(self, userid):
@@ -2406,7 +2507,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     kerberos_principal_name = self.get_kerberos_principal( userid )
                     # If you specify user=, it is expected to be a Kerberos principal (though it appears you can omit the domain). 
                     # If there is a credential for that user in the collection, it will be used.
-                    self.logger.info( 'ldap getconnection:Connection server=%s as user=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME=%s', server_name, kerberos_principal_name, cred_store )
+                    self.logger.debug( 'ldap getconnection:Connection server=%s as user=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME=%s', server_name, kerberos_principal_name, cred_store )
                     conn = ldap3.Connection( server, user=kerberos_principal_name, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
 
                 # do ntlm bind
@@ -2425,9 +2526,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
                 # let's bind to the ldap server
                 # conn.open()
-                self.logger.info( 'binding to the ldap server %s', server_name)
+                self.logger.info( f"binding to the ldap server {server_name}")
                 conn.bind()
-                self.logger.info( 'bind to %s done', server_name)
+                self.logger.info( f"bind to {server_name} done")
 
                 return conn
 
@@ -2618,12 +2719,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # krb5ccname = 'FILE:/tmp/' + oc.auth.namedlib.normalize_name( principal ) + '.krb5ccname'
         # MEMORY: caches are for storage of credentials that don’t need to be made available outside of the current process.
         # krb5ccname = 'MEMORY:' + oc.auth.namedlib.normalize_name( principal )
+        ccname = oc.auth.namedlib.normalize_name( principal )
         if self.krb5cctype == 'FILE' :
-            krb5ccname = 'FILE:/tmp/' + oc.auth.namedlib.normalize_name( principal )
+            krb5ccname = 'FILE:/tmp/' + ccname
         elif self.krb5cctype == 'KEYRING':
-            krb5ccname = 'KEYRING:persistent:'+ oc.auth.namedlib.normalize_name( principal ) + ':'
+            krb5ccname = 'KEYRING:persistent:'+ ccname + ':'
         else:
-            krb5ccname = 'MEMORY:' + oc.auth.namedlib.normalize_name( principal )
+            krb5ccname = 'MEMORY:' + ccname
         return krb5ccname
 
     def remove_krb5ccname( self, krb5ccname ):
@@ -2646,6 +2748,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         
         # KRB5CCNAME = b"MEMORY:%userid%"
         # KRB5CCNAME = b"FILE:/tmp/krb5cc_1000"
+        self.logger.debug(f"running kerberos auth for {kerberos_principal}")
 
         # this section code can raise gssapi.exceptions.GSSError
         req_creds = gssapi.raw.acquire_cred_with_password(user, bpass, usage='initiate')
@@ -2657,7 +2760,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                                             creds=req_creds.creds,
                                                             usage="initiate", 
                                                             overwrite=True )
-            self.logger.debug( 'store_cred_into %s %s', krb5ccname, store_cred_result.usage )
+            
+            self.logger.debug( f"store_cred_into {krb5ccname} {store_cred_result.usage}" )
             # exported_cred = gssapi.raw.export_cred(req_creds.creds)
 
         return store_cred_result
@@ -2990,8 +3094,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
 
     def authenticate(self, userid, password, **params):
-        if not self.issafeAdAuthusername(userid) or not self.issafeAdAuthpassword(password):
-            raise InvalidCredentialsError('Unsafe credentials')
+        if not self.issafeAdAuthusername(userid):
+            raise InvalidCredentialsError('Unsafe login credentials')
+        if not self.issafeAdAuthpassword(password):
+            raise InvalidCredentialsError('Unsafe password credentials')
        
         # authenticate can raise exception 
         (userdn, conn) = super().validate(userid, password)
@@ -3144,16 +3250,15 @@ class ODAdAuthProvider(ODLdapAuthProvider):
            self.logger.debug( 'dcslist has expired' )
         return bReturn
 
-
-    def getconnection(self, userid:str, password:str ):
-        self.logger.debug('')
-        if self.auth_type == 'NTLM':
-            # add the domain name to format login as DOMAIN\USER if need
-            userid = self.getadlogin(userid)
-        if self.auth_type == 'KERBEROS':
-            # create a Kerberos TGT 
-            self.krb5_authenticate( userid, password )
-        return super().getconnection(userid, password )
+    #def getconnection(self, userid:str, password:str ):
+    #    self.logger.debug('')
+    #    if self.auth_type == 'NTLM':
+    #        # add the domain name to format login as DOMAIN\USER if need
+    #        userid = self.getadlogin(userid)
+    #    if self.auth_type == 'KERBEROS':
+    #        # create a Kerberos TGT 
+    #        self.krb5_authenticate( userid, password )
+    #    return super().getconnection(userid, password )
 
     def listsite(self, **params):       
         self.logger.debug('')
@@ -3215,6 +3320,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
     def __init__(self, manager, name, config):
         super().__init__(manager, name, config)
         self.type = 'metaactivedirectory'
+        self.trustedrelationship = config.get('trustedrelationship', True)
         self.join_attributkey = config.get('join_key_ldapattribut')
         if not isinstance( self.join_key_ldapattribut, str ):
             raise ValueError( 'set join_key_ldapattribut is to provider metadirectory service' )
@@ -3258,8 +3364,10 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
     def authenticate(self, userid, password, **params):
         self.logger.debug('')
-        if not self.issafeAdAuthusername(userid) or not self.issafeAdAuthpassword(password):
-            raise InvalidCredentialsError('Unsafe credentials')
+        if not self.issafeAdAuthusername(userid):
+            raise InvalidCredentialsError('Unsafe login credentials')
+        if not self.issafeAdAuthpassword(password):
+            raise InvalidCredentialsError('Unsafe password credentials')
        
         # validate can raise exception 
         (userdn, conn) = self.validate(userid, password)
@@ -3427,7 +3535,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         super().__init__(manager, name, config)
         self.dialog_url = config.get( 'dialog_url' )
         if not self.is_serviceaccount_defined(config):
-            raise InvalidCredentialsError(f"you must define a service account for Auth provider {self.name}")
+            raise InvalidCredentialsError(f"you must define a service account for the implicit auth provider {self.name}")
 
     def getclientdata(self):
         data =  super().getclientdata()
@@ -3442,7 +3550,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         userdn=None
 
         if not self.issafeAdAuthusername(userid) :
-            raise InvalidCredentialsError('Unsafe credentials')
+            raise InvalidCredentialsError('Unsafe login credentials')
 
         # get connection using the service account
         conn = self.getconnection(self.userid ,self.password)
@@ -3457,7 +3565,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
             if not isinstance( userinfo.get('name'), str) :
                 userinfo['name'] = userinfo.get(self.useridattr)
         else:
-            raise AuthenticationError(f"Implicit login user %s does not exist in directory service {userid}")
+            raise AuthenticationError(f"Implicit login user {userid} does not exist in directory service")
 
         data = { 'userid': userid, 'dn': userdn }
 
