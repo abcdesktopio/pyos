@@ -2181,7 +2181,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         elif self.auth_type == 'SIMPLE':
             # can raise exception 
             self.simple_validate(userid, password)   
-            conn = self.getconnection(userid, password) 
+            ntlm_userid = self.domain + '\\' + userid
+            conn = self.getconnection(ntlm_userid, password) 
             userdn = self.getuserdn(conn, userid)
         elif self.auth_type == 'NTLM':
             # can raise exception 
@@ -2275,14 +2276,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         Returns:
             [conn]: [ldap3.core.connection.Connection ]
         """
-
-        ''' validate userid and password, using bind to ldap server '''
-        ''' validate can raise execptions '''
-        ''' for example if all ldap servers are down or ''' 
-        ''' if credentials are invalid ''' 
-        # uncomment this line may dump password in clear text 
-        # self.logger.debug(locals())
-        conn = None
 
         # LDAP by itself doesn't place any restriction on the username
         # especially as LDAP doesn't really specify which attribute qualifies as the username.
@@ -2516,6 +2509,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.NTLM', str(server), userid )
                     conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, read_only=True, raise_exceptions=True )
+                    
                 # do textplain simple_bind_s 
                 if self.auth_type == 'SIMPLE':
                     # get the dn to bind 
