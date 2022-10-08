@@ -3043,10 +3043,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         message = 'read list_namespaced_event'
         number_of_container_started = 0
 
-
         self.logger.debug('watch list_namespaced_event pod creating' )
         # watch list_namespaced_event
-        w = watch.Watch()                 
+        w = watch.Watch()  
+             
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
                                 timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
@@ -3064,6 +3064,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
             object_type = event_object.type
+            self.logger.info( f"object_type={object_type} reason={event_object.reason}")
+
             if isinstance(event_object.message, str) and len(event_object.message)>0:
                 # message = f"b. {object_type.lower()} {event_object.message}" 
                 message = f"b.{event_object.message}"      
@@ -3074,6 +3076,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.on_desktoplaunchprogress( message )
 
             if object_type == 'Warning':
+                # These events are to warn that something might go wrong
+                self.logger.warning( f"something might go wrong object_type={object_type} reason={event_object.reason} message={event_object.message}")
+                self.on_desktoplaunchprogress( f"b. something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
                 w.stop()
                 continue
 
@@ -3092,7 +3097,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # look only for for the ontainer_graphical_name
                     if c.name == container_graphical_name:
                         if c.started is True :
-                            startedmsg =  f"b.{c.name} is ready" 
+                            startedmsg =  f"b.{c.name} is started" 
                             self.logger.debug( startedmsg )
                             self.on_desktoplaunchprogress( startedmsg )
                         if c.ready is True :
@@ -3103,53 +3108,59 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             self.on_desktoplaunchprogress( readymsg )
                             w.stop()
 
-        self.logger.debug('watch list_namespaced_event pod created' )
-
-        if object_type == 'Warning':
-            return message
-
-        self.logger.debug('watch list_namespaced_pod creating' )
+        self.logger.debug( f"watch list_namespaced_event pod created object_type={object_type}")
+        #if object_type == 'Warning':
+        #    self.logger.warning( f"object_type is warning {message}")
+        #    # can occurs for example
+        #    # - failed to sync secret cache: time out waiting for the condition
+        #    # try to continue 
+           
+    
+        self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
         # watch list_namespaced_pod waiting for a valid ip addr
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                 namespace=self.namespace, 
                                 timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
-                                field_selector='metadata.name=' + pod_name ):   
+                                field_selector=f"metadata.name={pod_name}" ):   
             # event must be a dict, else continue
             if not isinstance(event,dict):
-                self.logger.error( 'event type is %s, and should be a dict, skipping event', type( event ))
+                self.logger.error( f"event type is {type( event )}, and should be a dict, skipping event")
                 continue
 
             # event dict must contain a type 
             event_type = event.get('type')
-            if event_type is None:
-                continue
-
             # event dict must contain a object 
             pod_event = event.get('object')
-            # if podevent type is pod
-            if isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
-                self.on_desktoplaunchprogress( f"b.Your {pod_event.kind} is {event_type.lower()} " )           
-                if isinstance( pod_event.status.pod_ip, str):     
-                    self.on_desktoplaunchprogress(f"c.Your pod gets ip address {pod_event.status.pod_ip} from network plugin")        
-                    self.logger.info( 'pod_event.status.phase %s', pod_event.status.phase )
-                    #
-                    # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
-                    #
-                    # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
-                    # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
-                    # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
-                    # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
-                    # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
-                    if pod_event.status.phase != 'Pending' :
-                        # pod data object is complete, stop reading event
-                        # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
-                        w.stop()    
-                else:
-                    self.logger.info("Your pod has no ip address, waiting for network plugin")
-                    self.on_desktoplaunchprogress("b.Your pod is waiting for an ip address from network plugin")   
-        self.logger.debug('watch list_namespaced_pod created' )
+            # if podevent type must be a client.models.v1_pod.V1Pod, we use kubeapi.list_namespaced_pod
+            if not isinstance( pod_event, client.models.v1_pod.V1Pod ) :  
+                # pod_event is not a client.models.v1_pod.V1Pod :
+                # something go wrong  
+                w.stop()
+                continue
 
+            self.on_desktoplaunchprogress( f"b.Your {pod_event.kind} is {event_type.lower()} " )    
+            self.logger.info( f"pod_event.status.phase={pod_event.status.phase}" )
+            #if isinstance( pod_event.status.pod_ip, str):     
+            #    self.on_desktoplaunchprogress(f"c.Your pod gets ip address {pod_event.status.pod_ip} from network plugin")  
+            #
+            # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+            #
+            # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
+            # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
+            # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
+            # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
+            # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
+            if pod_event.status.phase != 'Pending' :
+                # pod data object is complete, stop reading event
+                # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
+                self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
+                w.stop()
+            else:
+                self.logger.debug(f"The pod is in phase={pod_event.status.phase} continue for watching events" )
+        self.logger.debug('watch list_namespaced_pod created, the pod is no more in Pending phase' )
+
+        # read pod again
         self.logger.debug('watch read_namespaced_pod creating' )
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
         self.logger.info( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
@@ -3157,7 +3168,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # something wrong 
             return f"Your pod does not start, status {myPod.status.phase}" 
         else:
-            # At least one container is still running,
+            # At least one container is running,
             self.on_desktoplaunchprogress("b.Your pod is running.")   
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo)
