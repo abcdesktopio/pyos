@@ -3078,7 +3078,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if object_type == 'Warning':
                 # These events are to warn that something might go wrong
                 self.logger.warning( f"something might go wrong object_type={object_type} reason={event_object.reason} message={event_object.message}")
-                self.on_desktoplaunchprogress( f"b. something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
+                self.on_desktoplaunchprogress( f"b.something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
                 w.stop()
                 continue
 
@@ -3164,9 +3164,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('watch read_namespaced_pod creating' )
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
         self.logger.info( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
+        # The pod is not in Pending
+        # read the status.phase, if it's not Running 
         if myPod.status.phase != 'Running':
             # something wrong 
-            return f"Your pod does not start, status {myPod.status.phase}" 
+            return f"Your pod does not start, status is {myPod.status.phase} reason is {myPod.status.reason} message {myPod.status.message}" 
         else:
             # At least one container is running,
             self.on_desktoplaunchprogress("b.Your pod is running.")   
