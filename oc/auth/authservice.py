@@ -2181,13 +2181,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         elif self.auth_type == 'SIMPLE':
             # can raise exception 
             self.simple_validate(userid, password)   
-            ntlm_userid = self.domain + '\\' + userid
-            conn = self.getconnection(ntlm_userid, password) 
+            conn = self.getconnection(userid, password) 
             userdn = self.getuserdn(conn, userid)
         elif self.auth_type == 'NTLM':
             # can raise exception 
             self.ntlm_validate(userid, password)
-            conn = self.getconnection(userid, password)
+            ntlm_userid = self.domain + '\\' + userid
+            conn = self.getconnection(ntlm_userid, password)
             userdn = self.getuserdn(conn, userid)
         return (userdn, conn)
 
