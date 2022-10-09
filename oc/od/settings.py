@@ -699,6 +699,7 @@ def init_config_auth():
         expcfg = pyutils.get_setting(authmanagers, provider_type )
         if isinstance( expcfg, dict ):
             for name,cfg in expcfg.items(): 
+                # if there is a config_ref
                 configref_name = cfg.get('config_ref')
                 if isinstance( configref_name, str ) :
                     logger.debug( f"config {name} as use configref_name={configref_name}" )
@@ -712,11 +713,7 @@ def init_config_auth():
                     conncfg = config_ref.get( firstkey )
                     if isinstance(conncfg, dict):
                         logger.debug( f"apply update config to {name}" )
-                        cfg.update({    **conncfg,
-                                        'basedn':  conncfg.get('ldap_basedn'),
-                                        'timeout': conncfg.get('ldap_timeout', 15),
-                                        'secure':  conncfg.get('ldap_protocol') == 'ldaps'
-                        })
+                        cfg.update( conncfg )
                     else:
                         logger.error( f"{configref_name} is not a dict, invalid format type={type(conncfg)}" )
 

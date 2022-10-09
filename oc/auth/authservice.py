@@ -2013,21 +2013,21 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # add self.password set to None if not defined in config file
         self.loadserviceaccount( config )
         
-        self.users_ou = config.get('users_ou', config.get('basedn') ) 
+        self.users_ou = config.get('users_ou', config.get('ldap_basedn') ) 
         self.servers = config.get('servers', []) 
-        self.timeout = config.get('timeout', 20)
-        self.connect_timeout = config.get('connect_timeout', 5)
-        self.use_ssl = config.get('secure', False) is True
-        self.port = config.get('port') # if port is None ldap3.Server use default port 389 or 636
+        self.timeout = config.get('ldap_timeout') # timeout in seconds 
+        self.connect_timeout = config.get('ldap_connect_timeout') # timeout in seconds for the connect operation
         self.useridattr = config.get('useridattr', 'cn')
         self.usercnattr = config.get('usercnattr', 'cn') 
         self.useruidattr = config.get('useruidattr', 'uid')
         self.domain = config.get('domain')
-        self.kerberos_realm = config.get('kerberos_realm') # must be str or a dict of realm domain/value
+        self.kerberos_realm = config.get('kerberos_realm') # must be str
         self.kerberos_krb5_conf = config.get('krb5_conf')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
 
-        # not used 
+        # not used deprecated 
+        # do not launch /usr/bin/kinit anyore 
+        # use gssapi  
         # self.kerberos_service_identifier = config.get('krb5_service_identifier', '')
         # self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit')   # change to /usr/sbin/kinit on macOS
         #
@@ -2057,13 +2057,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         # query users
         self.user_query = self.Query(
-            config.get('basedn'), 
+            config.get('ldap_basedn'), 
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_ATTRS ))
 
         self.posixaccount_query = self.Query(
-            config.get('basedn'), 
+            config.get('ldap_basedn'), 
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_POSIXACCOUNT_ATTRS ))
@@ -2475,8 +2475,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         conn = None
         for server_name in self.servers:
             try: 
-                self.logger.info( 'ldap getconnection:server server=%s use_ssl=%s auth_type=%s', str(server_name), str(self.use_ssl), self.auth_type )
-                server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, use_ssl=self.use_ssl, port=self.port, get_info='ALL')
+                self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={self.auth_type}")
+                server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, get_info='ALL')
                 
                 # create a Connection to get supported_sasl_mechanisms from server
                 c = ldap3.Connection(server, auto_bind=False)
@@ -3029,7 +3029,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
         # query sites
         self.printer_query = self.Query(
-            basedn=config.get('printer_printerdn', 'OU=Applications,' + config.get('basedn') ),
+            basedn=config.get('printer_printerdn', 'OU=Applications,' + config.get('ldap_basedn') ),
             scope=config.get('printer_scope', ldap3.SUBTREE),
             filter=config.get('printer_filter', '(objectClass=printQueue)'),
             attrs=config.get('printer_attrs',
@@ -3045,7 +3045,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             
         # query printer
         self.site_query = self.Query(
-            basedn=config.get('site_subnetdn', 'CN=Subnets,CN=Sites,CN=Configuration,' + config.get('basedn') ),
+            basedn=config.get('site_subnetdn', 'CN=Subnets,CN=Sites,CN=Configuration,' + config.get('ldap_basedn') ),
             scope=config.get('site_scope', ldap3.SUBTREE),
             filter=config.get('site_filter', '(objectClass=subnet)'),
             attrs=config.get('site_attrs',['cn', 'siteObject', 'location']) )
