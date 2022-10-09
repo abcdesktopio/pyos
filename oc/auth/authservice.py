@@ -101,6 +101,16 @@ class ExternalAuthUserError(ExternalAuthError):
         self.message = message
         self.code = status
 
+class BanAuthUserError(AuthenticationError):
+    def __init__(self,message='User is banned',code=401):
+        self.message = message
+        self.code = code 
+
+class BanAuthIPError(AuthenticationError):
+    def __init__(self,message='IP is banned',code=401):
+        self.message = message
+        self.code = code 
+
 #
 # define AuthRoles
 class AuthRoles(dict):
@@ -3342,20 +3352,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             config.get('foreingmemberof_filter', "(memberof:1.2.840.113556.1.4.1941:=%s)"),
             config.get('foreingmemberof_attrs',  ['cn', 'distinguishedName'] ) )
 
-    def validate(self, userid, password, **params):
-        """[validate]
-            this is a meta directory do not perform a ldap bind using current credentials  
-
-        Args:
-            userid ([type]): [description]
-            password ([type]): [description]
-
-        Returns:
-            [type]: [description]
-        """
-        self.logger.debug('')
-        return super().validate(userid, password, **params)
-
+   
     def authenticate(self, userid, password, **params):
         self.logger.debug('')
         if not self.issafeAdAuthusername(userid):
