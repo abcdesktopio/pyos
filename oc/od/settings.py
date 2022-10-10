@@ -17,6 +17,14 @@ import base64
 
 logger = logging.getLogger(__name__)
 
+# for dev use 
+# ABCDESKTOP_PYOS_EXEC_MODE = 'dev'
+ABCDESKTOP_PYOS_EXEC_MODE = 'dev'
+# current pyos release
+ABCDESKTOP_PYOS_CURRENT_RELEASE = '3.0'
+# supported image format
+ABCDESKTOP_IMAGE_FORMAT_RELEASE = '3.0'
+
 defaultConfigurationFilename = 'od.config'
 
 config  = {}	    # use for application config and global config
@@ -159,9 +167,6 @@ list_hostconfigkey = [
         'uts_mode',
         'secrets_requirement'   # custom for abcdesktop 
         ]
-
-ABCDESKTOP_CURRENT_RELEASE = 'dev'
-DEFAULT_IMAGE_TAG = ABCDESKTOP_CURRENT_RELEASE
 
 def getballoon_name():
     return balloon_name
