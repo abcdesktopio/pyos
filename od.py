@@ -23,9 +23,9 @@ from cherrypy.process import plugins
 
 import oc.logging
 import oc.cherrypy
-from oc.od.infra import ODError
 import oc.od.settings as settings
 import oc.od.services as services
+from oc.od.error import ODError
 
 # Load logging config ASAP !
 oc.logging.configure( config_or_path=oc.od.settings.defaultConfigurationFilename, is_cp_file=True)
