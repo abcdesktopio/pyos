@@ -11,7 +11,6 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-
 import logging
 import cherrypy
 import chevron
@@ -55,7 +54,7 @@ class AuthController(BaseController):
         except Exception as e:
             self.logger.error( f"FATAL ERROR {AuthController.redirect_page_local_filename} file is missing")
             self.logger.error( f"http auth request will failed {e}" )
-            raise  ValueError( f"missing file {AuthController.redirect_page_local_filename}")
+            raise cherrypy.HTTPError( status=401, message=f"missing file {AuthController.redirect_page_local_filename}")
 
 
     @cherrypy.expose
@@ -100,8 +99,6 @@ class AuthController(BaseController):
             Keep desktop running
         Args:
             None
-
-
         Returns:
             JSON Results
         """
@@ -149,7 +146,6 @@ class AuthController(BaseController):
 
         else:
             result = Results.error( message='invalid user credentials', result = {'url': url} )
-        
         return result
             
     def build_redirecthtmlpage(self, jwt_user_token):
@@ -232,7 +228,7 @@ class AuthController(BaseController):
        
         args = cherrypy.request.json
         if not isinstance(args, dict):
-            raise cherrypy.HTTPError(400)
+            raise cherrypy.HTTPError( status=401, message='invalid parameters')
 
         # read user's client ipsource
         ipsource = getclientipaddr()
@@ -253,19 +249,19 @@ class AuthController(BaseController):
             self.logger.debug( f"auth {services.prelogin.http_attribut}={userid}" )
             if not isinstance(userid, str):
                 self.logger.error( f"invalid auth parameters {services.prelogin.http_attribut} type={type(userid)}" )
-                return Results.error( message='invalid auth parameters, request must use set userid', status=401 )
+                raise cherrypy.HTTPError( status=401, message='invalid auth parameters, request must use set userid' )
 
             loginsessionid = args.get('loginsessionid')
             if not isinstance(loginsessionid, str) or len(loginsessionid)==0:
                 self.logger.error( f"invalid auth parameters loginsessionid type={type(loginsessionid)}" )
-                return Results.error( message='invalid auth parameters, request must use a prelogin session', status=401 )
+                raise cherrypy.HTTPError( status=401, message='invalid auth parameters, request must use a prelogin session' )
 
             prelogin_verify = services.prelogin.prelogin_verify(sessionid=loginsessionid, userid=userid)
             if not prelogin_verify:
                 self.logger.debug(f"prelogin_verify is false sessionid={loginsessionid}, userid={userid}")
                 self.logger.error(f"SECURITY WARNING prelogin_verify failed invalid ipsource={ipsource} auth parameters userid={userid}" )
                 self.fail_ip( ipsource ) # ban the ipsource addr
-                return Results.error( message='invalid auth request, verify prelogin request failed', status=401 )
+                raise cherrypy.HTTPError( status=401, message='invalid auth request, verify prelogin request failed' )
 
         # do login
         # Check if provider is set   
@@ -280,19 +276,13 @@ class AuthController(BaseController):
             response = services.auth.login(**args)
         else:
             self.logger.info( f"ValueError provider expect str get {type(provider)}" )
-            return Results.error( message='missing provider parameter', status=401 )
+            raise cherrypy.HTTPError( status=401, message='missing provider parameter')
+
         self.logger.debug( 'login done' )
 
         # checkloginresponseresult can raise exception 
-        try:
-            self.logger.debug( 'login checkloginresponseresult' )
-            self.checkloginresponseresult( response )  
-        except Exception as e:
-            message = 'failed to check login response result' 
-            code    = 401
-            if e._message: message = e._message
-            if e.code: code=e.code
-            return Results.error ( status=code, message=message )
+        self.logger.debug( 'login checkloginresponseresult' )
+        self.checkloginresponseresult( response )  
         
         services.accounting.accountex('login', 'success')
         services.accounting.accountex('login', response.result.auth.providertype )
@@ -302,7 +292,7 @@ class AuthController(BaseController):
             self.logger.debug( 'login prepareressources' )
             oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
         except Exception as e:
-            return Results.error ( status=401, message='failed to prepare ressources' )
+            return Results.error( status=401, message='failed to prepare ressources' )
         
 
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
@@ -330,8 +320,7 @@ class AuthController(BaseController):
         res = None
         if services.auth.isidentified:
             auth = services.auth.auth
-            labels = list( auth.get_labels().keys() )
-            res = Results.success( result=labels ) 
+            res = Results.success( result=auth.get_labels() ) 
         else:
             res = Results.error( message='invalid user credentials' )
         return res
@@ -354,36 +343,33 @@ class AuthController(BaseController):
         if not isinstance(password, str):
             raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
 
-        try:
-            (auth, user ) = self.validate_env()
+        
+        (auth, user ) = self.validate_env()
 
-            # build a login dict arg object with provider set to AD
-            args_login = {  'userid'  : user.userid,
-                            'password': password
-            }
+        # build a login dict arg object with provider set to AD
+        args_login = {  
+            'userid'  : user.userid,
+            'password': password
+        }
 
-            response = services.auth.su( source_provider_name=auth.provider, arguments=args_login)  
+        response = services.auth.su( source_provider_name=auth.provider, arguments=args_login)  
 
-            # can raise excetion 
-            self.checkloginresponseresult( response, msg='su' )  
-                        
-            # prepare ressources
-            oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
+        # can raise excetion 
+        self.checkloginresponseresult( response, msg='su' )  
+                    
+        # prepare ressources
+        oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
 
-            # compute new user jwt token   
-            jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
-            
-            return Results.success( message="Authentication successful", 
-                                    result={'userid': response.result.user.userid,
-                                            'name': response.result.user.name,
-                                            'jwt_user_token': jwt_user_token,
-                                            'provider': response.result.auth.providertype,       
-                                            'expire_in':  oc.od.settings.jwt_config_user.get('exp')      
-                                    })
-
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
+        # compute new user jwt token   
+        jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
+        
+        return Results.success( message="Authentication successful", 
+                                result={'userid': response.result.user.userid,
+                                        'name': response.result.user.name,
+                                        'jwt_user_token': jwt_user_token,
+                                        'provider': response.result.auth.providertype,       
+                                        'expire_in':  oc.od.settings.jwt_config_user.get('exp')      
+                                })
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
@@ -438,7 +424,7 @@ class AuthController(BaseController):
             self.logger.error('prelogin_html fetch {services.prelogin.prelogin_url} failed')
             raise cherrypy.HTTPError(400, 'Configuration file error, prelogin url fetch failed')
 
-        cherrypy.response.headers['Cache-Control'] = 'no-cache'
+        cherrypy.response.headers['Cache-Control'] = 'No-Store'
         cherrypy.response.headers['Content-Type'] = 'text/html;charset=utf-8'
         return html_data.encode('utf-8')
 
@@ -486,10 +472,33 @@ class AuthController(BaseController):
         return oauth_html_refresh_page
 
 
+    def handler_logmein_json(self, jwt_user_token):
+        cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
+        jwt_user = { 'jwt_user_token': jwt_user_token }
+        result_jwt = Results.success( 'login success', result=jwt_user)
+        # convert result_jwt as str
+        result_str = json.dumps( result_jwt ) + '\n'
+        # encode with charset=utf-8
+        return result_str.encode('utf-8')
+
+    def handler_logmein_html(self,jwt_user_token):
+        oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
+        cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
+        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
+        return oauth_html_refresh_page 
+
+    def handler_logmein_text(self, jwt_desktop):
+        cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=utf-8'
+        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        result_str = jwt_desktop + '\n'
+        return result_str.encode('utf-8')
+
+
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def logmein(self, provider=None, userid=None, format='html' ):
+    def logmein(self, provider=None, userid=None, format=None ):
 
         ipsource = getclientipaddr()
         self.logger.debug('logmein request from ip source %s', ipsource)
@@ -562,20 +571,14 @@ class AuthController(BaseController):
         oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
 
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles  )
-        if format == 'json':
-            cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
-            jwt_user = { 'jwt_user_token': jwt_user_token }
-            result_jwt = Results.success( 'login success', result=jwt_user)
-            # convert result_jwt as str
-            result_str = json.dumps( result_jwt ) + '\n'
-            # encode with charset=utf-8
-            return result_str.encode('utf-8')
-        else:
-            oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
-            cherrypy.response.headers[ 'Content-Type'] = 'text/html;charset=utf-8'
-            cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
-            cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
-            return oauth_html_refresh_page
+
+        routecontenttype = {    
+            'text/html': self.handler_logmein_html, 
+            'application/json': self.handler_logmein_json,
+            'text/plain':  self.handler_logmein_text 
+        }
+
+        return self.getlambdaroute( routecontenttype, defaultcontenttype='text/html' )( jwt_user_token )
 
 
     def checkloginresponseresult( self, response, msg='login' ):
@@ -585,8 +588,14 @@ class AuthController(BaseController):
             raise cherrypy.HTTPError(401, f"services auth.{msg} does not return oc.auth.authservice.AuthResponse")  
         # if it's an error
         if not response.success:
-            self.logger.error( f"services auth.login error {response.reason}" )
-            raise cherrypy.HTTPError(response.code, response.reason )  
+            message = None
+            for m in [ 'reason', 'message', '_message']:
+                if hasattr( response, m ):
+                    message = getattr( response, m )
+                    break
+
+            self.logger.error( f"services auth.login error {message}" )
+            raise cherrypy.HTTPError(401, message )  
 
 
     @cherrypy.expose
@@ -605,7 +614,7 @@ class AuthController(BaseController):
         # can raise exception
         (auth, user ) = self.validate_env()
         # push a start message to database cache info
-        services.messageinfo.start( user.userid, f"Launching desktop")
+        services.messageinfo.start( user.userid, f"b.Launching desktop")
         # launch the user desktop 
         return self.root.composer._launchdesktop( auth, user, args)
 

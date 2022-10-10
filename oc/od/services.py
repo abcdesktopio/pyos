@@ -98,7 +98,7 @@ class ODServices(object):
 
     def init_fail2ban( self ):
         import oc.od.fail2ban
-        self.fail2ban = oc.od.fail2ban.ODFail2ban( mongoconfig=settings.mongoconfig, fail2banconfig={} )
+        self.fail2ban = oc.od.fail2ban.ODFail2ban( mongoconfig=settings.mongoconfig, fail2banconfig=settings.fail2banconfig )
         # self.fail2ban.test()
 
     def init_webrtc(self):

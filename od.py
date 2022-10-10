@@ -23,6 +23,7 @@ from cherrypy.process import plugins
 
 import oc.logging
 import oc.cherrypy
+from oc.od.infra import ODError
 import oc.od.settings as settings
 import oc.od.services as services
 
@@ -48,21 +49,27 @@ class APIDispatcher(Dispatcher):
 def api_handle_error():
     ex_type, ex, ex_tb = sys.exc_info()
     
-    status = 0
-    result = None
-    if isinstance(ex, oc.cherrypy.WebAppError):
+    status = 500
+    message = 'Internal api server error'
+    if isinstance(ex, ODError):
         status = ex.status
-        result = ex.to_dict()
+        message = ex.message
+    elif isinstance(ex, oc.cherrypy.WebAppError):
+        status = ex.status
+        message = ex.to_dict()
     else:
-        status = 500 
-        message = 'Internal server error'
-        if ex:
-            message = message + ':' + str(ex)
-        result = { 'status': 500, 'message':message }
+        status = ex.code if hasattr( ex, 'code' ) else 500
+        for m in [ 'reason', 'message', '_message']:
+            if hasattr( ex, m ):
+                message =  message = getattr( ex, m )
+                break
+    result = { 'status': status, 'message':message }
+
+    build_error = json.dumps( result ) + '\n'
 
     cherrypy.response.headers['Content-Type'] = 'application/json'
     cherrypy.response.status = status 
-    cherrypy.response.body = cherrypy._json.encode(result)
+    cherrypy.response.body = build_error.encode('utf-8')
 
 
 def api_build_error(status, message, traceback, version):
@@ -71,11 +78,18 @@ def api_build_error(status, message, traceback, version):
     if isinstance(ex, oc.cherrypy.WebAppError):
         cherrypy.response.status = ex.status
         result = ex.to_dict()
+        log_result = result
     else:
-        result = { 'status': cherrypy.response.status, 'status_message':status, 'message':message }
-
+        result = {
+            'status': cherrypy.response.status,  
+            'message':message 
+        }
+        log_result = { 'status': cherrypy.response.status,  'message':message, 'traceback':str(traceback), 'version':version }
+    if cherrypy.config.get('tools.log_full.on'):
+        logger.info( log_result )
+    build_error = json.dumps( result ) + '\n'
     cherrypy.response.headers['Content-Type'] = 'application/json'
-    return cherrypy._json.encode(result)
+    return build_error.encode('utf-8')
 
 
 
@@ -170,8 +184,19 @@ class API(object):
             # OSError: [Errno 90] Message too long
             message = message[:4096] # suppose to be 4096
 
-            # message = message.encode("ascii","ignore")
-            logger.info(f"{cherrypy.request.path_info} {message}")
+        message = b''
+        if isinstance( cherrypy.response.body, list):
+            for m in cherrypy.response.body:
+                message = message + m.rstrip(b' ')
+            message = message.rstrip(b' \n')
+
+        if isinstance( message, str):
+            # drop message too long
+            # OSError: [Errno 90] Message too long
+            message = message[:4096] # suppose to be 4096
+
+        # message = message.encode("ascii","ignore")
+        logger.info(f"{cherrypy.request.path_info} {message}")
     
     
     @cherrypy.expose

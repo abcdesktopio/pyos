@@ -15,6 +15,9 @@ import logging
 import ipaddress
 import cherrypy
 import oc.logging
+import re
+
+from collections import OrderedDict
 
 from netaddr import IPNetwork, IPAddress
 from oc.cherrypy import WebAppError, getclientipaddr
@@ -26,9 +29,59 @@ logger = logging.getLogger(__name__)
 class BaseController(object):
 
      def __init__( self, config=None):
+          self.enable = True # by default a controller is enabled
           self.config = config
           self.ipnetworklistfilter = None
-          self.init_ipfilter( config )
+          self.requestsallowed = None
+          if isinstance( config, dict ):
+               self.init_ipfilter( config )
+               self.requestsallowed = config.get('requestsallowed')
+               self.enable = config.get('enable', True ) # by default a controller is enabled
+          class_filter=r'^(\w+)Controller$'
+          self.controllerprefix = re.match(class_filter, self.__class__.__name__).group(1).lower()
+
+     def getlambdaroute( self, routecontenttype:dict, defaultcontenttype:str ):
+          """_summary_
+               read cherrypy.request.headers.elements('Accept')
+               return the lambda to render http response from routecontenttype argument
+          Args:
+               routecontenttype (dict): {   
+                    'text/html':        self.handler_logmein_html, 
+                    'application/json': self.handler_logmein_json,
+                    'text/plain':       self.handler_logmein_text 
+               }
+               defaultcontenttype(str): 'text/html'
+               default entry of routecontenttype if 'Accept' does not match
+          Returns:
+               lambda function value (routecontenttype match value)
+          """
+
+          # read 'Accept' header
+          accepts = cherrypy.request.headers.elements('Accept') # sorted by qvalue
+          routecontenttypekeys = routecontenttype.keys()
+          for accept in accepts:
+               accept_content_type = accept.value.lower()
+               if accept_content_type in routecontenttypekeys:
+                    return routecontenttype[accept_content_type]
+          
+          # return the default entry
+          return routecontenttype.get( defaultcontenttype )
+
+
+     def overwrite_requestpermission_ifnotset( self, method:str, permission:bool )->None:
+          """overwrite_requestpermission
+               if a requestpermission is not set, set it to permission
+
+          Args:
+              method (str): _description_
+              permission (bool): _description_
+          """
+
+          if isinstance( self.requestsallowed, dict):
+               if self.requestsallowed.get(method) is None:
+                    self.requestsallowed[method] = permission
+          else:
+               self.requestsallowed = { method: permission }
 
      def init_ipfilter( self, config:dict ):
           """init_ipfilter
@@ -98,13 +151,15 @@ class BaseController(object):
           if not isinstance( ipAddr, str):
                ipAddr = getclientipaddr()
           isban = services.fail2ban.isban( ipAddr, collection_name=services.fail2ban.ip_collection_name )
-          # self.logger.debug(f"isban {ipAddr} return {isban}")
+          if isban is True:
+               self.logger.info(f"isban {ipAddr} return {isban}")
           return isban
 
      def isban_login( self, login:str):
-          #self.logger.debug('')
+          # self.logger.debug('')
           isban =  services.fail2ban.isban( login, collection_name=services.fail2ban.login_collection_name )
-          #self.logger.debug(f"isban {login} return {isban}")
+          if isban is True:
+               self.logger.info(f"isban {login} return {isban}")
           return isban
 
      def is_ipsource_private(self):
@@ -121,9 +176,33 @@ class BaseController(object):
           return bReturn
 
      def is_permit_request(self):
+          
+          if not self.enable :
+               raise cherrypy.HTTPError( 400, "The contolleur is disable in configuration file")
+
           if not self.ipfilter():
                # 403.6 - IP address rejected.
                raise cherrypy.HTTPError(status=403)
+
+          if isinstance( self.requestsallowed, dict ):
+               # read the request path
+               path = cherrypy.request.path_info
+               arg = path.split('/')
+               if len( arg ) < 3 : 
+                    # the min value is 3
+                    self.logger.error( 'request is denied' )
+                    raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
+
+               # read example
+               # 'getdesktopdescription' from str '/composer/getdesktopdescription'
+               request_info = arg[2]
+               # check if method is allowed in config file
+               is_allowed = self.requestsallowed.get( request_info )
+
+               # if is_allowed is None, do not raise Error
+               if is_allowed is False :
+                    self.logger.error( 'request is denied' )
+                    raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
 
      def ipfilter( self ):
           if not isinstance(self.ipnetworklistfilter, list) :

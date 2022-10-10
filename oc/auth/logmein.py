@@ -32,7 +32,7 @@ class ODLogmein:
         # check configuration value network_list 
         if self.enable :
             if not isinstance( self.network_list, list):
-                self.logger.error( "invalid network_list value, logmein is disabled")
+                self.logger.error( "invalid logmein_network_list value, logmein is disabled")
                 self.enable = False
             else:
                 try:
@@ -40,7 +40,7 @@ class ODLogmein:
                     for network in self.network_list:
                         IPNetwork( network )
                 except Exception as e:
-                    self.logger.error( "invalid network_list value, logmein is disabled")
+                    self.logger.error( "invalid logmein_network_list value, logmein is disabled")
                     self.enable = False
 
     def request_match(self, ipsource) :

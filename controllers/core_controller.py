@@ -13,13 +13,14 @@
 
 import logging
 import cherrypy		
+import json
 
 import oc.od.janus
 import oc.od.tracker
 import oc.logging
 import oc.lib
 
-from oc.od.settings import desktop, menuconfig
+from oc.od.settings import tipsinfoconfig, desktop, menuconfig
 from oc.od.janus import ODJanusCluster
 from oc.cherrypy import Results
 from oc.od.services import services 
@@ -69,24 +70,34 @@ class CoreController(BaseController):
             id = oc.od.tracker.jiraclient().isenable()
         elif provider == 'webrtc':
             id = isinstance( services.webrtc, ODJanusCluster )
+        elif provider == 'tipsinfo':
+            id = tipsinfoconfig
 
         return { 'id': id, 'callbackurl': callbackurl }
 
 
+    def handler_messageinfo_json(self, messageinfo):
+        cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
+        data = Results.success(message=messageinfo)
+        # convert data as str
+        result_str = json.dumps( data ) + '\n'
+        # encode with charset=utf-8
+        return result_str.encode('utf-8')
+
+    def handler_messageinfo_text(self, messageinfo):
+        cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=utf-8'
+        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        result_str = messageinfo + '\n'
+        return result_str.encode('utf-8')
+
+
     @cherrypy.expose
-    @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getmessageinfo(self):     
-        
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
-        
-        message = ''
-        
-        if isinstance( user, oc.auth.authservice.AuthUser ): 
-            message = services.messageinfo.popflush(user.userid)
-
-        return Results.success(message,result={'message':message})
+        (_, user ) = self.validate_env()
+        message = services.messageinfo.popflush(user.userid)
+        routecontenttype = {
+            'text/plain':  self.handler_messageinfo_text,
+            'application/json': self.handler_messageinfo_json 
+        }
+        return self.getlambdaroute( routecontenttype, defaultcontenttype='application/json' )( message )

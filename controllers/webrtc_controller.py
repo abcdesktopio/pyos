@@ -34,30 +34,23 @@ class WebRTCController(BaseController):
 
     def rtp_stream( self, action=lambda x: x):
         self.logger.debug('')
-        try:
-            (auth, user ) = self.validate_env()
-        except Exception as e:
-            self.logger.error( e )
-            return Results.error( message=str(e) )
+        
+        (auth, user ) = self.validate_env()
         
         if not settings.webrtc_enable :
-            return Results.error( message='WebRTC is disabled in configuration file')
+            raise cherrypy.HTTPError( 400, message='WebRTC is disabled in configuration file')
         
         if services.webrtc is None:
-            return Results.error( message='no WebRTC configuration found')
+            raise cherrypy.HTTPError( 400, message='no WebRTC configuration found')
         
         appname = cherrypy.request.json.get('app')
 
         desktop = oc.od.composer.finddesktop_quiet( authinfo=auth, userinfo=user, appname=appname ) 
         if desktop is None:                
             self.logger.error( 'asking for a rtp_stream but desktop is not found')
-            return Results.error( message='desktop not found')
+            raise cherrypy.HTTPError( 400, message='desktop not found')
         
-        try:
-            stream = action( desktop.name )
-        except Exception as e:
-            return Results.error('webrtc stream failed ' + str(e) )
-
+        stream = action( desktop.name )
         return Results.success(result=stream)
 
 
@@ -68,10 +61,10 @@ class WebRTCController(BaseController):
     def get_stream(self):
         self.logger.debug('')
         if services.webrtc is None :
-            return Results.error( message='WebRTC is disabled in configuration file')
+            raise cherrypy.HTTPError( 400, message='WebRTC is disabled in configuration file')
         else:
             # get_stream create or get a previous created stream
-            stream =  self.rtp_stream( services.webrtc.get_stream )
+            stream = self.rtp_stream( services.webrtc.get_stream )
             return stream
             
 
@@ -81,6 +74,6 @@ class WebRTCController(BaseController):
     def destroy_stream(self):
         self.logger.debug('')
         if services.webrtc is None :
-            return Results.error( message='WebRTC is disabled in configuration file')
+            raise cherrypy.HTTPError( 400, message='WebRTC is disabled in configuration file')
         else:
             return self.rtp_stream( services.webrtc.destroy_stream )

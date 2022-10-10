@@ -19,20 +19,22 @@ logger = logging.getLogger(__name__)
 
 defaultConfigurationFilename = 'od.config'
 
-config  = {}	# use for application config and global config	
-gconfig = {}	# use for global config
+config  = {}	    # use for application config and global config
+gconfig = {}	    # use for global config
 supportedLocals = []
 
-# Default namespace used by kubernetes 
+# Default namespace used by kubernetes is abcdesktop
 namespace = 'abcdesktop' 
 
 mongoconfig = None  # Mongodb config Object Class
+fail2banconfig = None # Fail2ban config 
 
 authprovider = {}  # auth provider dict
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
 menuconfig   = {}  # default menu config
-geolocation   = None  # default geolocation 
+geolocation  = None  # default geolocation 
+fakedns      = {}
 
 # User balloon define
 # Balloon is the default user used inside container
@@ -56,6 +58,13 @@ services_http_request_denied = {} # deny http request
 jira = None             # Jira tracker configuration 
 
 routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
+tipsinfoconfig = {}
+desktopdescription = {} # define a network interface name mapping 
+# like { 'internalip': 'eth1', 'externalip': 'net2'}
+
+ENV_PREFIX_LABEL_NAME = "ABCDESKTOP_LABEL_"
+ENV_PREFIX_SERVICE_NAME = "ABCDESKTOP_SERVICE_"
+
 DEFAULT_PASSWD_FILE = ''
 DEFAULT_SHADOW_FILE = ''
 DEFAULT_GROUP_FILE  = ''
@@ -66,7 +75,7 @@ prelogin = {}
 # logmein
 logmein = {}
 
-#desktop
+# desktop
 desktop_pod                = {}
 desktop                    = { 'secretsrootdirectory': '/var/secrets/' }
 
@@ -153,73 +162,6 @@ list_hostconfigkey = [
 
 ABCDESKTOP_CURRENT_RELEASE = 'dev'
 DEFAULT_IMAGE_TAG = ABCDESKTOP_CURRENT_RELEASE
-DEFAULT_DESKTOP_POD_CONFIG = {
-    'graphical' :   {   'image': 'abcdesktopio/oc.user.kubernetes.18.04:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 6081,
-                        'pullpolicy':  'IfNotPresent',
-                        'enable': True,
-                        'acl':  { 'permit': [ 'all' ] },
-                        'secrets_requirement' : [ 'abcdesktop/vnc', 'abcdesktop/kerberos' ],
-                        'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port',
-                        'resources': { 'requests': { 'memory': "320Mi",   'cpu': "250m" },  'limits'  : { 'memory': "1Gi",    'cpu': "1000m" } }
-                            # 'securityContext': {  'allowPrivilegeEscalation': True,
-                            #                        'capabilities': { 
-                            #                            'add':  ["SYS_ADMIN", "SYS_PTRACE"], 
-                            #                            'drop': None 
-                            #                        }
-                            # } 
-    },
-    'spawner' :    {    'enable': True,
-                        'tcpport': 29786,
-                        'waitportbin' : '/composer/node/wait-port/node_modules/.bin/wait-port',
-                        'healtzbin': '/usr/bin/curl',
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'broadcast' :  {    'enable': True,
-                        'tcpport': 29784,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'webshell' :   {    'enable': True,
-                        'tcpport': 29781,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'printer' :    {    'image': 'abcdesktopio/oc.cupsd.18.04:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 681,
-                        'pullpolicy': 'IfNotPresent',
-                        'enable': True,
-                        'resources': { 'requests': { 'memory': "64Mi",    'cpu': "125m" },  'limits'  : { 'memory': "512Mi",  'cpu': "500m"  } },
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'printerfile':  {   'enable': True,
-                        'tcpport': 29782,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'filer' :       {   'image': 'abcdesktopio/oc.filer:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 29783,
-                        'pullpolicy':  'IfNotPresent',
-                        'enable': True,
-                        'acl':  { 'permit': [ 'all' ] } 
-    },
-    'storage' :     {   'image': 'abcdesktopio/pause:' + DEFAULT_IMAGE_TAG,
-                        'pullpolicy':  'IfNotPresent',
-                        'enable': True,
-                        'acl':   { 'permit': [ 'all' ] },
-                        'resources': { 'requests': { 'memory': "32Mi",    'cpu': "100m" },  'limits'  : { 'memory': "128Mi",  'cpu': "250m"  } }
-    },
-    'sound':        {   'image': 'abcdesktopio/oc.pulseaudio.18.04:' + DEFAULT_IMAGE_TAG,
-                        'tcpport': 4714,
-                        'pullpolicy': 'IfNotPresent',
-                        'enable': True,
-                        'acl':  { 'permit': [ 'all' ] },
-                        'resources': { 'requests': { 'memory': "8Mi",     'cpu': "50m"  },  'limits'  : { 'memory': "64Mi",   'cpu': "250m"  } } 
-    },
-    'init':         {   'image': 'busybox',
-                        'enable': True,
-                        'pullpolicy':  'IfNotPresent',
-                        'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
-    } 
-}
-
 
 def getballoon_name():
     return balloon_name
@@ -246,20 +188,16 @@ def getballoon_gid():
 def getballoon_homedirectory():
     return balloon_homedirectory
 
-def loadfile(filename:str)->str:
-    """loadfile
+def getFQDN(hostname):
+    ''' concat defaultdomainname to hostname set in configuration file  '''
+    ''' return hostname if defaultdomainname is not set                 '''
+    ''' or if hostname contains a dot                                   '''
+    fqdn = hostname 
+    if isinstance(hostname, str):        
+        if '.' not in hostname and defaultdomainname is not None :
+           fqdn = hostname + '.' + defaultdomainname
+    return fqdn
 
-    Args:
-        filename (str): name of file
-
-    Returns:
-        str: file content
-    """
-    filepath = os.path.normpath( filename )
-    f = open(filepath, 'r')
-    data = f.read()
-    f.close()
-    return data
 
 def init_localaccount():
     global DEFAULT_PASSWD_FILE
@@ -269,6 +207,7 @@ def init_localaccount():
     DEFAULT_GROUP_FILE = loadfile('group')
     DEFAULT_SHADOW_FILE = loadfile('shadow')
 
+
 def init_webrtc():
     """Read webrtc configuration file
     """
@@ -277,6 +216,9 @@ def init_webrtc():
     webrtc_enable = gconfig.get('webrtc.enable', False )
     webrtc_server = gconfig.get('webrtc.server', None )
    
+def init_tipsinfo():
+    global tipsinfoconfig
+    tipsinfoconfig = gconfig.get('tipsinfo', {})
 
 def init_config_stack():
     """init_config_stack
@@ -285,8 +227,23 @@ def init_config_stack():
     """
     global kubernetes_default_domain
     global namespace
+    global desktopdescription
+
+    stack_mode = gconfig.get('stack.mode', None)
+    if  stack_mode not in [ 'kubernetes', 'standalone' ] :
+        logger.error("invalid stack.mode value")
+        logger.error("stack.mode must be set to 'standalone' for docker only daemon")
+        logger.error("or set to 'kubernetes' for kubernetes support.")
+        exit(-1)
+
+    defaultnetworknetuser = gconfig.get('stack.network', 'abcdesktop_netuser')    
     kubernetes_default_domain = gconfig.get('stack.kubernetesdefaultdomain', 'abcdesktop.svc.cluster.local')
     namespace = gconfig.get('namespace', 'abcdesktop')  
+
+    desktopdescription = gconfig.get(
+        'desktop.description', 
+        { 'internalipaddr': None, 'internalipaddr': None}
+    )   
 
 def init_jira():
     global jira 
@@ -380,6 +337,41 @@ def init_websocketrouting():
             exit(-1)
 
     logger.info('mode is %s', websocketrouting)
+  
+def init_fakedns():
+    global fakedns
+    fakedns = gconfig.get('fakedns', { 'interfacename': 'eth0' } )
+
+def init_tls():
+    global clienttlskey
+    global clienttlscert
+    global tlscacert
+    global defaultdockertcpport
+    global defaultdomainname
+
+    # How to connect to docker daemon
+    # TLS Section
+    clienttlskey = gconfig.get('daemondockertlskey', None)
+    clienttlscert = gconfig.get('daemondockertlscert', None)
+    tlscacert = gconfig.get('daemondockertlscacert', None)
+
+    # default docker daemon listen port tcp
+    defaultdockertcpport = gconfig.get('daemondockertcpport', 2376)
+    defaultdomainname = gconfig.get('daemondockerdomainname', None)
+
+    if clienttlskey is None:
+        logger.warning('SECURITY Warning clienttlskey is not set')
+    
+    if clienttlscert is None:
+        logger.warning('SECURITY Warning clienttlscert is not set')
+    
+    if tlscacert is None:
+        logger.warning('SECURITY Warning tlscacert is not set')
+
+    if clienttlskey is None or clienttlscert is None or tlscacert is None:
+        logger.warning('SECURITY Warning connection to docker daemon on host may failed or is insecure')
+        logger.warning('Read HOWTO-configure documentation')
+
 
 def filter_hostconfig( host_config ):
     """[filter_hostconfig]
@@ -450,7 +442,12 @@ def init_desktop():
     # check if desktophostconfig contains permit value
     applicationhostconfig = filter_hostconfig( applicationhostconfig )
 
-    desktop_pod = gconfig.get( 'desktop.pod', DEFAULT_DESKTOP_POD_CONFIG )
+    desktop_pod = gconfig.get( 'desktop.pod' )
+    if not isinstance( desktop_pod, dict ):
+        logger.error(f"desktop.pod is not defined or is not a dict, read type is {type(desktop.pod)}")
+        logger.error('this is a fatal error in configuration file')
+        sys.exit(-1)
+
 
     desktop['removehomedirectory'] = gconfig.get('desktop.removehomedirectory', False)
 
@@ -488,8 +485,8 @@ def init_desktop():
                         'CUPS_SERVER'           : '/tmp/.cups.sock',
                         'X11LISTEN'             : 'tcp '} )
 
+    # add default env local rules vars if not set 
     desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
-
 
     init_balloon()
 
@@ -549,6 +546,7 @@ def init_config_memcached():
     memconnectionstring = str(memcachedipaddr) + ":" + str(memcachedport)
     logger.info('Memcached connection string is set to: %s', memconnectionstring)
 
+
 def get_mongoconfig():
     # try to use the mongodbserver in config file
     # if not set 
@@ -604,6 +602,19 @@ def init_controllers():
                                   'StoreController':   { 'wrapped_key': {} } 
                                 } )
 
+    #
+    # safe check controllers config  
+    # StoreController config must be a dict
+    if not isinstance( controllers.get('StoreController'), dict ):   
+         controllers['StoreController'] = { 'wrapped_key': {} }
+    #  ['StoreController']['wrapped_key'] config must be a dict
+    if not isinstance( controllers['StoreController'].get('wrapped_key'), dict ):
+        controllers['StoreController']['wrapped_key'] = {}
+    # ManagerController config must be a dict
+    if not isinstance( controllers.get('ManagerController'), dict ):   
+         controllers['ManagerController'] = { 'permitip':    [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8', '169.254.0.0/16', '127.0.0.0/8' ] }
+    # end of 
+
     if desktop['environmentlocal'].get('SET_DEFAULT_COLOR'):
         # wrapper for StoreController key value
         # config use default 'color'  
@@ -638,7 +649,6 @@ def read_kubernetes_resource_limits( hostconfig ):
         limits.update( { 'memory': str(mem_limit) } )
     return { 'limits': limits }
 
-
 def init_config_mongodb():
     """init mongodb config
     """
@@ -646,6 +656,13 @@ def init_config_mongodb():
     # Build mongo database
     mongoconfig = get_mongoconfig()
     logger.info('MongoDB connection string: %s' % mongoconfig)
+
+
+def init_config_fail2ban():
+    global fail2banconfig
+    fail2banconfig = gconfig.get('fail2ban', { 'enable' : False } )
+    logger.info(f"Fail2ban config: {fail2banconfig}" )
+
 
 
 def init_config_auth():
@@ -656,24 +673,25 @@ def init_config_auth():
         expcfg = pyutils.get_setting(authmanagers, provider_type )
         if expcfg:
             for name,cfg in expcfg.items(): 
-                cfgref = cfg.get('config_ref')
-                if cfgref is None: 
-                    continue
-                    
-                # conncfg = gconfig.get(cfgref, {}).get(name, None)
-                conncfg = list(gconfig.get(cfgref,{}).values())[0]
-                if conncfg: 
-                    cfg.update({    **conncfg,
-                                    'basedn':  conncfg.get('ldap_basedn'),
-                                    'timeout': conncfg.get('ldap_timeout', 15),
-                                    'secure':  conncfg.get('ldap_protocol') == 'ldaps'
-                    })
-                    logger.debug(cfg)
+                # if there is a config_ref
+                configref_name = cfg.get('config_ref')
+                if isinstance( configref_name, str ) :
+                    logger.debug( f"config {name} as use configref_name={configref_name}" )
+                    config_ref = gconfig.get(configref_name)
+                    if not isinstance(config_ref, dict):
+                        logger.error( f"config {name} can not read configref_name={configref_name}, skipping" )
+                        continue
+                        
+                    firstkey = next(iter(config_ref)) # Using next() + iter(), getting first key in dictionary
+                    logger.debug( f"reading config_ref key {firstkey}" )
+                    conncfg = config_ref.get( firstkey )
+                    if isinstance(conncfg, dict):
+                        logger.debug( f"apply update config to {name}" )
+                        cfg.update( conncfg )
+                    else:
+                        logger.error( f"{configref_name} is not a dict, invalid format type={type(conncfg)}" )
 
-
-    authprovider = gconfig.get('authprovider', {})    
-    logger.debug(authprovider)
-
+    # load authmanagers from config file
     authmanagers = gconfig.get('authmanagers', {})
 
     # load configref for all providers
@@ -738,6 +756,20 @@ def init_locales():
 def init_config_logging():
     pass
 
+def loadfile(filename:str)->str:
+    """loadfile
+
+    Args:
+        filename (str): name of file
+
+    Returns:
+        str: file content
+    """
+    filepath = os.path.normpath( filename )
+    f = open(filepath, 'r')
+    data = f.read()
+    f.close()
+    return data
 
 def make_b64data_from_iconfile(filename):
     """make_b64data_from_iconfile
@@ -779,20 +811,17 @@ def load_config():
     global gconfig
 
     configpath = os.environ.get('OD_CONFIG_PATH', defaultConfigurationFilename)
-    logger.info("Loading configuration file '%s'" % configpath)
+    logger.info(f"Loading configuration file {configpath}")
     try:
-        if os.path.getsize(configpath) < 64 : # configuration file must always be more than 64 bytes
-            raise Exception('Invalid configuration file size')
-
         config = Config(configpath)
         gconfig = config.get('global', {}) # = cherrypy.gconfig 
     except Exception as e:
-        logger.error('Failed to load %s: %s', configpath, e)
+        logger.error(f"Failed to load configuration file {configpath} {e}")
         exit(-1)           
 
 
 def init():
-    logger.info('Init configuration --- ')
+    logger.info('Init configuration start')
 
     # load config file od.config
     # use global config and gconfig
@@ -810,8 +839,14 @@ def init():
     # load default menu config
     init_menuconfig()
 
+    # init tipsinfo config
+    init_tipsinfo()
+
     # load geolocation config
     init_geolocation()
+
+    # load fakedns config
+    init_fakedns()
 
     # init_jwt_config
     init_jwt_config()
@@ -836,6 +871,9 @@ def init():
     # after init_config_stack
     init_config_mongodb()
 
+    # fail2ban config
+    init_config_fail2ban()
+
     # memcached support
     # after init_config_stack
     init_config_memcached()
@@ -848,7 +886,7 @@ def init():
     # init gconfig how to route web socket
     init_websocketrouting()
 
-    # init local languages settings
+    # init locales vars
     init_locales()
 
     # init janus cluster

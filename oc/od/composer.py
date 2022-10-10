@@ -46,6 +46,45 @@ def selectOrchestrator():
     myOrchestrator = oc.od.orchestrator.selectOrchestrator()
     return myOrchestrator
 
+
+def securitypoliciesmatchlabel( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
+    assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
+    assert isinstance(authinfo, AuthInfo), f"authinfo is not a AuthInfo {type(authinfo)}"
+    if not isinstance(labels_filter_list, list):
+        return True
+
+    labels_authinfo = authinfo.get_labels().keys()
+    labels_desktop  = desktop.labels.keys()
+    matches = {}
+    for require_label in labels_filter_list:
+        if require_label in labels_authinfo.keys():
+            matches[require_label] = False
+            if require_label in labels_desktop.keys():
+                matches[require_label] =True
+
+    logger.debug( f"checking label matching {matches}" )
+    result = all( matches.values() )
+    return result
+
+def securitypoliciesmatchlabelvalue( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
+    assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
+    assert isinstance(authinfo, AuthInfo), f"authinfo is not a AuthInfo {type(authinfo)}"
+    if not isinstance(labels_filter_list, list):
+        return True
+
+    labels_authinfo = authinfo.get_labels()
+    labels_desktop  = desktop.labels
+    # default matches value
+    # all( {} ) is True
+    matches = {} 
+    for require_label in labels_filter_list:
+        matches[require_label] = labels_authinfo.get(require_label) == labels_desktop.get(require_label)
+        logger.debug( f"match label {require_label} is {matches[require_label] }" )
+
+    result = all( matches.values() )
+    return result
+
+
 def opendesktop(authinfo, userinfo, args ):
     """open a new or return a desktop
     Args:
@@ -60,34 +99,58 @@ def opendesktop(authinfo, userinfo, args ):
                         'timezone' :    TZ env inside the contianer }
 
     Returns:
-        [ODesktop]: Desktop Object
+        [ODesktop]: Desktop Object if success 
+        [str]: if failed      
     """
-    logger.info('')
+    logger.debug('')
     app = args.get('app')
-    
-    services.messageinfo.start(userinfo.userid, 'Looking for your desktop')
+    desktoptype = 'desktopmetappli' if app else 'desktop'
+
+    # start a message info 
+    services.messageinfo.start(userinfo.userid, 'b.Looking for your desktop')
     # look for a desktop
     desktop = finddesktop( authinfo, userinfo, app )
-    desktoptype = 'desktopmetappli' if app else 'desktop' 
+   
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
-        logger.debug('Warm start, reconnecting to running desktop') 
-        services.messageinfo.push(userinfo.userid, 'Warm start, reconnecting to your running desktop') 
-        # if the desktop exists resume the connection
-        services.accounting.accountex( desktoptype, 'resumed')
-        resumedesktop( authinfo, userinfo ) # update last connection datetime
-    else:
-        # create a new desktop
-        logger.debug( 'Cold start, creating your new desktop' )
-        services.messageinfo.push(userinfo.userid, 'Cold start, creating your new desktop')
-        desktop = createdesktop( authinfo, userinfo, args) 
-        if isinstance( desktop, oc.od.desktop.ODDesktop) :
-            services.accounting.accountex( desktoptype, 'createsucess')
+        # ok we find a desktop
+        # let's check if security policies match the desktop
+        services.messageinfo.push(userinfo.userid, 'b.Applying labels security policy')
+        # the list of uniq_labels_filter must be the same as the user label
+        if securitypoliciesmatchlabelvalue( desktop, authinfo, oc.od.settings.desktop.get('policies').get('user_uniq_labels')) :
+            logger.debug('Warm start, reconnecting to running desktop') 
+            services.messageinfo.push(userinfo.userid, 'c.Warm start, reconnecting to your running desktop') 
+            # if the desktop exists resume the connection
+            services.accounting.accountex( desktoptype, 'resumed')
+            resumedesktop( authinfo, userinfo ) # update last connection datetime
+            return desktop
         else:
-            services.accounting.accountex( desktoptype, 'createfailed')
-            logger.error('Cannot create a new desktop') 
-            if isinstance( desktop, str) :
-                return desktop
-            return None
+            # security polcies does not match
+            # delete the current desktop
+            services.messageinfo.push(userinfo.userid, 'b.Deleting your running desktop. It does not match the security policies')  
+            # only remove the pod, do not delete secret configmap and everythings else
+            removed_desktop = removepodindesktop( authinfo, userinfo )
+            if removed_desktop is True:
+                services.messageinfo.push(userinfo.userid, 'b.Your desktop is deleted. creating a new on with new security polcies')
+                services.accounting.accountex( desktoptype, 'deletesuccess')
+            else:
+                logger.error(f"Cannot delete desktop {desktop}") 
+                services.accounting.accountex( desktoptype, 'deletefailed')
+                services.messageinfo.push(userinfo.userid, 'e.Your desktop can not be deleted to apply new security policies')
+                return 'Your desktop can not be deleted to apply new security policies' 
+    else:
+        services.messageinfo.push(userinfo.userid, 'b.Cold start, creating your new desktop')
+    
+    #
+    # desktop is not found or has been deleted to match security policies
+    # create a new desktop
+    #
+    logger.debug( 'Cold start, creating your new desktop' )
+    desktop = createdesktop( authinfo, userinfo, args) 
+    if isinstance( desktop, oc.od.desktop.ODDesktop) :
+        services.accounting.accountex( desktoptype, 'createsuccess')
+    else:
+        services.accounting.accountex( desktoptype, 'createfailed')
+        logger.error(f"Cannot create a new desktop return desktop={desktop}")
             
     return desktop
 
@@ -119,17 +182,17 @@ def runwebhook( c, messageinfo=None ):
 def remove_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return removedesktop( authinfo, userinfo )
+    return myOrchestrator.removedesktop( authinfo, userinfo )
 
 def stop_container_byname( desktop_name:str, container ):
     myOrchestrator = selectOrchestrator()  
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return stopContainerApp( authinfo, userinfo, container )
+    return myOrchestrator.stopContainerApp( authinfo, userinfo, container )
 
 def list_container_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return listContainerApp(authinfo, userinfo)
+    return myOrchestrator.listContainerApp(authinfo, userinfo)
 
 def describe_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
@@ -144,9 +207,76 @@ def describe_container_byname( desktop_name:str , container_id:str ):
 def remove_container_byname(desktop_name: str, container_id:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return removeContainerApp(authinfo,userinfo,container_id=container_id)
+    return myOrchestrator.removeContainerApp(authinfo,userinfo,container_id=container_id)
 
 
+def fakednsquery( userid ):
+    logger.debug( locals() )
+    ipdaddr = None
+    
+    # read interface name to to get ip addr
+    dnsinterface_name = oc.od.settings.fakedns.get('interfacename')
+    if not isinstance( dnsinterface_name , str ):
+        raise ODError( status=400, message=f"fakednsquery has invalid 'interfacename' value 'str' is expected type={type(dnsinterface_name)} in configuration file")
+
+    # fake an userinfo object
+    myDesktop = None
+    myOrchestrator = selectOrchestrator()   
+    # try to find label value with insensitive case, lower and upper case
+    searchuserlist = [ userid, userid.lower(), userid.upper() ]
+    logger.debug( f"try to query {searchuserlist}" )
+    for nocaseuserid in searchuserlist:
+        userinfo = AuthUser( { 'userid': nocaseuserid } )
+        myDesktop = myOrchestrator.findDesktopByUser(authinfo=None, userinfo=userinfo )
+        if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+            break
+
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        logger.debug( f"findDesktopByUser {userid} return not found" )
+        return None
+
+    desktop_interfaces = myDesktop.desktop_interfaces
+    if not isinstance( desktop_interfaces, dict ):
+        logger.debug( f"desktop has no desktop_interfaces desktop_interfaces={desktop_interfaces}" )
+        return None
+    
+    # read the ip value of remappded name of dnsinterface_name
+    logger.debug( f"dnsinterface_name={dnsinterface_name}" )
+    interface = desktop_interfaces.get( dnsinterface_name )
+    logger.debug( f"desktop has desktop_interfaces={interface}" )
+    if isinstance( interface, dict ):
+        ipdaddr = interface.get('ips')
+        if isinstance( ipdaddr, list ):
+            ipdaddr = ipdaddr[0]
+
+    return ipdaddr
+
+def getdesktopdescription( authinfo, userinfo ):
+    description = {}
+    description['clientipaddr'] = getclientipaddr()
+    description['user'] = userinfo.get('userid')
+
+    myOrchestrator = selectOrchestrator()    
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        return description
+    
+    # desktop_interfaces = { 'net1': { 'ips' : '192.168.1.1'}, 'net2': { 'ips' : '192.168.9.1'} }
+    desktop_interfaces = myDesktop.desktop_interfaces
+    if not isinstance( desktop_interfaces, dict ):
+        return description
+
+    # read the ip value of remappded name of 'externalipaddr'
+    interface = desktop_interfaces.get( oc.od.settings.desktopdescription.get('externalip') )
+    if isinstance( interface, dict ):
+        description['externalip'] = interface.get('ips')
+    # read the ip value of remappded name of 'internalipaddr'
+    interface = desktop_interfaces.get( oc.od.settings.desktopdescription.get('internalip') )
+    if isinstance( interface, dict ):
+        description['internalip'] = interface.get('ips')
+    description['sshconfig'] = oc.od.settings.desktopdescription.get('sshconfig')
+
+    return description
 
 def logdesktop( authinfo, userinfo ):
     """read the log from  the current desktop
@@ -178,7 +308,6 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     # read the desktop object before removing
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
 
-
     # remove the desktop
     removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
     
@@ -194,6 +323,40 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     
     # remove the desktop
     return removed_desktop
+
+
+def removepodindesktop( authinfo:AuthInfo, userinfo:AuthUser ):
+    """removedesktop
+
+    Args:
+        authinfo (AuthInfo): authentification data
+        userinfo (AuthUser): user data 
+
+    Returns:
+        [bool]: True if the desktop is removed 
+    """
+    myOrchestrator = selectOrchestrator()    
+
+    # webrtc look for the desktop
+    # read the desktop object before removing
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
+
+    # remove the desktop
+    removed_desktop = myOrchestrator.removepodindesktop( authinfo, userinfo )
+    
+    # remove the janus stream
+    if  removed_desktop is True and \
+        isinstance( myDesktop, oc.od.desktop.ODDesktop) and \
+        isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
+        # if myDesktop exists AND webrtc is a ODJanusCluster then 
+        # remove the entry stream to 
+        # - free the listening port on the janus gateway
+        # - free the janus auth token 
+        services.webrtc.destroy_stream( myDesktop.name )
+    
+    # remove the desktop
+    return removed_desktop
+
 
 def finddesktop_quiet( authinfo, userinfo, appname=None ):
 
@@ -217,7 +380,7 @@ def finddesktop( authinfo, userinfo, appname=None ):
     Returns:
         [ODesktop]: oc.od.desktop.ODDesktop Desktop Object or None if not found
     """
-    services.messageinfo.push(userinfo.userid, 'Looking for your desktop.')        
+    # services.messageinfo.push(userinfo.userid, 'looking for your desktop.')        
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
     kwargs = { 'appname': appname }
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)     
@@ -254,7 +417,7 @@ def stopContainerApp(auth, user, podname, containerid):
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( auth, user )
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
-       raise ODError( 'stopcontainer::findDesktopByUser not found')
+       raise ODError(status=404,message='stopcontainer::findDesktopByUser not found')
 
     if not myOrchestrator.isPodBelongToUser( auth, user, podname ):
         services.fail2ban.fail_login( user.userid )
@@ -273,7 +436,7 @@ def logContainerApp(authinfo, userinfo, podname, containerid):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
 
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
-       raise ODError( 'findDesktopByUser not found')
+       raise ODError( status=404, message='findDesktopByUser not found')
 
     if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
         services.fail2ban.fail_login( userinfo.userid )
@@ -292,7 +455,7 @@ def removeContainerApp(authinfo, userinfo, podname, container_id):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
-       raise ODError( 'findDesktopByUser not found')
+       raise ODError( status=404, message='findDesktopByUser not found')
 
 
     if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
@@ -315,7 +478,7 @@ def listContainerApp(authinfo, userinfo):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
-       raise ODError( 'listContainerApp:findDesktopByUser not found')
+       raise ODError( status=404, message='listContainerApp:findDesktopByUser not found')
 
     result = myOrchestrator.listContainerApps( authinfo, userinfo, myDesktop, services.apps )
 
@@ -329,7 +492,7 @@ def envContainerApp(authinfo, userinfo, podname, containerid ):
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
         
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
-       raise ODError( 'envContainerApp:findDesktopByUser not found')
+       raise ODError( status=404, message='envContainerApp:findDesktopByUser not found')
 
     if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
         services.fail2ban.fail_login( userinfo.userid )
@@ -353,6 +516,7 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     # 'domainuser' : { 'SENDCUTTEXT': 'disabled',
     #                  'ACCEPTCUTTEXT': 'disabled'
     #  }
+    # 
     for key in authinfo.data.get('labels').keys():
         if isinstance( oc.od.settings.desktop['environmentlocalrules'].get( key ), dict ):
             env.update( oc.od.settings.desktop['environmentlocalrules'].get( key ) )
@@ -495,17 +659,19 @@ def createdesktop( authinfo, userinfo, args  ):
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
         # logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
-            messageinfo.push('Webhooking network services')
-        messageinfo.push('Starting up internal services')
+            messageinfo.push('c.Webhooking network services')
+       
+        messageinfo.push('c.Starting up internal services')
         processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
-        messageinfo.push('Internal services started')
+        messageinfo.push('c.Internal services started')
         logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
         services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
     else:
         if isinstance( myDesktop, str ):
-            messageinfo.push(myDesktop)
+            # this is an error message
+            messageinfo.push("e. " + myDesktop)
         else:
-            messageinfo.push('createDesktop error - myOrchestrator.createDesktop return None')
+            messageinfo.push(f"e.CreateDesktop error - myOrchestrator.createDesktop return {type(myDesktop)}")
     return myDesktop
 
 
@@ -523,17 +689,28 @@ def openapp( auth, user={}, kwargs={} ):
     appname  = kwargs.get('image')        # name of the image
     userargs = kwargs.get('args')         # get arguments for apps for example a file name
 
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()  
+
+    # find the desktop for the current user 
+    myDesktop = myOrchestrator.findDesktopByUser( auth, user, **kwargs )
+    if not isinstance( myDesktop, ODDesktop):
+        raise ODError( status=404, message='openapp:findDesktopByUser not found')
+
+    myOrchestrator.nodehostname = myDesktop.nodehostname
+    kwargs[ 'homedirectory_type' ] = settings.desktop['homedirectorytype']
+
     # get application object from application name
     app = getapp(auth, appname)
     if not isinstance( app, dict ):
-        raise ODError( f"app {appname} not found")
+        raise ODError( status=404, message=f"app {appname} not found")
 
     # verify if app is allowed 
     # this can occur only if the applist has been (hacked) modified 
     # or applist has been updated in background 
     if not services.apps.is_app_allowed( auth, app ) :
         logger.error( 'SECURITY Warning applist has been modified or updated')
-        raise ODError('Application access is denied by security policy')
+        raise ODError( status=401, message='Application access is denied by security policy')
 
     # new App instance Orchestrator Object
     myOrchestrator = selectOrchestrator()
@@ -587,23 +764,23 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
         if isinstance( proc, subprocess.CompletedProcess) :
             proc.check_returncode()
             if messageinfo:
-                messageinfo.push('Webhooking updated service successfully')
+                messageinfo.push('c.Webhooking updated service successfully')
             logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
             exitCode = proc.returncode
         else:
             logger.error( f"command {webhookcmd} subprocess.run return {str(type(proc))}" )
             if messageinfo:
-                messageinfo.push(f"Webhooking updated service error, read the log file ")
+                messageinfo.push(f"e.Webhooking updated service error, read the log file ")
     except subprocess.CalledProcessError as e:
         if messageinfo:
-            messageinfo.push(f"Webhooking updated service error {e}" )
+            messageinfo.push(f"e.Webhooking updated service error {e}" )
         logger.error( f"command failed CalledProcessError {webhookcmd} error={e}")
     except subprocess.TimeoutExpired as e :
         logger.error( f"command TimeoutExpired {webhookcmd} error={e}" )
     except Exception as e:
         logger.error( f"command exception {webhookcmd} error={e}" )
         if messageinfo:
-            messageinfo.push(f"command exception {webhookcmd} error={e}" )
+            messageinfo.push(f"e.Webhooking command exception error={e}" )
         logger.error( e )
     return exitCode
 
@@ -631,7 +808,7 @@ def notify_user( access_userid, access_type, method, data ):
 def getapp(authinfo, name):
     app = services.apps.findappbyname(authinfo, name)
     if app is None:
-        raise ODError('Fatal error - Cannot find image associated to application %s: ' % name)
+        raise ODError(message='Fatal error - Cannot find image associated to application %s: ' % name)
     return app
 
 
@@ -639,7 +816,7 @@ def launch_app_in_process(orchestrator, app, appinstance, userargs):
     cmd = [ app['path'],  app['args'], userargs ]
     result = orchestrator.execininstance(appinstance, cmd)
     if type(result) is not dict:
-        raise ODError('execininstance error')
+        raise ODError(message= 'execininstance error result is not a dict')
     return (cmd, result)
 
 def garbagecollector( expirein, force=False ):

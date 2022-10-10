@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 # it would generate cycling dependencies call in oc.logging functions
 #########
 
-def getclienthttp_header(header_name):
-    return cherrypy.request.headers.get(header_name)
+def getclienthttp_header(header_name, default=None):
+    return cherrypy.request.headers.get(header_name, default)
 
 def getclienthttp_headers():
     return cherrypy.request.headers
