@@ -2846,7 +2846,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext',  { 'runAsUser': 0 } )
             self.logger.debug('pod container %s use securityContext %s ', currentcontainertype, securityContext)
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                         'image':            image,       
                                         'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
                                         'volumeMounts':     list_volumeMounts,
@@ -2934,7 +2934,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                         'image': image,                                    
                         'env': envlist,
                         'volumeMounts': [ self.default_volumes_mount['tmp'] ],
@@ -2951,7 +2951,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image,                                    
                                     'env': envlist,
                                     'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
@@ -2980,7 +2980,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image,                                  
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
@@ -2996,7 +2996,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image,                                 
                                     'env': envlist,
                                     'volumeMounts':  list_pod_allvolumeMounts,
@@ -3012,7 +3012,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image, 
                                     'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),                                
                                     'env': envlist,
