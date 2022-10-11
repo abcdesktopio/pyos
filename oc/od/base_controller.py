@@ -12,16 +12,15 @@
 # Software description: cloud native desktop service
 # 
 import logging
-import ipaddress
 import cherrypy
 import oc.logging
 import re
-
-from collections import OrderedDict
+import oc.od.error
 
 from netaddr import IPNetwork, IPAddress
-from oc.cherrypy import WebAppError, getclientipaddr
+from oc.cherrypy import getclientipaddr
 from oc.od.services import services
+
 
 logger = logging.getLogger(__name__)
 
@@ -118,22 +117,22 @@ class BaseController(object):
           '''
 
           if self.isban_ip():
-               raise WebAppError('ip address is banned')
+               raise oc.od.error.BanIPError('ip address is banned')
           
           if not services.auth.isauthenticated:
                self.fail_ip()
-               raise WebAppError('user is not authenticated')
+               raise oc.od.error.AuthenticationError('user is not authenticated')
           
           if not services.auth.isidentified:
                self.fail_ip()
-               raise WebAppError('user is not identified')
+               raise oc.od.error.AuthenticationError('user is not identified')
 
 
           user = services.auth.user
           auth = services.auth.auth
 
           if self.isban_login(user.userid):
-               raise WebAppError('user is banned')
+               raise oc.od.error.BanUserError('user is banned')
 
           return (auth, user)
 
@@ -169,7 +168,7 @@ class BaseController(object):
           '''
           bReturn = False
           try:               
-               myipaddr = ipaddress.ip_address(cherrypy.request.remote.ip)
+               myipaddr = IPAddress.ip_address(cherrypy.request.remote.ip)
                bReturn = myipaddr.is_private
           except Exception as e:
                self.logger.error( e )
