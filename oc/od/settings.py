@@ -259,11 +259,11 @@ def init_defaulthostfqdn():
     if not isinstance( default_host_url, str):
         logger.warning('Invalid default_host_url in config file')
         logger.warning('Use Host HTTP header to redirect url, this is a security Warning')
-        logger.warning('Use this config only on private network, not on public Internet')
+        
     else:
         logger.info('default_host_url: %s', default_host_url)
+        default_host_url_is_securised = default_host_url.lower().startswith('https')
 
-    default_host_url_is_securised = default_host_url.lower().startswith('https')
 
     default_server_ipaddr = gconfig.get('server.default.ipaddr')
     if default_server_ipaddr is None: 
