@@ -2276,7 +2276,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )  
                 
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                         'image':            image,       
                                         'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
                                         'volumeMounts':     list_volumeMounts,
@@ -2375,7 +2375,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                         'image':image,                                    
                         'env': envlist,
                         'volumeMounts': [ self.default_volumes_mount['tmp'] ],
@@ -2393,7 +2393,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo  )
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                         'image':image,                                    
                         'env': envlist,
                         'volumeMounts': [ self.default_volumes_mount['tmp'] ],
@@ -2411,7 +2411,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image,                                    
                                     'env': envlist,
                                     'securityContext': securityContext,
@@ -2441,7 +2441,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image,                                  
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
@@ -2459,7 +2459,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image,                                 
                                     'env': envlist,
                                     'volumeMounts':  list_pod_allvolumeMounts,
@@ -2477,7 +2477,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('pullpolicy'),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
                                     'image': image, 
                                     'securityContext': securityContext,                                
                                     'env': envlist,
@@ -2531,9 +2531,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             object_type = event_object.type
             self.logger.info( f"object_type={object_type} reason={event_object.reason}")
 
+            # find the best message to user interface
+            message = f"{object_type.lower()}"
             if isinstance(event_object.message, str) and len(event_object.message)>0:
-                message = f"{object_type.lower()} {event_object.reason} {event_object.message}"
-            else:
+                message = f"b.{event_object.message}"
+            elif isinstance(event_object.reason, str) and len(event_object.reason)>0:
                 message = f"b.{event_object.reason}"
                 
             self.logger.info(message)
@@ -2542,7 +2544,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if object_type == 'Warning':
                 # These events are to warn that something might go wrong
                 self.logger.warning( f"something might go wrong object_type={object_type} reason={event_object.reason} message={event_object.message}")
-                self.on_desktoplaunchprogress( f"b.something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
+                self.on_desktoplaunchprogress( f"b.Something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
                 w.stop()
                 continue
 
@@ -2570,7 +2572,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             readymsg = f"b.{c.name} is ready"
                             self.logger.debug( readymsg )
                             self.on_desktoplaunchprogress( readymsg )
-                            w.stop()
+                            # w.stop()
 
         self.logger.debug( f"watch list_namespaced_event pod created object_type={object_type}")
         #if object_type == 'Warning':
