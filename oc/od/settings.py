@@ -233,22 +233,10 @@ def init_config_stack():
     global kubernetes_default_domain
     global namespace
     global desktopdescription
-
-    stack_mode = gconfig.get('stack.mode', None)
-    if  stack_mode not in [ 'kubernetes', 'standalone' ] :
-        logger.error("invalid stack.mode value")
-        logger.error("stack.mode must be set to 'standalone' for docker only daemon")
-        logger.error("or set to 'kubernetes' for kubernetes support.")
-        exit(-1)
-
-    defaultnetworknetuser = gconfig.get('stack.network', 'abcdesktop_netuser')    
+ 
     kubernetes_default_domain = gconfig.get('stack.kubernetesdefaultdomain', 'abcdesktop.svc.cluster.local')
     namespace = gconfig.get('namespace', 'abcdesktop')  
-
-    desktopdescription = gconfig.get(
-        'desktop.description', 
-        { 'internalipaddr': None, 'internalipaddr': None}
-    )   
+    desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
 
 def init_jira():
     global jira 
