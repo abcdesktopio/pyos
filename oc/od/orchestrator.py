@@ -48,6 +48,7 @@ import oc.od.acl
 import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
 import oc.od.configmap
+from   oc.od.error          import *    # import all error classes
 from   oc.od.desktop        import ODDesktop
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 from   oc.od.vnc_password   import ODVncPassword
@@ -428,8 +429,22 @@ class ODOrchestratorBase(object):
         return False
 
 
-    def waitForServiceHealtz(self, desktop, service, timeout=100):
-        '''    waitForServiceListening tcp port '''
+    def waitForServiceHealtz(self, desktop, service, timeout=5):
+        """waitForServiceHealtz
+
+        Args:
+            desktop (ODDesktop): desktop object to waitForServiceListening
+            service (str): name of the service 
+            timeout (int, optional): timeout in seconds. Defaults to 1.
+
+        Raises:
+            ValueError: invalid desktop object type, desktop is not a ODDesktop
+            ODAPIError: error in configuration file 'healtzbin' must be a string
+            ODAPIError: error in configuration file 'tcpport' must be a int
+
+        Returns:
+            bool: True the the service healtz is up, else False
+        """
         self.logger.debug('')
         # Note the same timeout value is used twice
         # for the wait_port command and for the exec command         
@@ -437,6 +452,8 @@ class ODOrchestratorBase(object):
         if type(desktop) is not ODDesktop:
             raise ValueError('invalid desktop object type' )
 
+        # healtz binary command is optional 
+        # return True if not define
         if not isinstance( oc.od.settings.desktop_pod[service].get('healtzbin'), str):
             # no healtz binary command has been set
             # no need to run command
@@ -444,8 +461,10 @@ class ODOrchestratorBase(object):
         
         port = port=oc.od.settings.desktop_pod[service].get('tcpport')
         binding = f"http://{desktop.ipAddr}:{port}/{service}/healtz"
-        # ccurl --max-time 1 https://example.com/
-        command = [ oc.od.settings.desktop_pod[service].get('healtzbin'), '--max-time', str(timeout), binding ]       
+
+        # curl --max-time [SECONDS] [URL]
+        healtzbintimeout = oc.od.settings.desktop_pod[service].get('healtzbintimeout', timeout*1000 )
+        command = [ oc.od.settings.desktop_pod[service].get('healtzbin'), '--max-time', str(healtzbintimeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
         self.logger.debug( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
 
@@ -455,8 +474,22 @@ class ODOrchestratorBase(object):
             return False
 
       
-    def waitForServiceListening(self, desktop, service, timeout=1000):     
-        '''    waitForServiceListening tcp port '''
+    def waitForServiceListening(self, desktop:ODDesktop, service:str, timeout:int=5)-> bool:
+        """waitForServiceListening
+
+        Args:
+            desktop (ODDesktop): desktop object to waitForServiceListening
+            service (str): name of the service to check, should be 'graphical' or 'spawner'
+            timeout (int, optional): timeout in seconds. Defaults to 2.
+
+        Raises:
+            ValueError: invalid desktop object type, desktop is not a ODDesktop
+            ODAPIError: error in configuration file 'waitportbin' must be a string
+            ODAPIError: error in configuration file 'tcpport' must be a int
+
+        Returns:
+            bool: True the the service is up
+        """
 
         self.logger.debug(locals())
         # Note the same timeout value is used twice
@@ -466,21 +499,25 @@ class ODOrchestratorBase(object):
             raise ValueError('invalid desktop object type' )
 
         waitportbincommand = oc.od.settings.desktop_pod[service].get('waitportbin')
+        # check if waitportbincommand is a string
         if not isinstance( waitportbincommand, str):
-            # no healtz binary command has been set
-            # no need to run command
+            # no waitportbin command has been set
             self.logger.error(f"error in configuration file 'waitportbin' must be a string. Type read in config {type(waitportbincommand)}" )
-            raise oc.od.infra.ODAPIError( f"error in configuration file 'waitportbin' must be a string defined as healtz command line. type defined {type(waitportbincommand)}" )
+            raise ODAPIError( f"error in configuration file 'waitportbin' must be a string defined as healtz command line. type defined {type(waitportbincommand)}" )
         
         port = oc.od.settings.desktop_pod[service].get('tcpport')
         if not isinstance( port, int):
-            # no healtz binary command has been set
-            # no need to run command
+            # no tcpport has been set
             self.logger.error(f"error in configuration file 'tcpport' must be a int. Type read in config {type(port)}" )
-            raise oc.od.infra.ODAPIError( f"error in configuration file 'tcpport' must be a int. Type read in config {type(port)}" )
+            raise ODAPIError( f"error in configuration file 'tcpport' must be a int. Type read in config {type(port)}" )
         
-        binding = '{}:{}'.format(desktop.ipAddr, str(port))
-        command = [ oc.od.settings.desktop_pod[service].get('waitportbin'), '-t', str(timeout), binding ]       
+        binding = f"{desktop.ipAddr}:{port}"
+        # 
+        # waitportbin use a timeout (in milliseconds).
+        # execwaitincontainer use a timeout (in seconds).
+        # 
+        waitportbintimeout = oc.od.settings.desktop_pod[service].get('waitportbintimeout', timeout*1000 )
+        command = [ oc.od.settings.desktop_pod[service].get('waitportbin'), '-t', str(waitportbintimeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
      
         if isinstance(result, dict):
@@ -491,7 +528,7 @@ class ODOrchestratorBase(object):
                 self.logger.debug( f"binding {binding} is up")
                 return self.waitForServiceHealtz(desktop, service, timeout)
 
-        self.logger.debug( f"binding {binding} is down")
+        self.logger.info( f"binding {binding} is down")
         return False
 
     @staticmethod
@@ -1300,12 +1337,24 @@ class ODOrchestrator(ODOrchestratorBase):
     def isgarbagable( self, container, expirein, force=False ):
         bReturn = False
         myDesktop = self.container2desktop( container )
+
         if force is False:
             nCount = self.user_connect_count( myDesktop )
-            if nCount == -1 : 
+            if nCount < 0: 
+                # if something wrong nCount is equal to -1 
+                # do not garbage this pod
+                # this is an error, return False
                 return bReturn 
-            if nCount > 0:
-                return False
+            if nCount > 0 : 
+                # if a user is connected do not garbage this pod
+                # user is connected, return False
+                return bReturn 
+            #
+            # now nCount == 0 continue 
+            # the garbage process
+            # to test if we can delete this pod
+
+
         try:
             creation_date = container.attrs['Created']
             # times are delivered in ISO8601
@@ -1317,7 +1366,7 @@ class ODOrchestrator(ODOrchestratorBase):
             if delta_second > expirein:
                 bReturn = True
         except Exception as e:
-            self.logger.error(str(e))
+            self.logger.error(e)
 
         return bReturn
 
