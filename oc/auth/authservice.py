@@ -60,12 +60,9 @@ import jwt
 import oc.auth.jwt
 import oc.od.acl
 import oc.lib
-import oc.od.error
-
+from   oc.od.error          import *    # import all error classes
 
 logger = logging.getLogger(__name__)
-
-
 
 #
 # define AuthRoles
@@ -1141,7 +1138,7 @@ class ODAuthTool(cherrypy.Tool):
 
         # check if acl matches with tag
         if not oc.od.acl.ODAcl().isAllowed( auth, provider_meta.acls ):
-            raise AuthenticationDenied( 'Access is denied by security policy')
+             raise AuthenticationDenied( 'Access is denied by security policy')
         
         new_login = metauser.get( provider_meta.join_key_ldapattribut )
 
@@ -1389,7 +1386,7 @@ class ODAuthTool(cherrypy.Tool):
 
             # check if acl matches with tag
             if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
-                raise AuthenticationDenied( 'Access is denied by security policy')
+                 raise AuthenticationDenied( 'Access is denied by security policy')
             
             auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
             # build a AuthCache as response result 
@@ -1741,7 +1738,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         pat = re.compile( regexp.get('regexp') )
         match = re.fullmatch(pat, data)
         if not match:
-            raise AuthenticationError( message= regexp.get('message') )
+             raise AuthenticationError( message= regexp.get('message') )
 
     def getclientdata(self):
         """getclientdata
@@ -2133,7 +2130,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         conn   = None   # set default value
 
         if self.auth_type not in ['KERBEROS', 'NTLM', 'SIMPLE']:
-            raise AuthenticationError('auth_type must be \'KERBEROS\', \'NTLM\', or \'SIMPLE\' ')
+             raise AuthenticationError('auth_type must be \'KERBEROS\', \'NTLM\', or \'SIMPLE\' ')
 
         if self.auth_type == 'KERBEROS':
             # can raise exception 
@@ -2402,8 +2399,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         except ldap3.core.exceptions.LDAPExceptionError as e:
             self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server_pool, str(e) )
-
-        raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
+            raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
     def verify_auth_is_supported_by_ldap_server( self, supported_sasl_mechanisms ):
         #
@@ -2502,8 +2498,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
             except ldap3.core.exceptions.LDAPExceptionError as e:
                 self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server, str(e) )
-
-        raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
+                raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
     def search_all(self, conn, basedn, scope, filter=None, attrs=None, **params):
         """[summary]
@@ -3512,7 +3507,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
             if not isinstance( userinfo.get('name'), str) :
                 userinfo['name'] = userinfo.get(self.useridattr)
         else:
-            raise AuthenticationError(f"Implicit login user {userid} does not exist in directory service")
+             raise AuthenticationError(f"Implicit login user {userid} does not exist in directory service")
 
         data = { 'userid': userid, 'dn': userdn }
 
