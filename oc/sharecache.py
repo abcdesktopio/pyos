@@ -11,7 +11,7 @@
 # Software description: cloud native desktop service
 #
 
-import vendor.memcache as memcache 
+import memcache 
 import oc.logging
 
 class ODSharecacheBase(object):
