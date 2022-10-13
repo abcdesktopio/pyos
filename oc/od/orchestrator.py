@@ -387,45 +387,37 @@ class ODOrchestratorBase(object):
         """
         return {}
 
-    def waitForDesktopProcessReady(self, desktop, callback_notify, nTimeout=42):
+    def waitForDesktopProcessReady(self, desktop, callback_notify):
         self.logger.debug('')
 
-        nCountMax = nTimeout
+        nCountMax = 42
         # check if supervisor has stated all processs
         nCount = 1
-        bListen = { 'x11server': False, 'spawner': False }
+        bListen = { 'graphical': False, 'spawner': False }
         # loop
         # wait for a listen dict { 'x11server': True, 'spawner': True }
-        while nCount < 42:
-            self.logger.debug( f"desktop services status bListen {bListen}" ) 
-            # check if WebSockifyListening id listening on tcp port 6081
-            if bListen['x11server'] is False:
-                messageinfo = 'c.Starting desktop graphical service %ds / %d' % (nCount,nCountMax) 
-                callback_notify(messageinfo)
-                bListen['x11server'] = self.waitForServiceListening( desktop, service='graphical' )
-                self.logger.info('service:x11server return %s', str(bListen['x11server']))
-                nCount += 1
 
-            # check if spawner is ready 
-            if bListen['spawner'] is False:
-                messageinfo = 'c.Starting desktop spawner service %ds / %d' % (nCount,nCountMax) 
-                callback_notify(messageinfo)
-                bListen['spawner']  = self.waitForServiceListening( desktop, service='spawner' )
-                self.logger.info('service:spawner return %s', str(bListen['spawner']))  
-                nCount += 1
+        while nCount < nCountMax:
+
+            for service in ['graphical', 'spawner']: 
+                self.logger.debug( f"desktop services status bListen {bListen}" ) 
+                # check if WebSockifyListening id listening on tcp port 6081
+                if bListen[service] is False:
+                    messageinfo = f"c.Waiting for desktop {service} service {nCount}/{nCountMax}"
+                    callback_notify(messageinfo)
+                    bListen[service] = self.waitForServiceListening( desktop, service=service)
+                    if bListen[service] is False:
+                        messageinfo = f"c.Desktop {service} service is not ready."
+                        time.sleep(1)
+            nCount += 1
             
-            if bListen['x11server'] is True and bListen['spawner'] is True:     
+            if bListen['graphical'] is True and bListen['spawner'] is True:     
                 self.logger.debug( "desktop services are ready" )                  
-                callback_notify('c.Desktop services are ready after %d s' % (nCount) )              
+                callback_notify( f"c.Desktop services are running after {nCount} s" )              
                 return True
-
-            # wait 0.1    
-            self.logger.debug( 'sleeping for 0.5')
-            time.sleep(0.5)
         
         # Can not chack process status     
-        self.logger.warning('waitForDesktopProcessReady not ready services status: %s', bListen )
-
+        self.logger.warning( f"waitForDesktopProcessReady not ready services status:{bListen}" )
         return False
 
 
@@ -433,7 +425,7 @@ class ODOrchestratorBase(object):
         """waitForServiceHealtz
 
         Args:
-            desktop (ODDesktop): desktop object to waitForServiceListening
+            desktop (ODDesktop): desktop object to waitForServiceHealtz
             service (str): name of the service 
             timeout (int, optional): timeout in seconds. Defaults to 1.
 
@@ -473,7 +465,7 @@ class ODOrchestratorBase(object):
         else:
             return False
 
-      
+    
     def waitForServiceListening(self, desktop:ODDesktop, service:str, timeout:int=5)-> bool:
         """waitForServiceListening
 
@@ -3127,43 +3119,54 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if object_type == 'Warning':
                 # These events are to warn that something might go wrong
                 self.logger.warning( f"something might go wrong object_type={object_type} reason={event_object.reason} message={event_object.message}")
-                self.on_desktoplaunchprogress( f"b.something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
+                self.on_desktoplaunchprogress( f"b.Something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
                 w.stop()
                 continue
 
-            if object_type == 'Normal' and event_object.reason == 'Started' :
-                # add number_of_container_started counter 
-                number_of_container_started += 1
-                self.on_desktoplaunchprogress( f"b.Waiting for containers {number_of_container_started}/{number_of_container_to_start}" )
-                # if the number of container to start is expected, all containers should be started 
-                if number_of_container_started >= number_of_container_to_start:
-                    w.stop() # do not wait any more
-                    continue
-
-                myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)  
-                # check if the graphical container is started
+            if object_type == 'Normal' and event_object.reason == 'Started':
+                myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+                # count number_of_container_started
+                number_of_container_started = 0
+                number_of_container_ready = 0
                 for c in myPod.status.container_statuses:
-                    # look only for for the ontainer_graphical_name
+                    if c.started is True:
+                        number_of_container_started = number_of_container_started + 1
+                    if c.ready is True:
+                        number_of_container_ready = number_of_container_ready + 1
+
+                """
+                if number_of_container_started < number_of_container_to_start:
+                    # we need to wait for started containers
+                    startedmsg =  f"b.Waiting for started containers {number_of_container_started}/{number_of_container_to_start}" 
+                    self.logger.debug( startedmsg )
+                    self.on_desktoplaunchprogress( startedmsg )
+                    continue
+                """
+
+                startedmsg =  f"b.Ready containers {number_of_container_ready}/{number_of_container_to_start}" 
+                self.logger.debug( startedmsg )
+                # self.on_desktoplaunchprogress( startedmsg )
+
+                # check if container_graphical_name is started and running
+                # if it is stop event
+                for c in myPod.status.container_statuses:
+                    # look only for for the container_graphical_name
                     if c.name == container_graphical_name:
-                        if c.started is True :
-                            startedmsg =  f"b.{c.name} is started" 
-                            self.logger.debug( startedmsg )
-                            self.on_desktoplaunchprogress( startedmsg )
-                        if c.ready is True :
+                        startedmsg = f"b.{myPod.status.phase}: desktop service "
+                        if  c.started is False:
+                            startedmsg += "is starting"
+                        elif c.started is True and c.ready is False:
+                            startedmsg += "is started, waiting for ready event"
+                        elif c.started is True and c.ready is True:
+                            startedmsg += "is ready"
+                        self.logger.debug( startedmsg )
+                        self.on_desktoplaunchprogress( startedmsg )
+                        if c.ready is True and c.started is True :
                             # the graphical container is ready 
                             # do not wait for other containers
-                            readymsg = f"b.{c.name} is ready"
-                            self.logger.debug( readymsg )
-                            self.on_desktoplaunchprogress( readymsg )
                             w.stop()
 
         self.logger.debug( f"watch list_namespaced_event pod created object_type={object_type}")
-        #if object_type == 'Warning':
-        #    self.logger.warning( f"object_type is warning {message}")
-        #    # can occurs for example
-        #    # - failed to sync secret cache: time out waiting for the condition
-        #    # try to continue 
-           
     
         self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
         # watch list_namespaced_pod waiting for a valid ip addr
@@ -3217,10 +3220,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # read the status.phase, if it's not Running 
         if myPod.status.phase != 'Running':
             # something wrong 
-            return f"Your pod does not start, status is {myPod.status.phase} reason is {myPod.status.reason} message {myPod.status.message}" 
+            msg =  f"Your pod does not start, status is {myPod.status.phase} reason is {myPod.status.reason} message {myPod.status.message}" 
+            self.on_desktoplaunchprogress( msg )
+            # something wrong 
+            return msg
         else:
             # At least one container is running,
-            self.on_desktoplaunchprogress("b.Your pod is running.")   
+            self.on_desktoplaunchprogress(f"b.Your pod is {myPod.status.phase}.") 
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo)
         self.logger.debug('watch read_namespaced_pod created')
