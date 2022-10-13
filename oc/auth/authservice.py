@@ -2433,8 +2433,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
 
     def getconnection(self, userid, password ):
-        self.logger.info( 'ldap getconnection auth userid=%s', userid )
+        self.logger.info( f"ldap getconnection auth userid={userid}" )
         conn = None
+        lastException = None
         for server_name in self.servers:
             try: 
                 self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={self.auth_type}")
@@ -2485,20 +2486,25 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.info( f"binding to the ldap server {server_name}")
                 conn.bind()
                 self.logger.info( f"bind to {server_name} done")
-
                 return conn
 
             except ldap3.core.exceptions.LDAPBindError as e:
-                self.logger.error( 'ldap3.core.exceptions.LDAPBindError to the ldap server %s %s', server, str(e) )
+                self.logger.error( f"ldap3.core.exceptions.LDAPBindError to the ldap server {server} {e}" )
                 # ldap3.core.exceptions.LDAPBindError: - invalidCredentials
                 raise e
 
-            except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult  as e:
-                self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server, str(e) )
+            except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult as e:
+                self.logger.error( f"ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server {server} {e}" )
+                lastException = e
 
             except ldap3.core.exceptions.LDAPExceptionError as e:
-                self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server, str(e) )
-                raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
+                self.logger.error( f"ldap3.core.exceptions.LDAPExceptionError to the ldap server {server} {e}" )
+                lastException = e
+                
+        if lastException:
+            raise lastException
+        else:
+            raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
     def search_all(self, conn, basedn, scope, filter=None, attrs=None, **params):
         """[summary]
@@ -3205,15 +3211,16 @@ class ODAdAuthProvider(ODLdapAuthProvider):
            self.logger.debug( 'dcslist has expired' )
         return bReturn
 
-    #def getconnection(self, userid:str, password:str ):
-    #    self.logger.debug('')
-    #    if self.auth_type == 'NTLM':
-    #        # add the domain name to format login as DOMAIN\USER if need
-    #        userid = self.getadlogin(userid)
-    #    if self.auth_type == 'KERBEROS':
-    #        # create a Kerberos TGT 
-    #        self.krb5_authenticate( userid, password )
-    #    return super().getconnection(userid, password )
+    def getconnection(self, userid:str, password:str ):
+        self.logger.debug('')
+        if self.auth_type == 'NTLM':
+            # add the domain name to format login as DOMAIN\USER if need
+            userid = self.getadlogin(userid)
+        if self.auth_type == 'KERBEROS':
+            # create a Kerberos TGT 
+            userid = userid.upper()
+            self.krb5_authenticate( userid, password )
+        return super().getconnection(userid, password )
 
     def listsite(self, **params):       
         self.logger.debug('')
