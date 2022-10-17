@@ -1997,7 +1997,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         nTry = 0
         nMaxTry = 42
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-            pod_name = myPod.name
+            pod_name = myPod.metadata.name
             deletedPod = self.removePod( myPod, propagation_policy='Background', grace_period_seconds=0 )
             if isinstance(deletedPod, client.models.v1_pod.V1Pod ):
                 while nTry<nMaxTry:
