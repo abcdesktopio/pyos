@@ -2679,6 +2679,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         appinstance.webhook = fillednetworkconfig.get('webhook')
         return appinstance
 
+
+    def getPodStartedMessage(self, containernameprefix:str, myPod:client.models.v1_pod.V1Pod ):
+        c = self.getcontainerfromPod( containernameprefix, myPod )
+        startedmsg = f"b.{myPod.status.phase}: {c.name} "
+        if  c.started is False: 
+            startedmsg += "is starting"
+        elif c.started is True and c.ready is False:
+            startedmsg += "is started"
+        elif c.started is True and c.ready is True:
+            startedmsg += "is ready"
+        return startedmsg
+
     def createdesktop(self, authinfo, userinfo, **kwargs):
         self.logger.info('')
         """createdesktop for the user
@@ -3138,30 +3150,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     startedmsg =  f"b.Waiting for started containers {number_of_container_started}/{number_of_container_to_start}" 
                     self.logger.debug( startedmsg )
                     self.on_desktoplaunchprogress( startedmsg )
-                    continue
+                    # continue
 
-                startedmsg =  f"b.Ready containers {number_of_container_ready}/{number_of_container_to_start}" 
-                self.logger.debug( startedmsg )
+                # startedmsg =  f"b.Ready containers {number_of_container_ready}/{number_of_container_to_start}" 
+                # self.logger.debug( startedmsg )
                 # self.on_desktoplaunchprogress( startedmsg )
 
                 # check if container_graphical_name is started and running
                 # if it is stop event
-                for c in myPod.status.container_statuses:
-                    # look only for for the container_graphical_name
-                    if c.name == container_graphical_name:
-                        startedmsg = f"b.{myPod.status.phase}: desktop service "
-                        if  c.started is False:
-                            startedmsg += "is starting"
-                        elif c.started is True and c.ready is False:
-                            startedmsg += "is started, waiting for ready event"
-                        elif c.started is True and c.ready is True:
-                            startedmsg += "is ready"
-                        self.logger.debug( startedmsg )
-                        # self.on_desktoplaunchprogress( startedmsg )
-                        if c.ready is True and c.started is True :
-                            # the graphical container is ready 
-                            # do not wait for other containers
-                            w.stop()
+                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod)
+                self.on_desktoplaunchprogress( startedmsg )
+
+                if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
+                    self.on_desktoplaunchprogress(f"Your pod gets ip address {myPod.status.pod_ip} from network plugin")
+                    w.stop()
+
+                c = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
+                if isinstance( c, client.models.v1_container_status.V1ContainerStatus ):
+                    if c.ready is True and c.started is True :
+                        self.on_desktoplaunchprogress( startedmsg )
+                        w.stop()
 
         self.logger.debug( f"watch list_namespaced_event pod created object_type={object_type}")
     
@@ -3200,13 +3208,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
             # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
             # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
+            if pod_event.status.phase == 'Running' :
+                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event)
+                self.on_desktoplaunchprogress( startedmsg )
+
             if pod_event.status.phase != 'Pending' :
                 # pod data object is complete, stop reading event
                 # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
                 self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
                 w.stop()
-            else:
-                self.logger.debug(f"The pod is in phase={pod_event.status.phase} continue for watching events" )
+
         self.logger.debug('watch list_namespaced_pod created, the pod is no more in Pending phase' )
 
         # read pod again
@@ -3222,7 +3233,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # something wrong 
             return msg
         else:
-            # At least one container is running,
             self.on_desktoplaunchprogress(f"b.Your pod is {myPod.status.phase}.") 
 
         myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo)
@@ -3365,7 +3375,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
         return myDesktop
 
-    def getcontainerfromPod( self,  prefix, pod ):
+    def getcontainerfromPod( self,  prefix:str, pod:client.models.v1_pod.V1Pod  ):
+        assert type(prefix) is str, f"prefix invalid type {type(prefix)}"
+        assert type(pod) is client.models.v1_pod.V1Pod , f"pod invalid type {type(pod)}"
         # get the container id for the desktop object
         for c in pod.status.container_statuses:
             if hasattr( c, 'name') and c.name[0] == prefix:
