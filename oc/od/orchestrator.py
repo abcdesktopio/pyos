@@ -1914,16 +1914,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return result
 
 
-    def removePod( self, myPod, propagation_policy = 'Foreground', grace_period_seconds = None ):
+    def removePod( self, myPod, propagation_policy='Background', grace_period_seconds = None ):
         """_summary_
             Remove a pod
             like command 'kubectl delete pods'
         Args:
             myPod (_type_): _description_
-            propagation_policy (str, optional): propagation_policy. Defaults to 'Foreground'.
-            propagation_policy = 'Background' or 
-            propagation_policy = 'Foreground'
-
+            propagation_policy (str, optional): propagation_policy. Defaults to 'Background'.
+            propagation_policy = 'Background' or propagation_policy = 'Foreground'
 
         Returns:
             v1status: v1status
@@ -1931,27 +1929,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('')
         v1status = None
         try:
-            #   The Kubernetes propagation_policy is 'Foreground'
-            #   Default 'Foreground' means that child Pods to the Job will be deleted
-            #   before the Job is marked as deleted.
-            
             pod_name = myPod.metadata.name                
             self.logger.info( 'pod_name %s', pod_name)              
             self.nodehostname = myPod.spec.node_name
-
             # propagation_policy = 'Background'
             # propagation_policy = 'Foreground'
-            # delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy )
-            delete_options = client.V1DeleteOptions( 
-                propagation_policy = propagation_policy, 
-                grace_period_seconds = grace_period_seconds )
-            
-            v1status = self.kubeapi.delete_namespaced_pod(  name=pod_name, 
-                                                            namespace=self.namespace, 
-                                                            body=delete_options, 
-                                                            propagation_policy=propagation_policy )
-                                                            # grace_period_seconds=grace_period_seconds )
-
+            delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy, grace_period_seconds = grace_period_seconds )
+            v1status = self.kubeapi.delete_namespaced_pod(  name=pod_name, namespace=self.namespace, body=delete_options ) 
         except ApiException as e:
             self.logger.error( str(e) )
 
@@ -2007,10 +1991,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
             # delete this pod immediatly
-            v1status = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
+            v1status = self.removePod( myPod, propagation_policy='Background', grace_period_seconds=0 )
             if isinstance(v1status,client.models.v1_pod.V1Pod) :
-                # todo
-                # add test
                 return True
         return False
         
