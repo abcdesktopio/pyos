@@ -1984,16 +1984,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 bReturn = bReturn and False
         return bReturn 
 
-    def removepodindesktop(self, authinfo, userinfo, myPod=None ):
+    def removepodsync(self, authinfo, userinfo, myPod=None,  ):
         # get the user's pod
         if not isinstance(myPod, client.models.v1_pod.V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
 
+        nTry = 0
+        nMaxTry = 42
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-            # delete this pod immediatly
-            v1status = self.removePod( myPod, propagation_policy='Background', grace_period_seconds=0 )
-            if isinstance(v1status,client.models.v1_pod.V1Pod) :
-                return True
+            pod_name = myPod.name
+            deletedPod = self.removePod( myPod, propagation_policy='Background', grace_period_seconds=0 )
+            if isinstance(deletedPod, client.models.v1_pod.V1Pod ):
+                while nTry<nMaxTry:
+                    try:
+                        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+                        if isinstance(myPod, client.models.v1_pod.V1Pod ):
+                            message = f"{myPod.status.phase} {nTry}/{nMaxTry} {myPod.name}"
+                            self.on_desktoplaunchprogress( message )
+                    except ApiException as e:
+                        if e.status == 404:
+                            return True
+                        else:
+                            self.on_desktoplaunchprogress( e )
+                            return False
+                    # wait one second
+                    time.sleep(1) 
         return False
         
 
