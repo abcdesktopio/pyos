@@ -3134,14 +3134,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     if c.ready is True:
                         number_of_container_ready = number_of_container_ready + 1
 
-                """
                 if number_of_container_started < number_of_container_to_start:
                     # we need to wait for started containers
                     startedmsg =  f"b.Waiting for started containers {number_of_container_started}/{number_of_container_to_start}" 
                     self.logger.debug( startedmsg )
                     self.on_desktoplaunchprogress( startedmsg )
                     continue
-                """
 
                 startedmsg =  f"b.Ready containers {number_of_container_ready}/{number_of_container_to_start}" 
                 self.logger.debug( startedmsg )
