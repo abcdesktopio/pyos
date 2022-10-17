@@ -3104,11 +3104,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             object_type = event_object.type
             self.logger.info( f"object_type={object_type} reason={event_object.reason}")
 
-            if isinstance(event_object.message, str) and len(event_object.message)>0:
-                # message = f"b. {object_type.lower()} {event_object.message}" 
-                message = f"b.{event_object.message}"      
-            else:
-                message = f"b.{event_object.reason}"
+            message = f"b.{event_object.reason} {event_object.message}" 
+
+            #if isinstance(event_object.message, str) and len(event_object.message)>0:
+            #    # message = f"b. {object_type.lower()} {event_object.message}" 
+            #    message = f"b.{event_object.message}"      
+            #else:
+            #    message = f"b.{event_object.reason}"
                 
             self.logger.info(message)
             self.on_desktoplaunchprogress( message )
@@ -3157,7 +3159,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         elif c.started is True and c.ready is True:
                             startedmsg += "is ready"
                         self.logger.debug( startedmsg )
-                        self.on_desktoplaunchprogress( startedmsg )
+                        # self.on_desktoplaunchprogress( startedmsg )
                         if c.ready is True and c.started is True :
                             # the graphical container is ready 
                             # do not wait for other containers
