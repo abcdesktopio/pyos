@@ -877,6 +877,7 @@ class ODOrchestrator(ODOrchestratorBase):
             arv = v.split(':')
             if len(arv) > 1:
                 for vf in volume_filter:
+                    # self.logger.debug( f"{arv[1]} startswith {vf}")
                     if arv[1].startswith( vf ):
                         new_volumebind.append( v )
                         new_volume.append( arv[1] )
@@ -891,7 +892,7 @@ class ODOrchestrator(ODOrchestratorBase):
         rules = app.get('rules') 
         network_config = self.applyappinstancerules_network( authinfo, rules )  # apply network rules 
         homedir_enabled = self.applyappinstancerules_homedir( authinfo, rules ) # apply volumes rules
-       
+        self.logger.debug( f"application applyappinstancerules_homedir homedir_enabled={homedir_enabled}" )
 
         # connnect to the dockerd 
         infra = self.createInfra( myDesktop.nodehostname )
@@ -910,8 +911,12 @@ class ODOrchestrator(ODOrchestratorBase):
         if isinstance( app.get('secrets_requirement'), list ):
             for secret in app.get('secrets_requirement'):
                 volume_filter.append( oc.od.settings.desktop['secretsrootdirectory'] + secret )
-    
-        (volumesbind, volumes) = self.getvolumebindforapplication( storage_container.attrs["HostConfig"]["Binds"], volume_filter )
+
+        self.logger.debug( f"storage_container.attrs[HostConfig][Binds]={storage_container.attrs['HostConfig']['Binds']}" )
+        self.logger.debug( f"volume_filter={volume_filter}" )
+        (volumesbind, volumes) = self.getvolumebindforapplication( storage_container.attrs['HostConfig']['Binds'], volume_filter )
+        self.logger.debug( f"volumesbind={volumesbind}" )
+        self.logger.debug( f"volumes={volumes}" )
 
         network_name    = None
         # read locale language from USER AGENT
