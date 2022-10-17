@@ -5,6 +5,7 @@ import uuid
 from netaddr import IPNetwork, IPAddress
 import oc.logging
 import oc.sharecache
+from   oc.od.error          import *    # import all error classes
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,6 @@ class ODPrelogin:
 
     def __init__(self, config, memcache_connection_string ):
         self.maxlogintimeout = int(config.get('maxlogintimeout',120))
-        self.mustache_data = None
         self.prelogin_url = config.get('url')
         self.memcache = oc.sharecache.ODMemcachedSharecache( memcache_connection_string )
         self.enable = config.get('enable')
@@ -42,11 +42,11 @@ class ODPrelogin:
                     self.enable = False
 
 
-    def update_prelogin_mustache_data(self):
+    def load_prelogin_mustache_data(self):
         self.logger.debug( f"prelogin_mustache_data update cache read {self.prelogin_url}" )
         r = requests.get(self.prelogin_url, allow_redirects=False, verify=False )
-        self.mustache_data = r.content.decode('utf-8')
-        # self.logger.debug( self.mustache_data  )
+        mustache_data = r.content.decode('utf-8')
+        return mustache_data
 
 
     def prelogin_verify( self, sessionid, userid ):
@@ -80,23 +80,22 @@ class ODPrelogin:
                          'loginsessionid': sessionid, 
                          'cuid': userid }
 
+        # Do not cache 
         # if the cache mustache_data is empty
         # load the prelogin_url mustache template
-        if self.mustache_data is None :
-            try: 
-                self.update_prelogin_mustache_data()
-            except Exception as e:
-                self.logger.error( e )
-                return str(e)   # return error as html_data
-
+        # can raise exception 
+        mustache_data = self.load_prelogin_mustache_data()
+        
         # set data to memcached
         self.memcacheclient = self.memcache.createclient()
         userid = userid.upper() # always cache data in upper case only 
         self.logger.info( f"prelogin_html setting key={sessionid} value={userid} timeout={self.maxlogintimeout}" )
         bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxlogintimeout )
         if not isinstance( bset, bool) or bset == False:
-            self.logger.error( f"memcacheclient:set failed to set data key={sessionid} value={userid}" )
-        html_data = chevron.render( self.mustache_data, prelogindict )
+            memcache_error = f"memcacheclient:set failed to set data key={sessionid} value={userid}"
+            self.logger.error( memcache_error )
+            raise ODAPIError(message=memcache_error)
+        html_data = chevron.render( mustache_data, prelogindict )
         # self.logger.debug( html_data )
         return html_data
              
