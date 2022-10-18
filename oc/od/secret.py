@@ -143,7 +143,7 @@ class ODSecret():
             b64data = secret.data.get(key)
             data = oc.od.secret.ODSecret.b64todata( b64data )
         except Exception as e:
-            self.logger.error( 'failed to read secret key %s %s', str(key), e)
+            logger.error( 'failed to read secret key %s %s', str(key), e)
         return data 
 
     def _create_dict(self, authinfo, userinfo,  arguments):       
