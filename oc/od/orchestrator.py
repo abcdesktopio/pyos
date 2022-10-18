@@ -1918,33 +1918,41 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return result
 
-
-    def removePod( self, myPod, propagation_policy='Background', grace_period_seconds = None ):
+    def removePod( self, myPod:client.models.v1_pod.V1Pod, propagation_policy:str='Foreground', grace_period_seconds:int=None) -> client.models.v1_pod.V1Pod:
         """_summary_
             Remove a pod
             like command 'kubectl delete pods'
         Args:
             myPod (_type_): _description_
-            propagation_policy (str, optional): propagation_policy. Defaults to 'Background'.
-            propagation_policy = 'Background' or propagation_policy = 'Foreground'
+            propagation_policy (str, optional): propagation_policy. Defaults to 'Foreground'.
+             # https://kubernetes.io/docs/concepts/architecture/garbage-collection/
+            # propagation_policy = 'Background'
+            # propagation_policy = 'Foreground'
+            # Foreground: Children are deleted before the parent (post-order)
+            # Background: Parent is deleted before the children (pre-order)
+            # Orphan: Owner references are ignored
+            # delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy, grace_period_seconds = grace_period_seconds )
 
         Returns:
             v1status: v1status
         """
         self.logger.debug('')
-        v1status = None
+        deletedPod = None
         try:
             pod_name = myPod.metadata.name                
             self.logger.info( 'pod_name %s', pod_name)              
             self.nodehostname = myPod.spec.node_name
-            # propagation_policy = 'Background'
-            # propagation_policy = 'Foreground'
-            delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy, grace_period_seconds = grace_period_seconds )
-            v1status = self.kubeapi.delete_namespaced_pod(  name=pod_name, namespace=self.namespace, body=delete_options ) 
+             # delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy, grace_period_seconds = grace_period_seconds )
+            deletedPod = self.kubeapi.delete_namespaced_pod(  
+                name=pod_name, 
+                namespace=self.namespace, 
+                grace_period_seconds=grace_period_seconds, 
+                propagation_policy=propagation_policy ) 
+
         except ApiException as e:
             self.logger.error( str(e) )
 
-        return v1status
+        return deletedPod
 
     def removesecrets( self, authinfo, userinfo ):
         ''' remove all kubernetes secrets for a give user '''
@@ -1989,7 +1997,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 bReturn = bReturn and False
         return bReturn 
 
-    def removepodsync(self, authinfo, userinfo, myPod=None,  ):
+    def removePodSync(self, authinfo, userinfo, myPod=None,  ):
         # get the user's pod
         if not isinstance(myPod, client.models.v1_pod.V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
@@ -1997,12 +2005,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         nTry = 0
         nMaxTry = 42
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-            pod_name = myPod.metadata.name
-            deletedPod = self.removePod( myPod, propagation_policy='Background', grace_period_seconds=0 )
+            deletedPod = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
             if isinstance(deletedPod, client.models.v1_pod.V1Pod ):
                 while nTry<nMaxTry:
                     try:
-                        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+                        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=deletedPod.metadata.name)
                         if isinstance(myPod, client.models.v1_pod.V1Pod ):
                             message = f"{myPod.status.phase} {nTry}/{nMaxTry} {myPod.name}"
                             self.on_desktoplaunchprogress( message )
@@ -2030,8 +2037,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         ''' remove kubernetes pod for a give user '''
         ''' then remove kubernetes user's secrets '''
-        bReturn = False # default value 
-        removedesktopStatus = {}
+        deletedpod = False # default value 
         self.logger.debug('')
 
         # get the user's pod
@@ -2039,28 +2045,29 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPod = self.findPodByUser(authinfo, userinfo )
 
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-            v1status = self.removePod( myPod )
-            if isinstance(v1status,client.models.v1_pod.V1Pod) :
-                removedesktopStatus['pod'] = v1status
-            else:
-                removedesktopStatus['pod'] = False
+            # deletedpod = self.removePod( myPod )
+            deletedpod = self.removePodSync( authinfo, userinfo, myPod )
+        
+            # if isinstance(deletedpod,client.models.v1_pod.V1Pod) :
+            #    removedesktopStatus['pod'] = deletedpod
+            # else:
+            #    removedesktopStatus['pod'] = False
 
-            removetheads    =  [ { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ], 'thread':None },
-                                 { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
+            removethreads =  [  { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ], 'thread':None },
+                                { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
    
-            for removethread in removetheads:
-                self.logger.debug( 'calling webhook cmd %s', str(removethread['fct']) )
+            for removethread in removethreads:
+                self.logger.debug( f"calling thread {removethread['fct'].__name__}" )
                 removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
                 removethread['thread'].start()
  
             # need to wait for removethread['thread'].join()
-            for removethread in removetheads:
+            for removethread in removethreads:
                 removethread['thread'].join()
 
-            bReturn = all( removedesktopStatus.values() )
         else:
-            self.logger.error( "removedesktop can not find desktop %s %s", authinfo, userinfo )
-        return bReturn
+            self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
+        return deletedpod
             
     def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser, allow_exception=False):
         """[prepareressources]

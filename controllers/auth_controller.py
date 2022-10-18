@@ -127,15 +127,16 @@ class AuthController(BaseController):
             JSON Results
 
         """
-        result = None
+        response = None
         url = '/'
         if services.auth.isidentified:
             # remove the pod/container          
             removedesktop = oc.od.composer.removedesktop(services.auth.auth, services.auth.user)
             if removedesktop is True:
-                result = Results.success( result = {'url': url} )
+                response = Results.success( result = {'url': url} )
             else:
-                result = Results.error( message='removedesktop failed', result={'url': url} )
+                response = Results.error( message='removedesktop failed' )
+                response['result'] = { 'url': url } # always add a url in result to logout
 
             # Always removeCookie routehostcookiename
             removeCookie( oc.od.settings.routehostcookiename )
@@ -145,8 +146,10 @@ class AuthController(BaseController):
             services.auth.logout() 
 
         else:
-            result = Results.error( message='invalid user credentials', result = {'url': url} )
-        return result
+            response = Results.error( message='invalid user credentials' )
+            response['result'] = { 'url': url } # always add a url in result to logout
+
+        return response
             
     def build_redirecthtmlpage(self, jwt_user_token):
         # do not use cherrypy.HTTPRedirect

@@ -161,7 +161,7 @@ def opendesktop(authinfo, userinfo, args ):
             # delete the current desktop
             services.messageinfo.push(userinfo.userid, 'b.Deleting your running desktop. It does not match the security policies')  
             # only remove the pod, do not delete secret configmap and everythings else
-            removed_desktop = removepodsync( authinfo, userinfo )
+            removed_desktop = removePodSync( authinfo, userinfo )
             if removed_desktop is True:
                 services.messageinfo.push(userinfo.userid, 'b.Your desktop is deleted. creating a new on with new security polcies')
                 services.accounting.accountex( desktoptype, 'deletesuccess')
@@ -358,7 +358,7 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     return removed_desktop
 
 
-def removepodsync( authinfo:AuthInfo, userinfo:AuthUser ):
+def removePodSync( authinfo:AuthInfo, userinfo:AuthUser ):
     """removedesktop
 
     Args:
@@ -375,7 +375,7 @@ def removepodsync( authinfo:AuthInfo, userinfo:AuthUser ):
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
 
     # remove the desktop
-    removed_desktop = myOrchestrator.removepodsync( authinfo, userinfo )
+    removed_desktop = myOrchestrator.removePodSync( authinfo, userinfo )
     
     # remove the janus stream
     if  removed_desktop is True and \
