@@ -1937,14 +1937,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             v1status: v1status
         """
         self.logger.debug('')
+        assert type(myPod) is client.models.v1_pod.V1Pod , f"myPod invalid type {type(myPod)}"
         deletedPod = None
-        try:
-            pod_name = myPod.metadata.name                
-            self.logger.info( 'pod_name %s', pod_name)              
-            self.nodehostname = myPod.spec.node_name
-             # delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy, grace_period_seconds = grace_period_seconds )
+        try: 
+            # delete_options = client.V1DeleteOptions( propagation_policy = propagation_policy, grace_period_seconds = grace_period_seconds )
             deletedPod = self.kubeapi.delete_namespaced_pod(  
-                name=pod_name, 
+                name=myPod.metadata.name, 
                 namespace=self.namespace, 
                 grace_period_seconds=grace_period_seconds, 
                 propagation_policy=propagation_policy ) 
@@ -1997,7 +1995,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 bReturn = bReturn and False
         return bReturn 
 
-    def removePodSync(self, authinfo, userinfo, myPod=None,  ):
+    def removePodSync(self, authinfo, userinfo, myPod=None ):
         # get the user's pod
         if not isinstance(myPod, client.models.v1_pod.V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )

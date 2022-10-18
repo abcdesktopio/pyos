@@ -355,7 +355,7 @@ class ComposerController(BaseController):
                 # a desktop exists but is unreachable
                 # decide to trash it
                 services.messageinfo.push(user.userid, 'e.Your desktop is crashing. Delete desktop process is starting') 
-                oc.od.composer.removedesktop( auth, user )            
+                oc.od.composer.removePodSync(auth, user)        
                 services.messageinfo.push(user.userid, 'e.Delete desktop done.')   
                 return Results.error('Desktop URI is None, creation failed')
             
