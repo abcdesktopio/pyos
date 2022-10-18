@@ -2696,7 +2696,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         startedmsg = f"b.{myPod.status.phase}"
         c = self.getcontainerfromPod( containernameprefix, myPod )
         if isinstance( c, client.models.v1_container_status.V1ContainerStatus):
-            startedmsg += ": {c.name} "
+            startedmsg += f": {c.name} "
             if  c.started is False: 
                 startedmsg += "is starting"
             elif c.started is True and c.ready is False:
@@ -3581,6 +3581,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if nCount > 0 : # if a user is connected do not garbage this pod
                 return bReturn 
 
+        # nCount == 0, the user is not connected 
+
         # read the lastlogin datetime from metadata annotations
         lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
         if isinstance( lastlogin_datetime, str):
@@ -3635,7 +3637,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPod = json.loads( myPod.data )
         return myPod
 
-    def garbagecollector( self, expirein:int, force=False ):
+    def garbagecollector( self, expirein:int, force=False )-> list :
         """garbagecollector
 
         Args:
@@ -3643,7 +3645,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             force (bool, optional): force event if user is connected. Defaults to False.
 
         Returns:
-            list: list of str, list of pod name garbaged
+            list: list of pod name (str) garbaged
         """
         self.logger.debug('')
         garbaged = [] # list of garbaged pod
