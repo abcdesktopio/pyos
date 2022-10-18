@@ -2693,14 +2693,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def getPodStartedMessage(self, containernameprefix:str, myPod:client.models.v1_pod.V1Pod ):
+        startedmsg = f"b.{myPod.status.phase}"
         c = self.getcontainerfromPod( containernameprefix, myPod )
-        startedmsg = f"b.{myPod.status.phase}: {c.name} "
-        if  c.started is False: 
-            startedmsg += "is starting"
-        elif c.started is True and c.ready is False:
-            startedmsg += "is started"
-        elif c.started is True and c.ready is True:
-            startedmsg += "is ready"
+        if isinstance( c, client.models.v1_container_status.V1ContainerStatus):
+            startedmsg += ": {c.name} "
+            if  c.started is False: 
+                startedmsg += "is starting"
+            elif c.started is True and c.ready is False:
+                startedmsg += "is started"
+            elif c.started is True and c.ready is True:
+                startedmsg += "is ready"
         return startedmsg
 
 
@@ -3401,15 +3403,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
         return myDesktop
 
-    def getcontainerfromPod( self,  prefix:str, pod:client.models.v1_pod.V1Pod  ):
-        assert type(prefix) is str, f"prefix invalid type {type(prefix)}"
-        assert type(pod) is client.models.v1_pod.V1Pod , f"pod invalid type {type(pod)}"
-        # get the container id for the desktop object
-        for c in pod.status.container_statuses:
-            if hasattr( c, 'name') and c.name[0] == prefix:
-                return c
-        return None
+    def getcontainerfromPod( self,  prefix:str, pod:client.models.v1_pod.V1Pod ) -> client.models.v1_container_status.V1ContainerStatus:
+        """getcontainerfromPod
+            return the v1_container_status of a container inside a pod
 
+        Args:
+            prefix (str): container prefix
+            pod (client.models.v1_pod.V1Pod): pod
+
+        Returns:
+            client.models.v1_container_status: return v1_container_status, None if unreadable
+        """
+        assert isinstance(prefix,str), f"prefix invalid type {type(prefix)}"
+        assert isinstance(pod,client.models.v1_pod.V1Pod) , f"pod invalid type {type(pod)}"
+        # get the container id for the desktop object
+        if isinstance( pod.status, client.models.v1_pod_status.V1PodStatus):
+            if isinstance( pod.status.container_statuses, list):
+                for c in pod.status.container_statuses:
+                    if hasattr( c, 'name') and c.name[0] == prefix:
+                        return c
+        return None
 
     def build_internalPodFQDN( self, myPod ):
         ''' Describe how to reach a pod '''
@@ -3475,25 +3488,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
            
                 desktop_interfaces.update( { name : { 'mac': mac, 'ips': str(ips) } } )
 
-       
+        desktop_container_id = None
+        desktop_container_name = None
         desktop_container = self.getcontainerfromPod( self.graphicalcontainernameprefix, pod )
-        if desktop_container :
+        if isinstance(desktop_container, client.models.v1_container_status.V1ContainerStatus) :
             desktop_container_id = desktop_container.container_id
             desktop_container_name = desktop_container.name
         
         internal_pod_fqdn = self.build_internalPodFQDN( pod )
 
         # read the vnc password from kubernetes secret
-        vnc_password = None
-        if userinfo :     
-            vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
-            vnc_secret_password = vnc_secret.read( userinfo )  
-            if isinstance( vnc_secret_password, client.models.v1_secret.V1Secret ):
-                vnc_password = oc.od.secret.ODSecret.read_data( vnc_secret_password, 'password' )
+        vnc_password = None   
+        vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
+        vnc_secret_password = vnc_secret.read( userinfo )  
+        if isinstance( vnc_secret_password, client.models.v1_secret.V1Secret ):
+            vnc_password = oc.od.secret.ODSecret.read_data( vnc_secret_password, 'password' )
 
-     
+        storage_container_id = None
         storage_container = self.getcontainerfromPod( self.storagecontainernameprefix, pod )
-        if storage_container :
+        if isinstance( storage_container, client.models.v1_container_status.V1ContainerStatus) :
            storage_container_id = storage_container.container_id
 
         # Build the ODDesktop Object 
