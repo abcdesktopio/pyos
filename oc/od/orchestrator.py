@@ -3497,10 +3497,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         internal_pod_fqdn = self.build_internalPodFQDN( pod )
 
         # read the vnc password from kubernetes secret  
-        vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
-        vnc_secret_password = vnc_secret.read( userinfo )  
-        if isinstance( vnc_secret_password, client.models.v1_secret.V1Secret ):
-            vnc_password = oc.od.secret.ODSecret.read_data( vnc_secret_password, 'password' )
+        # Authuser can be None if this is a gabargecollector batch
+        # then vnc_secret_password is not used 
+        if isinstance(userinfo, AuthUser): 
+            vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
+            vnc_secret_password = vnc_secret.read( userinfo )  
+            if isinstance( vnc_secret_password, client.models.v1_secret.V1Secret ):
+                vnc_password = oc.od.secret.ODSecret.read_data( vnc_secret_password, 'password' )
 
         storage_container = self.getcontainerfromPod( self.storagecontainernameprefix, pod )
         if isinstance( storage_container, client.models.v1_container_status.V1ContainerStatus) :
