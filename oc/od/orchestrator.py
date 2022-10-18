@@ -2009,7 +2009,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     try:
                         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=deletedPod.metadata.name)
                         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-                            message = f"{myPod.status.phase} {nTry}/{nMaxTry} {myPod.metadata.name}"
+                            message = f"b.deleting {myPod.metadata.name} {myPod.status.phase} {nTry}/{nMaxTry}"
+                            self.logger.debug( message )
                             self.on_desktoplaunchprogress( message )
                     except ApiException as e:
                         if e.status == 404:
