@@ -3455,7 +3455,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         storage_container_id   = None
         desktop_container_name = None
         desktop_interfaces     = None
-        vnc_password           = None 
+        vnc_password           = None
 
         # read metadata annotations 'k8s.v1.cni.cncf.io/networks-status'
         network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/networks-status' )
