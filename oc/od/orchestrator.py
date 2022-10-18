@@ -2303,7 +2303,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     if isinstance( mysecret.data, dict) and len( mysecret.data ) == 0: 
                         continue
 
-                secret_dict[mysecret.metadata.name] = { 'type': mysecret.type, 'data': mysecret.data }
+                secret_dict[mysecret.metadata.name] = { 'type': mysecret.type, 'data': mysecret.data, 'uid': mysecret.metadata.uid }
                 if isinstance( mysecret.data, dict):
                     for mysecretkey in mysecret.data:
                         data = oc.od.secret.ODSecret.read_data( mysecret, mysecretkey )
@@ -2701,6 +2701,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             startedmsg += "is ready"
         return startedmsg
 
+
+    def get_ownerReferences( self, secrets:dict ):
+        ownerReferences = []
+        for name in secrets.keys():
+            ownerReference = { 'kind': 'Secret', 'name': name, 'controller': False, 'apiVersion': 'v1', 'uid': secrets[name].get('uid') }
+            ownerReferences.append( ownerReference )
+        return ownerReferences
+
+
+
     def createdesktop(self, authinfo, userinfo, **kwargs):
         self.logger.info('')
         """createdesktop for the user
@@ -2855,6 +2865,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     secrets_requirement.append( secretdictkey )
         self.logger.debug('secrets_requirement created')
 
+
+        # ownerReferences = self.get_ownerReferences(mysecretdict)
+
         self.logger.debug('volumes creating')
         # all volumes and secrets
         (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=None, rules=rules,  **kwargs)
@@ -2953,6 +2966,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'namespace': self.namespace,
                 'labels': labels,
                 'annotations': annotations
+                # 'ownerReferences': ownerReferences
             },
             'spec': {
                 'dnsPolicy' : dnspolicy,
