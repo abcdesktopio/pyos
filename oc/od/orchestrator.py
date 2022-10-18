@@ -3455,6 +3455,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         storage_container_id   = None
         desktop_container_name = None
         desktop_interfaces     = None
+        vnc_password           = None 
 
         # read metadata annotations 'k8s.v1.cni.cncf.io/networks-status'
         network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/networks-status' )
@@ -3488,8 +3489,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
            
                 desktop_interfaces.update( { name : { 'mac': mac, 'ips': str(ips) } } )
 
-        desktop_container_id = None
-        desktop_container_name = None
         desktop_container = self.getcontainerfromPod( self.graphicalcontainernameprefix, pod )
         if isinstance(desktop_container, client.models.v1_container_status.V1ContainerStatus) :
             desktop_container_id = desktop_container.container_id
@@ -3497,14 +3496,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         internal_pod_fqdn = self.build_internalPodFQDN( pod )
 
-        # read the vnc password from kubernetes secret
-        vnc_password = None   
+        # read the vnc password from kubernetes secret  
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
         vnc_secret_password = vnc_secret.read( userinfo )  
         if isinstance( vnc_secret_password, client.models.v1_secret.V1Secret ):
             vnc_password = oc.od.secret.ODSecret.read_data( vnc_secret_password, 'password' )
 
-        storage_container_id = None
         storage_container = self.getcontainerfromPod( self.storagecontainernameprefix, pod )
         if isinstance( storage_container, client.models.v1_container_status.V1ContainerStatus) :
            storage_container_id = storage_container.container_id
