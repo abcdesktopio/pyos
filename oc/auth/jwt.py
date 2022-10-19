@@ -15,6 +15,8 @@
 import jwt
 import logging
 import time 
+import datetime
+
 
 logger = logging.getLogger(__name__)
 class ODJWToken( object):
@@ -41,11 +43,19 @@ class ODJWToken( object):
 
         # read exp
         self._exp = int(config.get('exp', 180))
+        # read leeway
+        self.leeway = int( config.get('leeway', 20) )
 
 
     def encode( self, auth, user, roles ):
-        expire_in = int( time.time() ) + self._exp
-        token = { 'exp' : expire_in, 'auth': auth, 'user': user, 'roles': roles }
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        expire_in = now + datetime.timedelta(seconds=self._exp)
+        token = { 
+            'exp' : expire_in, 
+            'nbf': now, # Not Before Time Claim (nbf)
+            'auth': auth, 
+            'user': user, 
+            'roles': roles }
         # All data can be ready clearly
         encoded_jwt = jwt.encode( token , self.jwt_privatekey, algorithm=self.algorithms[0])
         return encoded_jwt
@@ -61,6 +71,12 @@ class ODJWToken( object):
         # can     raise ExpiredSignatureError("Signature has expired")
         # jwt.exceptions.ExpiredSignatureError: Signature has expired 
         #             
-        data = jwt.decode(payload, self.jwt_publickey, algorithms=self.algorithms)
+        # add some leeway if JWT payload is expired, it will still validate      
+        data = jwt.decode(
+            payload, 
+            self.jwt_publickey, 
+            leeway=self.leeway, 
+            algorithms=self.algorithms, 
+            options={ 'require': ['exp', 'nbf', 'auth', 'user', 'roles'] } )
         
         return data

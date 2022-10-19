@@ -18,6 +18,7 @@ import time
 import base64
 from Crypto.PublicKey import RSA as rsa
 from Crypto.Cipher import PKCS1_v1_5   
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,8 @@ class ODDesktopJWToken(object):
         self.privatekey = None
         self.publickey  = None        
         self._exp  = int(config.get('exp', 180))
+        # read leeway
+        self.leeway = int( config.get('leeway', 20) )
         self.algorithms=['RS256']  
         
         jwt_desktop_privatekeyfile    = config.get('jwtdesktopprivatekeyfile')
@@ -63,8 +66,10 @@ class ODDesktopJWToken(object):
                 
     def encode( self, data ):             
         encrypt_hash = self.encrypt(data.encode('ascii'))
-        expire_in = int( time.time() ) + self._exp
+        now = int( time.time() )
+        expire_in = now + self._exp
         token = {   'key' : 0,
+                    'nfb': now,
                     'hash': encrypt_hash.decode('ascii'),
                     'exp' : expire_in }        
         encoded_jwt = jwt.encode( token , self.jwt_privatekey, algorithm=self.algorithms[0]) 
@@ -78,5 +83,10 @@ class ODDesktopJWToken(object):
         data = None
         if payload is None:
             raise ValueError('invalid payload data')            
-        data = jwt.decode(payload, self.jwt_publickey, algorithms=self.algorithms[0])
+        data = jwt.decode(
+            payload, 
+            self.jwt_publickey, 
+            leeway=self.leeway, 
+            algorithms=self.algorithms[0],
+            options={ 'require': ['exp', 'nbf', 'key', 'hash'] })
         return data
