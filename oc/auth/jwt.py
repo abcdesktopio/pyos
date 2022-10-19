@@ -46,7 +46,7 @@ class ODJWToken( object):
     def encode( self, auth, user, roles ):
         expire_in = int( time.time() ) + self._exp
         token = { 'exp' : expire_in, 'auth': auth, 'user': user, 'roles': roles }
-        # There is no public or private key concept, all keys are private
+        # All data can be ready clearly
         encoded_jwt = jwt.encode( token , self.jwt_privatekey, algorithm=self.algorithms[0])
         return encoded_jwt
 
@@ -56,8 +56,11 @@ class ODJWToken( object):
             raise ValueError('invalid payload data')    
 
         # There is no public or private key concept, all keys are private   
+        # pyos use a the private key and the public key  
+        # 
         # can     raise ExpiredSignatureError("Signature has expired")
-        # jwt.exceptions.ExpiredSignatureError: Signature has expired             
+        # jwt.exceptions.ExpiredSignatureError: Signature has expired 
+        #             
         data = jwt.decode(payload, self.jwt_publickey, algorithms=self.algorithms)
         
         return data
