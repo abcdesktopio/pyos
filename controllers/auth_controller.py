@@ -270,9 +270,11 @@ class AuthController(BaseController):
             # no provider set 
             # use metalogin provider by default
             self.logger.info( 'auth is using metalogin provider' )
+            # can raise exception 
             response = services.auth.metalogin(**args)
         elif isinstance(provider, str ) and len(provider) > 0:
             self.logger.info( f"provider set to {provider}, use login provider" )
+            # can raise exception 
             response = services.auth.login(**args)
         else:
             self.logger.info( f"ValueError provider expect str get {type(provider)}" )
@@ -584,9 +586,12 @@ class AuthController(BaseController):
     def checkloginresponseresult( self, response, msg='login' ):
         # check auth response
         if not isinstance( response, oc.auth.authservice.AuthResponse ):
-            self.logger.error( f"services auth.{msg} does not return oc.auth.authservice.AuthResponse object" )
-            raise cherrypy.HTTPError(401, f"services auth.{msg} does not return oc.auth.authservice.AuthResponse")  
+            error = f"services auth.{msg} does not return AuthResponse object"
+            self.logger.error( error )
+            raise cherrypy.HTTPError(401, message=error)  
+
         # if it's an error
+        # this section code should never occurs
         if not response.success:
             message = None
             for m in [ 'reason', 'message', '_message']:
