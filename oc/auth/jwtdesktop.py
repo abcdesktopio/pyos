@@ -17,8 +17,7 @@ import logging
 import time
 import base64
 from Crypto.PublicKey import RSA as rsa
-from Crypto.Cipher import PKCS1_v1_5   
-import datetime
+from Crypto.Cipher import PKCS1_v1_5
 
 logger = logging.getLogger(__name__)
 
@@ -75,18 +74,19 @@ class ODDesktopJWToken(object):
         encoded_jwt = jwt.encode( token , self.jwt_privatekey, algorithm=self.algorithms[0]) 
         return encoded_jwt
 
-    # this section code code should never use
-    # only for test 
+    # this section code code should never be use
+    # this is only for test 
     # this section code is only to test nginx reverse proxy
     # pyos encode and nginx decode
-    def decode( self, payload ):
-        data = None
-        if payload is None:
-            raise ValueError('invalid payload data')            
-        data = jwt.decode(
-            payload, 
-            self.jwt_publickey, 
-            leeway=self.leeway, 
-            algorithms=self.algorithms[0],
-            options={ 'require': ['exp', 'nbf', 'key', 'hash'] })
-        return data
+    #
+    # def decode( self, payload ):
+    #    data = None
+    #    if payload is None:
+    #       raise ValueError('invalid payload data')            
+    #    data = jwt.decode(
+    #        payload, 
+    #        self.jwt_publickey, 
+    #        leeway=self.leeway, 
+    #        algorithms=self.algorithms[0],
+    #        options={ 'require': ['exp', 'nbf', 'key', 'hash'] })
+    #    return data

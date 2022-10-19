@@ -989,7 +989,7 @@ class ODAuthTool(cherrypy.Tool):
         # get explicit manager dict
         managers = self.managers.get(manager)
         if not isinstance(managers, ODExplicitAuthManager):
-            raise AuthenticationFailureError('No %s authentication manager found', str(manager) )
+            raise AuthenticationFailureError(f"no authentication manager {manager} found")
 
         # get provider dict for explicit manager
         providers = managers.providers
@@ -3568,7 +3568,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         # validate can raise exception 
         # like invalid credentials
         q = self.user_query
-        
+
         if not self.issafeAdAuthusername(userid) :
             raise InvalidCredentialsError('Unsafe login credentials')
 

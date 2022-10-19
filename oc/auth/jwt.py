@@ -15,8 +15,6 @@
 import jwt
 import logging
 import time 
-import datetime
-
 
 logger = logging.getLogger(__name__)
 class ODJWToken( object):
@@ -48,8 +46,8 @@ class ODJWToken( object):
 
 
     def encode( self, auth, user, roles ):
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        expire_in = now + datetime.timedelta(seconds=self._exp)
+        now = int( time.time() )
+        expire_in = now + self._exp
         token = { 
             'exp' : expire_in, 
             'nbf': now, # Not Before Time Claim (nbf)
@@ -62,8 +60,7 @@ class ODJWToken( object):
 
     def decode( self, payload ):
         data = None
-        if payload is None:
-            raise ValueError('invalid payload data')    
+        assert isinstance( payload, str ), 'invalid payload data'
 
         # There is no public or private key concept, all keys are private   
         # pyos use a the private key and the public key  
