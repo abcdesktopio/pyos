@@ -2772,7 +2772,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     'pulseaudio_cookie': pulseaudio_cookie,
                     'broadcast_cookie':  broadcast_cookie }
 
-        # add authinfo labels
+        # add authinfo labels and env 
+        # could also use downward-api https://kubernetes.io/docs/concepts/workloads/pods/downward-api/
         for k,v in authinfo.get_labels().items():
             abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_LABEL_NAME + k.lower()
             env[ abcdesktopvarenvname ] = v
