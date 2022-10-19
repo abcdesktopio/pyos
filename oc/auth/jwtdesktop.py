@@ -70,8 +70,10 @@ class ODDesktopJWToken(object):
         encoded_jwt = jwt.encode( token , self.jwt_privatekey, algorithm=self.algorithms[0]) 
         return encoded_jwt
 
-    # the code should never use
+    # this section code code should never use
     # only for test 
+    # this section code is only to test nginx reverse proxy
+    # pyos encode and nginx decode
     def decode( self, payload ):
         data = None
         if payload is None:
