@@ -393,14 +393,16 @@ class ComposerController(BaseController):
             
             expire_in = services.jwtdesktop.exp() 
             target_ip = self.get_target_ip_route( target, desktop.websocketrouting )
-            return Results.success(result={
-                'target_ip'     :   target_ip,
-                'vncpassword'   :   desktop.vncPassword,
-                'authorization' :   jwtdesktoptoken, # contains desktop.uri (ipaddr)   
-                'websocketrouting': desktop.websocketrouting,
-                'websockettcpport': oc.od.settings.desktop_pod['graphical'].get('tcpport'),
-                'expire_in'     :   expire_in             
-            })
+            return Results.success(
+                message='Rock and roll', 
+                result={
+                    'target_ip'     :   target_ip,
+                    'vncpassword'   :   desktop.vncPassword,
+                    'authorization' :   jwtdesktoptoken, # contains desktop.uri (ipaddr)   
+                    'websocketrouting': desktop.websocketrouting,
+                    'websockettcpport': oc.od.settings.desktop_pod['graphical'].get('tcpport'),
+                    'expire_in'     :   expire_in             
+                })
 
         except Exception as e:
             self.logger.error( e )
