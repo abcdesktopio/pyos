@@ -59,47 +59,9 @@ import jwt
 import oc.auth.jwt
 import oc.od.acl
 import oc.lib
-
+from   oc.od.error          import *    # import all error classes
 
 logger = logging.getLogger(__name__)
-
-#
-# defined some AuthenticationError
-class AuthenticationError(Exception):
-    def __init__(self,message='Something went bad',code=401):
-        self.message = message
-        self.code = code
-
-class InvalidCredentialsError(AuthenticationError):
-    def __init__(self,message='Invalid credentials',code=401):
-        self.message = message
-        self.code = code
-
-class AuthenticationFailureError(AuthenticationError):
-    def __init__(self,message='Authentication failed',code=401):
-        self.message = message
-        self.code = code
-
-class ExternalAuthError(AuthenticationError):
-    def __init__(self,message='Authentication failure',code=401):
-        self.message = message
-        self.code = code 
-
-class AuthenticationDenied(AuthenticationError):
-    def __init__(self,message='Authentication denied by security policy',code=401):
-        self.message = message
-        self.code = code
-
-class ExternalAuthLoginError(ExternalAuthError):
-    def __init__(self,message='Log-in failed',code=401):
-        self.message = message
-        self.code = code
-
-class ExternalAuthUserError(ExternalAuthError):
-    def __init__(self,message='Fetch user info failed',status=401):
-        self.message = message
-        self.code = status
-
 #
 # define AuthRoles
 class AuthRoles(dict):
@@ -218,6 +180,9 @@ class AuthInfo(object):
 
     def set_claims( self, claims):
         self.claims = claims
+
+    def set_data( self, data):
+        self.data = data
 
     def get_localaccount(self):
         localaccount = None
@@ -411,28 +376,6 @@ class ODAuthTool(cherrypy.Tool):
                 self.managers[name] = self.createmanager(name,cfg)
             except Exception as e:
                 self.logger.exception(e)
-
-    """   @staticmethod
-    def is_kerberos_request():
-        # Attempts to authenticate the user if a token was provided
-
-        negotiate = cherrypy.request.headers.get('Authorization')
-
-        if isinstance(negotiate, str) and negotiate.startswith('Negotiate '):
-            in_token = base64.b64decode(negotiate[10:])
-
-            creds = None
-            ctx = gssapi.SecurityContext(creds=creds, usage='accept')
-
-            out_token = ctx.step(in_token)
-
-            if ctx.complete:
-                username = str(ctx.initiator_name)
-                self.logger.debug( 'Negotiate auth -> ' + username )
-                return username, out_token
-
-        return None, None 
-    """
 
     def parse_auth_request(self):
         """[parse_auth_request]
@@ -1195,7 +1138,7 @@ class ODAuthTool(cherrypy.Tool):
 
         # check if acl matches with tag
         if not oc.od.acl.ODAcl().isAllowed( auth, provider_meta.acls ):
-            raise AuthenticationDenied( 'Access is denied by security policy')
+             raise AuthenticationDenied( 'Access is denied by security policy')
         
         new_login = metauser.get( provider_meta.join_key_ldapattribut )
 
@@ -1380,12 +1323,11 @@ class ODAuthTool(cherrypy.Tool):
         return auth_duration_in_milliseconds
 
 
-    def login(self, provider, manager=None, **arguments):        
-
+    def login(self, provider, manager=None, **arguments):  
+        self.logger.debug('')
+        auth = None
+        response = AuthResponse(self)
         try:
-            auth = None
-            response = AuthResponse(self)
-
             # take time to mesure time of login call
             server_utctimestamp = self.mesuretimeserver_utctimestamp(arguments=arguments)
 
@@ -1422,7 +1364,8 @@ class ODAuthTool(cherrypy.Tool):
             mgr.createclaims(provider, auth, userinfo, **arguments )
             self.logger.debug( f"mgr.createclaims provider={provider} done") 
             
-            
+            #
+            # get roles 
             self.logger.debug( f"mgr.getroles provider={provider} start")             
             roles = mgr.getroles(provider, auth, **arguments)
             self.logger.debug( f"mgr.getroles provider={provider} done") 
@@ -1431,6 +1374,10 @@ class ODAuthTool(cherrypy.Tool):
 
             # get the provider object
             pdr = mgr.getprovider(provider)
+
+            # check if acl matches with tag
+            if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
+                 raise AuthenticationDenied( 'Access is denied by security policy')
 
             # if the provider has rules defined then 
             # compile data using rules
@@ -1441,52 +1388,27 @@ class ODAuthTool(cherrypy.Tool):
                 self.logger.debug( "compiledrules done")      
                 self.logger.info( f"compiled rules get labels {auth.data['labels']}")
 
-            # check if acl matches with tag
-            if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
-                raise AuthenticationDenied( 'Access is denied by security policy')
-            
             auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
             # build a AuthCache as response result 
-            myauthcache = AuthCache( 
-                { 'auth': vars(auth), 'user': userinfo, 'roles': roles }, 
+            myauthcache = AuthCache( { 
+                'auth': vars(auth), 
+                'user': userinfo, 
+                'roles': roles }, 
                 auth_duration_in_milliseconds=auth_duration_in_milliseconds 
             ) 
 
+            reason = f"a.Authentication on { pdr.getdisplaydescription() } successful in {auth_duration_in_milliseconds:.2f} s" # float two digits after comma
             response.update(    manager=mgr, 
                                 result=myauthcache, 
                                 success=True, 
-                                reason=f"a.Authentication on { pdr.getdisplaydescription() } successful in {auth_duration_in_milliseconds:.2f} s" )  # float two digits after comma
+                                reason=reason )
             
-        except AuthenticationError as e:
-            e_message = 'AuthenticationError'
-            e_code = 401
-            if hasattr( e, 'message'): e_message = e.message
-            if hasattr( e, 'code'): e_code = e.code
-            response.reason = f"{e_message} {e_code}"
-            response.code = 500
- 
-        except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
-            response.reason = f"{e.type} {e.description}"
-            response.code = 401
-
-        except Exception as e:
-            response.reason = e.description if hasattr( e, 'description') else str(e)
-            if hasattr( e, 'args'):
-                # try to extract the desc value 
-                if isinstance(e.args, tuple) and len(e.args) > 0:
-                    try:
-                        response.reason = e.args[0].get('desc', response.reason)
-                    except:
-                        pass
-            response.code = e.code if hasattr( e, 'code') else 500
-
         finally:
             # call finalize to clean conn if need
             if isinstance( auth, AuthInfo ) :
                 mgr.finalize(provider, auth, **arguments)
 
         return response
-
 
 
     def su(self, source_provider_name, arguments):
@@ -1797,7 +1719,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', 4096 )
         self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', 4096 )
         self.auth_protocol = config.get('auth_protocol', {} )
-       
+
     def getdisplaydescription( self ):
         return self.displayname
     
@@ -1812,7 +1734,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         pat = re.compile( regexp.get('regexp') )
         match = re.fullmatch(pat, data)
         if not match:
-            raise AuthenticationError( message= regexp.get('message') )
+             raise AuthenticationError( message= regexp.get('message') )
 
     def getclientdata(self):
         """getclientdata
@@ -1841,7 +1763,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             if isinstance(serviceaccount_login, str) and isinstance(serviceaccount_password, str):
                 bReturn = True
         return bReturn
-        
+
     def getdefault_posix_uid(self, userinfo , user):
         """getdefault_posix_uid
             return a default uid if user if not a posix account
@@ -1851,7 +1773,6 @@ class ODAuthProviderBase(ODRoleProviderBase):
             user (_type_): _description_
         """
         return user
-
         
     def generateLocalAccount(self, userinfo, user, password ):
         
@@ -2028,9 +1949,8 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
     def authenticate(self, userid=None, password=None, **params):
         if isinstance(userid,str):
             self.regexp_validadation( userid, 'userid' )
-        # claims =  { 'environment': self.createauthenv(userid, password) }
         data = { 'userid': userid }
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, claims=None, token=userid, data=data)
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data)
         return authinfo
 
 class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
@@ -2119,6 +2039,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.join_key_ldapattribut = config.get( 'join_key_ldapattribut' )
         self.krb5cctype = config.get('krb5cctype', 'MEMORY').upper()
         self.ldap_ipmod = config.get('ldap_ip_mode', ldap3.IP_V4_PREFERRED )
+        self.ldapPublicKeyobjectClass = 'ldapPublicKey'
+        self.posixAccountobjectClass = 'posixAccount'
 
         # query users
         self.user_query = self.Query(
@@ -2232,7 +2154,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         conn   = None   # set default value
 
         if self.auth_type not in ['KERBEROS', 'NTLM', 'SIMPLE']:
-            raise AuthenticationError('auth_type must be \'KERBEROS\', \'NTLM\', or \'SIMPLE\' ')
+             raise AuthenticationError('auth_type must be \'KERBEROS\', \'NTLM\', or \'SIMPLE\' ')
 
         if self.auth_type == 'KERBEROS':
             # can raise exception 
@@ -2272,10 +2194,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # like invalid credentials
         (userdn, conn) = self.validate(userid, password)   
         data = { 'userid': userid, 'dn': userdn }
-        
-        return AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=None, data=data, protocol=self.auth_protocol, conn=conn)
+        return AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data, protocol=self.auth_protocol, conn=conn)
 
-        
+    
     def createclaims( self, authinfo, userinfo, userid, password,  **arguments):
         claims = { 'userid': userid, 'password': password }
         claims['environment'] =  self.createauthenv(userinfo, userid, password)
@@ -2365,7 +2286,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         
         if self.auth_only:
             raise AuthenticationError('auth_only is set to True, but ldap.bind need to complete auth')
-   
+
     def getuserinfo(self, authinfo, **params):        
         # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
         # authinfo.conn is ldap3.core.connection.Connection 
@@ -2386,7 +2307,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 if not isinstance( userinfo.get('name'), str) :
                     userinfo['name'] = userinfo.get(self.useridattr)
 
-            if 'posixAccount' in userinfo.get('objectClass', [] ):
+            if self.posixAccountobjectClass in userinfo.get('objectClass', [] ):
                 # this account is a PosixAccount
                 # requery to read attributs uid, uidNumber, gidNumber, homeDirectory
                 self.logger.debug( f"account is a PosixAccount objectClass={userinfo.get('objectClass')}")
@@ -2395,7 +2316,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 posixuserinfo =  self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
                 if isinstance(posixuserinfo, dict):
                     userinfo['posix'] = posixuserinfo
-            
+
+            if self.ldapPublicKeyobjectClass in userinfo.get('objectClass'):
+                publickeyuserinfo = self.search_one( authinfo.conn, basedn=q.basedn, scope=q.scope, filter=ldap_filter.filter_format(q.filter, [authinfo.token]), attrs=[self.ldapPublicKeyobjectClass], **params)
+                if isinstance(publickeyuserinfo, dict):
+                    userinfo[self.ldapPublicKeyobjectClass ] = publickeyuserinfo.get( self.ldapPublicKeyobjectClass )
+
         return userinfo
 
     def isinrole(self, token, role, **params):
@@ -2505,7 +2431,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         except ldap3.core.exceptions.LDAPExceptionError as e:
             self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server_pool, str(e) )
-
+        
         raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
     def verify_auth_is_supported_by_ldap_server( self, supported_sasl_mechanisms ):
@@ -2540,8 +2466,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
 
     def getconnection(self, userid, password ):
-        self.logger.info( 'ldap getconnection auth userid=%s', userid )
+        self.logger.info( f"ldap getconnection auth userid={userid}" )
         conn = None
+        lastException = None
         for server_name in self.servers:
             try: 
                 self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={self.auth_type}")
@@ -2592,21 +2519,26 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.info( f"binding to the ldap server {server_name}")
                 conn.bind()
                 self.logger.info( f"bind to {server_name} done")
-
                 return conn
 
             except ldap3.core.exceptions.LDAPBindError as e:
-                self.logger.error( 'ldap3.core.exceptions.LDAPBindError to the ldap server %s %s', server, str(e) )
+                self.logger.error( f"ldap3.core.exceptions.LDAPBindError to the ldap server {server} {e}" )
                 # ldap3.core.exceptions.LDAPBindError: - invalidCredentials
                 raise e
 
-            except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult  as e:
-                self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server, str(e) )
+            except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult as e:
+                self.logger.error( f"ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server {server} {e}" )
+                lastException = e
 
             except ldap3.core.exceptions.LDAPExceptionError as e:
-                self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server, str(e) )
+                self.logger.error( f"ldap3.core.exceptions.LDAPExceptionError to the ldap server {server} {e}" )
+                lastException = e
 
-        raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
+        # end of iterate each ldap server
+        if lastException:
+            raise lastException
+        else:
+            raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
     
     def search_all(self, conn, basedn, scope, filter=None, attrs=None, **params):
         """[summary]
@@ -3057,7 +2989,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 @oc.logging.with_logger()
 class ODAdAuthProvider(ODLdapAuthProvider):
     INVALID_CHARS = ['"', '/', '[', ']', ':', ';', '|', '=', ',', '+', '*', '?', '<', '>'] #'\\'
-    DEFAULT_ATTRS = ['distinguishedName', 'displayName', 'sAMAccountName', 'name', 'cn', 'homeDrive', 'homeDirectory', 'profilePath', 'memberOf', 'proxyAddresses', 'userPrincipalName', 'primaryGroupID', 'objectSid' ]
+    DEFAULT_ATTRS = [ 'objectClass', 'distinguishedName', 'displayName', 'sAMAccountName', 'name', 'cn', 'homeDrive', 'homeDirectory', 'profilePath', 'memberOf', 'proxyAddresses', 'userPrincipalName', 'primaryGroupID', 'objectSid' ]
 
     def __init__(self, manager, name, config):
         super().__init__(manager, name, config)
@@ -3117,7 +3049,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             filter=config.get('site_filter', '(objectClass=subnet)'),
             attrs=config.get('site_attrs',['cn', 'siteObject', 'location']) )
 
-
     def getdefault_posix_uid(self, userinfo , user):
         """getdefault_posix_uid
             return a default uid if user if not a posix account
@@ -3160,7 +3091,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             adlogin = userid
         return adlogin
 
-
     @staticmethod
     def splitadlogin( login ):
         domain = None
@@ -3185,7 +3115,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     'ad_domain': self.domain,
                     'dn': userdn
         }
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=None, data=data, protocol=self.auth_protocol, conn=conn)
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
 
 
@@ -3339,6 +3269,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             userid = self.getntlmlogin(userid)
         if self.auth_type == 'KERBEROS':
             # create a Kerberos TGT 
+            userid = userid.upper()
             self.krb5_authenticate( userid, password )
         return super().getconnection(userid, password )
 
@@ -3459,14 +3390,12 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
                     'ad_domain': self.domain,
                     'dn': userdn
         }
-        claims = { 'userid': userid, 'password': password, 'domain': self.domain }
-        authinfo = AuthInfo(provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        authinfo = AuthInfo(provider=self.name, providertype=self.type, token=userid, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
 
     def createclaims( self, authinfo, userinfo, userid, password, **arguments):
         claims = { 'userid': userid, 'password': password, 'domain': self.domain }
         authinfo.set_claims(claims)
-
         
     def getuserinfo(self, authinfo, **arguments):  
         self.logger.debug('')     
@@ -3629,35 +3558,28 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
         data['dialog_url'] = self.dialog_url
         return data
 
+    # there is no password in createclaims for Implicit provider
+    def createclaims(self, authinfo, userinfo, userid, **arguments):
+        # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
+        claims = { 'environment': self.createauthenv(userinfo, userid, password=None) }
+        authinfo.set_claims( claims )
 
     def authenticate(self, userid, **params):
         # validate can raise exception 
         # like invalid credentials
         q = self.user_query
-        userdn=None
-
+        
         if not self.issafeAdAuthusername(userid) :
             raise InvalidCredentialsError('Unsafe login credentials')
 
-        # get connection using the service account
+         # get connection using the service account
         conn = self.getconnection(self.userid ,self.password)
         # look for the user in directory service 
         userinfo = self.search_one( conn=conn, basedn=q.basedn, scope=q.scope, filter=ldap_filter.filter_format(q.filter, [userid]), attrs=q.attrs, **params)
-        if isinstance(userinfo, dict):
-            userdn = userinfo.get('dn')
-            # Add always userid entry, make sure this entry exists
-            if not isinstance( userinfo.get('userid'), str) :
-                userinfo['userid'] = userinfo.get(self.useruidattr)
-            # Add always name entry
-            if not isinstance( userinfo.get('name'), str) :
-                userinfo['name'] = userinfo.get(self.useridattr)
-        else:
+        # if userinfo is None, user does not exist
+        if not isinstance(userinfo, dict):
             raise AuthenticationError(f"Implicit login user {userid} does not exist in directory service")
 
-        data = { 'userid': userid, 'dn': userdn }
-
-        # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
-        # claims =  { 'environment': self.createauthenv(userid, password=None) }
-
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, claims=claims, data=data, protocol=self.auth_protocol, conn=conn)
+        data = { 'userid': userid, 'dn': userinfo.get('dn') }
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=userid, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo

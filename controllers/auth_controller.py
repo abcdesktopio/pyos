@@ -127,15 +127,16 @@ class AuthController(BaseController):
             JSON Results
 
         """
-        result = None
+        response = None
         url = '/'
         if services.auth.isidentified:
             # remove the pod/container          
             removedesktop = oc.od.composer.removedesktop(services.auth.auth, services.auth.user)
             if removedesktop is True:
-                result = Results.success( result = {'url': url} )
+                response = Results.success( result = {'url': url} )
             else:
-                result = Results.error( message='removedesktop failed', result={'url': url} )
+                response = Results.error( message='removedesktop failed' )
+                response['result'] = { 'url': url } # always add a url in result to logout
 
             # Always removeCookie routehostcookiename
             removeCookie( oc.od.settings.routehostcookiename )
@@ -145,8 +146,10 @@ class AuthController(BaseController):
             services.auth.logout() 
 
         else:
-            result = Results.error( message='invalid user credentials', result = {'url': url} )
-        return result
+            response = Results.error( message='invalid user credentials' )
+            response['result'] = { 'url': url } # always add a url in result to logout
+
+        return response
             
     def build_redirecthtmlpage(self, jwt_user_token):
         # do not use cherrypy.HTTPRedirect
@@ -234,10 +237,7 @@ class AuthController(BaseController):
         ipsource = getclientipaddr()
 
         # can raise excetion 
-        try:
-            self.isban_ip(ipsource)
-        except Exception as e:
-            return Results.error ( status=401, message='ip address is denied' )
+        self.isban_ip(ipsource)
 
         # if force_auth_prelogin
         http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
@@ -270,9 +270,11 @@ class AuthController(BaseController):
             # no provider set 
             # use metalogin provider by default
             self.logger.info( 'auth is using metalogin provider' )
+            # can raise exception 
             response = services.auth.metalogin(**args)
         elif isinstance(provider, str ) and len(provider) > 0:
             self.logger.info( f"provider set to {provider}, use login provider" )
+            # can raise exception 
             response = services.auth.login(**args)
         else:
             self.logger.info( f"ValueError provider expect str get {type(provider)}" )
@@ -498,7 +500,7 @@ class AuthController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def logmein(self, provider=None, userid=None, format=None ):
+    def logmein(self, provider=None, userid=None, format='deprecated' ):
 
         ipsource = getclientipaddr()
         self.logger.debug('logmein request from ip source %s', ipsource)
@@ -584,9 +586,12 @@ class AuthController(BaseController):
     def checkloginresponseresult( self, response, msg='login' ):
         # check auth response
         if not isinstance( response, oc.auth.authservice.AuthResponse ):
-            self.logger.error( f"services auth.{msg} does not return oc.auth.authservice.AuthResponse object" )
-            raise cherrypy.HTTPError(401, f"services auth.{msg} does not return oc.auth.authservice.AuthResponse")  
+            error = f"services auth.{msg} does not return AuthResponse object"
+            self.logger.error( error )
+            raise cherrypy.HTTPError(401, message=error)  
+
         # if it's an error
+        # this section code should never occurs
         if not response.success:
             message = None
             for m in [ 'reason', 'message', '_message']:
@@ -631,5 +636,6 @@ class AuthController(BaseController):
         # update token
         jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None )
         # return new token
-        return Results.success( "Refresh token success", 
-                                { 'expire_in': oc.od.settings.jwt_config_user.get('exp'), 'jwt_user_token': jwt_user_token } )
+        return Results.success( 
+            "Refresh token success", 
+            { 'expire_in': oc.od.settings.jwt_config_user.get('exp'), 'jwt_user_token': jwt_user_token } )
