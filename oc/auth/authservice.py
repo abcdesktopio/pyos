@@ -355,28 +355,6 @@ class ODAuthTool(cherrypy.Tool):
             except Exception as e:
                 self.logger.exception(e)
 
-    """   @staticmethod
-    def is_kerberos_request():
-        # Attempts to authenticate the user if a token was provided
-
-        negotiate = cherrypy.request.headers.get('Authorization')
-
-        if isinstance(negotiate, str) and negotiate.startswith('Negotiate '):
-            in_token = base64.b64decode(negotiate[10:])
-
-            creds = None
-            ctx = gssapi.SecurityContext(creds=creds, usage='accept')
-
-            out_token = ctx.step(in_token)
-
-            if ctx.complete:
-                username = str(ctx.initiator_name)
-                self.logger.debug( 'Negotiate auth -> ' + username )
-                return username, out_token
-
-        return None, None 
-    """
-
     def parse_auth_request(self):
         """[parse_auth_request]
             parse a http request

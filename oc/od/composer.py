@@ -792,19 +792,19 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
             logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
             exitCode = proc.returncode
         else:
-            logger.error( f"command {webhookcmd} subprocess.run return {str(type(proc))}" )
+            logger.error( f"command {webhookcmd} subprocess.run return {type(proc)}" )
             if messageinfo:
                 messageinfo.push(f"e.Webhooking updated service error, read the log file ")
     except subprocess.CalledProcessError as e:
         if messageinfo:
-            messageinfo.push(f"e.Webhooking updated service error {e}" )
+            messageinfo.push(f"e.Webhooking updated service error" )
         logger.error( f"command failed CalledProcessError {webhookcmd} error={e}")
     except subprocess.TimeoutExpired as e :
         logger.error( f"command TimeoutExpired {webhookcmd} error={e}" )
     except Exception as e:
         logger.error( f"command exception {webhookcmd} error={e}" )
         if messageinfo:
-            messageinfo.push(f"e.Webhooking command exception error={e}" )
+            messageinfo.push(f"e.Webhooking command exception" )
         logger.error( e )
     return exitCode
 

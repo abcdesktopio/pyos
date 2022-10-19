@@ -631,5 +631,6 @@ class AuthController(BaseController):
         # update token
         jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None )
         # return new token
-        return Results.success( "Refresh token success", 
-                                { 'expire_in': oc.od.settings.jwt_config_user.get('exp'), 'jwt_user_token': jwt_user_token } )
+        return Results.success( 
+            "Refresh token success", 
+            { 'expire_in': oc.od.settings.jwt_config_user.get('exp'), 'jwt_user_token': jwt_user_token } )
