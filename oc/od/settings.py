@@ -496,7 +496,7 @@ def init_desktop():
                         'X11LISTEN'             : 'tcp '} )
 
     # add default env local rules vars if not set 
-    desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
+    # desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
 
     init_balloon()
 
