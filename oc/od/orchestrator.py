@@ -1462,24 +1462,29 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #    self.default_volumes_mount['home']= { 'name': 'home', 'mountPath': '/home/balloon', 'subPathExpr': '$(POD_NAME)' }
             # else:
 
-            self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
+            # The memory resource is measured in bytes. You can express memory as a plain integer or a fixed-point integer with one of these suffixes:
+            # E, P, T, G, M, K, Ei, Pi, Ti, Gi, Mi, Ki. 
+            self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1Gi' } }
             self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
-            self.default_volumes['run']       = { 'name': 'run',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1M' } }
+            self.default_volumes['run']       = { 'name': 'run',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '4Mi' } }
             self.default_volumes_mount['run'] = { 'name': 'run',  'mountPath': '/var/run/desktop' }
 
-            self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '4M' } }
+            self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '64Mi' } }
             self.default_volumes_mount['log'] = { 'name': 'log',  'mountPath': '/var/log/desktop' }
 
-            self.default_volumes['x11unix'] = { 'name': 'x11unix',  'emptyDir': { 'medium': 'Memory' } }
-            self.default_volumes_mount['x11unix'] = { 'name': 'x11unix',  'mountPath': '/tmp/.X11-unix' }
-            
-            self.default_volumes['x11socket'] = { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } }
+            # self.default_volumes['local']       = { 'name': 'local',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
+            # self.default_volumes_mount['local'] = { 'name': 'local',  'mountPath': '/home/balloon/.local' }
+
+            # sizeLimit for a socket set to mimimul value 1Ki
+            self.default_volumes['x11unix']         = { 'name': 'x11unix',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1Ki' } }
+            self.default_volumes_mount['x11unix']   = { 'name': 'x11unix',  'mountPath': '/tmp/.X11-unix' }
+            self.default_volumes['x11socket']       = { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1Ki' } }
             self.default_volumes_mount['x11socket'] = { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' }
-            self.default_volumes['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } }
-            self.default_volumes_mount['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' }
-            self.default_volumes['cupsdsocket'] = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
-            self.default_volumes_mount['cupsdsocket'] = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
+            self.default_volumes['pulseaudiosocket']        = { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1Ki' } }
+            self.default_volumes_mount['pulseaudiosocket']  = { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' }
+            self.default_volumes['cupsdsocket']         = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1Ki' } }
+            self.default_volumes_mount['cupsdsocket']   = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
 
 
         except Exception as e:
@@ -1688,6 +1693,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # set tmp volume
             volumes['tmp']       = self.default_volumes['tmp']
             volumes_mount['tmp'] = self.default_volumes_mount['tmp'] 
+           
             volumes['x11unix']   = self.default_volumes['x11unix']
             volumes_mount['x11unix'] = self.default_volumes_mount['x11unix']
             # set run volume
@@ -1741,15 +1747,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if volume_type in [ 'pod_desktop' ] :
             # Add VNC password as volume secret
             mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
-            # the should only be one secret type vnc
-            secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
-            # create an entry /var/secrets/abcdesktop/vnc
-            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
-            # mode is 644 -> rw-r--r--
-            # Owing to JSON limitations, you must specify the mode in decimal notation.
-            # 644 in decimal equal to 420
-            volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
-            volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+            if isinstance( mysecretdict, dict):
+                # the should only be one secret type vnc
+                secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
+                # create an entry /var/secrets/abcdesktop/vnc
+                secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
+                # mode is 644 -> rw-r--r--
+                # Owing to JSON limitations, you must specify the mode in decimal notation.
+                # 644 in decimal equal to 420
+                volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+                volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
         self.logger.debug( f"checked volume_type={volume_type} in [ 'pod_desktop' ]" )
         
         #
@@ -1757,29 +1764,29 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         self.logger.debug( f"listing list_dict_secret_data access_type='auth'" )
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
-        for secret_auth_name in mysecretdict.keys():
-            # https://kubernetes.io/docs/concepts/configuration/secret
-            # create an entry eq: 
-            # /var/secrets/abcdesktop/ntlm
-            # /var/secrets/abcdesktop/cntlm
-            # /var/secrets/abcdesktop/kerberos
-            
-            self.logger.debug( f"checking {secret_auth_name} access_type='auth' " )
-            # only mount secrets_requirement
-            if isinstance( secrets_requirement, list ):
-                if secret_auth_name not in secrets_requirement:
-                    self.logger.debug( f"{secret_auth_name} is not in {secrets_requirement}" )
-                    self.logger.debug( f"{secret_auth_name} is skipped" )
-                    continue
-
-            self.logger.debug( 'adding secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
-            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
-            # mode is 644 -> rw-r--r--
-            # Owing to JSON limitations, you must specify the mode in decimal notation.
-            # 644 in decimal equal to 420
-            volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
-            volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
-            self.logger.debug( 'added secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
+        if isinstance( mysecretdict, dict):
+            for secret_auth_name in mysecretdict.keys():
+                # https://kubernetes.io/docs/concepts/configuration/secret
+                # create an entry eq: 
+                # /var/secrets/abcdesktop/ntlm
+                # /var/secrets/abcdesktop/cntlm
+                # /var/secrets/abcdesktop/kerberos        
+                self.logger.debug( f"checking {secret_auth_name} access_type='auth' " )
+                # only mount secrets_requirement
+                if isinstance( secrets_requirement, list ):
+                    if secret_auth_name not in secrets_requirement:
+                        self.logger.debug( f"{secret_auth_name} is not in {secrets_requirement}" )
+                        self.logger.debug( f"{secret_auth_name} is skipped" )
+                        continue
+                # adding secret
+                self.logger.debug( 'adding secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
+                secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
+                # mode is 644 -> rw-r--r--
+                # Owing to JSON limitations, you must specify the mode in decimal notation.
+                # 644 in decimal equal to 420
+                volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+                volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+                self.logger.debug( 'added secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
         self.logger.debug( f"listed list_dict_secret_data access_type='auth'" )
 
         #
@@ -3756,16 +3763,28 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
                 for myPod in myPodList.items:
                     try: 
-                        myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
-                        self.logger.debug(  f"pod {myPod.metadata.name} is garbageable {myPodisgarbagable}" )
-                        if myPodisgarbagable is True:
-                            self.logger.debug( f"{myPod.metadata.name} is garbagable, removing start" )
+                        # check the pod status
+                        if myPod.status.phase == 'Failed':
+                            self.logger.warning(f"pod {myPod.metadata.name} is in phase {myPod.status.phase} reason {myPod.status.reason}" )        
+                            self.logger.warning(f"removing pod {myPod.metadata.name}")
                             # fake an authinfo object
                             (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
+                            self.logger.debug( f"Failed {myPod.metadata.name} is removing" )
                             self.removedesktop( authinfo, userinfo, myPod )
-                            self.logger.debug( f"{myPod.metadata.name} is garbagable, removing done" )
-                            # add the name of the pod to the list of garbaged pod
-                            garbaged.append( myPod.metadata.name )
+                            self.logger.debug( f"Failed {myPod.metadata.name} is removed" )
+                        else:
+                            myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
+                            self.logger.debug(  f"pod {myPod.metadata.name} is garbageable {myPodisgarbagable}" )
+                            if myPodisgarbagable is True:
+                                self.logger.debug( f"{myPod.metadata.name} is removing" )
+                                # fake an authinfo object
+                                (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
+                                self.removedesktop( authinfo, userinfo, myPod )
+                                self.logger.debug( f"{myPod.metadata.name} is removed" )
+
+                        # add the name of the pod to the list of garbaged pod
+                        garbaged.append( myPod.metadata.name )
+
                     except ApiException as e:
                         self.logger.error(e)
         return garbaged
