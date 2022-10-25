@@ -18,6 +18,7 @@ import base64
 import binascii
 import oc.od.locator
 import oc.auth.authservice
+import oc.od.desktop
 
 from oc.cherrypy    import Results,getclientipaddr
 from oc.od.services import services
@@ -34,8 +35,7 @@ def getlocation(auth):
     locatorPrivateActiveDirectory = None
     try:                        
         domain = auth.data.get('domain')
-        if type(domain) is str:
-            logger.debug( 'domain is %s', domain )
+        if isinstance(domain, str) :
             # oc.od.services.services.locatorPrivateActiveDirectory is a dict
             # the key is the domain, and it contains all sites cached values
             locatorPrivateActiveDirectory = oc.od.services.services.locatorPrivateActiveDirectory.get(domain)            
@@ -56,34 +56,6 @@ def getlocation(auth):
 
     return location
 
-
-def readphoto( auth, data ):
-    photo = None
-    # try to read photo
-    # If LDAP attribut name is jpegPhoto
-    # https://tools.ietf.org/html/rfc2798
-
-    # if InetOrgPerson attribut name is jpegPhoto
-    # overwrite to MS active Directory
-    # If Active Directory attribut name is thumbnailPhoto
-    userphotoattributname = 'thumbnailPhoto' if auth.providertype == 'activedirectory' else 'jpegPhoto'
-
-    userphoto = data.get( userphotoattributname )
-    # if the photo is defined on user directory service
-    if userphoto is not None:
-        # check if userphoto is on base64 format
-        try:
-            # try to decode to detecte image format 
-            base64.b64decode(userphoto, validate=True)
-            # decode works: this photo is already base64 format
-            photo  = userphoto
-        except binascii.Error:
-            try:
-                photo = oc.od.secret.ODSecret.bytestob64( userphoto )
-            except Exception :
-                logger.error( f"Failed to encode user photo cn={data.get('cn')} attribut: {userphotoattributname}" )
-                pass
-    return photo
 
 def whoami(auth, user):
     """[whoami] getuserinfo for the current user request
@@ -120,7 +92,8 @@ def whoami(auth, user):
     }
 
     # check if auth and user are correct type class
-    if not isinstance( auth, oc.auth.authservice.AuthInfo) or not isinstance(user, oc.auth.authservice.AuthUser) :
+    if  not isinstance(auth, oc.auth.authservice.AuthInfo) or \
+        not isinstance(user, oc.auth.authservice.AuthUser) :
         # user does not exist
         return userinfo
 
@@ -134,18 +107,47 @@ def whoami(auth, user):
         if completeuserinfo.get('type') == 'abcdesktop/ldif':
             data = completeuserinfo.get( 'data')
             if type(data) is dict:
-                userinfo['photo'] = readphoto( auth, data )
+                userphoto = None
+                userinfo['photo'] = None
+                # try to read photo
+                # If LDAP attribut name is jpegPhoto
+                # https://tools.ietf.org/html/rfc2798
+
+                userphotoattributname = None
+                if auth.providertype == 'ldap':
+                    userphotoattributname = 'jpegPhoto'
+                
+                # If Active Directory attribut name is thumbnailPhoto
+                if auth.providertype == 'activedirectory':
+                    userphotoattributname = 'thumbnailPhoto'
+
+                if userphotoattributname is not None:    
+                    userphoto = data.get( userphotoattributname )
+                    # if the photo is defined on user directory service
+                    if userphoto is not None:
+                        # check if userphoto is on base64 format
+                        try:
+                            # try to decode to detecte image format 
+                            base64.b64decode(userphoto, validate=True)
+                            # decode works: this photo is already base64 format
+                            userinfo['photo'] = userphoto
+                        except binascii.Error:
+                            try:
+                                userinfo['photo'] = oc.od.secret.ODSecret.bytestob64( userphoto )
+                            except Exception :
+                                logger.error( 'Failed to encode user photo userid:%s name:%s attribut: %s', str(userinfo['userid']), str(userinfo['name'], userphotoattributname) )
+                                pass
+
                 userinfo['sn'] = data.get( 'sn' )
                 userinfo['cn'] = data.get( 'cn' )
                 userinfo['mail'] = data.get( 'mail' )
                 userinfo['initials'] = data.get( 'initials' )
                 userinfo['givenName'] = data.get( 'givenName' )
                 userinfo['description'] = data.get( 'description' )
-                userinfo['objectClass'] = data.get( 'objectClass' )
 
     desktop = oc.od.composer.finddesktop( auth, user  )
     # desktop can be None, if desktop is not yet created 
-    if desktop :
+    if isinstance( desktop, oc.od.desktop.ODDesktop ) :
         # filter and copy data from desktop to userinfo dict
         userinfo['target_ip'] = desktop.ipAddr
         userinfo['container_id'] = desktop.id 

@@ -41,23 +41,39 @@ class ODJWToken( object):
 
         # read exp
         self._exp = int(config.get('exp', 180))
+        # read leeway
+        self.leeway = int( config.get('leeway', 20) )
 
 
     def encode( self, auth, user, roles ):
-        expire_in = int( time.time() ) + self._exp
-        token = { 'exp' : expire_in, 'auth': auth, 'user': user, 'roles': roles }
-        # There is no public or private key concept, all keys are private
+        now = int( time.time() )
+        expire_in = now + self._exp
+        token = { 
+            'exp' : expire_in, 
+            'nbf': now, # Not Before Time Claim (nbf)
+            'auth': auth, 
+            'user': user, 
+            'roles': roles }
+        # All data can be ready clearly
         encoded_jwt = jwt.encode( token , self.jwt_privatekey, algorithm=self.algorithms[0])
         return encoded_jwt
 
     def decode( self, payload ):
         data = None
-        if payload is None:
-            raise ValueError('invalid payload data')    
+        assert isinstance( payload, str ), 'invalid payload data'
 
         # There is no public or private key concept, all keys are private   
+        # pyos use a the private key and the public key  
+        # 
         # can     raise ExpiredSignatureError("Signature has expired")
-        # jwt.exceptions.ExpiredSignatureError: Signature has expired             
-        data = jwt.decode(payload, self.jwt_publickey, algorithms=self.algorithms)
+        # jwt.exceptions.ExpiredSignatureError: Signature has expired 
+        #             
+        # add some leeway if JWT payload is expired, it will still validate      
+        data = jwt.decode(
+            payload, 
+            self.jwt_publickey, 
+            leeway=self.leeway, 
+            algorithms=self.algorithms, 
+            options={ 'require': ['exp', 'nbf', 'auth', 'user', 'roles'] } )
         
         return data

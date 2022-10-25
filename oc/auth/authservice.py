@@ -628,7 +628,7 @@ class ODAuthTool(cherrypy.Tool):
         auth_data_reduce = self.reduce_auth_data( auth )
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
         # create jwt_user_reduce
-        jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid'), 'nodehostname': user.get('nodehostname') }
+        jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid') }
 
         # if useraccount is a posix account 
         # add posix attributs to jwt data 
