@@ -1752,34 +1752,41 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             list_apps += myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=self.all_phases_status, apps=apps)
         return list_apps
 
-    def envContainerApp( self, authinfo, userinfo, pod_name, containerid):
-        '''get the environment vars exec for the containerid '''
-        # check that the pod belongs to use current user
-        env_result = None
+
+    def getAppInstanceKubernetes( self, authinfo, userinfo, pod_name, containerid):
+        myappinstance = None
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
         if isinstance( myPod, client.models.v1_pod.V1Pod ):
             # if type is x11server app is an ephemeral container
             pod_type = myPod.metadata.labels.get( 'type' )
             if pod_type == self.x11servertype:
                 myappinstance = ODAppInstanceKubernetesEphemeralContainer( self )
-                env_result = myappinstance.envContainerApp(pod_name, containerid)
             elif pod_type in self.appinstance_classes.keys() :
                 myappinstance = ODAppInstanceKubernetesPod( self )
-                env_result = myappinstance.envContainerApp(pod_name, containerid)
+        return myappinstance
+
+    def logContainerApp( self, authinfo, userinfo, pod_name, containerid):
+        assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
+        log_app = None
+        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
+        if isinstance( myappinstance, ODAppInstanceBase ):
+            log_app = myappinstance.logContainerApp(pod_name, containerid)
+        return log_app
+
+    def envContainerApp( self, authinfo, userinfo, pod_name, containerid):
+        assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
+        env_result = None
+        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
+        if isinstance( myappinstance, ODAppInstanceBase ):
+            env_result = myappinstance.envContainerApp(pod_name, containerid)
         return env_result
 
     def stopContainerApp( self, authinfo, userinfo, pod_name, containerid):
+        assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         stop_result = None
-        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
-        if isinstance( myPod, client.models.v1_pod.V1Pod ):
-            # if type is x11server app is an ephemeral container
-            pod_type = myPod.metadata.labels.get( 'type' )
-            if pod_type == self.x11servertype:
-                myappinstance = ODAppInstanceKubernetesEphemeralContainer( self )
-                stop_result = myappinstance.stop(pod_name, containerid)
-            elif pod_type in self.appinstance_classes.keys() :
-                myappinstance = ODAppInstanceKubernetesPod( self )
-                stop_result = myappinstance.stop(pod_name)
+        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
+        if isinstance( myappinstance, ODAppInstanceBase ):
+            stop_result = myappinstance.stop(pod_name, containerid)
         return stop_result
 
     def removeContainerApp( self, authinfo, userinfo, pod_name, containerid):
@@ -1787,13 +1794,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def getappinstance( self, authinfo, userinfo, app ):    
         self.logger.debug('')
-
         for app_class in self.appinstance_classes.values():
             app_object = app_class( orchestrator=self )
             appinstance = app_object.findRunningAppInstanceforUserandImage( authinfo, userinfo, app )
             if app_object.isinstance( appinstance ):
                 return appinstance
-
 
     def execininstance( self, container, command):
         self.logger.info('')
@@ -1902,7 +1907,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
 
-     
         # containerengine can be one of the values
         # - 'ephemeral_container'
         # - 'pod_application'
@@ -2023,13 +2027,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
         return posixuser
 
-    def updateCommandWithUserInfo( self, currentcontainertype:str, userinfo:AuthUser ) -> str:
+    def updateCommandWithUserInfo( self, currentcontainertype:str, userinfo:AuthUser ) -> list:
+        """updateCommandWithUserInfo
+
+            replace uidNumber and gidNumber by posix account values
+            chevron update command 
+            'command': [ 'sh', '-c',  'chown {{ uidNumber }}:{{ gidNumber }} ~' ] 
+            after chevron
+            'command': [ 'sh', '-c',  'chown 1234:5432 ~' ] 
+            return list [ 'sh', '-c',  'chown 1234:5432 ~' ] 
+        Args:
+            currentcontainertype (str): 'init'
+            userinfo (AuthUser): AuthUser
+
+        Returns:
+            list: command line updated
+        """
         list_command = oc.od.settings.desktop_pod[currentcontainertype].get( 'command' )
         if isinstance( list_command, list ):
             new_list_command = []
             posixuser = self.alwaysgetPosixAccountUser( userinfo )
-            #
-            # replace uidNumber and gidNumber by posix account values
             for command in list_command:
                 new_command  = chevron.render( command, posixuser )
                 new_list_command.append( new_command )
@@ -2173,7 +2190,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return ownerReferences   
 
     def createdesktop(self, authinfo, userinfo, **kwargs):
-        self.logger.info('')
         """createdesktop for the user
             create the user pod 
 
@@ -2359,10 +2375,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('pod container creating %s', currentcontainertype )
             securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext',  { 'runAsUser': 0 } )
             self.logger.debug('pod container %s use securityContext %s ', currentcontainertype, securityContext)
-            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )  
-            # chevrom update command 
-            # 'command':  [ 'sh', '-c',  'chown {{ uidNumber }}:{{ gidNumber }} /home/balloon && chown {{ uidNumber }}:{{ gidNumber }} /home/balloon/* || true' ] 
-            # 
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             command = self.updateCommandWithUserInfo( currentcontainertype, userinfo )
                 
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
@@ -3336,6 +3349,19 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     break
         return env_result
 
+    def logContainerApp(self, pod_name:str, container_name:str)->str:
+        assert isinstance(pod_name,  str),  f"pod_name has invalid type  {type(pod_name)}"
+        assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
+        strlogs = 'no logs read'
+        try:
+            strlogs = self.orchestrator.kubeapi.read_namespaced_pod_log( name=pod_name, namespace=self.orchestrator.namespace, container=container_name, pretty='true' )
+        except ApiException as e:
+            self.logger.error( e )
+        except Exception as e:
+            self.logger.error( e )
+        return strlogs
+        
+
     def get_status( self, pod_ephemeralcontainers:client.models.v1_pod.V1Pod, container_name:str ):
         """get_status
 
@@ -3686,7 +3712,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     env_result[ e.name ] =  e.value
         return env_result
 
-    def stop( self, pod_name ):
+    def stop( self, pod_name, container_name:None ):
         '''get the user's containerid stdout and stderr'''
         result = None
         propagation_policy = 'Foreground'
