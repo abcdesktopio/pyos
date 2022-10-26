@@ -168,8 +168,7 @@ list_hostconfigkey = [
         'secrets_requirement'   # custom for abcdesktop 
         ]
 
-ABCDESKTOP_CURRENT_RELEASE = 'dev'
-DEFAULT_IMAGE_TAG = ABCDESKTOP_CURRENT_RELEASE
+ABCDESKTOP_CURRENT_RELEASE = 2
 
 def getballoon_name():
     return balloon_name

@@ -327,6 +327,13 @@ class ODApps:
         # read USER with fallback for compatibiliy with old version release
         user = inspect_dict.get('Config').get('User', oc.od.settings.getballoon_name() ) 
         # read oc specific value
+        image_supported_release = labels.get('oc.release')
+        if isinstance( image_supported_release, int ):
+            # check if this release match with the current abcdesktop release
+            if image_supported_release != oc.od.settings.ABCDESKTOP_CURRENT_RELEASE:
+                self.logger.info(f"skipping image {imageid} oc.release={image_supported_release} != ABCDESKTOP_CURRENT_RELEASE={oc.od.settings.ABCDESKTOP_CURRENT_RELEASE}")
+                return None
+
         desktopfile = labels.get('oc.desktopfile')
         icon = labels.get('oc.icon')
         icondata = labels.get('oc.icondata')
@@ -352,16 +359,13 @@ class ODApps:
 
         # safe load convert json data json
         rules = safe_load_label_json( imageid, labels, 'oc.rules' )
-        if rules:
-            self.logger.debug( '%s has rules %s', name, rules )
-        acl   = safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
+        acl = safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
         secrets_requirement = safe_load_label_json( imageid, labels, 'oc.secrets_requirement' )
-       
+        self.logger.debug( "{name} define rules={rules} secrets_requirement={secrets_requirement}" )
 
         if secrets_requirement is not None: 
             # type of secrets_requirement must be list
-            if isinstance( secrets_requirement, str ):
-                secrets_requirement = [ secrets_requirement ]
+            if isinstance( secrets_requirement, str ): secrets_requirement = [ secrets_requirement ]
             secrets_requirement = safe_secrets_requirement_prefix( secrets_requirement, oc.od.settings.namespace)
 
         security_opt = safe_load_label_json(imageid, labels, 'oc.security_opt' )
@@ -426,12 +430,12 @@ class ODApps:
         for image in localimage_list:
             try:
                 myapp = self.imagetoapp(image)
-                if type(myapp) is dict:
+                if isinstance(myapp, dict):
                     # self.logger.debug (f"adding new image {myapp['id']}")
                     # self.logger.debug( f"cmd {myapp['cmd']}" )
                     mydict[ myapp['id'] ] = myapp
             except Exception as e:
-                self.logger.error('Image id:%s failed invalid value: %s', image, e)
+                self.logger.error(f"Image id:{image} failed invalid value: {e}")
         return mydict
 
     def add_image( self, image_name ):
