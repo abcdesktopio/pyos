@@ -1884,7 +1884,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             bool: True if enable, else False
         """
-        bReturn = isinstance(  oc.od.settings.desktop_pod.get(currentcontainertype), dict ) and \
+        bReturn = isinstance( oc.od.settings.desktop_pod.get(currentcontainertype), dict ) and \
                   oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop_pod[currentcontainertype].get('acl') ) and \
                   oc.od.settings.desktop_pod[currentcontainertype].get('enable') == True
         return bReturn
@@ -2064,7 +2064,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             dict: a securityContext dict with { 'runAsUser': UID , 'runAsGroup': GID }
         """
-        securityContextConfig = oc.od.settings.desktop_pod[currentcontainertype].get( 'securityContext', { 'runAsUser':  '{{ uidNumber }}', 'runAsGroup': '{{ gidNumber }}' } )
+        securityContextConfig = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get( 'securityContext', { 'runAsUser':  '{{ uidNumber }}', 'runAsGroup': '{{ gidNumber }}' } )
         securityContext = copy.deepcopy(securityContextConfig)
         runAsUser  = securityContext.get('runAsUser')
         runAsGroup = securityContext.get('runAsGroup')
@@ -2083,7 +2083,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def getimagecontainerfromauthlabels( self, currentcontainertype, authinfo ):
         imageforcurrentcontainertype = None
-        image = oc.od.settings.desktop_pod[currentcontainertype].get('image')
+        image = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('image')
         if isinstance( image, str):
             imageforcurrentcontainertype = image
         elif isinstance( image, dict ):
@@ -2315,7 +2315,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # get all secrets
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo )
         # by default give the abcdesktop/kerberos and abcdesktop/cntlm secrets inside the pod, if exist
-        secrets_type_requirement = oc.od.settings.desktop_pod[currentcontainertype].get('secrets_requirement')
+        secrets_type_requirement = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('secrets_requirement')
         if isinstance( secrets_type_requirement, list ):
             # list the secret entry by requirement type 
             secrets_requirement = ['abcdesktop/vnc'] # always add the vnc password in the secret list 
@@ -2373,7 +2373,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # init runAsUser 0 (root)
             # to allow chmod 'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
             self.logger.debug('pod container creating %s', currentcontainertype )
-            securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext',  { 'runAsUser': 0 } )
+            securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext', { 'runAsUser': 0 } )
             self.logger.debug('pod container %s use securityContext %s ', currentcontainertype, securityContext)
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             command = self.updateCommandWithUserInfo( currentcontainertype, userinfo )
@@ -2439,20 +2439,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'subdomain': self.endpoint_domain,
-                'shareProcessNamespace': oc.od.settings.desktop_pod[currentcontainertype].get('shareProcessNamespace', True),
+                'shareProcessNamespace': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('shareProcessNamespace', True),
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
                 'containers': [ {   
-                    'imagePullPolicy' : oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
+                    'imagePullPolicy' : oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('imagePullPolicy'),
+                    'imagePullSecrets': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('imagePullSecrets'),
                     'image': image,
                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                     'args': args,
                     'env': envlist,
                     'volumeMounts': list_volumeMounts,
                     'securityContext': securityContext,
-                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')
+                    'resources': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('resources')
                 } ]
             }
         }
