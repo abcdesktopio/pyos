@@ -2443,17 +2443,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
-                'containers': [ {   'imagePullPolicy' : oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
-                                    'image': image,
-                                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'args': args,
-                                    'env': envlist,
-                                    'volumeMounts': list_volumeMounts,
-                                    'securityContext': securityContext,
-                                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')
-                                }                                                             
-                ]
+                'containers': [ {   
+                    'imagePullPolicy' : oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
+                    'image': image,
+                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                    'args': args,
+                    'env': envlist,
+                    'volumeMounts': list_volumeMounts,
+                    'securityContext': securityContext,
+                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')
+                } ]
             }
         }
         self.logger.debug('pod container created %s', currentcontainertype )
@@ -2557,16 +2557,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             pod_manifest['spec']['containers'].append( { 
-                                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
-                                    'image': image,                                 
-                                    'env': envlist,
-                                    'volumeMounts':  list_pod_allvolumeMounts,
-                                    'securityContext': securityContext,
-                                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
-                                }   
-            )
+                'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
+                'image': image,                                 
+                'env': envlist,
+                'volumeMounts':  list_pod_allvolumeMounts,
+                'securityContext': securityContext,
+                'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')
+            } )
             self.logger.debug('pod container created %s', currentcontainertype )
 
         # Add rdp service 
@@ -3895,7 +3894,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     'env': envlist,
                     'volumeMounts': list_volumeMounts,
                     'securityContext': securitycontext,
-                    'resources': oc.od.settings.desktopkubernetesresourcelimits 
+                    'resources': oc.od.settings.desktop_pod[self.type].get('resources') 
                 } ]
             }
         }
