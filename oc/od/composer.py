@@ -502,24 +502,12 @@ def envContainerApp(authinfo, userinfo, podname, containerid ):
     result = myOrchestrator.envContainerApp( authinfo, userinfo, podname, containerid )
     return result
 
-
 def createExecuteEnvironment(authinfo, userinfo, app=None ):
     # build env dict
     # add environment variables        
     # get env from authinfo 
     # copy a env dict from configuration file
     env = oc.od.settings.desktop['environmentlocal'].copy()
-
-    # for each labels in authinfo.data 
-    # add the rules env if exists 
-    # example
-    # 'domainuser' : { 'SENDCUTTEXT': 'disabled',
-    #                  'ACCEPTCUTTEXT': 'disabled'
-    #  }
-    # 
-    for key in authinfo.data.get('labels').keys():
-        if isinstance( oc.od.settings.desktop['environmentlocalrules'].get( key ), dict ):
-            env.update( oc.od.settings.desktop['environmentlocalrules'].get( key ) )
 
     locale = userinfo['locale']
     language = locale
