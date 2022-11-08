@@ -122,7 +122,6 @@ webrtc_enable = False
 # hostconfig define
 desktophostconfig = {}
 applicationhostconfig = {}
-desktopkubernetesresourcelimits = {}
 
 list_hostconfigkey = [ 
         'auto_remove',
@@ -383,7 +382,6 @@ def filter_hostconfig( host_config ):
 def init_desktop():
     global desktophostconfig
     global applicationhostconfig
-    global desktopkubernetesresourcelimits
  
     global desktop
     global desktop_pod
@@ -442,14 +440,10 @@ def init_desktop():
         sys.exit(-1)
 
 
-    desktop['removehomedirectory'] = gconfig.get('desktop.removehomedirectory', False)
-
-    desktopkubernetesresourcelimits = read_kubernetes_resource_limits( desktophostconfig )
-   
+    desktop['removehomedirectory']  = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']             = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']  = gconfig.get('desktop.webhookencodeparams', False )
     desktop['webhookdict']          = gconfig.get('desktop.webhookdict', {} )
-    desktop['imagepullsecret']      = gconfig.get('desktop.imagepullsecret' )
 
 
     # desktopinitcontainercommand
@@ -458,8 +452,8 @@ def init_desktop():
 
     desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
-    desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt/abcdesktop')
-    desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim', 'abcdesktop-pvc' )
+    desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt')
+    desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim' )
     desktop['nodeselector']             = gconfig.get('desktop.nodeselector')    
     desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
     desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
@@ -474,12 +468,7 @@ def init_desktop():
                         'LIBOVERLAY_SCROLLBAR'  : '0',
                         'UBUNTU_MENUPROXY'      : '0',
                         'HOME' 		            : '/home/balloon',
-                        'PULSE_SERVER'          : '/tmp/.pulse.sock',
-                        'CUPS_SERVER'           : '/tmp/.cups.sock',
-                        'X11LISTEN'             : 'tcp '} )
-
-    # add default env local rules vars if not set 
-    desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
+                        'X11LISTEN'             : 'tcp'} )
 
     init_balloon()
 
