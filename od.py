@@ -52,7 +52,6 @@ def api_handle_error():
     status = 500
     message = 'Internal api server error'
     if isinstance(ex, ODError):
-        status = ex.status
         message = ex.message
     elif isinstance(ex, oc.cherrypy.WebAppError):
         status = ex.status
