@@ -402,9 +402,11 @@ class ODApps:
         if not isinstance( json_image, dict ):
             return None
 
+        # repoTags is a list of repoTag
         repoTags = json_image.get('RepoTags') or json_image.get('status',{}).get('repoTags')
         if not isinstance(repoTags,list): # skip image if no repoTags
             return None
+        # take the first one
         imageid = repoTags[0]
         # read the image Id
         # docker output format use Id
