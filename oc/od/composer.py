@@ -740,6 +740,7 @@ def openapp( auth, user={}, kwargs={} ):
     if not isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus ):
         raise ODError(f"Failed to run application return {type(appinstancestatus)}")
     logger.info(f"app {appinstancestatus.id} is {appinstancestatus.message}")
+    
     runwebhook( appinstancestatus )
     # default return value appinstancestatus dict format to json format
     return appinstancestatus.to_dict()
