@@ -809,9 +809,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     list_endpoint_port = endpoint_port.port
 
                 # read add addreses
-                for address in endpoint_subset.addresses :
-                    if isinstance( address, client.V1EndpointAddress):
-                        list_endpoint_addresses.append( address.ip )
+                if not isinstance( endpoint_subset.addresses , list ):
+                    self.logger.error('read_namespaced_endpoints no entry addresses found')
+                else:
+                    for address in endpoint_subset.addresses :
+                        if isinstance( address, client.V1EndpointAddress):
+                            list_endpoint_addresses.append( address.ip )
 
         return (list_endpoint_port, list_endpoint_addresses)
 
@@ -1444,9 +1447,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # passwd 
         # group
         # shadow
-        passwd_file = oc.od.settings.DEFAULT_PASSWD_FILE + '\n' + passwd_line
-        group_file = oc.od.settings.DEFAULT_GROUP_FILE + '\n' + group_line
-        shadow_file = oc.od.settings.DEFAULT_SHADOW_FILE + '\n' + shadow_line
+        passwd_file = oc.od.settings.DEFAULT_PASSWD_FILE + '\n' + passwd_line  + '\n'
+        group_file = oc.od.settings.DEFAULT_GROUP_FILE + '\n' + group_line  + '\n'
+        shadow_file = oc.od.settings.DEFAULT_SHADOW_FILE + '\n' + shadow_line  + '\n'
         
         mydict_config = { 
             'passwd' : passwd_file, 
