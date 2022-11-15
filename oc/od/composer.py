@@ -900,15 +900,28 @@ def notify_endpoint( url ):
 
 
 def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addresses):
+    if oc.od.settings.developer_instance == True:
+            pyos_endpoint_address = [ 'localhost' ]
     for pyos_endpoint_address in pyos_endpoint_addresses:
-        if oc.od.settings.developer_instance == True:
-            pyos_endpoint_address = '127.0.0.1'
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
         notify_thread = threading.Thread(target=notify_endpoint, kwargs={'url': url } )
         notify_thread.start()
 
-def add_application_image( json_images ):
-    """add_application_image
+
+def notity_pyos_buildapplist():
+    ## new Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+    # list all pyos endpoints (port and address)
+    (pyos_endpoint_port, pyos_endpoint_addresses) = myOrchestrator.listEndpointAddresses( 'pyos' )
+    if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
+        # create a thread for each pyos_endpoint_addresses and call buildapplist
+        notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
+    return myOrchestrator
+
+
+
+def add_and_pull_application_image( json_images ):
+    """add_and_pull_application_image
 
     Args:
         json_images (str): list of json image
@@ -921,12 +934,7 @@ def add_application_image( json_images ):
 
     if json_put is not None:
         # new Orchestrator Object
-        myOrchestrator = selectOrchestrator()
-        # list all pyos endpoints (port and address)
-        (pyos_endpoint_port, pyos_endpoint_addresses) = myOrchestrator.listEndpointAddresses( 'pyos' )
-        if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
-            # create a thread for each pyos_endpoint_addresses and call buildapplist
-            notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
+        myOrchestrator = notity_pyos_buildapplist()
 
         if isinstance( json_put, dict ):
             myOrchestrator.pullimage_on_all_nodes( json_put )
@@ -937,16 +945,26 @@ def add_application_image( json_images ):
     return json_put
 
 
+def add_application_image( json_images ):
+    """add_application_image
+
+    Args:
+        json_images (str): list of json image
+
+    Returns:
+        json: _description_
+    """
+    # add entry from mongodb
+    json_put =  oc.od.services.services.apps.add_json_image_to_collection( json_images )
+    notity_pyos_buildapplist()
+    return json_put
+
+
 def del_application_image( image ):
     # remove entry from mongodb
     del_image = oc.od.services.services.apps.del_image( image )
 
     if del_image is True:
-        # new Orchestrator Object
-        myOrchestrator = selectOrchestrator()
-        # list all pyos endpoints
-        (pyos_endpoint_port, pyos_endpoint_addresses) = myOrchestrator.listEndpointAddresses( 'pyos' )
-        if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
-            # notify all pyos endpoint to reload applist from mongodb database
-            notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
+        notity_pyos_buildapplist()
+
     return del_image

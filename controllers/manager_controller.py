@@ -29,7 +29,7 @@ from oc.od.services import services
 
 logger = logging.getLogger(__name__)
 
-@cherrypy.tools.allow(methods=['GET','PUT','DELETE','PATCH'])
+@cherrypy.tools.allow(methods=['GET','PUT','POST','DELETE','PATCH'])
 @cherrypy.config(**{ 'tools.auth.on': False })
 class ManagerController(BaseController):
 
@@ -117,10 +117,12 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def image( self, image=None ):
         self.is_permit_request()
-        if cherrypy.request.method == 'GET':
+        if   cherrypy.request.method == 'GET':
             return self.handle_image_GET( image )
         elif cherrypy.request.method == 'PUT':
             return self.handle_image_PUT( cherrypy.request.json )
+        elif cherrypy.request.method == 'POST':
+            return self.handle_image_POST( cherrypy.request.json )
         elif cherrypy.request.method == 'DELETE':
             return self.handle_image_DELETE( image )
         elif cherrypy.request.method == 'PATCH':
@@ -139,16 +141,26 @@ class ManagerController(BaseController):
                 cherrypy.response.status = 404
                 return "Not found"
         else:
-            raise Exception( 'invalid request')
+            # 400 - Invalid parameters Bad Request
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
 
     def handle_image_PUT( self, json_images ):
         self.logger.debug('')
         json_put = None
         if isinstance( json_images, list ) or isinstance( json_images, dict ) :
+            json_put = oc.od.composer.add_and_pull_application_image( json_images )
+        else:
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+        return json_put
+
+    def handle_image_POST( self, json_images ):
+        self.logger.debug('')
+        json_put = None
+        if isinstance( json_images, list ) or isinstance( json_images, dict ) :
             json_put = oc.od.composer.add_application_image( json_images )
         else:
-            raise Exception( 'invalid request')
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         return json_put
 
     def handle_image_DELETE( self, image ):
@@ -156,7 +168,7 @@ class ManagerController(BaseController):
         # image can be an sha_id or an repotag
         # it is always a str type
         if not isinstance( image, str):
-            raise Exception( 'invalid request')
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
         app = oc.od.services.services.apps.find_app_by_id( image_id=image)
         if isinstance( app, dict):
@@ -192,7 +204,7 @@ class ManagerController(BaseController):
                 cherrypy.response.status = 404
                 return "Not found"
         else:
-            raise Exception('invalid request')
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
 
     @cherrypy.expose
@@ -220,7 +232,7 @@ class ManagerController(BaseController):
 
         desktop_name = args[0]
         if not isinstance( desktop_name, str):
-            raise Exception('bad paramters')
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
         if len(args)==1:
             # get information for a desktop
@@ -237,7 +249,7 @@ class ManagerController(BaseController):
 
         container_id = args[2]
         if not isinstance( container_id, str):
-            raise cherrypy.HTTPError( status=400, message='bad parameters')
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
         # use a specify desktop
         if len(args)==3 and args[1]=="container":
@@ -246,18 +258,18 @@ class ManagerController(BaseController):
             container = oc.od.composer.describe_container( name=desktop_name, container=container_id )
             return container
 
-        raise cherrypy.HTTPError( status=400, message='invalid request') 
+        raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
     def handle_desktop_DELETE( self, args ):
         self.logger.debug('')
 
         if not isinstance( args, tuple):
-            raise cherrypy.HTTPError( status=400, message='invalid request') 
+            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if len(args) == 0:
-            raise cherrypy.HTTPError( status=400, message='invalid request') 
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters empty Bad Request')
         desktop_name = args[0]
         if not isinstance( desktop_name, str):
-            raise cherrypy.HTTPError( status=400, message='bad paramters')
+            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         if len(args)==1:
             # delete a desktop
             # DELETE /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
@@ -272,7 +284,7 @@ class ManagerController(BaseController):
             oc.od.composer.stop_container_byname( desktop_name, container=container_id )
             oc.od.composer.remove_container_byname( desktop_name, container=container_id )
             return container_id
-        raise cherrypy.HTTPError( status=400, message='invalid request') 
+        raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request') 
 
  
 
@@ -281,11 +293,11 @@ class ManagerController(BaseController):
 
         # handle GET request to ban 
         if not services.fail2ban.iscollection( collection ):
-           raise cherrypy.HTTPError( status=400, message='invalid parameter')
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
-            raise cherrypy.HTTPError( status=400, message='invalid request') 
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if len(args)!=0:
-            raise cherrypy.HTTPError( status=400, message='invalid request') 
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         # /API/ban/ipaddr 
         # /API/ban/login 
         # list all desktops
@@ -296,11 +308,11 @@ class ManagerController(BaseController):
         self.logger.debug('')
         # handle GET request to ban 
         if not services.fail2ban.iscollection( collection ):
-           raise cherrypy.HTTPError( status=400, message='invalid parameter')
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
-            raise cherrypy.HTTPError( status=400, message='invalid request') 
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if len(args)!=1:
-            raise cherrypy.HTTPError( status=400, message='invalid request') 
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         ban = services.fail2ban.ban( args[0], collection_name=collection)
         return ban
 
@@ -309,13 +321,13 @@ class ManagerController(BaseController):
         self.logger.debug('')
         # handle GET request to ban 
         if not services.fail2ban.iscollection( collection ):
-           raise cherrypy.HTTPError( status=400, message='invalid parameter')
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
-            raise cherrypy.HTTPError( status=400, message='invalid request') 
+           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if len(args)==0:
-            drop = services.fail2ban.drop(collection_name=collection)
-            return drop
+           drop = services.fail2ban.drop(collection_name=collection)
+           return drop
         if len(args)==1:
-            ban = services.fail2ban.unban( args[0], collection_name=collection)
-            return ban
-        raise cherrypy.HTTPError( status=400, message='invalid request')
+           ban = services.fail2ban.unban( args[0], collection_name=collection)
+           return ban
+        raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
