@@ -53,9 +53,10 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
                         'localaccount':     ODSecretLocalAccount }
                         
     # get the class from the secret_type
-    secret_cls = secret_cls_dict.get( secret_type, ODSecret )
+    secret_cls = secret_cls_dict.get( secret_type )
     # instance the class
-    secret = secret_cls( namespace, kubeapi, prefix, secret_type )
+    if  secret_cls :
+        secret = secret_cls( namespace, kubeapi, prefix, secret_type )
     # return the secret object
     return secret
 
@@ -323,8 +324,8 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
         }
 
         # append domain only if set 
-        domain          = authinfo.claims.get('domain', None )    # None if not set
-        if domain :
+        domain          = authinfo.claims.get('domain' )    # None if not set
+        if isinstance(domain,str) :
             mydict_secret.update( { 'domain':  ODSecret.strtob64(domain) } )
         return mydict_secret
 
