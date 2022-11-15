@@ -836,7 +836,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def findSecretByUser( self,  authinfo, userinfo, secret_type ):
         secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, secret_type )
-        return secret.read_credentials(userinfo)
+        if isinstance( secret, oc.od.secret.ODSecret):
+            return secret.read_credentials(userinfo)
+        return None
 
     def get_podname( self, authinfo, userinfo, pod_uuid ):
         """[get_podname]
@@ -1510,7 +1512,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # whoami entry point use the ldiff secret 
         # create a ldif secret
         self.logger.debug('oc.od.secret.ODSecretLDIF creating')
-        secret = oc.od.secret.ODSecretLDIF( self.namespace, self.kubeapi )
+        secret = oc.od.secret.ODSecretLDIF( namespace=self.namespace, kubeapi=self.kubeapi )
         secret.create( authinfo, userinfo, data=userinfo )
         self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
@@ -1518,9 +1520,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         localaccount_data = authinfo.get_localaccount()
         localaccount_files = self.preparelocalaccount( localaccount_data )
         self.logger.debug('localaccount secret.create creating')
-        secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type='localaccount' )
-        # build a kubernetes secret with the auth values 
-        # values can be empty to be updated later
+        secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
         createdsecret = secret.create( authinfo, userinfo, data=localaccount_files )
         if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
             mysecretname = self.get_name( userinfo )
