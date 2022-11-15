@@ -36,11 +36,11 @@ def selectODVolume( authinfo, userinfo ):
 
 def selectODVolumebyRules( authinfo, userinfo, rules ):
     volumes = []
-    if type(rules) is dict  :
+    if isinstance(rules,dict) :
         for k in authinfo.get_labels() :
             rule =  rules.get(k)
             
-            if type(rule) is not dict:
+            if not isinstance(rule,dict):
                 continue
 
             vol = None
@@ -60,6 +60,14 @@ def selectODVolumebyRules( authinfo, userinfo, rules ):
                 entry       = userinfo.get('name')
                 url         = rule.get('url')
                 vol         = ODVolumeActiveDirectoryWebDav( authinfo, userinfo, entry, url )
+
+            if rule.get('type') == 'nfs' :
+                name          = rule.get('name')
+                server        = rule.get('server')
+                path          = rule.get('path')
+                readOnly      = rule.get('readOnly')
+                mountPath     = rule.get('mountPath')
+                vol           = ODVolumeNFS( name, server=server, path=path, mountPath=mountPath, readOnly=readOnly)
 
             if vol :        
                 volumes.append( vol ) 
@@ -91,7 +99,7 @@ class ODVolumeBase(object):
         if  hasattr(self, 'mountOptions')       and \
             isinstance(self.mountOptions,str)   and \
             len(self.mountOptions) > 0:
-                  b_has_options = True
+                b_has_options = True
         return b_has_options
 
 
@@ -105,6 +113,21 @@ class ODVolumeHostPath(ODVolumeBase):
     def is_mountable(self):
         raise NotImplementedError('%s.is_mountable' % type(self))
 
+
+@oc.logging.with_logger()
+class ODVolumeNFS(ODVolumeBase):    
+    def __init__(self, name, server, path, mountPath, readOnly=True ):        
+        super().__init__()      
+        self._fstype        = 'nfs'                 
+        self._type          = 'nfs'    
+        self._name          = 'nfs-' + name
+        self.server= server
+        self.path    = path
+        self.mountPath   = mountPath 
+        self.readOnly   = readOnly
+          
+    def is_mountable(self):
+         return all( [self.server, self.path, self.mountPath ] )
 
 @oc.logging.with_logger()
 class ODVolumeActiveDirectory(ODVolumeHostPath):    
