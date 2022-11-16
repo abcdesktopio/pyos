@@ -18,7 +18,7 @@ voice:x:22:
 cdrom:x:24:
 floppy:x:25:
 tape:x:26:
-sudo:x:27:balloon
+sudo:x:27:{{ uid }}
 audio:x:29:pulse
 dip:x:30:
 www-data:x:33:
@@ -37,9 +37,10 @@ staff:x:50:
 games:x:60:
 users:x:100:
 nogroup:x:65534:
-lpadmin:x:101:root,balloon
+lpadmin:x:101:root,{{ uid }}
 messagebus:x:102:
 ssl-cert:x:103:
 pulse:x:104:
 pulse-access:x:105:
 ssh:x:4095:
+{{ gid }}:x:{{ gidNumber }}:
