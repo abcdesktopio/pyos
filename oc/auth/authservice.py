@@ -109,11 +109,11 @@ class AuthUser(dict):
         if isinstance( posixdata, dict):
             posixaccount = AuthUser.getdefaultPosixAccount( 
                 uid=posixdata.get('uid'),
+                gid=posixdata.get('gid'),
                 uidNumber=posixdata.get('uidNumber'),
                 gidNumber=posixdata.get('gidNumber'),
-                cn=posixdata.get('cn'),
-                homeDirectory=posixdata.get('homeDirectory') 
-            )
+                homeDirectory=posixdata.get('homeDirectory'),
+                description=posixdata.get('description') )
         return posixaccount
         
     def isPosixAccount( self ):
@@ -121,15 +121,40 @@ class AuthUser(dict):
         return bPosix
 
     @staticmethod
-    def getdefaultPosixAccount( uid, uidNumber, gidNumber, cn=None, homeDirectory=None  ):
+    def getConfigdefaultPosixAccount():
+        return AuthUser.getdefaultPosixAccount( 
+            uid=oc.od.settings.getballoon_name(),
+            gid=oc.od.settings.getballoon_groupname(),
+            uidNumber=oc.od.settings.getballoon_uid(),
+            gidNumber=oc.od.settings.getballoon_gid(),
+            homeDirectory=oc.od.settings.getballoon_homedirectory(),
+            loginShell=oc.od.settings.getballoon_loginShell(),
+            description='abcdesktop default account'
+        )
+
+    @staticmethod
+    def getdefaultPosixAccount( uid, gid, uidNumber, gidNumber, cn=None, homeDirectory=None, loginShell=None, description=None  ):
         # https://ldapwiki.com/wiki/PosixAccount
         # The ObjectClass Type is defined as:
         # OID: 1.3.6.1.1.1.2.0
         # NAME: PosixAccount
         # MUST: cn uid uidNumber gidNumber homeDirectory
         if not isinstance(cn, str): cn = uid
+        if not isinstance(gid, str): gid = uid
         if not isinstance(homeDirectory, str): homeDirectory='/home/' + str(uid)
-        defaultposixAccount = { 'cn':cn, 'uid':uid, 'uidNumber':uidNumber, 'gidNumber':gidNumber, 'homeDirectory':homeDirectory }
+        if not isinstance(loginShell, str): loginShell=oc.od.settings.balloon_shell
+        if not isinstance(description, str): description=''
+        if isinstance(description, str): description = description.replace( ':', ' ')
+        defaultposixAccount = { 
+            'cn':cn, 
+            'uid':uid, 
+            'gid':gid, 
+            'uidNumber':uidNumber, 
+            'gidNumber':gidNumber, 
+            'homeDirectory':homeDirectory, 
+            'loginShell':loginShell, 
+            'description':description 
+        }
         return defaultposixAccount
 
 #
@@ -629,12 +654,6 @@ class ODAuthTool(cherrypy.Tool):
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
         # create jwt_user_reduce
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid') }
-
-        # if useraccount is a posix account 
-        # add posix attributs to jwt data 
-        posixaccount = user.getPosixAccount()
-        if isinstance( posixaccount, dict ):
-            jwt_user_reduce.update( { 'posix': posixaccount } )
 
         # create jwt_role_reduce (futur usage) 
         # roles=None as default parameter 
@@ -1772,30 +1791,52 @@ class ODAuthProviderBase(ODRoleProviderBase):
             userinfo (_type_): _description_
             user (_type_): _description_
         """
-        return user
+        posix_uid = user.replace(' ','')
+        return posix_uid
+
+    def getdefault_posix_gid(self, userinfo , user):
+        """getdefault_posix_gid
+            return a default gid if user if not a posix account
+
+        Args:
+            userinfo (_type_): _description_
+            user (_type_): _description_
+        """
+        posix_gid = user.replace(' ','')
+        return posix_gid
         
     def generateLocalAccount(self, userinfo, user, password ):
         
         uid = None
+        gid = None
+        description = None
+        loginShell = None
         uidNumber = self.default_uidNumber_if_not_exist
         gidNumber = self.default_gidNumber_if_not_exist
 
         posixAccount = userinfo.get('posix')
         if isinstance( posixAccount, dict ):
             uid = posixAccount.get('uid')
+            gid = posixAccount.get('gid', uid)
             uidNumber = posixAccount.get('uidNumber')
             gidNumber = posixAccount.get('gidNumber')
+            loginShell = posixAccount.get('loginShell')
+            description = posixAccount.get('description')
 
-        if not isinstance( uid, str ): 
-            uid = self.getdefault_posix_uid( userinfo, user )
-
-        if not isinstance( password, str ):
-            password = self.default_passwd_if_not_exist
+        if not isinstance( loginShell, str ): loginShell = oc.od.settings.balloon_shell
+        if not isinstance( uid, str ): uid = self.getdefault_posix_uid( userinfo, user )
+        if not isinstance( gid, str ): gid = self.getdefault_posix_gid( userinfo, user )
+        if not isinstance( password, str ): password = self.default_passwd_if_not_exist
         
-        hashes = {  'uid'  : uid,
-                    'uidNumber': uidNumber,
-                    'gidNumber': gidNumber,
-                    'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) }
+        hashes = {  
+            'uid'  : uid,
+            'gid'  : gid,
+            'uidNumber': uidNumber,
+            'gidNumber': gidNumber,
+            'loginShell': loginShell,
+            'description': description,
+            'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) 
+        }
         return hashes
     
     def createauthenv(self, userinfo, userid, password):
@@ -1976,7 +2017,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     # from https://ldapwiki.com/wiki/PosixAccount
     # PosixAccount ObjectClass Types 
-    DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory' ]
+    DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory', 'loginShell', 'description' ]
+    DEFAULT_POSIXGROUP_ATTRS   = [ 'cn', 'gidNumber' ]
     
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
@@ -1991,6 +2033,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.type = 'ldap'
 
         # default ldap auth protocol is SIMPLE
+        # always in UPPER case
         self.auth_type  = config.get('auth_type', 'SIMPLE').upper()
 
         # create a service account to bind on ldap
@@ -1998,9 +2041,17 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # add self.password set to None if not defined in config file
         self.loadserviceaccount( config )
         
-        self.users_ou = config.get('users_ou', config.get('ldap_basedn') ) 
+        # users ou query, like ou=users,dc=example,dc=com 
+        # if not set use ldap_basedn
+        self.users_ou  = config.get('users_ou', config.get('ldap_basedn') ) 
+        # groups ou query, ou=groups,dc=example,dc=com
+        # if not set use ldap_basedn
+        self.groups_ou = config.get('goups_ou', config.get('ldap_basedn') ) 
+        # list of servers
         self.servers = config.get('servers', []) 
+        # default ldap timeout
         self.timeout = config.get('ldap_timeout') # timeout in seconds 
+        # ldap connect timeout
         self.connect_timeout = config.get('ldap_connect_timeout') # timeout in seconds for the connect operation
         self.useridattr = config.get('useridattr', 'cn')
         self.usercnattr = config.get('usercnattr', 'cn') 
@@ -2044,23 +2095,48 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         # query users
         self.user_query = self.Query(
-            config.get('ldap_basedn'), 
+            self.users_ou, 
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_ATTRS ))
+         # query groups
+        self.group_query = self.Query(
+            self.groups_ou,
+            config.get('group_scope', self.user_query.scope),
+            config.get('group_filter', "(&(objectClass=Group)(cn=%s))"),
+            config.get('group_attrs'))
 
+        # query posixaccount
+        #
+        # account uid=name1
+        # dn: uid=name1,ou=Users,dc=example,dc=com
+        # cn: Full Name
+        # gidnumber: 1000
+        # objectclass: posixAccount
+        # objectclass: shadowAccount
+        # uid: name1
+        # uidnumber: 1000
+        #
         self.posixaccount_query = self.Query(
-            config.get('ldap_basedn'), 
+            self.users_ou, 
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_POSIXACCOUNT_ATTRS ))
 
-        # query groups
-        self.group_query = self.Query(
-            config.get('group_basedn', self.user_query.basedn),
-            config.get('group_scope', self.user_query.scope),
-            config.get('group_filter', "(&(objectClass=Group)(cn=%s))"),
-            config.get('group_attrs'))
+        # query posixgroup
+        #
+        # dn: cn=example_group,ou=Groups,dc=example,dc=com
+        # cn: example_group
+        # description: Group Description
+        # gidnumber: 10000
+        # memberuid: name1
+        # memberuid: name2
+        # objectclass: posixGroup
+        self.posixgroup_query = self.Query(
+            self.groups_ou,
+            config.get('scope', ldap3.SUBTREE),
+            config.get('filter', '(&(objectClass=posixGroup)(memberUid=%s))'), 
+            config.get('attrs', ODLdapAuthProvider.DEFAULT_POSIXGROUP_ATTRS ))
 
 
     def getdisplaydescription( self ):
@@ -2307,20 +2383,32 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 if not isinstance( userinfo.get('name'), str) :
                     userinfo['name'] = userinfo.get(self.useridattr)
 
-            if self.posixAccountobjectClass in userinfo.get('objectClass', [] ):
-                # this account is a PosixAccount
-                # requery to read attributs uid, uidNumber, gidNumber, homeDirectory
-                self.logger.debug( f"account is a PosixAccount objectClass={userinfo.get('objectClass')}")
-                self.logger.debug( "query for PosixAccount attributs")
-                q = self.posixaccount_query
-                posixuserinfo =  self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
-                if isinstance(posixuserinfo, dict):
-                    userinfo['posix'] = posixuserinfo
+                if self.ldapPublicKeyobjectClass in userinfo.get('objectClass', [] ):
+                    publickeyuserinfo = self.search_one( authinfo.conn, basedn=q.basedn, scope=q.scope, filter=ldap_filter.filter_format(q.filter, [authinfo.token]), attrs=[self.ldapPublicKeyobjectClass], **params)
+                    if isinstance(publickeyuserinfo, dict):
+                        userinfo[self.ldapPublicKeyobjectClass ] = publickeyuserinfo.get( self.ldapPublicKeyobjectClass )
 
-            if self.ldapPublicKeyobjectClass in userinfo.get('objectClass'):
-                publickeyuserinfo = self.search_one( authinfo.conn, basedn=q.basedn, scope=q.scope, filter=ldap_filter.filter_format(q.filter, [authinfo.token]), attrs=[self.ldapPublicKeyobjectClass], **params)
-                if isinstance(publickeyuserinfo, dict):
-                    userinfo[self.ldapPublicKeyobjectClass ] = publickeyuserinfo.get( self.ldapPublicKeyobjectClass )
+                if self.posixAccountobjectClass in userinfo.get('objectClass', [] ):
+                    #
+                    # this account is a PosixAccount
+                    #
+                    # requery to read attributs uid, uidNumber, gidNumber, homeDirectory
+                    self.logger.debug( f"account is a PosixAccount objectClass={userinfo.get('objectClass')}")
+                    self.logger.debug( "query for PosixAccount attributs")
+                    q = self.posixaccount_query
+                    posixuserinfo = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [authinfo.token]), q.attrs, **params)
+                    if isinstance(posixuserinfo, dict):
+                        userinfo['posix'] = posixuserinfo
+                        #
+                        # requery to read attributs group cn
+                        self.logger.debug( "query for posixGroup attributs")
+                        q = self.posixgroup_query
+                        groupfilter = ldap_filter.filter_format(q.filter, [posixuserinfo['uid']] )
+                        self.logger.debug( f"query basedn={q.basedn} for posixGroup attributs {groupfilter} attrs={q.attrs}")
+                        posixgroupinfo =  self.search_one( authinfo.conn, q.basedn, q.scope, groupfilter, q.attrs, **params)
+                        if isinstance(posixgroupinfo, dict):
+                            # set the group name use the group cn
+                            userinfo['posix']['gid'] = posixgroupinfo.get('cn')
 
         return userinfo
 
@@ -3063,6 +3151,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         if not isinstance( uid, str ):
             uid = super().getdefault_posix_uid(userinfo , user)
         return uid
+
 
     def get_kerberos_realm( self ):
         """[return the kerberos realm]
