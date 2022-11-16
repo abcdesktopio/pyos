@@ -4,7 +4,7 @@ import platform
 import sys
 
 import logging
-import datetime
+import chevron
 
 from cherrypy.lib.reprconf import Config
 from urllib.parse import urlparse
@@ -49,6 +49,7 @@ fakedns      = {}
 balloon_homedirectory = '/home/balloon'
 balloon_uid = 4096  # default user id
 balloon_gid = 4096  # default group id
+balloon_groupname = 'balloon'
 balloon_name = 'balloon'
 balloon_shell = '/bin/bash'
 balloon_passwd = 'lmdpocpetit'
@@ -170,6 +171,9 @@ list_hostconfigkey = [
 def getballoon_name():
     return balloon_name
 
+def getballoon_groupname():
+    return balloon_name
+
 def getballoon_shell():
     return balloon_shell
 
@@ -203,12 +207,22 @@ def getFQDN(hostname):
     return fqdn
 
 
+def mkpasswd( moustachedata ):  
+    return chevron.render( DEFAULT_PASSWD_FILE, moustachedata )
+
+def mkgroup ( moustachedata ):  
+    return chevron.render( DEFAULT_GROUP_FILE,  moustachedata )
+
+def mkshadow( moustachedata ):  
+    return chevron.render( DEFAULT_SHADOW_FILE, moustachedata )
+
+
 def init_localaccount():
     global DEFAULT_PASSWD_FILE
     global DEFAULT_GROUP_FILE
     global DEFAULT_SHADOW_FILE
     DEFAULT_PASSWD_FILE = loadfile('passwd')
-    DEFAULT_GROUP_FILE = loadfile('group')
+    DEFAULT_GROUP_FILE  = loadfile('group' )
     DEFAULT_SHADOW_FILE = loadfile('shadow')
 
 
@@ -494,10 +508,12 @@ def init_balloon():
     global balloon_gid
     global balloon_shell
     global balloon_name
+    global balloon_groupname
     global balloon_passwd
     global balloon_homedirectory
 
     balloon_name = gconfig.get('desktop.username', 'balloon')
+    balloon_groupname = gconfig.get('desktop.groupname', 'balloon')
     balloon_uid = gconfig.get('desktop.userid', 4096)
     balloon_gid = gconfig.get('destkop.groupid', 4096)
     balloon_shell = gconfig.get('destkop.shell', '/bin/bash')
