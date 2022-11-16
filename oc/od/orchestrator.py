@@ -948,17 +948,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
         if isinstance( rules, dict ):
-            self.logger.debug( f"selecting nfs volumes")
-
-
-            self.logger.debug( f"selecting volume by rules" )
-            mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo, rules=rules.get('volumes') )
             self.logger.debug( f"selected volume by rules" )
+            mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo, rules=rules.get('volumes') )
             for mountvol in mountvols:
                 fstype = mountvol.fstype
                 volume_name = self.get_volumename( mountvol.name, userinfo )
 
                 if fstype=='nfs':
+                    self.logger.debug( f"selected nfs volumes")
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
                         'mountPath': mountvol.mountPath 
@@ -1452,32 +1449,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return deletedpod
 
     def preparelocalaccount( self, localaccount ):
-        assert isinstance(localaccount, dict),f"invalid localaccount type {type(localaccount)}"
-        # read localaccount dict values
-        uid = localaccount.get('uid' )
-        sha512 = localaccount.get('sha512')
-        uidNumber =  localaccount.get('uidNumber' )
-        gidNumber =  localaccount.get('gidNumber' )
-
-        # crate dedicated line for each file
-        passwd_line = f"{uid}:x:{uidNumber}:{gidNumber}::{oc.od.settings.getballoon_homedirectory()}:{oc.od.settings.getballoon_shell()}"
-        group_line = f"{uid}:x:{gidNumber}\nsudo:x:27:{uid}"
-        shadow_line = f"{uid}:{sha512}:19080:0:99999:7:::"
-
-        # concat user information to file
-        # passwd 
-        # group
-        # shadow
-        passwd_file = oc.od.settings.DEFAULT_PASSWD_FILE + '\n' + passwd_line  + '\n'
-        group_file = oc.od.settings.DEFAULT_GROUP_FILE + '\n' + group_line  + '\n'
-        shadow_file = oc.od.settings.DEFAULT_SHADOW_FILE + '\n' + shadow_line  + '\n'
-        
+        assert isinstance(localaccount, dict),f"invalid localaccount type {type(localaccount)}"    
         mydict_config = { 
-            'passwd' : passwd_file, 
-            'shadow' : shadow_file, 
-            'group': group_file 
+            'passwd' : oc.od.settings.mkpasswd(localaccount), 
+            'shadow' : oc.od.settings.mkgroup(localaccount), 
+            'group'  : oc.od.settings.mkgroup(localaccount) 
         }
-
         return mydict_config
             
     def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
@@ -1516,7 +1493,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secret.create( authinfo, userinfo, data=userinfo )
         self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
-        # look if the current account is a posix local account
+        # create /etc/passwd /etc/shadow /etc/group
         localaccount_data = authinfo.get_localaccount()
         localaccount_files = self.preparelocalaccount( localaccount_data )
         self.logger.debug('localaccount secret.create creating')
@@ -1525,13 +1502,23 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
             mysecretname = self.get_name( userinfo )
             self.logger.error((f"cannot create secret {mysecretname}"))
-        self.logger.debug('localaccount secret.create created')
+        else:
+            self.logger.debug('localaccount secret.create created')
+
+        if userinfo.isPosixAccount():
+            self.logger.debug('posixaccount secret.create creating')
+            secret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
+            createdsecret = secret.create( authinfo, userinfo, data=userinfo.getPosixAccount())
+            if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
+                mysecretname = self.get_name( userinfo )
+                self.logger.error((f"cannot create secret {mysecretname}"))
+            self.logger.debug('posixaccount secret.create created')
 
         # for each auth protocol enabled
         local_secrets = authinfo.get_secrets()
         if isinstance( local_secrets, dict ) :
-            self.logger.debug('secret.create creating')
             for auth_env_built_key in local_secrets.keys():   
+                self.logger.debug(f"secret.create {auth_env_built_key} creating")
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
                 # build a kubernetes secret with the auth values 
                 # values can be empty to be updated later
@@ -1539,7 +1526,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
                     mysecretname = self.get_name( userinfo )
                     self.logger.error((f"cannot create secret {mysecretname}"))
-            self.logger.debug('secret.create created')
+                else:
+                    self.logger.debug(f"secret.create {auth_env_built_key} created")
     
         # Create flexvolume secrets
         self.logger.debug('flexvolume secrets creating')
@@ -2038,18 +2026,23 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             dict: posic account dict 
         """
-        if userinfo.isPosixAccount():
-            self.logger.debug("user is a posix account")
-            posixuser = userinfo.getPosixAccount()
+        if not userinfo.isPosixAccount():
+            self.logger.debug('build a posixaccount secret trying')
+            posixsecret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
+            self.logger.debug('read the posixaccount secret trying')
+            posixaccount = posixsecret.read_alldata( userinfo=userinfo )
+            if not isinstance( posixaccount, dict):
+                self.logger.debug('posixaccount does not exist use settings default')
+                posixaccount = AuthUser.getConfigdefaultPosixAccount()
+                userinfo['posix'] = posixaccount
+            else:
+                self.logger.debug('posixaccount exist use secret data, store dict data for futur usage')
+                userinfo['posix'] = posixaccount
         else:
-            self.logger.debug("user is not a posix account, use configuration default values")
-            posixuser = AuthUser.getdefaultPosixAccount( 
-                uid=oc.od.settings.getballoon_name(),
-                uidNumber=oc.od.settings.getballoon_uid(),
-                gidNumber=oc.od.settings.getballoon_gid(),
-                homeDirectory=oc.od.settings.getballoon_homedirectory() 
-            )
-        return posixuser
+            self.logger.debug('posixaccount already decoded use userinfo dict')
+            posixaccount = userinfo.getPosixAccount()
+
+        return posixaccount
 
     def updateCommandWithUserInfo( self, currentcontainertype:str, userinfo:AuthUser ) -> list:
         """updateCommandWithUserInfo
@@ -2320,7 +2313,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # apply network rules 
         self.logger.debug('rules creating')   
         rules = oc.od.settings.desktop['policies'].get('rules')
-        self.logger.debug('rules is defined %s', str(rules))
+        self.logger.debug(f"policies.rules is defined {rules}")
         network_config = ODOrchestrator.applyappinstancerules_network( authinfo, rules )
         fillednetworkconfig = self.filldictcontextvalue(authinfo=authinfo, 
                                                         userinfo=userinfo, 
@@ -3432,7 +3425,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return text_state
 
 
-    def stop(self, pod_name:str, container_name:str):
+    def stop(self, pod_name:str, container_name:str)->bool:
         self.logger.debug('')
         assert isinstance(pod_name,  str),  f"pod_name has invalid type  {type(pod_name)}"
         assert isinstance(container_name,  str),  f"container_name has invalid type  {type(container_name)}"
@@ -3457,7 +3450,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return stop_result
 
 
-    def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None ):
+    def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None )->list:
         self.logger.debug('')
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
@@ -3513,7 +3506,10 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         _app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( str(app['name']) + '_' + str(uuid.uuid4().hex) )
         app_container_name =  oc.auth.namedlib.normalize_name_dnsname( _app_container_name )
 
-        rules = app.get('rules' )
+        apprules = app.get('rules') 
+        desktoprules = oc.od.settings.desktop['policies'].get('rules', {})
+        rules = copy.deepcopy( desktoprules )
+        rules.update( apprules )
 
         self.logger.debug( f"reading pod desktop desktop={myDesktop.id} app_container_name={app_container_name}")
         envlist = self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
@@ -3824,7 +3820,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
     def create(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
         self.logger.debug('')
-        rules = app.get('rules' )
+
+        rules = app.get('rules')
+
         network_config = self.orchestrator.applyappinstancerules_network( authinfo, rules )
 
         (volumebind, volumeMounts) = self.orchestrator.build_volumes(   authinfo,
