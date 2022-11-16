@@ -50,7 +50,8 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
                         'ldif':             ODSecretLDIF,
                         'vnc':              ODSecretVNC,
                         'citrix':           ODSecretCitrix,
-                        'localaccount':     ODSecretLocalAccount }
+                        'localaccount':     ODSecretLocalAccount,
+                        'posixaccount':     ODSecretPosixAccount  }
                         
     # get the class from the secret_type
     secret_cls = secret_cls_dict.get( secret_type )
@@ -79,6 +80,7 @@ class ODSecret():
         self.secret_type = namespace + '/' + secret_type
         self.normalize_name_secret_type = secret_type.replace( '/', '-')
         self.immutable = False
+        self.typeConverterValues = {}
         if type(prefix) is str:
             self.prefix = '-' + prefix
         else:
@@ -139,7 +141,7 @@ class ODSecret():
         return b
 
     @staticmethod
-    def read_data( secret, key):
+    def read_data( secret:client.models.v1_secret.V1Secret, key:str)->str:
         data = None
         if isinstance( secret, client.models.v1_secret.V1Secret ):
             try:
@@ -149,6 +151,22 @@ class ODSecret():
                 logger.error( f"failed to read secret key {key} {e}")
         return data 
 
+
+    def read_alldata(self, userinfo)->dict:
+        readdata = None
+        secret = self.read( userinfo )
+        if isinstance( secret, client.models.v1_secret.V1Secret ):
+            readdata = {}
+            for key in secret.data.keys():
+                try:
+                    b64data = secret.data.get(key)
+                    readdata[key] = oc.od.secret.ODSecret.b64todata( b64data )
+                    if self.typeConverterValues.get(key):
+                        readdata[key] = self.typeConverterValues.get(key)( readdata[key] )
+                except Exception as e:
+                    logger.error( f"failed to read secret key {key} {e}")
+        return readdata 
+        
     def _create_dict(self, authinfo, userinfo,  arguments):       
        
         # Default secret dict
@@ -159,6 +177,8 @@ class ODSecret():
             argument_type = type(arguments[key])
             if argument_type is str:
                 mydict_secret.update( { key:  ODSecret.strtob64(arguments[key]) } )
+            if argument_type is int:
+                mydict_secret.update( { key:  ODSecret.strtob64(str(arguments[key])) } )
             if argument_type is bytes:
                 mydict_secret.update( { key:  ODSecret.bytestob64(arguments[key]) } )
         return mydict_secret
@@ -255,6 +275,12 @@ class ODSecretLocalAccount( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='localaccount' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='localaccount'
+class ODSecretPosixAccount( ODSecret ):
+    ''' Create a secret used for userinfo ldif '''
+    def __init__( self, namespace, kubeapi, prefix=None, secret_type='posixaccount' ):
+        super().__init__( namespace, kubeapi, prefix, secret_type)
+        self.access_type='posixaccount'
+        self.typeConverterValues = { 'uidNumber':int, 'gidNumber':int }
 
 class ODSecretVNC( ODSecret ):
     ''' Create a secret used for vnc password '''
