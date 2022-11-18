@@ -1038,7 +1038,6 @@ class ODOrchestrator(ODOrchestratorBase):
          # dump host config berfore create   
         self.logger.info('application hostconfig=%s', host_config )
 
-
         appinfo = infra.createcontainer(
             image = app['id'],
             name  =  containername,
@@ -1473,7 +1472,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '64Mi' } }
             self.default_volumes_mount['log'] = { 'name': 'log',  'mountPath': '/var/log/desktop' }
 
-            # self.default_volumes['local']       = { 'name': 'local',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
+            # self.default_volumes['local']       = { 'name': 'local',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16M' } }
             # self.default_volumes_mount['local'] = { 'name': 'local',  'mountPath': '/home/balloon/.local' }
 
             # sizeLimit for a socket set to mimimul value 1Ki
@@ -1485,7 +1484,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.default_volumes_mount['pulseaudiosocket']  = { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' }
             self.default_volumes['cupsdsocket']         = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1Ki' } }
             self.default_volumes_mount['cupsdsocket']   = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
-
 
         except Exception as e:
             self.bConfigure = False
@@ -1696,10 +1694,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
            
             volumes['x11unix']   = self.default_volumes['x11unix']
             volumes_mount['x11unix'] = self.default_volumes_mount['x11unix']
+
             # set run volume
             # run volume is used to write run files
             volumes['run']       = self.default_volumes['run']
             volumes_mount['run'] = self.default_volumes_mount['run']
+
+            # set .local volume
+            # .local volume is used to write log files
+            # volumes['local']       = self.default_volumes['local']
+            # volumes_mount['local'] = self.default_volumes_mount['local']
+
             # set log volume
             # log volume is used to write log files
             volumes['log']       = self.default_volumes['log']
@@ -2000,14 +2005,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             try:            
                 v1status = self.kubeapi.delete_namespaced_config_map( name=configmap_name, namespace=self.namespace )
                 if not isinstance(v1status,client.models.v1_status.V1Status) :
-                    raise ValueError( 'Invalid V1Status type return by delete_namespaced_config_map')
-                self.logger.debug('configmap %s status %s', configmap_name, v1status.status) 
+                    raise ValueError( f"configmap name {configmap_name} invalid V1Status type {type(v1status)} return")
+                self.logger.debug(f"configmap {configmap_name} status {v1status.status}") 
                 if v1status.status != 'Success':
-                    self.logger.error('configmap name %s can not be deleted %s', configmap_name, str(v1status) ) 
+                    self.logger.error(f"configmap name {configmap_name} can not be deleted v1status.status={v1status.status}") 
                     bReturn = bReturn and False
-                    
             except ApiException as e:
-                self.logger.error('configmap name %s can not be deleted: error %s', configmap_name, e ) 
+                self.logger.error(f"configmap name {configmap_name} can not be deleted: error {e}") 
                 bReturn = bReturn and False
         return bReturn 
 
@@ -2214,9 +2218,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None
         myPod =  self.findPodByUser(authinfo, userinfo)
 
-        if myPod is None :            
-            self.logger.info( 'Pod name not found for user %s ',  userinfo.userid )
-        else:
+        if isinstance(myPod, client.models.v1_pod.V1Pod ):
             new_metadata = myPod.metadata
             new_lastlogin_datetime = self.get_annotations_lastlogin_datetime()
             # update the metadata ['lastlogin_datetime'] in pod
@@ -2224,7 +2226,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             v1newPod = self.kubeapi.patch_namespaced_pod(   name=myPod.metadata.name, 
                                                             namespace=self.namespace, 
                                                             body=new_metadata )
-            myDesktop = self.pod2desktop( pod=v1newPod, userinfo=userinfo )
+            if isinstance(v1newPod, client.models.v1_pod.V1Pod ):
+                myDesktop = self.pod2desktop( pod=v1newPod, userinfo=userinfo )
+            else:
+                self.logger.error( 'Patch annontation lastlogin_datetime failed' )
         return myDesktop
 
     def getsecretuserinfo(self, authinfo, userinfo):
@@ -2670,26 +2675,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'containers': [ { 
                                     'imagePullPolicy': 'IfNotPresent',
+                                    'imagePullSecrets': oc.od.settings.desktop_pod.get('pod_application',{}).get('imagePullSecrets'),
                                     'image': app['id'],
                                     'name': app_pod_name,
                                     'command': command,
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
-                                    'securityContext': { 
-                                             # permit sudo command inside the container False by default 
-                                            'allowPrivilegeEscalation': oc.od.settings.desktop.get('allowPrivilegeEscalation'),
-                                            # to permit strace call 'capabilities':  { 'add': ["SYS_ADMIN", "SYS_PTRACE"]  
-                                            'capabilities': { 'add':  oc.od.settings.desktophostconfig.get('cap_add'),
-                                                              'drop': oc.od.settings.desktophostconfig.get('cap_drop') }
-                                    },
-                                    'resources': oc.od.settings.desktopkubernetesresourcelimits
+                                    'securityContext': oc.od.settings.desktop_pod.get('pod_application',{}).get('securityContext'),
+                                    'resources': oc.od.settings.desktop_pod.get('pod_application',{}).get('resources')
                                 }                                                             
                 ],
             }
         }
-
-        if oc.od.settings.desktop['imagepullsecret']:
-            pod_manifest['spec']['imagePullSecrets'] = [ { 'name': oc.od.settings.desktop['imagepullsecret'] } ]
 
         self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
         pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
@@ -2991,6 +2988,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                        'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                         'image':            image,       
                                         'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
                                         'volumeMounts':     list_volumeMounts,
@@ -3050,6 +3048,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
                 'containers': [ {   'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'command': command,
@@ -3081,6 +3080,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                         'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                        'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                         'image': image,                                    
                         'env': envlist,
                         'volumeMounts': [ self.default_volumes_mount['tmp'] ],
@@ -3098,6 +3098,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,                                    
                                     'env': envlist,
                                     'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),
@@ -3127,6 +3128,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,                                  
                                     'env': envlist,
                                     'volumeMounts': list_volumeMounts,
@@ -3143,6 +3145,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,                                 
                                     'env': envlist,
                                     'volumeMounts':  list_pod_allvolumeMounts,
@@ -3159,6 +3162,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                                     'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image, 
                                     'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),                                
                                     'env': envlist,
@@ -3664,6 +3668,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         myDesktop = self.pod2desktop( pod=pod )
         if not isinstance(myDesktop, ODDesktop):
+            self.logger.error( "myDesktop is not a ODDesktop" )
             return False
 
         if force is False:
@@ -3677,19 +3682,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # if a user is connected do not garbage this pod
                 # user is connected, return False
                 return bReturn 
-            #
-            # now nCount == 0 continue 
-            # the garbage process
-            # to test if we can delete this pod
+        #
+        # now nCount == 0 continue 
+        # the garbage process
+        # to test if we can delete this pod
+        self.logger.debug( f"user_connect_count return {nCount}" )
 
         # read the lastlogin datetime from metadata annotations
         lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
-        if isinstance( lastlogin_datetime, str):
+        if isinstance( lastlogin_datetime, datetime.datetime):
             # get the current time
-            now_datetime = datetime.datetime.now()
+            now_datetime   = datetime.datetime.now()
             delta_datetime = now_datetime - lastlogin_datetime
-            delta_second = delta_datetime.total_seconds()
+            delta_second   = delta_datetime.total_seconds()
             # if delta_second is more than expirein in second
+            self.logger.debug( f"compare {delta_second} > {expirein}" )
             if ( delta_second > expirein  ):
                 # this pod is gabagable
                 bReturn = True
