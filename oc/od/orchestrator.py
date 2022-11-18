@@ -1451,9 +1451,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     def preparelocalaccount( self, localaccount ):
         assert isinstance(localaccount, dict),f"invalid localaccount type {type(localaccount)}"    
         mydict_config = { 
-            'passwd' : oc.od.settings.mkpasswd(localaccount), 
-            'shadow' : oc.od.settings.mkgroup(localaccount), 
-            'group'  : oc.od.settings.mkgroup(localaccount) 
+            'passwd' : AuthUser.mkpasswd(localaccount), 
+            'shadow' : AuthUser.mkshadow(localaccount), 
+            'group'  : AuthUser.mkgroup(localaccount) 
         }
         return mydict_config
             
@@ -3119,7 +3119,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # read the lastlogin datetime from metadata annotations
         lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
-        if isinstance( lastlogin_datetime, str):
+        if isinstance( lastlogin_datetime, datetime.datetime):
             # get the current time
             now_datetime = datetime.datetime.now()
             delta_datetime = now_datetime - lastlogin_datetime
