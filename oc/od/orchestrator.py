@@ -2219,13 +2219,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myPod =  self.findPodByUser(authinfo, userinfo)
 
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-            new_metadata = myPod.metadata
+            # update the metadata.annotations ['lastlogin_datetime'] in pod
+            annotations = myPod.metadata.annotations
             new_lastlogin_datetime = self.get_annotations_lastlogin_datetime()
-            # update the metadata ['lastlogin_datetime'] in pod
-            new_metadata.annotations['lastlogin_datetime'] = new_lastlogin_datetime['lastlogin_datetime']
-            v1newPod = self.kubeapi.patch_namespaced_pod(   name=myPod.metadata.name, 
-                                                            namespace=self.namespace, 
-                                                            body=new_metadata )
+            annotations['lastlogin_datetime'] = new_lastlogin_datetime['lastlogin_datetime']
+            newmetadata=client.V1ObjectMeta(annotations=annotations)
+            body = client.V1Pod(metadata=newmetadata)
+            v1newPod = self.kubeapi.patch_namespaced_pod(   
+                name=myPod.metadata.name, 
+                namespace=self.namespace, 
+                body=body )
             if isinstance(v1newPod, client.models.v1_pod.V1Pod ):
                 myDesktop = self.pod2desktop( pod=v1newPod, userinfo=userinfo )
             else:
