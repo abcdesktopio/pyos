@@ -1464,9 +1464,9 @@ class ODAuthTool(cherrypy.Tool):
             self.raise_unauthorized()       
 
     def logout(self):
-        """[logout]
+        """_summary_
         """
-        pass
+        self.logger.info('') # add log logout
         
 
     def raise_unauthorized(self, message='Unauthorized'):
