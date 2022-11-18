@@ -2233,7 +2233,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 myDesktop = self.pod2desktop( pod=v1newPod, userinfo=userinfo )
             else:
                 self.logger.error( 'Patch annontation lastlogin_datetime failed' )
-                # read the desktop if patch failed
+                # reread the non updated desktop if patch failed
                 myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
         return myDesktop
 
