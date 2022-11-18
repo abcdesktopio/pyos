@@ -3678,6 +3678,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if force is False:
             nCount = self.user_connect_count( myDesktop )
+            #
+            # now nCount == 0 continue 
+            # the garbage process
+            # to test if we can delete this pod
+            self.logger.debug( f"user_connect_count return {nCount}" )
             if nCount < 0: 
                 # if something wrong nCount is equal to -1 
                 # do not garbage this pod
@@ -3687,12 +3692,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # if a user is connected do not garbage this pod
                 # user is connected, return False
                 return bReturn 
-        #
-        # now nCount == 0 continue 
-        # the garbage process
-        # to test if we can delete this pod
-        self.logger.debug( f"user_connect_count return {nCount}" )
-
+                
         # read the lastlogin datetime from metadata annotations
         lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
         if isinstance( lastlogin_datetime, datetime.datetime):
