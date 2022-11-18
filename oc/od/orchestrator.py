@@ -3771,28 +3771,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         garbaged = [] # list of garbaged pod
         list_label_selector = [ 'type=' + self.x11servertype ]
         for label_selector in list_label_selector:
+            self.logger.info('looking for pods')
             myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
             if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
                 for myPod in myPodList.items:
                     try: 
+                        self.logger.info(f"checking pod {myPod.metadata.name} status {myPod.status.phase}")
                         # check the pod status
                         if myPod.status.phase == 'Failed':
                             self.logger.warning(f"pod {myPod.metadata.name} is in phase {myPod.status.phase} reason {myPod.status.reason}" )        
                             self.logger.warning(f"removing pod {myPod.metadata.name}")
                             # fake an authinfo object
                             (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
-                            self.logger.debug( f"Failed {myPod.metadata.name} is removing" )
+                            self.logger.info( f"{myPod.metadata.name} is removing" )
                             self.removedesktop( authinfo, userinfo, myPod )
-                            self.logger.debug( f"Failed {myPod.metadata.name} is removed" )
+                            self.logger.info( f"{myPod.metadata.name} is removed" )
                         else:
+                            self.logger.info(f"checking if pod {myPod.metadata.name} isgarbagable")
                             myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
                             self.logger.debug(  f"pod {myPod.metadata.name} is garbageable {myPodisgarbagable}" )
                             if myPodisgarbagable is True:
-                                self.logger.debug( f"{myPod.metadata.name} is removing" )
+                                self.logger.info( f"{myPod.metadata.name} is removing" )
                                 # fake an authinfo object
                                 (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
                                 self.removedesktop( authinfo, userinfo, myPod )
-                                self.logger.debug( f"{myPod.metadata.name} is removed" )
+                                self.logger.info( f"{myPod.metadata.name} is removed" )
 
                         # add the name of the pod to the list of garbaged pod
                         garbaged.append( myPod.metadata.name )
