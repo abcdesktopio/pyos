@@ -3671,6 +3671,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(pod,      client.models.v1_pod.V1Pod),    f"pod has invalid type {type(pod)}"
         assert isinstance(expirein, int),                           f"expirein has invalid type {type(expirein)}"
 
+        if pod.status.phase == 'Failed':
+            # this pod is failed, we can garbage it
+            self.logger.warning(f"pod {pod.metadata.name} is in phase {pod.status.phase} reason {pod.status.reason}" )
+            return True
+
         myDesktop = self.pod2desktop( pod=pod )
         if not isinstance(myDesktop, ODDesktop):
             self.logger.error( "myDesktop is not a ODDesktop" )
@@ -3774,31 +3779,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.info('looking for pods')
             myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
             if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
-                for myPod in myPodList.items:
+                for pod in myPodList.items:
                     try: 
-                        self.logger.info(f"checking pod {myPod.metadata.name} status {myPod.status.phase}")
-                        # check the pod status
-                        if myPod.status.phase == 'Failed':
-                            self.logger.warning(f"pod {myPod.metadata.name} is in phase {myPod.status.phase} reason {myPod.status.reason}" )        
-                            self.logger.warning(f"removing pod {myPod.metadata.name}")
+                        if self.isgarbagable( pod, expirein, force ) is True:
+                            # pod is garbageable, remove it
+                            self.logger.info( f"{pod.metadata.name} is garbageable, remove it" )
                             # fake an authinfo object
-                            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
-                            self.logger.info( f"{myPod.metadata.name} is removing" )
-                            self.removedesktop( authinfo, userinfo, myPod )
-                            self.logger.info( f"{myPod.metadata.name} is removed" )
+                            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(pod)
+                            # remove desktop
+                            self.removedesktop( authinfo, userinfo, pod )
+                            # log remove desktop
+                            self.logger.info( f"{pod.metadata.name} is removed" )
+                            # add the name of the pod to the list of garbaged pod
+                            garbaged.append( pod.metadata.name )
                         else:
-                            self.logger.info(f"checking if pod {myPod.metadata.name} isgarbagable")
-                            myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
-                            self.logger.debug(  f"pod {myPod.metadata.name} is garbageable {myPodisgarbagable}" )
-                            if myPodisgarbagable is True:
-                                self.logger.info( f"{myPod.metadata.name} is removing" )
-                                # fake an authinfo object
-                                (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
-                                self.removedesktop( authinfo, userinfo, myPod )
-                                self.logger.info( f"{myPod.metadata.name} is removed" )
-
-                        # add the name of the pod to the list of garbaged pod
-                        garbaged.append( myPod.metadata.name )
+                            self.logger.info( f"{pod.metadata.name} isgarbagable return False, keep it running" )
 
                     except ApiException as e:
                         self.logger.error(e)
