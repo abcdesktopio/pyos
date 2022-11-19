@@ -1589,17 +1589,23 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None
         myPod =  self.findPodByUser(authinfo, userinfo)
 
-        if myPod is None :            
-            self.logger.info( 'Pod name not found for user %s ',  userinfo.userid )
-        else:
-            new_metadata = myPod.metadata
+        if isinstance(myPod, client.models.v1_pod.V1Pod ):
+            # update the metadata.annotations ['lastlogin_datetime'] in pod
+            annotations = myPod.metadata.annotations
             new_lastlogin_datetime = self.get_annotations_lastlogin_datetime()
-            # update the metadata ['lastlogin_datetime'] in pod
-            new_metadata.annotations['lastlogin_datetime'] = new_lastlogin_datetime['lastlogin_datetime']
-            v1newPod = self.kubeapi.patch_namespaced_pod(   name=myPod.metadata.name, 
-                                                            namespace=self.namespace, 
-                                                            body=new_metadata )
-            myDesktop = self.pod2desktop( pod=v1newPod, userinfo=userinfo )
+            annotations['lastlogin_datetime'] = new_lastlogin_datetime['lastlogin_datetime']
+            newmetadata=client.V1ObjectMeta(annotations=annotations)
+            body = client.V1Pod(metadata=newmetadata)
+            v1newPod = self.kubeapi.patch_namespaced_pod(   
+                name=myPod.metadata.name, 
+                namespace=self.namespace, 
+                body=body )
+            if isinstance(v1newPod, client.models.v1_pod.V1Pod ):
+                myDesktop = self.pod2desktop( pod=v1newPod, userinfo=userinfo )
+            else:
+                self.logger.error( 'Patch annontation lastlogin_datetime failed' )
+                # reread the non updated desktop if patch failed
+                myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
         return myDesktop
 
     def getsecretuserinfo(self, authinfo, userinfo):
@@ -3097,6 +3103,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(pod,      client.models.v1_pod.V1Pod),    f"pod has invalid type {type(pod)}"
         assert isinstance(expirein, int),                           f"expirein has invalid type {type(expirein)}"
 
+        if pod.status.phase == 'Failed':
+            self.logger.warning(f"pod {pod.metadata.name} is in phase {pod.status.phase} reason {pod.status.reason}" )
+            return True
+
         myDesktop = self.pod2desktop( pod=pod )
         if not isinstance(myDesktop, ODDesktop):
             return False
@@ -3196,29 +3206,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         for label_selector in list_label_selector:
             myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
             if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
-                for myPod in myPodList.items:
+                for pod in myPodList.items:
                     try: 
-                        # check the pod status
-                        if myPod.status.phase == 'Failed':
-                            self.logger.warning(f"pod {myPod.metadata.name} is in phase {myPod.status.phase} reason {myPod.status.reason}" )        
-                            self.logger.warning(f"removing pod {myPod.metadata.name}")
+                        if self.isgarbagable( pod, expirein, force ) is True:
+                            # pod is garbageable, remove it
+                            self.logger.info( f"{pod.metadata.name} is garbageable, remove it" )
                             # fake an authinfo object
-                            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
-                            self.logger.debug( f"{myPod.metadata.name} is removing" )
-                            self.removedesktop( authinfo, userinfo, myPod )
-                            self.logger.debug( f"{myPod.metadata.name} is removed" )
+                            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(pod)
+                            # remove desktop
+                            self.removedesktop( authinfo, userinfo, pod )
+                            # log remove desktop
+                            self.logger.info( f"{pod.metadata.name} is removed" )
+                            # add the name of the pod to the list of garbaged pod
+                            garbaged.append( pod.metadata.name )
                         else:
-                            myPodisgarbagable = self.isgarbagable( myPod, expirein, force ) 
-                            self.logger.debug(  f"pod {myPod.metadata.name} is garbageable {myPodisgarbagable}" )
-                            if myPodisgarbagable is True:
-                                self.logger.debug( f"{myPod.metadata.name} is removing" )
-                                # fake an authinfo object
-                                (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
-                                self.removedesktop( authinfo, userinfo, myPod )
-                                self.logger.debug( f"{myPod.metadata.name} is removed" )
-                        
-                        # add the name of the pod to the list of garbaged pod
-                        garbaged.append( myPod.metadata.name )
+                            self.logger.info( f"{pod.metadata.name} isgarbagable return False, keep it running" )
 
                     except ApiException as e:
                         self.logger.error(e)
