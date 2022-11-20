@@ -613,9 +613,16 @@ class ODApps:
             bDeleted = self.remove_app_to_collection(app)
         return bDeleted
 
+    def del_all_images(self):
+        images = []
+        for app in self.myglobal_list.keys():
+            bDeleted = self.remove_app_to_collection(self.myglobal_list[app])
+            if bDeleted is True:
+                images.append( app.get('id') )
+        return images
 
-    def findappbyname(self, authinfo, keyname):
-        """find application by kyname
+    def findappbyname(self, authinfo, keyname:str):
+        """find application by keyname
 
         Args:
             authinfo ([type]): [description]
