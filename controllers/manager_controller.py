@@ -112,6 +112,30 @@ class ManagerController(BaseController):
         elif cherrypy.request.method == 'DELETE':
             return self.handle_desktop_DELETE( args )
 
+
+    @cherrypy.expose
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out()
+    def images( self ):
+        self.is_permit_request()
+        if   cherrypy.request.method == 'GET':
+            return self.handle_images_GET( )
+        elif cherrypy.request.method == 'DELETE':
+            return self.handle_images_DELETE()
+        else:
+            raise cherrypy.HTTPError(status=400)        
+
+    def handle_images_DELETE( self ):
+        self.logger.debug('')
+        oc.od.composer.del_application_all_images()
+        cherrypy.response.status = 200
+        return "OK"
+
+    def handle_images_GET( self ):
+        self.logger.debug('')
+        # this is a list request
+        return oc.od.services.services.apps.get_json_applist()
+
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
@@ -127,6 +151,9 @@ class ManagerController(BaseController):
             return self.handle_image_DELETE( image )
         elif cherrypy.request.method == 'PATCH':
             return self.handle_image_PATCH( image, cherrypy.request.json )
+
+
+    
 
     def handle_image_GET( self, image ):
         self.logger.debug('')
@@ -165,10 +192,17 @@ class ManagerController(BaseController):
 
     def handle_image_DELETE( self, image ):
         self.logger.debug('')
+
+
         # image can be an sha_id or an repotag
         # it is always a str type
         if not isinstance( image, str):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+
+        if image == '*':
+            oc.od.composer.del_application_all_images()
+            cherrypy.response.status = 200
+            return "OK"
 
         app = oc.od.services.services.apps.find_app_by_id( image_id=image)
         if isinstance( app, dict):
@@ -177,6 +211,7 @@ class ManagerController(BaseController):
         else: 
             cherrypy.response.status = 404
             return "Not found"
+        
 
     def handle_image_PATCH( self, image=None, json_images=None ):
         self.logger.debug('')
