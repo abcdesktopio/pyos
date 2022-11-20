@@ -174,7 +174,7 @@ def getballoon_name():
 def getballoon_groupname():
     return balloon_name
 
-def getballoon_shell():
+def getballoon_loginShell():
     return balloon_shell
 
 def getballoon_uid():
@@ -205,16 +205,6 @@ def getFQDN(hostname):
         if '.' not in hostname and defaultdomainname is not None :
            fqdn = hostname + '.' + defaultdomainname
     return fqdn
-
-
-def mkpasswd( moustachedata ):  
-    return chevron.render( DEFAULT_PASSWD_FILE, moustachedata )
-
-def mkgroup ( moustachedata ):  
-    return chevron.render( DEFAULT_GROUP_FILE,  moustachedata )
-
-def mkshadow( moustachedata ):  
-    return chevron.render( DEFAULT_SHADOW_FILE, moustachedata )
 
 
 def init_localaccount():
