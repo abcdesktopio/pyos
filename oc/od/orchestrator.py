@@ -175,7 +175,7 @@ class ODOrchestratorBase(object):
     def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs):
         raise NotImplementedError('%s.build_volumes' % type(self))
 
-    def findDesktopByUser( self, authinfo, userinfo, **kwargs ):
+    def findDesktopByUser( self, authinfo, userinfo ):
         raise NotImplementedError('%s.findDesktopByUser' % type(self))
 
     def removedesktop(self, authinfo, userinfo, args={}):
@@ -1101,8 +1101,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def build_volumes_vnc( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
-        
         self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
          # Add VNC password
@@ -1120,7 +1121,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (volumes, volumes_mount)
 
     def build_volumes_localaccount( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
-
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
         #
@@ -1318,21 +1321,35 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return deletedPod
 
-    def removesecrets( self, authinfo, userinfo ):
+    def removesecrets( self, authinfo:AuthInfo, userinfo:AuthUser )->bool:
+        """removesecrets
+            remove all kubernetes secrets for a give user
+
+        Args:
+            authinfo (AuthInfo): authinfo
+            userinfo (AuthUser): authuser
+
+        Returns:
+            bool: True if all users's secrets are deleted else False
+        """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         ''' remove all kubernetes secrets for a give user '''
-        ''' access_type is None will list all user secret '''
+        ''' access_type is None will list all secret type '''
         bReturn = True
+        # access_type is None will list all secret type
         dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type=None)
         for secret_name in dict_secret.keys():
             try:            
                 v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
                 if not isinstance(v1status,client.models.v1_status.V1Status) :
-                    raise ValueError( 'Invalid V1Status type return by delete_namespaced_secret')
-                self.logger.debug('secret %s status %s', secret_name, v1status.status) 
+                    self.logger.error( 'invalid V1Status type return by delete_namespaced_secret')
+                    continue
+                self.logger.debug(f"secret={secret_name} status={v1status.status}") 
                 if v1status.status != 'Success':
                     self.logger.error(f"secret {secret_name} can not be deleted {v1status}" ) 
                     bReturn = bReturn and False
-                
             except ApiException as e:
                 self.logger.error(f"secret {secret_name} can not be deleted {e}") 
                 bReturn = bReturn and False
@@ -1341,27 +1358,42 @@ class ODOrchestratorKubernetes(ODOrchestrator):
    
 
 
-    def removeconfigmap( self, authinfo, userinfo ):
-        ''' remove all kubernetes secrets for a give user '''
-        ''' access_type is None will list all user secret '''
+    def removeconfigmap( self, authinfo:AuthInfo, userinfo:AuthUser )->bool:
+        """removeconfigmap
+            remove all kubernetes configmap for a give user
+
+        Args:
+            authinfo (AuthInfo): authinfo
+            userinfo (AuthUser): authuser
+
+        Returns:
+            bool: True if all users's configmaps are deleted else False
+        """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         bReturn = True
         dict_configmap = self.list_dict_configmap_data( authinfo, userinfo, access_type=None)
         for configmap_name in dict_configmap.keys():
             try:            
                 v1status = self.kubeapi.delete_namespaced_config_map( name=configmap_name, namespace=self.namespace )
                 if not isinstance(v1status,client.models.v1_status.V1Status) :
-                    raise ValueError( 'Invalid V1Status type return by delete_namespaced_config_map')
-                self.logger.debug('configmap %s status %s', configmap_name, v1status.status) 
+                    self.logger.error( 'Invalid V1Status type return by delete_namespaced_config_map')
+                    continue
+                self.logger.debug(f"configmap {configmap_name} status {v1status.status}") 
                 if v1status.status != 'Success':
-                    self.logger.error('configmap name %s can not be deleted %s', configmap_name, str(v1status) ) 
+                    self.logger.error(f"configmap name {configmap_name} can not be deleted {str(v1status)}") 
                     bReturn = bReturn and False
                     
             except ApiException as e:
-                self.logger.error('configmap name %s can not be deleted: error %s', configmap_name, e ) 
+                self.logger.error(f"configmap name {configmap_name} can not be deleted: error {e}") 
                 bReturn = bReturn and False
         return bReturn 
 
-    def removepodindesktop(self, authinfo, userinfo, myPod=None ):
+    def removepodindesktop(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:client.models.v1_pod.V1Pod=None )->bool:
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         # get the user's pod
         if not isinstance(myPod, client.models.v1_pod.V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
@@ -1370,16 +1402,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # delete this pod immediatly
             v1status = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
             if isinstance(v1status,client.models.v1_pod.V1Pod) :
-                # todo
-                # add test
                 return True
         return False
 
-    def removePodSync(self, authinfo, userinfo, myPod=None ):
+    def removePodSync(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:client.models.v1_pod.V1Pod=None )->bool:
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         # get the user's pod
         if not isinstance(myPod, client.models.v1_pod.V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
-
         nTry = 0
         nMaxTry = 42
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
@@ -1403,19 +1435,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     nTry = nTry + 1
         return False
             
-    def removedesktop(self, authinfo, userinfo, myPod=None ):
-        """_summary_
-
+    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:client.models.v1_pod.V1Pod=None)->bool:
+        """removedesktop
+            remove kubernetes pod for a give user
+            then remove kubernetes user's secrets and configmap
         Args:
-            authinfo (AuthInfo): authentification data
-            userinfo (AuthUser): user data 
-            myPod (_type_, optional): _description_. Defaults to None.
+            authinfo (AuthInfo): _description_
+            userinfo (AuthUser): _description_
+            myPod (client.models.v1_pod.V1Pod, optional): _description_. Defaults to None.
 
         Returns:
-            _type_: _description_
+            bool: _description_
         """
-        ''' remove kubernetes pod for a give user '''
-        ''' then remove kubernetes user's secrets '''
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         deletedpod = False # default value 
         self.logger.debug('')
 
@@ -1448,7 +1482,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
         return deletedpod
 
-    def preparelocalaccount( self, localaccount ):
+    def preparelocalaccount( self, localaccount:dict )->dict:
         assert isinstance(localaccount, dict),f"invalid localaccount type {type(localaccount)}"    
         mydict_config = { 
             'passwd' : AuthUser.mkpasswd(localaccount), 
@@ -1466,6 +1500,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         """
         self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         # create a kerberos kubernets secret 
         #  
         # translate the userid as sAMAccountName in the authinfo.claims dict
@@ -1549,22 +1585,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('flexvolume secrets created')
 
     def get_annotations_lastlogin_datetime(self):
-        """get a new lastlogin datetime dict formated as "%Y-%m-%dT%H:%M:%S")
+        """get_annotations_lastlogin_datetime
+            return a dict { 'lastlogin_datetime': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") }
 
         Returns:
-            dict: a dict with annotations lastlogindatetime.now()
-                    format is {'annotations':{'lastlogin_datetime': datetime.datetime.now() } }
+            dict: { 'lastlogin_datetime': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         """
-        lastlogin_datetime = datetime.datetime.now()
-        str_lastlogin_datetime = lastlogin_datetime.strftime("%Y-%m-%dT%H:%M:%S")
-        annotations = { 'lastlogin_datetime': str_lastlogin_datetime } 
+        annotations = { 'lastlogin_datetime': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") } 
         return annotations
 
-    def read_pod_annotations_lastlogin_datetime(self, pod ):
-        """read pod annotations data lastlogin_datetime value
+    def read_pod_annotations_lastlogin_datetime(self, pod:client.models.v1_pod.V1Pod )->datetime.datetime:
+        """read_pod_annotations_lastlogin_datetime
+            read pod annotations data lastlogin_datetime value
 
         Args:
-            pod (pod): kubernetes pod
+            pod (client.models.v1_pod.V1Pod): kubernetes pod
 
         Returns:
             datetime: a datetime from pod.metadata.annotations.get('lastlogin_datetime') None if not set
@@ -1575,7 +1610,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             resumed_datetime = datetime.datetime.strptime(str_lastlogin_datetime, "%Y-%m-%dT%H:%M:%S")
         return resumed_datetime
 
-    def resumedesktop(self, authinfo, userinfo, **kwargs):
+    def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)->ODDesktop:
         """resume desktop update the lastconnectdatetime annotations data
            findPodByuser and update the lastconnectdatetime using patch_namespaced_pod
         Args:
@@ -1586,6 +1621,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             [ODesktop]: Desktop Object updated annotations data
         """
         self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         myDesktop = None
         myPod =  self.findPodByUser(authinfo, userinfo)
 
@@ -1608,7 +1645,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
         return myDesktop
 
-    def getsecretuserinfo(self, authinfo, userinfo):
+    def getsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
         """read cached user info dict from a ldif secret
 
         Args:
@@ -1619,6 +1656,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             [dict]: cached user info dict from ldif secret
                     empty dict if None
         """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         dict_secret = self.list_dict_secret_data( authinfo, userinfo )
         raw_secrets = {}
         for key in dict_secret.keys():
@@ -1629,7 +1669,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return raw_secrets
 
 
-    def list_dict_configmap_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
+    def list_dict_configmap_data( self, authinfo:AuthInfo, userinfo:AuthUser, access_type=None, hidden_empty=False )->dict:
         """get a dict of secret (key value) for the access_type
            if access_type is None will list all user secrets
         Args:
@@ -1666,7 +1706,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     
         return configmap_dict
 
-    def list_dict_secret_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
+    def list_dict_secret_data( self, authinfo:AuthInfo, userinfo:AuthUser, access_type=None, hidden_empty=False )->dict:
         """get a dict of secret (key value) for the access_type
            if access_type is None will list all user secrets
         Args:
@@ -1677,6 +1717,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             dict: return dict of secret key value 
         """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         access_userid = userinfo.userid
         access_provider = authinfo.provider
         secret_dict = {}
@@ -1709,9 +1752,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     
         return secret_dict
 
-    def get_auth_env_dict( self, authinfo, userinfo ):
-        ''' remove the secret name from the dict secret to read only key value  '''
-        ''' return a dict without secret name, merge all data                   '''
+    def get_auth_env_dict( self, authinfo:AuthInfo, userinfo:AuthUser )->dict:
+        """get_auth_env_dict
+
+        Args:
+            authinfo (AuthInfo): _description_
+            userinfo (AuthUser): _description_
+
+        Returns:
+            dict: return a dict without secret name, merge all data 
+        """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type='auth')
         raw_secrets = {}
         for key in dict_secret.keys():
@@ -1719,10 +1772,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return raw_secrets
 
 
-    def filldictcontextvalue( self, authinfo, userinfo, desktop, network_config, network_name=None, appinstance_id=None ):
-
+    def filldictcontextvalue( self, authinfo:AuthInfo, userinfo:AuthUser, desktop:ODDesktop, network_config:str, network_name=None, appinstance_id=None ):
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         fillvalue = network_config
-
         self.logger.debug( f"type(network_config) is {type(network_config)}" )
         # check if network_config is str, dict or list
         if isinstance( network_config, str) :
@@ -1754,7 +1808,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 return True
         return False
 
-    def countRunningAppforUser( self, authinfo, userinfo, myDesktop):
+    def countRunningAppforUser( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop)->int:
+        """countRunningAppforUser
+
+        Args:
+            authinfo (AuthInfo): _description_
+            userinfo (AuthUser): _description_
+            myDesktop (ODDesktop): _description_
+
+        Returns:
+            int: counter of running applications for a user
+        """
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+        assert isinstance(myDesktop, ODDesktop),  f"myDesktop has invalid type {type(myDesktop)}"
         self.logger.debug('')
         count = 0
         for appinstance in self.appinstance_classes.values() :
@@ -1762,7 +1829,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             count += len( myappinstance.list(authinfo, userinfo, myDesktop ) )
         return count
 
-    def listContainerApps( self, authinfo, userinfo, myDesktop:ODDesktop, apps:ODApps ):
+    def listContainerApps( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, apps:ODApps ):
+        """listContainerApps
+
+        Args:
+            authinfo (AuthInfo): _description_
+            userinfo (AuthUser): _description_
+            myDesktop (ODDesktop): _description_
+            apps (ODApps): _description_
+
+        Returns:
+            list: list of applications
+        """
+        assert isinstance(authinfo, AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),   f"userinfo has invalid type {type(userinfo)}"
+        assert isinstance(myDesktop, ODDesktop), f"myDesktop has invalid type {type(myDesktop)}"
+        assert isinstance(apps, ODApps), f"apps has invalid type {type(apps)}"
         self.logger.debug('')
         list_apps = []
         for appinstance in self.appinstance_classes.values() :
@@ -1771,7 +1853,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return list_apps
 
 
-    def getAppInstanceKubernetes( self, authinfo, userinfo, pod_name, containerid):
+    def getAppInstanceKubernetes( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
+        """getAppInstanceKubernetes
+            return the AppInstanceKubernetes of an appliction
+        Args:
+            authinfo (_type_): _description_
+            userinfo (_type_): _description_
+            pod_name (_type_): _description_
+            containerid (_type_): _description_
+
+        Returns:
+            ODAppInstanceBase can be :
+                - ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase): ephemeral container application
+                - ODAppInstanceKubernetesPod(ODAppInstanceBase): pod application
+        """
+        assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         myappinstance = None
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
         if isinstance( myPod, client.models.v1_pod.V1Pod ):
@@ -1783,7 +1879,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 myappinstance = ODAppInstanceKubernetesPod( self )
         return myappinstance
 
-    def logContainerApp( self, authinfo, userinfo, pod_name, containerid):
+    def logContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         log_app = None
         myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
@@ -1791,7 +1887,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             log_app = myappinstance.logContainerApp(pod_name, containerid)
         return log_app
 
-    def envContainerApp( self, authinfo, userinfo, pod_name, containerid):
+    def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         env_result = None
         myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
@@ -1799,7 +1895,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             env_result = myappinstance.envContainerApp(pod_name, containerid)
         return env_result
 
-    def stopContainerApp( self, authinfo, userinfo, pod_name, containerid):
+    def stopContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         stop_result = None
         myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
@@ -1807,7 +1903,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             stop_result = myappinstance.stop(pod_name, containerid)
         return stop_result
 
-    def removeContainerApp( self, authinfo, userinfo, pod_name, containerid):
+    def removeContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
         self.stopContainerApp( authinfo, userinfo, pod_name, containerid)
 
     def getappinstance( self, authinfo, userinfo, app ):    
@@ -1824,7 +1920,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( container, client.models.v1_pod.V1Pod  ):
             desktop = self.pod2desktop( container )
             
-
         result = { 'ExitCode': -1, 'stdout':None }
         timeout=5
         # calling exec and wait for response.
@@ -1873,7 +1968,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return result
 
-
+    """
     def read_configmap( self, name, entry ):
         data = None
         try:
@@ -1887,12 +1982,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except Exception as e:
             self.logger.info("Exception when calling read_namespaced_config_map: %s" % e)
         return data
+    """
 
         
-    def isenablecontainerinpod( self, authinfo, currentcontainertype):
+    def isenablecontainerinpod( self, authinfo:AuthInfo, currentcontainertype:str)->bool:
         """isenablecontainerinpod
-            read the desktop configuration
-            and check if this currentcontainertype is allowed
+            read the desktop configuration and check if this currentcontainertype is allowed
+            if currentcontainertype is allowed return True else False
 
         Args:
             authinfo (_type_): _description_
@@ -1907,35 +2003,29 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                   oc.od.settings.desktop_pod[currentcontainertype].get('enable') == True
         return bReturn
 
-    def getimagecontainerfromauthlabels( self, currentcontainertype, authinfo ):
-        imageforcurrentcontainertype = None
-        image = oc.od.settings.desktop_pod[currentcontainertype].get('image')
-        if isinstance( image, str):
-            imageforcurrentcontainertype = image
-        elif isinstance( image, dict ):
-            imageforcurrentcontainertype = image.get('default')
-            labels = authinfo.get_labels()
-            if isinstance( labels, dict ):
-                for k in labels.keys():
-                    if image.get(k):
-                        imageforcurrentcontainertype=image.get(k)
-                        break
-        return imageforcurrentcontainertype
+    def createappinstance(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs )->oc.od.appinstancestatus.ODAppInstanceStatus:
+        """createappinstance
+            containerengine can be one of the values
+                - 'ephemeral_container'
+                - 'pod_application'
+            the default containerengine value is 'ephemeralcontainer'
 
+        Args:
+            myDesktop (ODDesktop): _description_
+            app (dict): _description_
+            authinfo (AuthInfo): _description_
+            userinfo (AuthUser, optional): _description_. Defaults to {}.
+            userargs (_type_, optional): _description_. Defaults to None.
 
-    def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
+        Raises:
+            ValueError: unknow containerengine value {containerengine}
 
-        # containerengine can be one of the values
-        # - 'ephemeral_container'
-        # - 'pod_application'
-        #
-        # the default value is 'ephemeralcontainer'
-
+        Returns:
+            ODAppInstanceStatus: oc.od.appinstancestatus.ODAppInstanceStatus
+        """
         assert isinstance(myDesktop, ODDesktop),f"desktop has invalid type {type(myDesktop)}"
         assert isinstance(app,dict),            f"app has invalid type {type(app)}"
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
-
-        # "run_inside_pod": true,
         # read the container enigne specific value from app properties
         containerengine = app.get('containerengine', 'ephemeral_container' )
         if containerengine not in self.appinstance_classes.keys():
@@ -1945,19 +2035,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         appinstancestatus = appinstance.create(myDesktop, app, authinfo, userinfo, userargs, **kwargs )
         return appinstancestatus
 
-    def pullimage_on_all_nodes(self, app):
+    def pullimage_on_all_nodes(self, app:dict):
         self.logger.info('')
         label_selector=oc.od.settings.desktop.get('nodeselector')
         listnode = self.kubeapi.list_node(label_selector=label_selector)
-        self.logger.debug(listnode)
+        self.logger.info(f"pulling image on nodelist={listnode}")
         if isinstance( listnode, client.models.v1_node_list.V1NodeList ):
             if len(listnode.items) < 1:
                 self.logger.error( f"nodeselector={oc.od.settings.desktop.get('nodeselector')} return empty list" )
             for node in listnode.items :
                 self.pullimage( app, node.metadata.name )
+        else:
+            self.logger.error(
+                f"can not get list of node. client.models.v1_node_list.V1NodeList \
+                Error in config file \
+                oc.od.settings.desktop.get('nodeselector')={label_selector}"
+            )
 
-
-    def pullimage(self, app, nodename ):
+    def pullimage(self, app:dict, nodename:str )->client.models.v1_pod.V1Pod:
         self.logger.info(f"pull by creating pod image={app['name']} on nodename={nodename}")
         self.logger.info(f"app unique id {app.get('_id')}")
         h = hashlib.new('sha256')
@@ -2002,6 +2097,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'restartPolicy' : 'Never',
                 'containers':[ {   
                     'name': podname,
+                    # When imagePullSecrets hasn’t been set, 
+                    # the secrets of the default service account in the current namespace is used instead. 
+                    # If those aren’t defined either, default or no credentials are used
                     'imagePullSecrets': oc.od.settings.desktop_pod.get(self.applicationtype,{}).get('imagePullSecrets'),
                     'imagePullPolicy': 'Always',
                     'image': app['id'],
@@ -2082,7 +2180,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         Args:
             currentcontainertype (str): type of container
-            userinfo (AuthUser): auth user info
+            userinfo (AuthUser): userinfo
 
         Returns:
             dict: a securityContext dict with { 'runAsUser': UID , 'runAsGroup': GID }
@@ -2104,7 +2202,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             securityContext['runAsGroup'] = int( chevron.render( runAsGroup, posixuser ) )
         return securityContext
 
-    def getimagecontainerfromauthlabels( self, currentcontainertype, authinfo ):
+    def getimagecontainerfromauthlabels( self, currentcontainertype:str, authinfo:AuthInfo )->str:
+        """getimagecontainerfromauthlabels
+            return the name of image to use for a container
+
+        Args:
+            currentcontainertype (str): type of container
+            authinfo (AuthInfo): authinfo
+
+        Raises:
+            ValueError: invalid image type
+
+        Returns:
+            str: name of the container image
+        """
+        assert isinstance(currentcontainertype, str),  f"currentcontainertype has invalid type {type(currentcontainertype)}, str is expected"
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         imageforcurrentcontainertype = None
         image = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('image')
         if isinstance( image, str):
@@ -2117,41 +2230,56 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     imageforcurrentcontainertype=v
                     break
         
-        if imageforcurrentcontainertype is None:
+        if not isinstance(imageforcurrentcontainertype, str):
             raise ValueError( f"invalid image type for {currentcontainertype} type={type(image)} data={image}")
 
         return imageforcurrentcontainertype
 
 
     @staticmethod
-    def appendkubernetesfieldref(envlist):
+    def appendkubernetesfieldref(envlist:list)->None:
+        """appendkubernetesfieldref
+            add NODE_NAME POD_NAME POD_NAMESPACE POD_IP
+            as
+            env:
+                - name: NODE_NAME
+                    valueFrom:
+                    fieldRef:
+                        fieldPath: spec.nodeName
+                - name: POD_NAME
+                    valueFrom:
+                    fieldRef:
+                        fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                    valueFrom:
+                    fieldRef:
+                        fieldPath: metadata.namespace
+                - name: POD_IP
+                    valueFrom:
+                    fieldRef:
+                        fieldPath: status.podIP
+        Args:
+            envlist (list): env list
+        """
         assert isinstance(envlist, list),  f"env has invalid type {type(envlist)}, list is expected"
         # kubernetes env formated dict
-        '''
-        env:
-          - name: NODE_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: spec.nodeName
-          - name: POD_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
-          - name: POD_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: POD_IP
-            valueFrom:
-              fieldRef:
-                fieldPath: status.podIP
-        '''
         envlist.append( { 'name': 'NODE_NAME',      'valueFrom': { 'fieldRef': { 'fieldPath':'spec.nodeName' } } } )
         envlist.append( { 'name': 'POD_NAME',       'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.name' } } } )
         envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
         envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
 
-    def getPodStartedMessage(self, containernameprefix:str, myPod:client.models.v1_pod.V1Pod ):
+    def getPodStartedMessage(self, containernameprefix:str, myPod:client.models.v1_pod.V1Pod )->str:
+        """getPodStartedMessage
+
+        Args:
+            containernameprefix (str): _description_
+            myPod (client.models.v1_pod.V1Pod): _description_
+
+        Returns:
+            str: started message
+        """
+        assert isinstance(containernameprefix, str),  f"env has invalid type {type(containernameprefix)}, str is expected"
+        assert isinstance(myPod, client.models.v1_pod.V1Pod),  f"myPod has invalid type {type(myPod)}, client.models.v1_pod.V1Pod is expected"
         startedmsg = f"b.{myPod.status.phase}"
         c = self.getcontainerfromPod( containernameprefix, myPod )
         if isinstance( c, client.models.v1_container_status.V1ContainerStatus):
@@ -2186,15 +2314,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return envlist
 
     @staticmethod
-    def expandchevron_envdict( env: dict, posixuser:dict ):
+    def expandchevron_envdict( env: dict, posixuser:dict )->None:
         """expandchevron_envdict
             replace in chevron key
-            desktop.envlocal :  {
+            used for desktop.envlocal 
+            env :  {
                 'UID'                   : '{{ uidNumber }}',
                 'GID'                   : '{{ gidNumber }}',
                 'LOGNAME'               : '{{ uid }}'
             }
             by posix account value or default user account values
+            example
+            env :  {
+                'UID'                   : '1024',
+                'GID'                   : '2045',
+                'LOGNAME'               : 'theuseruid'
+            }
         Args:
             env (dict): env var dict 
             posixuser (dict): posix accont dict 
@@ -2205,26 +2340,32 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             new_value = chevron.render( v, posixuser )
             env[k] = new_value 
     
-    def get_ownerReferences( self, secrets:dict ):
+    def get_ownerReferences( self, secrets:dict )->list:
         ownerReferences = []
         for name in secrets.keys():
-            ownerReference = { 'kind': 'Secret', 'name': name, 'controller': False, 'apiVersion': 'v1', 'uid': secrets[name].get('uid') }
+            ownerReference = { 
+                'kind': 'Secret', 
+                'name': name, 
+                'controller': False, 
+                'apiVersion': 'v1', 
+                'uid': secrets[name].get('uid') 
+            }
             ownerReferences.append( ownerReference )
         return ownerReferences   
 
-    def createdesktop(self, authinfo, userinfo, **kwargs):
-        """createdesktop for the user
+    def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)->ODDesktop:
+        """createdesktop
             create the user pod 
 
         Args:
-            authinfo (AuthInfo): authentification data
-            userinfo (AuthUser): user data 
+            authinfo (AuthInfo): authinfo
+            userinfo (AuthUser): userinfo
 
         Raises:
-            ValueError: [description]
+            ValueError: _description_
 
         Returns:
-            [type]: [description]
+            ODDesktop: desktop object
         """
         self.logger.debug('createdesktop start' )
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -2283,19 +2424,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_SERVICE_NAME + currentcontainertype
                 env[ abcdesktopvarenvname ] = 'enabled'
     
-        # check if we run the desktop in metappli mode or desktop mode
-        if type(appname) is str :
-            # if appname is set then create a metappli labels
-            # this will change and run the app
-            labels[ 'type' ]  = self.x11servertype_embeded
-            kwargs[ 'type' ]  = self.x11servertype_embeded
-            # this is specific to metappli mode
-            labels[ 'appname' ] = appname
-        else:
-            # if appname is None then create a desktop
-            # set value as default type x11servertype
-            labels[ 'type' ]  = self.x11servertype
-            kwargs[ 'type' ]  = self.x11servertype
+        # create a desktop
+        # set value as default type x11servertype
+        labels['type'] = self.x11servertype
+        kwargs['type'] = self.x11servertype
 
         self.logger.debug('labels created')
 
@@ -2490,40 +2622,40 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         }
           
         # Add printer sound servives 
-        for currentcontainertype in [ 'printer' ] :
-            if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-                self.logger.debug('pod container creating %s', currentcontainertype )
-                image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
-                securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
-                pod_manifest['spec']['containers'].append( { 
-                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
-                    'image':image,                                    
-                    'env': envlist,
-                    'volumeMounts': [ self.default_volumes_mount['tmp'] ],
-                    'securityContext': securityContext,
-                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
-                } )
-                self.logger.debug('pod container created %s', currentcontainertype )
+        currentcontainertype='printer'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            self.logger.debug('pod container creating %s', currentcontainertype )
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
+            pod_manifest['spec']['containers'].append( { 
+                'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
+                'image':image,                                    
+                'env': envlist,
+                'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                'securityContext': securityContext,
+                'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
+            } )
+            self.logger.debug('pod container created %s', currentcontainertype )
 
-              # Add printer sound servives 
-        for currentcontainertype in [ 'sound' ] :
-            if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-                self.logger.debug('pod container creating %s', currentcontainertype )
-                image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
-                securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo  )
-                pod_manifest['spec']['containers'].append( { 
-                    'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                    'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
-                    'image': image,                                    
-                    'env': envlist,
-                    'volumeMounts': [ self.default_volumes_mount['tmp'] ],
-                    'securityContext': securityContext,
-                    'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
-                } )
-                self.logger.debug('pod container created %s', currentcontainertype )
+        # Add printer sound servives 
+        currentcontainertype= 'sound'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            self.logger.debug('pod container creating %s', currentcontainertype )
+            image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
+            securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo  )
+            pod_manifest['spec']['containers'].append( { 
+                'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
+                'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
+                'image': image,                                    
+                'env': envlist,
+                'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                'securityContext': securityContext,
+                'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
+            } )
+            self.logger.debug('pod container created %s', currentcontainertype )
 
         # Add ssh service 
         currentcontainertype = 'ssh'
@@ -2608,10 +2740,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
             } )
             self.logger.debug('pod container created %s', currentcontainertype )
-
-        # if metapply stop, do not restart the pod 
-        if kwargs[ 'type' ] == self.x11servertype_embeded :
-            pod_manifest['spec']['restartPolicy'] = 'Never'
 
         # we are ready to create our Pod 
         myDesktop = None
@@ -2787,7 +2915,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
   
     
-    def findPodByUser(self, authinfo, userinfo ):
+    def findPodByUser(self, authinfo:AuthInfo, userinfo:AuthUser )->client.models.v1_pod.V1Pod:
         """find a kubernetes pod for the user ( userinfo )
            if args is None, filter add always type=self.x11servertype
            if args is { 'pod_name'=name } add filter metadata.name=name without type selector
@@ -2843,7 +2971,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         return None
 
-    def findPodAppByUser(self, authinfo, userinfo, appname ):
+    def findPodAppByUser(self, authinfo:AuthInfo, userinfo:AuthUser,  appname:str )->client.models.v1_pod.V1Pod:
         """findPodAppByUser find an application pod by user
             filter use type=self.x11servertype_embeded only
         Args:
@@ -2884,14 +3012,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return None
 
-    def is_a_pod( self, pod ):
-        return isinstance(pod, client.models.v1_pod.V1Pod )
+    def isPodBelongToUser( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str)->bool:
+        """isPodBelongToUser
+            return True if pod belongs to userinfo.userid and macth same auth provider
+            else False
+        Args:
+            authinfo (AuthInfo): authinfo
+            userinfo (AuthUser): userinfo
+            pod_name (str): name of pod
 
-    def is_a_dekstop( self, desktop ):
-        return isinstance(desktop, ODDesktop )
-
-
-    def isPodBelongToUser( self, authinfo, userinfo, pod_name ):
+        Returns:
+            bool: boolean 
+        """
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -2908,24 +3040,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return belong
 
-    def findDesktopByUser(self, authinfo, userinfo, **kwargs ):
-        ''' find a desktop for authinfo and userinfo '''
-        ''' return a desktop object '''
-        ''' return None if not found '''
-        self.logger.info( '' )
+    def findDesktopByUser(self, authinfo:AuthInfo, userinfo:AuthUser )->ODDesktop:
+        """findDesktopByUser
+            find a desktop for authinfo and userinfo 
+            return a desktop object
+            return None if not found 
+        Args:
+            authinfo (AuthInfo): authinfo
+            userinfo (AuthUser): userinfo
+
+        Returns:
+            ODDesktop: ODDesktop object
+        """
+        self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        
         myDesktop = None  # return Desktop Object
-        appname=kwargs.get('appname')
-
-        if isinstance(appname,str) and len(appname) > 0  :
-            myPod = self.findPodAppByUser( authinfo, userinfo, appname )
-        else :
-            myPod = self.findPodByUser( authinfo, userinfo )
-
+        myPod = self.findPodByUser( authinfo, userinfo )
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
-            self.logger.info( 'Pod is found %s ', myPod.metadata.name )
+            self.logger.debug( f"Pod is found {myPod.metadata.name}" )
             myDesktop = self.pod2desktop( pod=myPod, userinfo=userinfo )
         return myDesktop
 
@@ -2950,10 +3083,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         return c
         return None
 
-    def build_internalPodFQDN( self, myPod ):
-        ''' Describe how to reach a pod '''
-        ''' When http request '''
+    def build_internalPodFQDN( self, myPod: client.models.v1_pod.V1Pod )->str:
+        """build_internalPodFQDN
 
+        Args:
+            myPod (client.models.v1_pod.V1Pod): pod
+
+        Returns:
+            str: pod internal FQDH
+        """
+        assert isinstance(myPod,      client.models.v1_pod.V1Pod),    f"pod has invalid type {type(myPod)}"
         # From https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pods:
         # From https://github.com/coredns/coredns/issues/2409 
         # If there exists a headless service in the same namespace as the pod and with the same name
@@ -2968,7 +3107,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             defaultFQDN = myPod.metadata.name + '.' + myPod.spec.subdomain + '.' + oc.od.settings.kubernetes_default_domain
         return defaultFQDN
 
-    def pod2desktop( self, pod:client.models.v1_pod.V1Pod, userinfo=None ):
+    def pod2desktop( self, pod:client.models.v1_pod.V1Pod, userinfo=None )->ODDesktop:
         """pod2Desktop convert a Pod to Desktop Object
         Args:
             myPod ([V1Pod): kubernetes.client.models.v1_pod.V1Pod
@@ -2986,6 +3125,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         vnc_password           = None
 
         # read metadata annotations 'k8s.v1.cni.cncf.io/networks-status'
+        # to get the ip address of each netwokr interface
         network_status = None
         if isinstance(pod.metadata.annotations, dict):
             network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/networks-status' )
@@ -2994,29 +3134,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # load json formated string
                 network_status = json.loads( network_status )
 
-        if isinstance( network_status, list ):
-            desktop_interfaces = {}
-            self.logger.debug( f"network_status is {network_status}" )
-            for interface in network_status :
-                self.logger.debug( f"reading interface {interface}" )
-                if not isinstance( interface, dict ):
-                    continue
-
-                name = interface.get('interface')
-                ips = interface.get('ips')
-                mac = interface.get('mac')
-                
-                # check if type is valid
-                if  not isinstance( ips, list ) or \
-                    not isinstance( name, str ) or \
-                    not isinstance( mac, str ) :
-                    # skipping bad data type
-                    continue
-
-                if len(ips) == 1:
-                    ips = ips[0]
-   
-                    desktop_interfaces.update( { name : { 'mac': mac, 'ips': str(ips) } } )
+            if isinstance( network_status, list ):
+                desktop_interfaces = {}
+                self.logger.debug( f"network_status is {network_status}" )
+                for interface in network_status :
+                    self.logger.debug( f"reading interface {interface}" )
+                    if not isinstance( interface, dict ): continue
+                    # read interface
+                    name = interface.get('interface')
+                    if not isinstance( name, str ): continue
+                    # read ips
+                    ips = interface.get('ips')
+                    if  not isinstance( ips, list ): continue
+                    # read mac
+                    mac = interface.get('mac')
+                    if not isinstance( mac, str ) : continue
+                    # read default ips[0]
+                    if len(ips) == 1:   ips = str(ips[0])
+                    desktop_interfaces.update( { name : { 'mac': mac, 'ips': ips } } )
  
         desktop_container = self.getcontainerfromPod( self.graphicalcontainernameprefix, pod )
         if isinstance(desktop_container, client.models.v1_container_status.V1ContainerStatus) :
@@ -3039,54 +3174,58 @@ class ODOrchestratorKubernetes(ODOrchestrator):
            storage_container_id = storage_container.container_id
 
         # Build the ODDesktop Object 
-        myDesktop = oc.od.desktop.ODDesktop(    nodehostname=pod.spec.node_name, 
-                                                name=pod.metadata.name,
-                                                hostname=pod.spec.hostname,
-                                                ipAddr=pod.status.pod_ip, 
-                                                status=pod.status.phase, 
-                                                desktop_id=pod.metadata.name, 
-                                                container_id=desktop_container_id,                                                   
-                                                container_name=desktop_container_name,
-                                                vncPassword=vnc_password,
-                                                fqdn = internal_pod_fqdn,
-                                                xauthkey = pod.metadata.labels.get('xauthkey'),
-                                                pulseaudio_cookie = pod.metadata.labels.get('pulseaudio_cookie'),
-                                                broadcast_cookie = pod.metadata.labels.get('broadcast_cookie'),
-                                                desktop_interfaces = desktop_interfaces,
-                                                websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
-                                                websocketroute = pod.metadata.labels.get('websocketroute'),
-                                                storage_container_id = storage_container_id,
-                                                labels = pod.metadata.labels )
+        myDesktop = oc.od.desktop.ODDesktop(
+            nodehostname=pod.spec.node_name, 
+            name=pod.metadata.name,
+            hostname=pod.spec.hostname,
+            ipAddr=pod.status.pod_ip, 
+            status=pod.status.phase, 
+            desktop_id=pod.metadata.name, 
+            container_id=desktop_container_id,                                                   
+            container_name=desktop_container_name,
+            vncPassword=vnc_password,
+            fqdn = internal_pod_fqdn,
+            xauthkey = pod.metadata.labels.get('xauthkey'),
+            pulseaudio_cookie = pod.metadata.labels.get('pulseaudio_cookie'),
+            broadcast_cookie = pod.metadata.labels.get('broadcast_cookie'),
+            desktop_interfaces = desktop_interfaces,
+            websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
+            websocketroute = pod.metadata.labels.get('websocketroute'),
+            storage_container_id = storage_container_id,
+            labels = pod.metadata.labels 
+        )
         return myDesktop
 
-    def countdesktop(self):        
-        ''' return the number count of pod type 'type=' + self.x11servertype    '''
-        ''' return 0 if failed ( not the best return value )                    ''' 
-        nCount = 0   
-        try: 
-            list_label_selector = [ 'type=' + self.x11servertype, 'type=' + self.x11servertype_embeded ]
-            for label_selector in list_label_selector:
-                myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
-                nCount = nCount + len(myPodList.items)                    
-        except ApiException as e:
-            self.logger.error(e)
-        return nCount
+    def countdesktop(self)->int:
+        """countdesktop
+            count the number of desktop label_selector = 'type=' + self.x11servertype
+        Returns:
+            int: number of desktop
+        """
+        list_of_desktop = self.list_desktop()
+        return len(list_of_desktop)
 
-    def list_desktop(self):
+    def list_desktop(self)->list:
+        """list_desktop
+
+        Returns:
+            list: list of ODDesktop
+        """
         myDesktopList = []   
         try:  
             list_label_selector = 'type=' + self.x11servertype
             myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=list_label_selector)
             if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
                 for myPod in myPodList.items:
-                        mydesktop = self.pod2desktop( myPod )
+                    mydesktop = self.pod2desktop( myPod )
+                    if isinstance( mydesktop, ODDesktop):
                         myDesktopList.append( mydesktop.to_dict() )              
         except ApiException as e:
             self.logger.error(e)
 
         return myDesktopList
             
-    def isgarbagable( self, pod:client.models.v1_pod.V1Pod, expirein:int, force=False ):
+    def isgarbagable( self, pod:client.models.v1_pod.V1Pod, expirein:int, force=False )->bool:
         """isgarbagable
 
         Args:
@@ -3095,14 +3234,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             force (bool, optional): check if user is connected or not. Defaults to False.
 
         Returns:
-            boot: True if pod is garbageable
+            bool: True if pod is garbageable
         """
-
+        self.logger.debug('')
         bReturn = False
-
         assert isinstance(pod,      client.models.v1_pod.V1Pod),    f"pod has invalid type {type(pod)}"
         assert isinstance(expirein, int),                           f"expirein has invalid type {type(expirein)}"
-
         if pod.status.phase == 'Failed':
             self.logger.warning(f"pod {pod.metadata.name} is in phase {pod.status.phase} reason {pod.status.reason}" )
             return True
@@ -3141,7 +3278,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return bReturn
 
 
-    def extract_userinfo_authinfo_from_pod( self, pod:client.models.v1_pod.V1Pod ):
+    def extract_userinfo_authinfo_from_pod( self, pod:client.models.v1_pod.V1Pod )->tuple:
         """extract_userinfo_authinfo_from_pod
             Read labels (authinfo,userinfo) from a pod
         Args:
@@ -3162,7 +3299,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (authinfo,userinfo)
 
 
-    def find_userinfo_authinfo_by_desktop_name( self, name:str ):
+    def find_userinfo_authinfo_by_desktop_name( self, name:str )->tuple:
+        """find_userinfo_authinfo_by_desktop_name
+
+        Args:
+            name (str): name of pod
+
+        Returns:
+            tuple: (authinfo,userinfo)
+        """
         self.logger.debug('')
         assert isinstance(name, str), f"name has invalid type {type(str)}"
         authinfo = None
@@ -3172,18 +3317,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
         return (authinfo,userinfo)
 
-    def describe_desktop_byname( self, name:str ):
+    def describe_desktop_byname( self, name:str )->dict:
         """describe_desktop_byname
 
         Args:
-            name (str): name of the desktop (pod)
+            name (str): name of the pod
 
         Returns:
-            dict: dict of the desktop's pod
+            dict: dict of the desktop's pod loaded from json data
         """
         self.logger.debug('')
         assert isinstance(name, str), f"name has invalid type {type(str)}"
-        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name, _preload_content=False)
+        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace, name=name, _preload_content=False)
         if isinstance( myPod, urllib3.response.HTTPResponse ) :  
             myPod = json.loads( myPod.data )
         return myPod
