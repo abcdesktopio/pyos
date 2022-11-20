@@ -157,6 +157,33 @@ class AuthUser(dict):
         }
         return defaultposixAccount
 
+    @staticmethod
+    def mkpasswd( moustachedata ):  
+        return chevron.render( oc.od.settings.DEFAULT_PASSWD_FILE, moustachedata )
+    
+    @staticmethod
+    def mkgroup ( moustachedata ):  
+        etcgroup = chevron.render( oc.od.settings.DEFAULT_GROUP_FILE,  moustachedata )
+        groups = moustachedata.get('groups')
+        if isinstance( groups, list ):
+            for group in groups:
+                newline = f"{group['cn']}:*:{group['gidNumber']}:"
+                uids = group.get('memberUid')
+                if isinstance( uids, str ):
+                    newline += uid
+                if isinstance( uids, list ):
+                    if len(uids) > 0:
+                        newline += uids[0]
+                        for uid in uids[1::]:
+                            newline += ',' + uid
+                etcgroup += newline + '\n'
+        return etcgroup
+                    
+    @staticmethod
+    def mkshadow( moustachedata ):  
+        return chevron.render( oc.od.settings.DEFAULT_SHADOW_FILE, moustachedata )
+
+
 #
 # define AuthInfo
 class AuthInfo(object):
@@ -2018,7 +2045,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     # from https://ldapwiki.com/wiki/PosixAccount
     # PosixAccount ObjectClass Types 
     DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory', 'loginShell', 'description' ]
-    DEFAULT_POSIXGROUP_ATTRS   = [ 'cn', 'gidNumber' ]
+    DEFAULT_POSIXGROUP_ATTRS   = [ 'cn', 'gidNumber', 'memberUid', 'description' ]
     
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
@@ -2092,6 +2119,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.ldap_ipmod = config.get('ldap_ip_mode', ldap3.IP_V4_PREFERRED )
         self.ldapPublicKeyobjectClass = 'ldapPublicKey'
         self.posixAccountobjectClass = 'posixAccount'
+        self.posixGroupobjectClass = 'posixGroup'
 
         # query users
         self.user_query = self.Query(
@@ -2099,7 +2127,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('scope', ldap3.SUBTREE),
             config.get('filter', '(&(objectClass=inetOrgPerson)(cn=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_ATTRS ))
-         # query groups
+        # query groups
         self.group_query = self.Query(
             self.groups_ou,
             config.get('group_scope', self.user_query.scope),
@@ -2111,7 +2139,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # account uid=name1
         # dn: uid=name1,ou=Users,dc=example,dc=com
         # cn: Full Name
-        # gidnumber: 1000
+        # gidnumber: 2000
         # objectclass: posixAccount
         # objectclass: shadowAccount
         # uid: name1
@@ -2125,17 +2153,28 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         # query posixgroup
         #
-        # dn: cn=example_group,ou=Groups,dc=example,dc=com
-        # cn: example_group
-        # description: Group Description
-        # gidnumber: 10000
-        # memberuid: name1
-        # memberuid: name2
+        # dn: cn=name1_group,ou=Groups,dc=example,dc=com
+        # cn: name1_group
+        # description: name1group
+        # gidnumber: 2000
         # objectclass: posixGroup
-        self.posixgroup_query = self.Query(
+        self.posixaccountgroup_query = self.Query(
             self.groups_ou,
             config.get('scope', ldap3.SUBTREE),
-            config.get('filter', '(&(objectClass=posixGroup)(memberUid=%s))'), 
+            config.get('filter', '(&(objectClass=posixGroup)(gidNumber=%s))'), 
+            config.get('attrs', ODLdapAuthProvider.DEFAULT_POSIXGROUP_ATTRS ))
+
+        # query posixgroup
+        #
+        # dn: cn=name1_group,ou=Groups,dc=example,dc=com
+        # cn: name1_group
+        # description: name1group
+        # gidnumber: 2000
+        # objectclass: posixGroup
+        self.posixgroups_query = self.Query(
+            self.groups_ou,
+            config.get('scope', ldap3.SUBTREE),
+            config.get('filter', '(&(objectClass=posixGroup)(!(gidNumber=%s))(memberUid=%s))'), 
             config.get('attrs', ODLdapAuthProvider.DEFAULT_POSIXGROUP_ATTRS ))
 
 
@@ -2402,13 +2441,23 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         #
                         # requery to read attributs group cn
                         self.logger.debug( "query for posixGroup attributs")
-                        q = self.posixgroup_query
-                        groupfilter = ldap_filter.filter_format(q.filter, [posixuserinfo['uid']] )
+                        q = self.posixaccountgroup_query
+                        groupfilter = ldap_filter.filter_format(q.filter, [ str(posixuserinfo.get('gidNumber')) ] )
                         self.logger.debug( f"query basedn={q.basedn} for posixGroup attributs {groupfilter} attrs={q.attrs}")
                         posixgroupinfo =  self.search_one( authinfo.conn, q.basedn, q.scope, groupfilter, q.attrs, **params)
                         if isinstance(posixgroupinfo, dict):
                             # set the group name use the group cn
                             userinfo['posix']['gid'] = posixgroupinfo.get('cn')
+
+                        #
+                        # requery to read attributs all groups
+                        self.logger.debug( "query for posixGroup attributs")
+                        q = self.posixgroups_query
+                        groupfilter = ldap_filter.filter_format(q.filter, [ str(posixuserinfo.get('gidNumber')), str(posixuserinfo.get('uid')) ] )
+                        self.logger.debug( f"query basedn={q.basedn} for posix all groups attribut {groupfilter} attrs={q.attrs}")
+                        posixallgroupslist =  self.search_all( authinfo.conn, q.basedn, q.scope, groupfilter, q.attrs, **params)
+                        if isinstance(posixallgroupslist, list):
+                            userinfo['posix']['groups'] = posixallgroupslist
 
         return userinfo
 
@@ -3120,17 +3169,17 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             scope=config.get('printer_scope', ldap3.SUBTREE),
             filter=config.get('printer_filter', '(objectClass=printQueue)'),
             attrs=config.get('printer_attrs',
-                                [ 'cn', 'uNCName', 'location', 'driverName', 'driverVersion', 'name', 
-                                  'portName', 'printColor', 'printerName', 'printLanguage', 'printSharename',
-                                  'serverName', 'shortServerName', 'url', 'printMediaReady'
-                                  'printBinNames',              # multiple values
-                                  'printMediaSupported',        # multiple values
-                                  'printOrientationsSupported'  # multiple values
-                                ]
+                            [ 'cn', 'uNCName', 'location', 'driverName', 'driverVersion', 'name', 
+                                'portName', 'printColor', 'printerName', 'printLanguage', 'printSharename',
+                                'serverName', 'shortServerName', 'url', 'printMediaReady'
+                                'printBinNames',              # multiple values
+                                'printMediaSupported',        # multiple values
+                                'printOrientationsSupported'  # multiple values
+                            ]
                             ) )
             
             
-        # query printer
+        # query site
         self.site_query = self.Query(
             basedn=config.get('site_subnetdn', 'CN=Subnets,CN=Sites,CN=Configuration,' + config.get('ldap_basedn') ),
             scope=config.get('site_scope', ldap3.SUBTREE),
