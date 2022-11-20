@@ -91,25 +91,23 @@ def opendesktop(authinfo, userinfo, args ):
         authinfo (AuthInfo): authentification data
         userinfo (AuthUser): user data 
         args (dict): additionnal desktop data 
-                    {   'app':          application name,
-                        'usersourceipaddr': oc.cherrypy.getclientipaddr(),
-                        'querystring':  QUERYSTRING env inside the container,
-                        'metadata' :    METADATA env inside the container,
-                        'args' :        APPARGS inside the container,
-                        'timezone' :    TZ env inside the contianer }
+        {   'usersourceipaddr': oc.cherrypy.getclientipaddr(),
+            'querystring':  QUERYSTRING env inside the container,
+            'metadata' :    METADATA env inside the container,
+            'args' :        APPARGS inside the container,
+            'timezone' :    TZ env inside the contianer }
 
     Returns:
         [ODesktop]: Desktop Object if success 
         [str]: if failed      
     """
     logger.debug('')
-    app = args.get('app')
-    desktoptype = 'desktopmetappli' if app else 'desktop'
+    desktoptype = 'desktop'
 
     # start a message info 
     services.messageinfo.start(userinfo.userid, 'b.Looking for your desktop')
     # look for a desktop
-    desktop = finddesktop( authinfo, userinfo, app )
+    desktop = finddesktop( authinfo, userinfo )
    
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
         # ok we find a desktop
@@ -358,18 +356,12 @@ def removepodindesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     return removed_desktop
 
 
-def finddesktop_quiet( authinfo, userinfo, appname=None ):
-
-    if userinfo.userid is None:
-        logger.debug('finddesktop return None for userid None')
-        return None
-   
+def finddesktop_quiet( authinfo, userinfo ):
     myOrchestrator = selectOrchestrator()
-    kwargs = { 'appname': appname }
-    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)      
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo)      
     return myDesktop
 
-def finddesktop( authinfo, userinfo, appname=None ):
+def finddesktop( authinfo, userinfo  ):
     """finddesktop for userinfo
 
     Args:
@@ -380,10 +372,9 @@ def finddesktop( authinfo, userinfo, appname=None ):
     Returns:
         [ODesktop]: oc.od.desktop.ODDesktop Desktop Object or None if not found
     """
-    # services.messageinfo.push(userinfo.userid, 'looking for your desktop.')        
+    services.messageinfo.push(userinfo.userid, 'looking for your desktop.')        
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
-    kwargs = { 'appname': appname }
-    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo, **kwargs)     
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo)     
     return myDesktop
 
 
@@ -681,7 +672,7 @@ def openapp( auth, user={}, kwargs={} ):
     myOrchestrator = selectOrchestrator()  
 
     # find the desktop for the current user 
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user, **kwargs )
+    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
     if not isinstance( myDesktop, ODDesktop):
         raise ODError( status=404, message='openapp:findDesktopByUser not found')
 
@@ -704,7 +695,7 @@ def openapp( auth, user={}, kwargs={} ):
     myOrchestrator = selectOrchestrator()
 
     # find the desktop for the current user
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user, **kwargs )
+    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
     if not isinstance( myDesktop, ODDesktop):
         raise ODError( 'openapp:findDesktopByUser not found')
 
@@ -794,10 +785,10 @@ def notify_user( access_userid, access_type, method, data ):
         myOrchestrator.execininstance(myDesktop.id, cmd)
     
 
-def getapp(authinfo, name):
+def getapp(authinfo:AuthInfo, name:str)->dict:
     app = services.apps.findappbyname(authinfo, name)
-    if app is None:
-        raise ODError(message='Fatal error - Cannot find image associated to application %s: ' % name)
+    if not isinstance(app, dict):
+        raise ODError(message=f"Fatal error - Cannot find image associated to application {name}")
     return app
 
 
@@ -901,7 +892,7 @@ def notify_endpoint( url ):
 
 def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addresses):
     if oc.od.settings.developer_instance == True:
-            pyos_endpoint_address = [ 'localhost' ]
+            pyos_endpoint_addresses = [ 'localhost' ]
     for pyos_endpoint_address in pyos_endpoint_addresses:
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
         notify_thread = threading.Thread(target=notify_endpoint, kwargs={'url': url } )
@@ -962,9 +953,13 @@ def add_application_image( json_images ):
 
 def del_application_image( image ):
     # remove entry from mongodb
-    del_image = oc.od.services.services.apps.del_image( image )
-
-    if del_image is True:
+    deleted_image = oc.od.services.services.apps.del_image( image )
+    if deleted_image is True:
         notity_pyos_buildapplist()
+    return deleted_image
 
-    return del_image
+def del_application_all_images():
+    # remove entry from mongodb
+    images = oc.od.services.services.apps.del_all_images()
+    notity_pyos_buildapplist()
+    return images
