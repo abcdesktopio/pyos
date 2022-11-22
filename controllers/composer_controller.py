@@ -78,76 +78,6 @@ class ComposerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
-    def launchmetappli(self):
-  
-        (auth, user ) = self.validate_env()
-        if type(cherrypy.request.json) is not dict:
-            raise cherrypy.HTTPError( status=400, message='invalid parameters')
-        args = cherrypy.request.json.copy()
-        appname = args.get('app')
-        appargs = args.get('args')
-        querystring = args.get('querystring')
-        if not isinstance(appname, str):
-            raise cherrypy.HTTPError( status=400, message='invalid app parameters')
-
-        # decode appargs URL decode string
-        if type(appargs) is str:
-            args['args'] = urllib.parse.unquote( appargs )
-        
-        if querystring :
-            datadict = urllib.parse.parse_qs( querystring )
-            keyname  = datadict.get('keyname')
-            metadata = datadict.get('metadata')
-            if type(keyname) is list and len(keyname) > 0:
-                keyname=keyname[0]            
-            if type(metadata) is list and len(metadata) > 0:
-                metadata=metadata[0]     
-
-            # check if metadata is an encrypted metadata
-            if type(keyname) is str and type(metadata) is str:
-                if len(keyname) > 0 and len(metadata)>0 :
-                    # keyname exists and execmetadata exists
-                    metadata = services.keymanager.decode( keyname=keyname, enc_data=metadata )
-                    if metadata is None :
-                        return Results.error( message='invalid encrypted execmetadata parameters' )
-            args['metadata'] = metadata
-
-        self.logger.info('Metappli : %s %s', str(appname), str(appargs))
-
-        # add lang to user dict
-        self.LocaleSettingsLanguage( user )
-     
-        return self._launchdesktop(auth, user, args)
-
-
-    '''
-    @cherrypy.expose
-    @cherrypy.tools.json_in()
-    @cherrypy.tools.json_out()
-    def launchdesktop(self):
-        self.logger.debug('')
-        try:
-            self.logger.debug('launchdesktop:validate_env')
-            (auth, user ) = self.validate_env()
-            # add lang to user dict   
-            self.logger.debug('launchdesktop:LocaleSettingsLanguage')
-            self.LocaleSettingsLanguage( user )
-            self.logger.debug('launchdesktop:_launchdesktop')
-            result = self._launchdesktop(auth, user, cherrypy.request.json)
-            return result
-
-        except Exception as e:
-            status = e.code if hasattr( e, 'code' ) else 500
-            message = e.reason if hasattr( e, 'reason' ) else 'Internal server error'
-            if hasattr( e, '_message' ):
-                message = message + ' ' + e._message
-            result = Results.error( message=message, status=status )
-            return result
-    '''
-
-    @cherrypy.expose
-    @cherrypy.tools.json_in()
-    @cherrypy.tools.json_out()
     def launchdesktop(self):
         self.logger.debug('launchdesktop:validate_env')
         (auth, user ) = self.validate_env()
@@ -276,22 +206,18 @@ class ComposerController(BaseController):
     def refreshdesktoptoken(self):
         self.logger.debug('')
         (auth, user ) = self.validate_env()
-        appname = None
-        args = cherrypy.request.json
-        if isinstance(args, dict):
-            appname = args.get('app')
-        desktop = oc.od.composer.finddesktop_quiet(authinfo=auth, userinfo=user, appname=appname) 
+        desktop = oc.od.composer.finddesktop(authinfo=auth, userinfo=user) 
         # check desktop object
         if not isinstance(desktop, oc.od.desktop.ODDesktop):  
-            raise cherrypy.HTTPError( status=400, message='finddesktop_quiet does not return a desktop object')          
+            raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')          
         if not hasattr(desktop, 'internaluri') :
-            raise cherrypy.HTTPError( status=400, message='finddesktop_quiet does not return a valid desktop object')  
+            raise cherrypy.HTTPError( status=400, message='finddesktop does not return a valid desktop object')  
         if desktop.internaluri is None:
-            raise cherrypy.HTTPError( status=400, message='finddesktop_quiet returns a desktop object with desktop.internaluri as None, unreachable')
+            raise cherrypy.HTTPError( status=400, message='finddesktop returns a desktop object with desktop.internaluri as None, unreachable')
         
         # build new jwtdesktop
         jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-        self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
+        self.logger.info(f"jwttoken is {desktop.internaluri} -> {jwtdesktoptoken}" )
 
         return Results.success(result={
                 'authorization' : jwtdesktoptoken,  # the desktop.ipAddr encrypted
@@ -349,14 +275,11 @@ class ComposerController(BaseController):
         # raise it again
         #
         try:
-            # appname = args.get('app')
-            
             # read the user ip source address for accounting and log history data
             webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
             args[ 'WEBCLIENT_SOURCEIPADDR' ] = webclient_sourceipaddr
 
             # open a new desktop
-            self.logger.debug( 'call oc.od.composer.opendesktop' )
             desktop = oc.od.composer.opendesktop( auth, user, args ) 
 
             # safe check for desktop type
