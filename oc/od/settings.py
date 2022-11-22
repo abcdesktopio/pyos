@@ -77,6 +77,7 @@ ENV_PREFIX_SERVICE_NAME = "ABCDESKTOP_SERVICE_"
 DEFAULT_PASSWD_FILE = ''
 DEFAULT_SHADOW_FILE = ''
 DEFAULT_GROUP_FILE  = ''
+DEFAULT_GSHADOW_FILE = ''
 
 # prelogin
 prelogin = {}
@@ -211,9 +212,11 @@ def init_localaccount():
     global DEFAULT_PASSWD_FILE
     global DEFAULT_GROUP_FILE
     global DEFAULT_SHADOW_FILE
+    global DEFAULT_GSHADOW_FILE
     DEFAULT_PASSWD_FILE = loadfile('passwd')
     DEFAULT_GROUP_FILE  = loadfile('group' )
     DEFAULT_SHADOW_FILE = loadfile('shadow')
+    DEFAULT_GSHADOW_FILE = loadfile('gshadow')
 
 
 def init_webrtc():
