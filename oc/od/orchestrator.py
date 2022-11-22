@@ -1487,7 +1487,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         mydict_config = { 
             'passwd' : AuthUser.mkpasswd(localaccount), 
             'shadow' : AuthUser.mkshadow(localaccount), 
-            'group'  : AuthUser.mkgroup(localaccount) 
+            'group'  : AuthUser.mkgroup(localaccount),
+            'gshadow': AuthUser.mkgshadow(localaccount), 
         }
         return mydict_config
             
@@ -1625,7 +1626,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         myDesktop = None
         myPod =  self.findPodByUser(authinfo, userinfo)
-
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
             # update the metadata.annotations ['lastlogin_datetime'] in pod
             annotations = myPod.metadata.annotations
@@ -2113,7 +2113,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         try:
             pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
             if isinstance(pod, client.models.v1_pod.V1Pod ):
-                self.logger.info( f"create_namespaced_pod pull image ask to run on {podname} return {pod.spec.hostname}" )
+                self.logger.info( f"create_namespaced_pod pull image ask to run on {pod.spec.node_name}" )
         except client.exceptions.ApiException as e:
              self.logger.error( e )
         except Exception as e:
