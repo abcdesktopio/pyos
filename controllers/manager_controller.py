@@ -127,9 +127,9 @@ class ManagerController(BaseController):
 
     def handle_images_DELETE( self ):
         self.logger.debug('')
-        oc.od.composer.del_application_all_images()
+        images_deleted = oc.od.composer.del_application_all_images()
         cherrypy.response.status = 200
-        return "OK"
+        return images_deleted
 
     def handle_images_GET( self ):
         self.logger.debug('')
