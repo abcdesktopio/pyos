@@ -1940,9 +1940,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return result
 
     def removePod( self, myPod:client.models.v1_pod.V1Pod, propagation_policy:str='Foreground', grace_period_seconds:int=None) -> client.models.v1_pod.V1Pod:
-        """_summary_
+        """removePod
             Remove a pod
             like command 'kubectl delete pods'
+            Do not delete others user resources
         Args:
             myPod (_type_): _description_
             propagation_policy (str, optional): propagation_policy. Defaults to 'Foreground'.
@@ -1982,7 +1983,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             try:            
                 v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
                 if not isinstance(v1status,client.models.v1_status.V1Status) :
-                    raise ValueError( 'Invalid V1Status type return by delete_namespaced_secret')
+                    self.logger.error( 'Invalid V1Status type return by delete_namespaced_secret')
+                    bReturn = bReturn and False
+                    continue
+
                 self.logger.debug('secret %s status %s', secret_name, v1status.status) 
                 if v1status.status != 'Success':
                     self.logger.error(f"secret {secret_name} can not be deleted {v1status}" ) 
@@ -2016,6 +2020,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return bReturn 
 
     def removePodSync(self, authinfo, userinfo, myPod=None ):
+        self.logger.debug('')
         # get the user's pod
         if not isinstance(myPod, client.models.v1_pod.V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
@@ -2036,11 +2041,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         if e.status == 404:
                             return True
                         else:
+                            self.logger.error( e )
                             self.on_desktoplaunchprogress( e )
                             return False
                     # wait one second
                     time.sleep(1) 
                     nTry = nTry + 1
+        else:
+            self.logger.debug('')
         return False        
 
     def removedesktop(self, authinfo, userinfo, myPod=None ):
@@ -2066,23 +2074,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
             # deletedpod = self.removePod( myPod )
             deletedpod = self.removePodSync( authinfo, userinfo, myPod )
-        
-            # if isinstance(deletedpod,client.models.v1_pod.V1Pod) :
-            #    removedesktopStatus['pod'] = deletedpod
-            # else:
-            #    removedesktopStatus['pod'] = False
+            if deletedpod is True:
+                # if isinstance(deletedpod,client.models.v1_pod.V1Pod) :
+                #    removedesktopStatus['pod'] = deletedpod
+                # else:
+                #    removedesktopStatus['pod'] = False
 
-            removethreads =  [  { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ], 'thread':None },
-                                { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
-   
-            for removethread in removethreads:
-                self.logger.debug( f"calling thread {removethread['fct'].__name__}" )
-                removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
-                removethread['thread'].start()
- 
-            # need to wait for removethread['thread'].join()
-            for removethread in removethreads:
-                removethread['thread'].join()
+                removethreads =  [  { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ], 'thread':None },
+                                    { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
+    
+                for removethread in removethreads:
+                    self.logger.debug( f"calling thread {removethread['fct'].__name__}" )
+                    removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
+                    removethread['thread'].start()
+    
+                # need to wait for removethread['thread'].join()
+                for removethread in removethreads:
+                    removethread['thread'].join()
+            else:
+                self.logger.error( f"removePodSync failed" )
 
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
@@ -3710,6 +3720,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if ( delta_second > expirein  ):
                 # this pod is gabagable
                 bReturn = True
+
+        self.logger.debug(f"isgarbagable return {bReturn}")
         return bReturn
 
 
@@ -3781,17 +3793,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if isinstance( myPodList,  client.models.v1_pod_list.V1PodList):
                 for pod in myPodList.items:
                     try: 
-                        if self.isgarbagable( pod, expirein, force ) is True:
+                        bgarbagable = self.isgarbagable( pod, expirein, force )
+                        self.logger.info( f"{pod.metadata.name} is garbageable {bgarbagable} " )
+                        if bgarbagable is True:
                             # pod is garbageable, remove it
                             self.logger.info( f"{pod.metadata.name} is garbageable, remove it" )
                             # fake an authinfo object
                             (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(pod)
                             # remove desktop
-                            self.removedesktop( authinfo, userinfo, pod )
-                            # log remove desktop
-                            self.logger.info( f"{pod.metadata.name} is removed" )
-                            # add the name of the pod to the list of garbaged pod
-                            garbaged.append( pod.metadata.name )
+                            bdeleted = self.removedesktop( authinfo, userinfo, pod )
+                            if bdeleted is True : 
+                                # log remove desktop
+                                self.logger.info( f"{pod.metadata.name} is removed" )
+                                # add the name of the pod to the list of garbaged pod
+                                garbaged.append( pod.metadata.name )
+                            else:
+                                self.logger.error( f"{pod.metadata.name} is NOT removed, skipping" )
                         else:
                             self.logger.info( f"{pod.metadata.name} isgarbagable return False, keep it running" )
 
