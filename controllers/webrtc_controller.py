@@ -14,6 +14,7 @@
 
 import logging
 import cherrypy
+from oc.od.desktop import ODDesktop
 import oc.od.settings as settings
 
 import oc.od.composer 
@@ -42,12 +43,10 @@ class WebRTCController(BaseController):
         
         if services.webrtc is None:
             raise cherrypy.HTTPError( 400, message='no WebRTC configuration found')
-        
-        appname = cherrypy.request.json.get('app')
 
-        desktop = oc.od.composer.finddesktop_quiet( authinfo=auth, userinfo=user, appname=appname ) 
-        if desktop is None:                
-            self.logger.error( 'asking for a rtp_stream but desktop is not found')
+        desktop = oc.od.composer.finddesktop( authinfo=auth, userinfo=user ) 
+        if not isinstance( desktop, ODDesktop):               
+            self.logger.error( "desktop is not found")
             raise cherrypy.HTTPError( 400, message='desktop not found')
         
         stream = action( desktop.name )
