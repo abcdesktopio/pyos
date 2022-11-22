@@ -466,13 +466,10 @@ def getsecretuserinfo( authinfo, userinfo ):
 def listContainerApp(authinfo, userinfo):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
-    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
-        
+    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )     
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
-       raise ODError( status=404, message='listContainerApp:findDesktopByUser not found')
-
+       raise ODError( status=404, message='desktop not found')
     result = myOrchestrator.listContainerApps( authinfo, userinfo, myDesktop, services.apps )
-
     return result
 
 
