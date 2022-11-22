@@ -113,7 +113,8 @@ class AuthUser(dict):
                 uidNumber=posixdata.get('uidNumber'),
                 gidNumber=posixdata.get('gidNumber'),
                 homeDirectory=posixdata.get('homeDirectory'),
-                description=posixdata.get('description') )
+                description=posixdata.get('description'),
+                groups=posixdata.get('groups') )
         return posixaccount
         
     def isPosixAccount( self ):
@@ -133,7 +134,7 @@ class AuthUser(dict):
         )
 
     @staticmethod
-    def getdefaultPosixAccount( uid, gid, uidNumber, gidNumber, cn=None, homeDirectory=None, loginShell=None, description=None  ):
+    def getdefaultPosixAccount( uid, gid, uidNumber, gidNumber, cn=None, homeDirectory=None, loginShell=None, description=None, groups=None ):
         # https://ldapwiki.com/wiki/PosixAccount
         # The ObjectClass Type is defined as:
         # OID: 1.3.6.1.1.1.2.0
@@ -145,6 +146,7 @@ class AuthUser(dict):
         if not isinstance(loginShell, str): loginShell=oc.od.settings.balloon_shell
         if not isinstance(description, str): description=''
         if isinstance(description, str): description = description.replace( ':', ' ')
+
         defaultposixAccount = { 
             'cn':cn, 
             'uid':uid, 
@@ -153,7 +155,8 @@ class AuthUser(dict):
             'gidNumber':gidNumber, 
             'homeDirectory':homeDirectory, 
             'loginShell':loginShell, 
-            'description':description 
+            'description':description,
+            'groups': groups
         }
         return defaultposixAccount
 
@@ -167,18 +170,39 @@ class AuthUser(dict):
         groups = moustachedata.get('groups')
         if isinstance( groups, list ):
             for group in groups:
-                newline = f"{group['cn']}:*:{group['gidNumber']}:"
+                newline = f"{group['cn']}:x:{group['gidNumber']}:"
                 uids = group.get('memberUid')
                 if isinstance( uids, str ):
-                    newline += uid
+                    newline += uids
                 if isinstance( uids, list ):
                     if len(uids) > 0:
                         newline += uids[0]
                         for uid in uids[1::]:
                             newline += ',' + uid
-                etcgroup += newline + '\n'
+                etcgroup += '\n' + newline
+            etcgroup += '\n'
         return etcgroup
                     
+    @staticmethod
+    def mkgshadow ( moustachedata ):  
+        gshadow = chevron.render( oc.od.settings.DEFAULT_GSHADOW_FILE,  moustachedata )
+        groups = moustachedata.get('groups')
+        if isinstance( groups, list ):
+            for group in groups:
+                # lpadmin:!::root
+                newline = f"{group['cn']}:!::"
+                uids = group.get('memberUid')
+                if isinstance( uids, str ):
+                    newline += uids
+                if isinstance( uids, list ):
+                    if len(uids) > 0:
+                        newline += uids[0]
+                        for uid in uids[1::]:
+                            newline += ',' + uid
+                gshadow += '\n' + newline
+            gshadow += '\n'
+        return gshadow
+
     @staticmethod
     def mkshadow( moustachedata ):  
         return chevron.render( oc.od.settings.DEFAULT_SHADOW_FILE, moustachedata )
@@ -1838,6 +1862,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         gid = None
         description = None
         loginShell = None
+        groups = None
         uidNumber = self.default_uidNumber_if_not_exist
         gidNumber = self.default_gidNumber_if_not_exist
 
@@ -1849,6 +1874,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             gidNumber = posixAccount.get('gidNumber')
             loginShell = posixAccount.get('loginShell')
             description = posixAccount.get('description')
+            groups = posixAccount.get('groups')
 
         if not isinstance( loginShell, str ): loginShell = oc.od.settings.balloon_shell
         if not isinstance( uid, str ): uid = self.getdefault_posix_uid( userinfo, user )
@@ -1860,6 +1886,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'gid'  : gid,
             'uidNumber': uidNumber,
             'gidNumber': gidNumber,
+            'groups': groups,
             'loginShell': loginShell,
             'description': description,
             'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) 
@@ -2458,6 +2485,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         posixallgroupslist =  self.search_all( authinfo.conn, q.basedn, q.scope, groupfilter, q.attrs, **params)
                         if isinstance(posixallgroupslist, list):
                             userinfo['posix']['groups'] = posixallgroupslist
+                            
 
         return userinfo
 
@@ -2669,6 +2697,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
             except ldap3.core.exceptions.LDAPExceptionError as e:
                 self.logger.error( f"ldap3.core.exceptions.LDAPExceptionError to the ldap server {server} {e}" )
+                lastException = e
+
+            except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
+                self.logger.error( f"ldap3.core.exceptions.LDAPInvalidCredentialsResult to the ldap server {server} {e}" )
                 lastException = e
 
         # end of iterate each ldap server
