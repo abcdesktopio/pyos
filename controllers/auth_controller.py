@@ -102,6 +102,7 @@ class AuthController(BaseController):
         Returns:
             JSON Results
         """
+        self.logger.debug('disconnect')
         result = None
         url = '/'
         if services.auth.isidentified:
@@ -110,6 +111,7 @@ class AuthController(BaseController):
             services.auth.logout()
             result = Results.success( result = {'url': url} )
         else:
+            self.logger.error('user try to logout, but is not identified')
             result = Results.error( message='invalid user credentials', result = {'url': url}  )  
         return result
 
