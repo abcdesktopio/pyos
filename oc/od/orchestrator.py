@@ -1967,11 +1967,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 name=myPod.metadata.name, 
                 namespace=self.namespace, 
                 grace_period_seconds=grace_period_seconds, 
-                propagation_policy=propagation_policy ) 
-
+                propagation_policy=propagation_policy
+            )
         except ApiException as e:
             self.logger.error( str(e) )
-
         return deletedPod
 
     def removesecrets( self, authinfo, userinfo ):
@@ -2097,7 +2096,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
         return deletedpod
-            
+
     def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser, allow_exception=False):
         """[prepareressources]
 
