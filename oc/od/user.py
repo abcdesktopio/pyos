@@ -103,7 +103,7 @@ def whoami(auth, user):
     userinfo['name'] = user.get('name')
         
     completeuserinfo = oc.od.composer.getsecretuserinfo( auth, user  )
-    if type(completeuserinfo) is dict:
+    if isinstance(completeuserinfo, dict):
         if completeuserinfo.get('type') == 'abcdesktop/ldif':
             data = completeuserinfo.get( 'data')
             if type(data) is dict:
@@ -114,17 +114,14 @@ def whoami(auth, user):
                 # https://tools.ietf.org/html/rfc2798
 
                 userphotoattributname = None
-                if auth.providertype == 'ldap':
-                    userphotoattributname = 'jpegPhoto'
-                
+                if auth.providertype == 'ldap':             userphotoattributname = 'jpegPhoto'
                 # If Active Directory attribut name is thumbnailPhoto
-                if auth.providertype == 'activedirectory':
-                    userphotoattributname = 'thumbnailPhoto'
+                if auth.providertype == 'activedirectory':  userphotoattributname = 'thumbnailPhoto'
 
-                if userphotoattributname is not None:    
+                if isinstance( userphotoattributname, str) :    
                     userphoto = data.get( userphotoattributname )
                     # if the photo is defined on user directory service
-                    if userphoto is not None:
+                    if isinstance( userphoto, str):
                         # check if userphoto is on base64 format
                         try:
                             # try to decode to detecte image format 
@@ -135,7 +132,7 @@ def whoami(auth, user):
                             try:
                                 userinfo['photo'] = oc.od.secret.ODSecret.bytestob64( userphoto )
                             except Exception :
-                                logger.error( 'Failed to encode user photo userid:%s name:%s attribut: %s', str(userinfo['userid']), str(userinfo['name'], userphotoattributname) )
+                                logger.error( f"Failed to encode user photo {userinfo['userid']} {userphotoattributname}" )
                                 pass
 
                 userinfo['sn'] = data.get( 'sn' )
