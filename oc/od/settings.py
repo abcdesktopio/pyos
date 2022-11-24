@@ -408,7 +408,8 @@ def init_desktop():
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
     # desktop authprovider can change on the fly 
-    desktop['authproviderneverchange'] = True # default value
+    desktop['authproviderneverchange'] = gconfig.get('desktop.authproviderneverchange', True )
+
     authmanagers = gconfig.get('authmanagers', {} )
     for manager in authmanagers.values():
         providers = manager.get('providers',{})
