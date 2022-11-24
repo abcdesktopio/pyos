@@ -2568,23 +2568,24 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def search(self, conn, basedn, scope, filter=None, attrs=None, one=False):
         self.logger.debug(locals())
-        withdn = attrs is not None and 'dn' in (a.lower() for a in attrs)
         entries = []
-        time_start = time.time()
+        time_start = time.time() # expressed in seconds since the epoch, in UTC
         results = conn.search( search_base=basedn, search_filter=filter, search_scope=scope, attributes=attrs)
-        if results:
+        if results is True:
+            elapsed = time.time() - time_start # in seconds
+            self.logger.info( f"ldap search_s {basedn} {filter} take {elapsed} seconds" )
             for entry in conn.entries: 
                 data = {}
                 for k,v in entry.entry_attributes_as_dict.items():
                     data[k] = self.decodeValue(k,v)
                 data['dn'] = entry.entry_dn
-                if one: 
-                    return data
+                # if only the first entry is need as param
+                # return it 
+                if one: return data
+                # else append to a entries list
                 entries.append(data)
-        time_done = time.time()
-        elapsed = time_done - time_start
-        self.logger.info( 'ldap search_s %s %s take %d ', basedn, str(filter), int(elapsed) )
-        return entries if not one else None 
+            return entries
+        return None 
 
     def getuserdn(self, conn, id):
         return self.getdn(conn, self.user_query, id)
