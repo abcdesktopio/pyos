@@ -209,7 +209,7 @@ class Tools(object):
 
 class Results(object):
     @staticmethod
-    def result(message=None, status=200, result=None):
+    def result(message:str=None, status:int=200, result:dict=None)->dict:
         response = {    'status': status,
                         'result': result
         }
