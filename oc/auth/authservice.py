@@ -1793,7 +1793,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'userid': { 
                 'regexp' : r"(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?",
                 'message': "userid consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character. regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')"
-             }
+            }
         }
         self.default_user_if_not_exist      = config.get('defaultuid', 'balloon' )
         self.default_passwd_if_not_exist    = config.get('defaultpassword', 'lmdpocpetit' )
@@ -1845,27 +1845,31 @@ class ODAuthProviderBase(ODRoleProviderBase):
                 bReturn = True
         return bReturn
 
-    def getdefault_posix_uid(self, userinfo , user):
-        """getdefault_posix_uid
+    def getdefault_uid(self, userinfo , user):
+        """getdefault_uid
             return a default uid if user if not a posix account
 
         Args:
             userinfo (_type_): _description_
             user (_type_): _description_
         """
-        posix_uid = user.replace(' ','')
-        return posix_uid
+        uid = userinfo.get('uid') or userinfo.get('userid')
+        if not isinstance( uid, str):
+            uid = user.replace(' ','').tolower()
+        return uid
 
-    def getdefault_posix_gid(self, userinfo , user):
-        """getdefault_posix_gid
+    def getdefault_gid(self, userinfo , user):
+        """getdefault_gid
             return a default gid if user if not a posix account
 
         Args:
             userinfo (_type_): _description_
             user (_type_): _description_
         """
-        posix_gid = user.replace(' ','')
-        return posix_gid
+        gid = userinfo.get('gid') or userinfo.get('userid')
+        if not isinstance( gid, str):
+            gid = user.replace(' ','').tolower()
+        return gid
         
     def generateLocalAccount(self, userinfo, user, password ):
         
@@ -1888,8 +1892,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
             groups = posixAccount.get('groups')
 
         if not isinstance( loginShell, str ): loginShell = oc.od.settings.balloon_shell
-        if not isinstance( uid, str ): uid = self.getdefault_posix_uid( userinfo, user )
-        if not isinstance( gid, str ): gid = self.getdefault_posix_gid( userinfo, user )
+        if not isinstance( uid, str ): uid = self.getdefault_uid( userinfo, user )
+        if not isinstance( gid, str ): gid = self.getdefault_gid( userinfo, user )
         if not isinstance( password, str ): password = self.default_passwd_if_not_exist
         
         hashes = {  
@@ -2721,8 +2725,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return self.getdn(conn, self.group_query, id)
 
     def getdn(self, conn, query, id):
+        distinguishedName = None
         result = self.search(conn, query.basedn, query.scope, ldap_filter.filter_format(query.filter, [id]), ['cn', 'distinguishedName'], True)
-        return result['distinguishedName'] if result else None
+        if isinstance(result, dict):
+            distinguishedName = result.get('distinguishedName') or result.get('dn') 
+        return distinguishedName
 
     def isMemberOf( self, authinfo, userdistinguished_name:str, groupdistinguished_name:str):
         self.logger.debug(f"userdistinguished_name={userdistinguished_name} groupdistinguished_name={groupdistinguished_name}")
@@ -3177,8 +3184,8 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             filter=config.get('site_filter', '(objectClass=subnet)'),
             attrs=config.get('site_attrs',['cn', 'siteObject', 'location']) )
 
-    def getdefault_posix_uid(self, userinfo , user):
-        """getdefault_posix_uid
+    def getdefault_uid(self, userinfo , user):
+        """getdefault_uid
             return a default uid if user if not a posix account
 
         Args:
@@ -3189,7 +3196,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         if isinstance( userinfo, dict):
             uid = userinfo.get('sAMAccountName')
         if not isinstance( uid, str ):
-            uid = super().getdefault_posix_uid(userinfo , user)
+            uid = super().getdefault_uid(userinfo , user)
         return uid
 
 
