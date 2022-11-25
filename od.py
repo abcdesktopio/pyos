@@ -25,7 +25,6 @@ import oc.logging
 import oc.cherrypy
 import oc.od.settings as settings
 import oc.od.services as services
-from oc.od.error import ODError
 
 # Load logging config ASAP !
 oc.logging.configure( config_or_path=oc.od.settings.defaultConfigurationFilename, is_cp_file=True)
@@ -50,20 +49,27 @@ def api_handle_error():
     ex_type, ex, ex_tb = sys.exc_info()
     
     status = 500
-    message = 'Internal api server error'
+    message = None
     if isinstance(ex, oc.cherrypy.WebAppError):
         status = ex.status
         message = ex.to_dict()
     else:
-        status = ex.code if hasattr( ex, 'code' ) else 500
-        for m in [ 'reason', 'message', '_message']:
+        if hasattr( ex, 'code' ):   
+            status = ex.code
+        for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
             if hasattr( ex, m ):
-                message =  message = getattr( ex, m )
-                break
-    result = { 'status': status, 'message':message }
+                message = getattr( ex, m )
+                if isinstance( message, list) or isinstance( message, tuple):
+                    message = message[0]
+                if isinstance( message, str) and len(message) > 0:
+                    break
+    # message is ALWAYS a str
+    if not isinstance(message, str ):
+        message = 'Internal api server error'
 
+    # return error dict json 
+    result = { 'status': status, 'message':message, 'exception':str(ex) }
     build_error = json.dumps( result ) + '\n'
-
     cherrypy.response.headers['Content-Type'] = 'application/json'
     cherrypy.response.status = status 
     cherrypy.response.body = build_error.encode('utf-8')
@@ -170,16 +176,6 @@ class API(object):
         # do not trace the response if cherrypy.response.notrace is set
         if hasattr(cherrypy.response, 'notrace'):
             return
-        message  = ''
-        if hasattr(cherrypy.request, 'result'):
-            message = cherrypy.request.result
-        else:
-            message = cherrypy.response.body
-
-        if isinstance( message, str):
-            # drop message too long
-            # OSError: [Errno 90] Message too long
-            message = message[:4096] # suppose to be 4096
 
         message = b''
         if isinstance( cherrypy.response.body, list):
@@ -204,7 +200,7 @@ class API(object):
             return the pyos build information as json format
             load json data file version.json in current directory
         """
-        data = { 'date': 'undefined', 'commit': 'undefined' } # default undefined values
+        data = { 'date': 'undefined', 'commit': 'undefined' }
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
             json_file = open('version.json')

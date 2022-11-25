@@ -163,6 +163,17 @@ class AuthUser(dict):
     @staticmethod
     def mkpasswd( moustachedata ):  
         return chevron.render( oc.od.settings.DEFAULT_PASSWD_FILE, moustachedata )
+
+    @staticmethod
+    def mksupplementalGroups(moustachedata:dict)->list:
+        supplementalGroups = None
+        groups = moustachedata.get('groups')
+        if isinstance( groups, list ):
+            supplementalGroups = []
+            for group in groups:
+                supplementalGroups.append(group['gidNumber'])
+        return supplementalGroups
+
     
     @staticmethod
     def mkgroup ( moustachedata ):  
@@ -2537,68 +2548,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.logger.debug( 'value=%s escaped by ldap_filter.escape_filter_chars as value=%s', userid, escape_userid )
         return self.usercnattr + '=' + escape_userid + ',' + self.users_ou
 
-    def ___getconnection(self, userid, password ):
-        conn = None
-        server_pool = ldap3.ServerPool( servers=None, pool_strategy=ldap3.ROUND_ROBIN, active=True, exhaust=True, single_state=False )
-        for server in self.servers:
-            server_pool.add( server, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod )
-
-        try:    
-            # do kerberos bind
-            if self.auth_type == 'KERBEROS': 
-                # krb5ccname must already exist 
-                krb5ccname = self.get_krb5ccname( userid )
-                # os.putenv( 'KRB5CCNAME', krb5ccname )
-                self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', userid, krb5ccname )
-                # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
-                cred_store = {'ccache':  krb5ccname }
-                kerberos_principal_name = self.get_kerberos_principal( userid )
-                # If you specify user=, it is expected to be a Kerberos principal (though it appears you can omit the domain). 
-                # If there is a credential for that user in the collection, it will be used.
-                self.logger.info( 'create Connection object ldap3.KERBEROS as %s KRB5CCNAME: %s', kerberos_principal_name, krb5ccname )
-                conn = ldap3.Connection( server_pool, user=kerberos_principal_name, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, raise_exceptions=True, cred_store=cred_store )
-                # bind to the ldap server
-                self.logger.debug( 'bind to the ldap server')
-                conn.bind()
-                # os.unsetenv('KRB5CCNAME')
-
-            # do ntlm bind
-            if self.auth_type == 'NTLM':
-                # userid MUST be DOMAIN\\SAMAccountName format 
-                # call overwrited by bODAdAuthProvider:getconnection
-                self.logger.info( 'create Connection object ldap3.NTLM as %s', userid )
-                # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
-                conn = ldap3.Connection( server_pool, user=userid, password=password, authentication=ldap3.NTLM, raise_exceptions=True  )
-                # bind to the ldap server
-                self.logger.debug( 'binding to the ldap server')
-                conn.bind()
-                
-            # do textplain simple_bind_s 
-            if self.auth_type == 'SIMPLE':
-                # get the dn to bind 
-                userdn = self.getuserdnldapconnection(userid)
-                # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
-                self.logger.info( 'create Connection object ldap3.SIMPLE as %s', userdn )
-                conn = ldap3.Connection( server_pool, user=userdn, password=password, authentication=ldap3.SIMPLE, raise_exceptions=True )
-                # bind to the ldap server
-                self.logger.debug( 'binding to the ldap server')
-                conn.bind()
-                self.logger.debug( 'bind to the ldap server done')
-            return conn
-
-        except ldap3.core.exceptions.LDAPBindError as e:
-            self.logger.error( 'ldap3.core.exceptions.LDAPBindError to the ldap server %s %s', server_pool, str(e) )
-            # ldap3.core.exceptions.LDAPBindError: - invalidCredentials
-            raise e
-
-        except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult as e:
-            self.logger.error( 'ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server %s %s', server_pool, str(e) )
-
-        except ldap3.core.exceptions.LDAPExceptionError as e:
-            self.logger.error( 'ldap3.core.exceptions.LDAPExceptionError to the ldap server %s %s', server_pool, str(e) )
-        
-        raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
-    
+  
     def verify_auth_is_supported_by_ldap_server( self, supported_sasl_mechanisms ):
         #
         # from https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/a98c1f56-8246-4212-8c4e-d92da1a9563b
@@ -2646,13 +2596,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
                 # read supported_sasl_mechanisms supported by the ldap server
                 supported_sasl_mechanisms = server.info.supported_sasl_mechanisms if server.info else None
-                self.logger.info( 'supported_sasl_mechanisms by %s return %s', server_name, str(supported_sasl_mechanisms)  )
+                self.logger.debug( "fsupported_sasl_mechanisms by {server_name} return {supported_sasl_mechanisms}" )
                 del c # remove the c Connection, only use to get supported_sasl_mechanisms 
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
-                    self.logger.warning( '%s is not defined by %s.info.supported_sasl_mechanisms supported_sasl_mechanisms=%s', self.auth_type, server_name, str(supported_sasl_mechanisms) )
+                    self.logger.warning( f"{self.auth_type} is not defined in {server_name}.info.supported_sasl_mechanisms supported_sasl_mechanisms={supported_sasl_mechanisms}" )
                  
-
                 # do kerberos bind
                 if self.auth_type == 'KERBEROS': 
                      # krb5ccname must already exist 
@@ -2661,14 +2610,14 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     kerberos_principal_name = self.get_kerberos_principal( userid )
                     # If you specify user=, it is expected to be a Kerberos principal (though it appears you can omit the domain). 
                     # If there is a credential for that user in the collection, it will be used.
-                    self.logger.debug( 'ldap getconnection:Connection server=%s as user=%s authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME=%s', server_name, kerberos_principal_name, cred_store )
+                    self.logger.debug( f"ldap getconnection:Connection server={server_name} as user={kerberos_principal_name} authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME={cred_store}")
                     conn = ldap3.Connection( server, user=kerberos_principal_name, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
 
                 # do ntlm bind
                 if self.auth_type == 'NTLM':
                     # userid MUST be DOMAIN\\SAMAccountName format, call overwrited by bODAdAuthProvider:getconnection
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
-                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s authentication=ldap3.NTLM', str(server), userid )
+                    self.logger.info( f"ldap getconnection:Connection server={server_name} userid={userid} authentication=ldap3.NTLM" )
                     conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, read_only=True, raise_exceptions=True )
                     
                 # do textplain simple_bind_s 
@@ -2676,39 +2625,47 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # get the dn to bind 
                     userdn = self.getuserdnldapconnection(userid)
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
-                    self.logger.info( 'ldap getconnection:Connection server=%s userid=%s  authentication=ldap3.SIMPLE', str(server), userdn )
+                    self.logger.info( f"ldap getconnection:Connection server={server_name} userdn={userdn} authentication=ldap3.SIMPLE" )
                     conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
 
-                # let's bind to the ldap server
-                # conn.open()
-                self.logger.info( f"binding to the ldap server {server_name}")
+                #
+                # let's bind to the ldap server conn.open()
+                self.logger.debug( f"binding to the ldap server {server_name}")
                 conn.bind()
-                self.logger.info( f"bind to {server_name} done")
+                self.logger.debug( f"bind to {server_name} done")
+                #
+                # return ldap3.Connection 
                 return conn
 
-            except ldap3.core.exceptions.LDAPBindError as e:
-                self.logger.error( f"ldap3.core.exceptions.LDAPBindError to the ldap server {server} {e}" )
-                # ldap3.core.exceptions.LDAPBindError: - invalidCredentials
+            # An except clause may name multiple exceptions as a parenthesized
+            # exceptions page https://ldap3.readthedocs.io/en/latest/exceptions.html
+            except (ldap3.core.exceptions.LDAPInvalidDNSyntaxResult, 
+                    ldap3.core.exceptions.LDAPInvalidCredentialsResult,
+                    ldap3.core.exceptions.LDAPInvalidAttributeSyntaxResult) as e:
+                self.logger.error( f"exception {e} to the ldap server {server}" )
+                #
+                # This is fatal error, do not continue to query other ldap server
+                # raise ldap3.core.exceptions.LDAPInvalidCredentialsResult
+                #
+                e.code = 401
                 raise e
 
             except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult as e:
-                self.logger.error( f"ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult to the ldap server {server} {e}" )
+                self.logger.error( f"exception {e} to the ldap server {server}" )
                 lastException = e
 
             except ldap3.core.exceptions.LDAPExceptionError as e:
-                self.logger.error( f"ldap3.core.exceptions.LDAPExceptionError to the ldap server {server} {e}" )
-                lastException = e
-
-            except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
-                self.logger.error( f"ldap3.core.exceptions.LDAPInvalidCredentialsResult to the ldap server {server} {e}" )
+                self.logger.error( f"exception {e} to the ldap server {server}" )
                 lastException = e
 
         # end of iterate each ldap server
-        if lastException:
+        if isinstance(lastException, Exception ) :
+            lastException.code = 401
             raise lastException
-        else:
-            raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
-    
+
+        raise AuthenticationError('Can not contact LDAP servers, all servers are unavailable')
+        
+   
     def search_all(self, conn, basedn, scope, filter=None, attrs=None, **params):
         """[summary]
 
@@ -2739,21 +2696,23 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.logger.debug(locals())
         withdn = attrs is not None and 'dn' in (a.lower() for a in attrs)
         entries = []
-        time_start = time.time()
+        time_start = time.time() # expressed in seconds since the epoch, in UTC
         results = conn.search( search_base=basedn, search_filter=filter, search_scope=scope, attributes=attrs)
-        if results:
+        if results is True:
+            elapsed = time.time() - time_start # in seconds
+            self.logger.info( f"ldap search_s {basedn} {filter} take {elapsed} seconds" )
             for entry in conn.entries: 
                 data = {}
                 for k,v in entry.entry_attributes_as_dict.items():
                     data[k] = self.decodeValue(k,v)
                 data['dn'] = entry.entry_dn
-                if one: 
-                    return data
+                # if only the first entry is need as param
+                # return it 
+                if one: return data
+                # else append to a entries list
                 entries.append(data)
-        time_done = time.time()
-        elapsed = time_done - time_start
-        self.logger.info( 'ldap search_s %s %s take %d ', basedn, str(filter), int(elapsed) )
-        return entries if not one else None 
+            return entries
+        return None 
 
     def getuserdn(self, conn, id):
         return self.getdn(conn, self.user_query, id)
