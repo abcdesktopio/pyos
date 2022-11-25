@@ -12,6 +12,8 @@
 # Software description: cloud native desktop service
 #
 import logging
+
+from yaml import serialize
 import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
@@ -162,9 +164,12 @@ class ODSecret():
                     b64data = secret.data.get(key)
                     readdata[key] = oc.od.secret.ODSecret.b64todata( b64data )
                     if self.typeConverterValues.get(key):
-                        readdata[key] = self.typeConverterValues.get(key)( readdata[key] )
+                        try:
+                            readdata[key] = self.typeConverterValues.get(key)(readdata[key] )
+                        except Exception as e:
+                            self.logger.error( f"failed to decode typeConverterValues secret key {key} {e}")
                 except Exception as e:
-                    logger.error( f"failed to read secret key {key} {e}")
+                    self.logger.error( f"failed to read secret key {key} {e}")
         return readdata 
         
     def _create_dict(self, authinfo, userinfo,  arguments):       
@@ -177,10 +182,16 @@ class ODSecret():
             argument_type = type(arguments[key])
             if argument_type is str:
                 mydict_secret.update( { key:  ODSecret.strtob64(arguments[key]) } )
-            if argument_type is int:
+            elif argument_type is int:
                 mydict_secret.update( { key:  ODSecret.strtob64(str(arguments[key])) } )
-            if argument_type is bytes:
+            elif argument_type is bytes:
                 mydict_secret.update( { key:  ODSecret.bytestob64(arguments[key]) } )
+            elif argument_type is dict :
+                serialized = json.dumps(arguments[key])
+                mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
+            elif argument_type is list:
+                serialized = json.dumps(arguments[key])
+                mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
         return mydict_secret
 
     def patch(self, authinfo, userinfo, old_secret, arguments ): 
@@ -269,6 +280,7 @@ class ODSecretLDIF( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='ldif' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='ldif'
+        self.typeConverterValues = { 'jpegPhoto':ODSecret.b64tobytes, 'thumbnailPhoto':ODSecret.b64tobytes }
 
 class ODSecretLocalAccount( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
@@ -280,7 +292,7 @@ class ODSecretPosixAccount( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='posixaccount' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='posixaccount'
-        self.typeConverterValues = { 'uidNumber':int, 'gidNumber':int }
+        self.typeConverterValues = { 'uidNumber':int, 'gidNumber':int, 'groups': json.loads }
 
 class ODSecretVNC( ODSecret ):
     ''' Create a secret used for vnc password '''
