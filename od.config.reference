@@ -438,19 +438,6 @@ desktop.hostconfig : {  'auto_remove'   : True,
                         'shm_size'      : '256M' }
 
 
-
-# desktop.usex11unixsocket describes 
-# desktop.usex11unixsocket MUST ALWAYS SET TO True
-# Only shared tmp volume is supported in this release
-# tmp volume share X11, /tmp/.pulse.sock, and /tmp/.cupsd.sock
-# set env 
-#   DISPLAY=:0.0
-#   PULSE_SERVER=/tmp/.pulse.sock
-#   CUPS_SERVER=/tmp/.cupsd.sock
-# the default value is True
-# keep this line comment and unchange
-# desktop.usex11unixsocket : True
-
 # desktop.shareipcnamespace
 # the value is a string 
 # the default value is 'shareable'
@@ -653,24 +640,6 @@ dock : {        'filemanager':  {       'args': None,
 # at the to rignt corner 
 # in front js
 front.menuconfig  : { 'settings': True, 'appstore': True, 'screenshot':True, 'download': True, 'logout': True, 'disconnect': True }
-
-
-# PRINTER SECTION
-# printer.cupsdriverLanguageMap
-# printer.cupsdriverLanguageMap describe 
-# WARNING  'HPGL2':  shoud be      'drv:///sample.drv/generic.ppd', but this fail with xeros workcenter
-# force xeros workcenter to use PCL driver, this works
-printer.cupsdriverLanguageMap : {   'PCL':        'drv:///sample.drv/generpcl.ppd',
-                                    'PCLXL':      'drv:///sample.drv/generpcl.ppd',
-                                    'PostScript': 'drv:///sample.drv/generic.ppd',
-                                    'HPGL2':      'drv:///sample.drv/generpcl.ppd',
-                                    'default':    'drv:///sample.drv/generic.ppd' }
-# printer.cupsPrinterEmbeddedList
-# printer.cupsPrinterEmbeddedList is the list of default printer already prenset in the oc.user container
-# The values must match with 
-printer.cupsPrinterEmbeddedList   : [ 'abcdesktop_PDF_Printer' ]
-# END OF PRINTER SECTION
-
 
 #
 # LOGGING SECTION
