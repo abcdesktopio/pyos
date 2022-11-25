@@ -14,11 +14,9 @@
 # 
 
 import logging
-from pydoc import doc
 import cherrypy
 
 from oc.od.base_controller import BaseController
-from oc.cherrypy import WebAppError, getclientipaddr
 import oc.od.composer
 import oc.od.services
 import oc.cherrypy
