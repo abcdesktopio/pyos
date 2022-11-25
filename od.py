@@ -23,7 +23,6 @@ from cherrypy.process import plugins
 
 import oc.logging
 import oc.cherrypy
-from oc.od.infra import ODError
 import oc.od.settings as settings
 import oc.od.services as services
 
@@ -50,21 +49,27 @@ def api_handle_error():
     ex_type, ex, ex_tb = sys.exc_info()
     
     status = 500
-    message = 'Internal api server error'
+    message = None
     if isinstance(ex, oc.cherrypy.WebAppError):
         status = ex.status
         message = ex.to_dict()
     else:
-        if hasattr( ex, 'code' ):
+        if hasattr( ex, 'code' ):   
             status = ex.code
-        for m in [ 'reason', 'message', '_message']:
+        for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
             if hasattr( ex, m ):
-                message =  message = getattr( ex, m )
-                break
-    result = { 'status': status, 'message':message }
+                message = getattr( ex, m )
+                if isinstance( message, list) or isinstance( message, tuple):
+                    message = message[0]
+                if isinstance( message, str) and len(message) > 0:
+                    break
+    # message is ALWAYS a str
+    if not isinstance(message, str ):
+        message = 'Internal api server error'
 
+    # return error dict json 
+    result = { 'status': status, 'message':message, 'exception':str(ex) }
     build_error = json.dumps( result ) + '\n'
-
     cherrypy.response.headers['Content-Type'] = 'application/json'
     cherrypy.response.status = status 
     cherrypy.response.body = build_error.encode('utf-8')
