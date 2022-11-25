@@ -463,6 +463,12 @@ def getsecretuserinfo( authinfo, userinfo ):
     secretuserinfo = myOrchestrator.getsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
+def getldifsecretuserinfo( authinfo, userinfo ):
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()   
+    secretuserinfo = myOrchestrator.getldifsecretuserinfo( authinfo, userinfo )
+    return secretuserinfo
+
 def listContainerApp(authinfo, userinfo):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
