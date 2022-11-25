@@ -496,30 +496,22 @@ def getsecretuserinfo( authinfo, userinfo ):
     secretuserinfo = myOrchestrator.getsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
-
-
 def listContainerApp(authinfo, userinfo):
     # new Orchestrator Object
-    myOrchestrator = selectOrchestrator()   
+    myOrchestrator = selectOrchestrator()
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
-        
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
        raise ODError( status=404, message='listContainerApp:findDesktopByUser not found')
-
     myOrchestrator.nodehostname = myDesktop.nodehostname
     result = myOrchestrator.listContainerApps( authinfo, userinfo )
     return result
 
-
-
 def envContainerApp(authinfo, userinfo, containerid ):
     # new Orchestrator Object
-    myOrchestrator = selectOrchestrator()   
+    myOrchestrator = selectOrchestrator()
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
-        
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
        raise ODError( status=404, message='envContainerApp:findDesktopByUser not found')
-
     services.accounting.accountex('api', 'env_container_app')
     myOrchestrator.nodehostname = myDesktop.nodehostname
     result = myOrchestrator.envContainerApp( authinfo, userinfo, containerid )
