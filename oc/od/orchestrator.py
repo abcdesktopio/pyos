@@ -1668,6 +1668,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 break
         return raw_secrets
 
+    def getldifsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
+        """getldifsecretuserinfo 
+                read cached user info dict from a ldif secret
+
+        Args:
+            authinfo (AuthInfo): authentification data
+            userinfo (AuthUser): user data 
+
+        Returns:
+            [dict]: cached user info dict from ldif secret
+                    empty dict if None
+        """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+        secret = oc.od.secret.ODSecretLDIF( namespace=self.namespace, kubeapi=self.kubeapi )
+        data = secret.read_alldata(userinfo)
+        return data
+
 
     def list_dict_configmap_data( self, authinfo:AuthInfo, userinfo:AuthUser, access_type=None, hidden_empty=False )->dict:
         """get a dict of secret (key value) for the access_type
@@ -2183,23 +2202,43 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             userinfo (AuthUser): userinfo
 
         Returns:
-            dict: a securityContext dict with { 'runAsUser': UID , 'runAsGroup': GID }
+            dict: a securityContext dict with { 'runAsUser': UID , 'runAsGroup': GID } or None
         """
-        securityContextConfig = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get( 'securityContext', { 'runAsUser':  '{{ uidNumber }}', 'runAsGroup': '{{ gidNumber }}' } )
-        securityContext = copy.deepcopy(securityContextConfig)
-        runAsUser  = securityContext.get('runAsUser')
-        runAsGroup = securityContext.get('runAsGroup')
-        
-        posixuser = self.alwaysgetPosixAccountUser( userinfo )
-        #
-        # replace runAsUser and runAsGroup by posix account values
-        # if 'runAsUser' exist in configuration file
-        #
-        if isinstance( runAsUser, str ): 
-            securityContext['runAsUser']  = int( chevron.render( runAsUser, posixuser ) )
-        # if 'runAsGroup' exist in configuration file
-        if isinstance( runAsGroup, str ): 
-            securityContext['runAsGroup'] = int( chevron.render( runAsGroup, posixuser ) )
+        securityContext = None
+        securityContextConfig = oc.od.settings.desktop_pod.get(currentcontainertype, {}).get( 'securityContext')
+        if isinstance( securityContextConfig, dict):
+            securityContext = copy.deepcopy(securityContextConfig)
+            runAsUser  = securityContext.get('runAsUser')
+            runAsGroup = securityContext.get('runAsGroup')
+            supplementalGroups = securityContext.get('supplementalGroups')
+
+            posixuser = self.alwaysgetPosixAccountUser( userinfo )
+
+            # replace 'runAsUser' if exist in configuration file
+            if isinstance( runAsUser, str ): 
+                securityContext['runAsUser']  = int( chevron.render( runAsUser, posixuser ) )
+            
+            # replace 'runAsGroup' if exist in configuration file
+            if isinstance( runAsGroup, str ): 
+                securityContext['runAsGroup'] = int( chevron.render( runAsGroup, posixuser ) )
+            
+            if securityContext.get('supplementalGroups'):
+                # add 'supplementalGroups' if exist in configuration file
+                # and posixuser.get('groups') is a list with element
+                # add 'supplementalGroups' if exist in configuration file
+                if isinstance( supplementalGroups, list ):
+                    for i in range(0,len(supplementalGroups)):
+                        # Replace  '{{ supplementalGroups }}' by the posic groups
+                        if supplementalGroups[i] == '{{ supplementalGroups }}':
+                            del supplementalGroups[i] 
+                            posixuser_supplementalGroups =  AuthUser.mksupplementalGroups( posixuser )
+                            if isinstance( posixuser_supplementalGroups, list ):
+                                for posixuser_supplementalGroup in posixuser_supplementalGroups:
+                                    supplementalGroups.append(posixuser_supplementalGroup)
+                            break
+                else:
+                    del securityContext['supplementalGroups']
+
         return securityContext
 
     def getimagecontainerfromauthlabels( self, currentcontainertype:str, authinfo:AuthInfo )->str:
@@ -2371,11 +2410,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
 
-        myDesktop       = None # default return object
-        args     = kwargs.get('args')    
-        command  = kwargs.get('command')
+        myDesktop = None # default return object
         env      = kwargs.get('env', {} )
-        appname  = kwargs.get('appname')
 
         # add a new VNC Password to env var
         self.logger.debug('ODVncPassword creating')
@@ -2573,6 +2609,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 label_value = str( oc.od.settings.desktop_pod[currentcontainertype].get('tcpport','enabled') )
                 labels.update( { label_servicename: label_value } )
 
+        currentcontainertype = 'spec'
+        specssecurityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
+
         currentcontainertype = 'graphical'
         self.logger.debug('pod container creating %s', currentcontainertype )
         securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, userinfo )
@@ -2598,15 +2637,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
+                'securityContext': specssecurityContext,
                 'containers': [ {   
                     'imagePullPolicy' : oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('imagePullPolicy'),
                     'imagePullSecrets': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('imagePullSecrets'),
                     'image': image,
                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                    'args': args,
                     'env': envlist,
-                    'volumeMounts': list_volumeMounts,
                     'securityContext': securityContext,
+                    'volumeMounts': list_volumeMounts,
                     'resources': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('resources')
                 } ]
             }
@@ -3682,7 +3721,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # "field":"spec.ephemeralContainers[8].volumeMounts[0].subPath"}]},
         # "code":422}
         
-        securitycontext = self.get_securitycontext( userinfo=userinfo )
+        # securitycontext = self.get_securitycontext( userinfo=userinfo )
 
         # 
         # note there is no imagePullSecrets, parameters ?
@@ -3693,8 +3732,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                                     command=app.get('cmd'),
                                                     target_container_name=myDesktop.container_name,
                                                     image_pull_policy=app.get('image_pull_policy'),
-                                                    volume_mounts = list_volumeMounts,
-                                                    security_context = securitycontext
+                                                    volume_mounts = list_volumeMounts
         )
 
         pod_ephemeralcontainers =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
@@ -4035,6 +4073,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             },
             'spec': {
                 'restartPolicy' : 'Never',
+                'securityContext': securitycontext,
                 'affinity': {
                     'nodeAffinity': {
                         'preferredDuringSchedulingIgnoredDuringExecution': [
@@ -4062,7 +4101,6 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     'command': command,
                     'env': envlist,
                     'volumeMounts': list_volumeMounts,
-                    'securityContext': securitycontext,
                     'resources': oc.od.settings.desktop_pod[self.type].get('resources') 
                 } ]
             }
