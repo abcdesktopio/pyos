@@ -204,6 +204,9 @@ class ODOrchestratorBase(object):
     def getsecretuserinfo(self, authinfo, userinfo):
         raise NotImplementedError('%s.getsecretuserinfo' % type(self))
 
+    def getldifsecretuserinfo(self, authinfo, userinfo):
+        raise NotImplementedError('%s.getldifsecretuserinfo' % type(self))
+
     def garbargecollector( self, timeout ):
         raise NotImplementedError('%s.garbargecollector' % type(self))
 
@@ -2265,7 +2268,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 raw_secrets.update( secret )
                 break
         return raw_secrets
-
 
     def list_dict_configmap_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
         """get a dict of secret (key value) for the access_type
