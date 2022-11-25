@@ -114,7 +114,8 @@ class AuthUser(dict):
                 gidNumber=posixdata.get('gidNumber'),
                 homeDirectory=posixdata.get('homeDirectory'),
                 description=posixdata.get('description'),
-                groups=posixdata.get('groups') )
+                groups=posixdata.get('groups'),
+                gecos=posixdata.get('gecos') )
         return posixaccount
         
     def isPosixAccount( self ):
@@ -134,7 +135,7 @@ class AuthUser(dict):
         )
 
     @staticmethod
-    def getdefaultPosixAccount( uid, gid, uidNumber, gidNumber, cn=None, homeDirectory=None, loginShell=None, description=None, groups=None ):
+    def getdefaultPosixAccount( uid, gid, uidNumber, gidNumber, cn=None, homeDirectory=None, loginShell=None, description=None, groups=None, gecos=None ):
         # https://ldapwiki.com/wiki/PosixAccount
         # The ObjectClass Type is defined as:
         # OID: 1.3.6.1.1.1.2.0
@@ -156,13 +157,15 @@ class AuthUser(dict):
             'homeDirectory':homeDirectory, 
             'loginShell':loginShell, 
             'description':description,
-            'groups': groups
+            'groups': groups,
+            'gecos': gecos
         }
         return defaultposixAccount
 
     @staticmethod
     def mkpasswd( moustachedata ):  
-        return chevron.render( oc.od.settings.DEFAULT_PASSWD_FILE, moustachedata )
+        passwd = chevron.render( oc.od.settings.DEFAULT_PASSWD_FILE, moustachedata )
+        return passwd
 
     @staticmethod
     def mksupplementalGroups(moustachedata:dict)->list:
@@ -1878,6 +1881,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
         description = None
         loginShell = None
         groups = None
+        gecos = None
+        homeDirectory = None
         uidNumber = self.default_uidNumber_if_not_exist
         gidNumber = self.default_gidNumber_if_not_exist
 
@@ -1890,11 +1895,15 @@ class ODAuthProviderBase(ODRoleProviderBase):
             loginShell = posixAccount.get('loginShell')
             description = posixAccount.get('description')
             groups = posixAccount.get('groups')
+            # futur usage
+            # homeDirectory = posixAccount.get('homeDirectory')
+            gecos = posixAccount.get('gecos')
 
-        if not isinstance( loginShell, str ): loginShell = oc.od.settings.balloon_shell
+        if not isinstance( loginShell, str ): loginShell = oc.od.settings.getballoon_loginShell()
         if not isinstance( uid, str ): uid = self.getdefault_uid( userinfo, user )
         if not isinstance( gid, str ): gid = self.getdefault_gid( userinfo, user )
         if not isinstance( password, str ): password = self.default_passwd_if_not_exist
+        if not isinstance( homeDirectory, str ): homeDirectory = oc.od.settings.getballoon_homedirectory()
         
         hashes = {  
             'uid'  : uid,
@@ -1904,6 +1913,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'groups': groups,
             'loginShell': loginShell,
             'description': description,
+            'gecos': gecos,
+            'homeDirectory': homeDirectory,
             'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) 
         }
         return hashes
@@ -2086,7 +2097,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     # from https://ldapwiki.com/wiki/PosixAccount
     # PosixAccount ObjectClass Types 
-    DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory', 'loginShell', 'description' ]
+    DEFAULT_POSIXACCOUNT_ATTRS = [ 'cn', 'uid', 'uidNumber', 'gidNumber', 'homeDirectory', 'loginShell', 'description', 'gecos' ]
     DEFAULT_POSIXGROUP_ATTRS   = [ 'cn', 'gidNumber', 'memberUid', 'description' ]
     
     class Query(object):
