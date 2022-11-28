@@ -141,7 +141,7 @@ class ODServices(object):
         # filter manager to get explicit manager
         manager_explicit = oc.od.services.services.auth.getmanager( 'explicit' )
         # if manager_explicit is an ODExplicitMetaAuthManager
-        if isinstance( manager_explicit, oc.od.services.services.auth.ODExplicitMetaAuthManager ):
+        if isinstance( manager_explicit, oc.auth.authservice.ODExplicitMetaAuthManager ):
             # for each explicit manager
             for prv in manager_explicit.providers.values():
                 # get a explicit provider                         
