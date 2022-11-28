@@ -140,17 +140,19 @@ class ODServices(object):
         """
         # filter manager to get explicit manager
         manager_explicit = oc.od.services.services.auth.getmanager( 'explicit' )
-        # for each explicit manager
-        for prv in manager_explicit.providers.values():
-            # get a explicit provider                         
-            provider=oc.od.services.services.auth.findprovider( provider_name=prv.name )
-            # if explicit provoder is an activedirectory  
-            if provider.type == 'activedirectory' :
-                # run ldap query to list site subnet from the ActiveDirectory domain 
-                site = provider.listsite()
-                # cache the site data into locatorPrivateActiveDirectory dict 
-                # if locatorPrivateActiveDirectory entry is the domain name
-                self.locatorPrivateActiveDirectory[ provider.domain ] = oc.od.locator.ODLocatorActiveDirectory( site=site, domain=provider.domain )
+        # if manager_explicit is an ODExplicitMetaAuthManager
+        if isinstance( manager_explicit, oc.od.services.services.auth.ODExplicitMetaAuthManager ):
+            # for each explicit manager
+            for prv in manager_explicit.providers.values():
+                # get a explicit provider                         
+                provider=oc.od.services.services.auth.findprovider( provider_name=prv.name )
+                # if explicit provoder is an activedirectory  
+                if provider.type == 'activedirectory' :
+                    # run ldap query to list site subnet from the ActiveDirectory domain 
+                    site = provider.listsite()
+                    # cache the site data into locatorPrivateActiveDirectory dict 
+                    # if locatorPrivateActiveDirectory entry is the domain name
+                    self.locatorPrivateActiveDirectory[ provider.domain ] = oc.od.locator.ODLocatorActiveDirectory( site=site, domain=provider.domain )
 
     def init_jwtdesktop(self):
         """Load rsa keys jwtdesktopprivatekeyfile jwtdesktoppublickeyfile payloaddesktoppublickeyfile

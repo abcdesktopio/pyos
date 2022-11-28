@@ -517,16 +517,16 @@ class ODAuthTool(cherrypy.Tool):
 
         raise AuthenticationFailureError('Authentication manager not found: manager=%s provider=%s, check your configuration file' % (managername,providername))
 
-    def getmanager(self, name, raise_error=False):
-        if not name: 
+    def getmanager(self, name:str, raise_error=False):
+        if not isinstance(name, str): 
             if raise_error: 
                 raise AuthenticationFailureError('Invalid authentication manager name')
             return None
 
         manager = self.managers.get(name)
-        if not manager: 
+        if not isinstance(manager, ODAuthManagerBase): 
             if raise_error: 
-                raise AuthenticationFailureError(f"Undefined authentication manager {str(name)}")
+                raise AuthenticationFailureError(f"Undefined authentication manager {name}")
             return None
 
         return manager
