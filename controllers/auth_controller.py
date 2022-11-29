@@ -296,7 +296,7 @@ class AuthController(BaseController):
             self.logger.debug( 'login prepareressources' )
             oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
         except Exception as e:
-            return Results.error( status=401, message='failed to prepare ressources' )
+            return Results.error( status=401, message='failed to prepare ressources ' + str(e) )
         
 
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
