@@ -2628,7 +2628,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'subdomain': self.endpoint_domain,
-                'shareProcessNamespace': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('shareProcessNamespace', False),
+                'shareProcessNamespace': oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False),
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
