@@ -834,12 +834,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         return mysecretdict
 
-    def findSecretByUser( self,  authinfo, userinfo, secret_type ):
-        secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, secret_type )
-        if isinstance( secret, oc.od.secret.ODSecret):
-            return secret.read_credentials(userinfo)
-        return None
-
     def get_podname( self, authinfo, userinfo, pod_uuid ):
         """[get_podname]
             return a pod name from authinfo, userinfo and uuid 
@@ -968,7 +962,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             'readOnly': mountvol.readOnly
                         }
                     }
-                    break
 
 
                 # mount the remote home dir as a flexvol
@@ -1559,12 +1552,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
                 # build a kubernetes secret with the auth values 
                 # values can be empty to be updated later
-                createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
-                if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
-                    mysecretname = self.get_name( userinfo )
-                    self.logger.error((f"cannot create secret {mysecretname}"))
-                else:
-                    self.logger.debug(f"secret.create {auth_env_built_key} created")
+                if isinstance( secret, oc.od.secret.ODSecret):
+                    createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
+                    if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
+                        mysecretname = self.get_name( userinfo )
+                        self.logger.error((f"cannot create secret {mysecretname}"))
+                    else:
+                        self.logger.debug(f"secret.create {auth_env_built_key} created")
     
         # Create flexvolume secrets
         self.logger.debug('flexvolume secrets creating')
@@ -1611,7 +1605,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             resumed_datetime = datetime.datetime.strptime(str_lastlogin_datetime, "%Y-%m-%dT%H:%M:%S")
         return resumed_datetime
 
-    def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)->ODDesktop:
+    def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser)->ODDesktop:
         """resume desktop update the lastconnectdatetime annotations data
            findPodByuser and update the lastconnectdatetime using patch_namespaced_pod
         Args:
@@ -2523,6 +2517,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         list_pod_allvolumes = list( pod_allvolumes.values() )
         list_pod_allvolumeMounts = list( pod_allvolumeMounts.values() )
 
+       
         # graphical volumes
         (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=secrets_requirement, rules=rules,  **kwargs)
         list_volumeMounts = list( volumeMounts.values() )
@@ -2568,7 +2563,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('pod container %s use securityContext %s ', currentcontainertype, securityContext)
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             command = self.updateCommandWithUserInfo( currentcontainertype, userinfo )
-                
+
             initcontainer = {
                 'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
                 'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
@@ -2633,7 +2628,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'subdomain': self.endpoint_domain,
-                'shareProcessNamespace': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('shareProcessNamespace', True),
+                'shareProcessNamespace': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('shareProcessNamespace', False),
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
