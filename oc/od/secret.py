@@ -48,9 +48,11 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
     secret_cls_dict = { 'cifs':             ODSecretCIFS,                # use NTLM auth for compatibility cifs use by default cifs_ntlm
                         'cifs_ntlm':        ODSecretCIFS,                # use NTLM auth 
                         'cifs_kerberos' :   ODSecretCIFSKerberos,        # use KERBEROS auth
-                        'webdav':           ODSecretWEBDAV,
+                        'webdav':           ODSecretWEBDAV,              # 
                         'ldif':             ODSecretLDIF,
+                        'kerberos':         ODSecret,
                         'vnc':              ODSecretVNC,
+                        'ntlm':             ODSecret,
                         'citrix':           ODSecretCitrix,
                         'localaccount':     ODSecretLocalAccount,
                         'posixaccount':     ODSecretPosixAccount  }
