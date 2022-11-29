@@ -574,10 +574,9 @@ def createDesktopArguments( authinfo, userinfo, args ):
     }
     return myCreateDesktopArguments
  
-def resumedesktop( authinfo, userinfo, appname='' ):
+def resumedesktop( authinfo, userinfo ):
     myOrchestrator = selectOrchestrator()
-    kwargs = { 'appname': appname }
-    myDesktop = myOrchestrator.resumedesktop(authinfo, userinfo, **kwargs)  
+    myDesktop = myOrchestrator.resumedesktop(authinfo, userinfo)  
     return myDesktop
         
 
