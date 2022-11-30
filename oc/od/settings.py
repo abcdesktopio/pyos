@@ -407,11 +407,13 @@ def init_desktop():
 
 
     default_shm_size = DEFAULT_SHM_SIZE
-    desktophostconfig = gconfig.get('desktop.host_config',
-                            {   'auto_remove'   : True,
-                                'ipc_mode'      : 'shareable',
-                                'pid_mode'      : True
-                            } )
+    desktophostconfig = gconfig.get(
+        'desktop.host_config',
+        {   'auto_remove'   : True,
+            'ipc_mode'      : 'shareable',
+            'pid_mode'      : True
+        } 
+    )
 
     # check if desktophostconfig contains permit value
     desktophostconfig = filter_hostconfig( desktophostconfig )
@@ -424,10 +426,11 @@ def init_desktop():
             desktophostconfig['shm_size'] = default_shm_size
 
 
-    applicationhostconfig = gconfig.get(    'desktop.application_config',
-                                            {   'auto_remove'   : True,
-                                                'network_mode'  : 'container'
-                                            }
+    applicationhostconfig = gconfig.get(    
+        'desktop.application_config',
+        {   'auto_remove'   : True,
+            'network_mode'  : 'container'
+        }
     )
 
     '''
