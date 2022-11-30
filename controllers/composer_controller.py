@@ -57,7 +57,7 @@ class ComposerController(BaseController):
 
         # appname must exists
         appname = args.get('image')
-        if not isinstance(appname, str):
+        if not isinstance(appname, str) or not appname:
             raise cherrypy.HTTPError( status=400, message='invalid image parameters')
 
         # add lang to user dict
