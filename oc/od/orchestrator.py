@@ -737,7 +737,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # to provide the same /dev/shm into each container in a pod. 
         # read https://docs.openshift.com/container-platform/3.6/dev_guide/shared_memory.html
         # 
-        self.default_volumes['shm'] = { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': oc.od.settings.desktophostconfig.get('shm_size','64Mi') } }
+        self.default_volumes['shm'] = { 
+            'name': 'shm', 
+            'emptyDir': { 
+                'medium': 'Memory', 
+                'sizeLimit': oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemorySize', oc.od.settings.DEFAULT_SHM_SIZE) 
+            } 
+        }
         self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
 
         # if oc.od.settings.desktopusepodasapp is True:
@@ -1195,13 +1201,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # volumes['local'] = self.default_volumes['local']
             # volumes_mount['local'] = self.default_volumes_mount['local']
 
-
         #
         # shm volume is shared between all container inside the desktop pod
         #
-        if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ] \
-            and oc.od.settings.desktophostconfig.get('shm_size'):
-                # set shm memory volume
+        if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ]: 
+            if kwargs.get('shareProcessMemory') is True:
                 volumes['shm']       = self.default_volumes['shm']
                 volumes_mount['shm'] = self.default_volumes_mount['shm']
 
@@ -1533,7 +1537,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secret.create( authinfo, userinfo, data=userinfo )
         self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
-        # create /etc/passwd /etc/shadow /etc/group
+        # create files as secret 
+        # - /etc/passwd 
+        # - /etc/shadow 
+        # - /etc/group 
+        # - /etc/shadow
         localaccount_data = authinfo.get_localaccount()
         localaccount_files = self.preparelocalaccount( localaccount_data )
         self.logger.debug('localaccount secret.create creating')
@@ -1555,19 +1563,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             else:
                 self.logger.debug("posixaccount secret.create {mysecretname} created")
 
-        # for each auth protocol enabled
-        local_secrets = authinfo.get_identity()
-        if isinstance( local_secrets, dict ) :
-            for identity in local_secrets.keys():   
-                self.logger.debug(f"secret.create {identity} creating")
-                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=identity )
-                # build a kubernetes secret with the auth values 
+        # for each identity in auth enabled
+        identities = authinfo.get_identity()
+        if isinstance( identities, dict ) :
+            for identity_key in identities.keys():
+                self.logger.debug(f"secret.create {identity_key} creating")
+                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=identity_key )
+                # build a kubernetes secret with the identity auth values 
                 # values can be empty to be updated later
                 if isinstance( secret, oc.od.secret.ODSecret):
                     mysecretname = secret.get_name(userinfo )
-                    createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(identity) )
+                    identity_data=identities.get(identity_key)
+                    createdsecret = secret.create( authinfo, userinfo, data=identity_data )
                     if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
-                        self.logger.error((f"cannot create secret {mysecretname}"))
+                        self.logger.error(f"cannot create secret {mysecretname}")
                     else:
                         self.logger.debug(f"secret.create {mysecretname} created")
     
@@ -2527,6 +2536,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # ownerReferences = self.get_ownerReferences(mysecretdict)
 
         self.logger.debug('volumes creating')
+        shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
+        kwargs['shareProcessNamespace'] = shareProcessNamespace
+        shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
+        kwargs['shareProcessMemory'] = shareProcessMemory
+
         # all volumes and secrets
         (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=None, rules=rules,  **kwargs)
         list_pod_allvolumes = list( pod_allvolumes.values() )
@@ -2643,7 +2657,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'subdomain': self.endpoint_domain,
-                'shareProcessNamespace': oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False),
+                'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
