@@ -521,13 +521,13 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
                         'LC_NUMERIC': lang }
     )
                     
-    # add dbussession is set in config file
-    if oc.od.settings.desktop['usedbussession']  :
-        env.update( {'OD_DBUS_SESSION_BUS': str(oc.od.settings.desktop['usedbussession']) })
+    # # add dbussession is set in config file
+    # if oc.od.settings.desktop['usedbussession']  :
+    #     env.update( {'OD_DBUS_SESSION_BUS': str(oc.od.settings.desktop['usedbussession']) })
 
-    # add dbussystem is set in config file
-    if oc.od.settings.desktop.get('usedbussystem') :
-        env.update( {'OD_DBUS_SYSTEM_BUS': str(oc.od.settings.desktop['usedbussystem']) } )
+    # # add dbussystem is set in config file
+    # if oc.od.settings.desktop.get('usedbussystem') :
+    #     env.update( {'OD_DBUS_SYSTEM_BUS': str(oc.od.settings.desktop['usedbussystem']) } )
     
     # add user name and userid 
     env.update( { 'ABCDESKTOP_USERNAME':  userinfo.get('name')} )
@@ -540,38 +540,12 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     return env
 
 def createDesktopArguments( authinfo, userinfo, args ):
-
     # build env dict
     # add environment variables   
     env = createExecuteEnvironment( authinfo, userinfo  )
-    
-    # add source ip addr 
-    env.update( { 'WEBCLIENT_SOURCEIPADDR':  args.get('WEBCLIENT_SOURCEIPADDR') } )
-
-
-    #
-    # get value from configuration files to build dict
-    #                        
-    myCreateDesktopArguments = { 
-            # set the default command to start the container
-        'command': [ '/composer/docker-entrypoint.sh' ],
-            # set command args
-        'args'  : [],
-            # set the homedir for balloon running inside the docker container 
-            # by default /home/balloon
-        'balloon_homedirectory': settings.getballoon_homedirectory(),
-            # set the uid for balloon running inside the docker container
-            # by default 4096
-        'balloon_uid': settings.getballoon_uid(),  
-            # set the gid for balloon running inside the docker container
-            # by default 4096
-        'balloon_gid': settings.getballoon_gid(),   
-            # set the username for balloon running inside the docker container 
-            # by default balloon            
-        'balloon_name': settings.getballoon_name(),       
-            # environment vars
-        'env' : env
-    }
+    # add source ip addr as WEBCLIENT_SOURCEIPADDR var env
+    env.update( { 'WEBCLIENT_SOURCEIPADDR':  args.get('WEBCLIENT_SOURCEIPADDR') } )                   
+    myCreateDesktopArguments = { 'env' : env }
     return myCreateDesktopArguments
  
 def resumedesktop( authinfo, userinfo ):
@@ -591,39 +565,9 @@ def createdesktop( authinfo, userinfo, args  ):
     Returns:
         [type]: [description]
     """
-    logger.info('Starting desktop creation')
-    app = None
-    
+    logger.info('Starting desktop creation') 
     logger.debug('createdesktop:createDesktopArguments')
     myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, args )
-   
-    appname = args.get('app')
-    
-    if type(appname) is str:
-        app = getapp(authinfo, appname)
-        myCreateDesktopArguments['desktopmetappli'] = True
-        myCreateDesktopArguments['appname'] = appname
-        myCreateDesktopArguments['image'] = app.name
-
-        # environment variables for application 
-        querystring = args.get('querystring')      
-        if querystring :
-            myCreateDesktopArguments['env'].update({'QUERYSTRING': querystring})
-        
-        argumentsmetadata = args.get('metadata')
-        if argumentsmetadata :
-            myCreateDesktopArguments['env'].update({'METADATA': argumentsmetadata })
-
-        arguments = args.get('args')
-        if arguments :
-            myCreateDesktopArguments['env'].update({'APPARGS': arguments })
-
-        timezone = args.get('timezone')
-        if type(timezone) is str and len(timezone) > 1:
-            myCreateDesktopArguments['env'].update({'TZ': timezone })
-
-        logger.info("App image name : %s %s", app.name, arguments)
-
     
     messageinfo = services.messageinfo.getqueue(userinfo.userid)
 
@@ -642,10 +586,10 @@ def createdesktop( authinfo, userinfo, args  ):
         if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
             messageinfo.push('c.Webhooking network services')
        
-        messageinfo.push('c.Starting up internal services')
+        messageinfo.push('c.Starting up core services')
         processready = myOrchestrator.waitForDesktopProcessReady( myDesktop, messageinfo.push )
-        messageinfo.push('c.Internal services started')
-        logger.info('mydesktop on node %s is %s', myDesktop.nodehostname, str(processready))
+        messageinfo.push('c.Core services started')
+        logger.info(f"mydesktop on node {myDesktop.nodehostname} is processready={processready}")
         services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
     else:
         if isinstance( myDesktop, str ):
