@@ -918,6 +918,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # /var/secrets/abcdesktop/ntlm
             # /var/secrets/abcdesktop/cntlm
             # /var/secrets/abcdesktop/kerberos
+            # /var/secrets/abcdesktop/kerberos
             
             self.logger.debug( f"checking {secret_auth_name} access_type='auth' " )
             # only mount secrets_requirement
@@ -1021,6 +1022,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     self.logger.debug( f"volumes {mountvol.name} use volume {volumes[mountvol.name]} and volume mount {volumes_mount[mountvol.name]}")
         return (volumes, volumes_mount)
 
+    def get_user_homedirectory(self, authinfo, userinfo ):
+        homedirectory = oc.od.settings.getballoon_homedirectory()
+        return homedirectory
 
     def build_volumes_home( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
@@ -1048,13 +1052,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             homedirectorytype = 'emptyDir'
 
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.name )
+        user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
 
         if  homedirectorytype == 'emptyDir':
             volumes['home'] = { 'name': volume_home_name, # home + userid
                                 'emptyDir': {}
             }
             volumes_mount['home'] = {   'name'      : volume_home_name,
-                                        'mountPath' : oc.od.settings.getballoon_homedirectory(), # /home/balloon
+                                        'mountPath' : user_homedirectory, # /home/balloon
             }
         elif homedirectorytype == 'persistentVolumeClaim':
             # Map the home directory
@@ -1064,8 +1069,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             }
             volumes_mount['home'] = {
                 'name'      : volume_home_name,
-                'mountPath' : oc.od.settings.getballoon_homedirectory(), # /home/balloon
-                'subPath'  : subpath_name                                # userid
+                'mountPath' : user_homedirectory, # /home/balloon
+                'subPath'   : subpath_name        # userid
             }
         elif homedirectorytype == 'hostPath':
             # Map the home directory
@@ -1074,17 +1079,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # same as 'subPath' but bot hostpath
             # 'subPath' is not supported for ephemeral container
             mount_volume = oc.od.settings.desktop['hostPathRoot'] + '/' + subpath_name
-            
-            volumes['home']= {  'name': volume_home_name,
-                                'hostPath': {
-                                    'path': mount_volume,
-                                    'type': 'DirectoryOrCreate'
-                                }
+            volumes['home']= {  
+                'name': volume_home_name,
+                'hostPath': {
+                    'path': mount_volume,
+                    'type': 'DirectoryOrCreate'
+                }
             }
 
             volumes_mount['home'] = {
                 'name'      : volume_home_name,
-                'mountPath' : oc.od.settings.getballoon_homedirectory(), # /home/balloon
+                'mountPath' : user_homedirectory, # /home/balloon
             }
 
             self.logger.debug( 'volume mount : %s %s', 'home', volumes_mount['home'] )
@@ -1101,6 +1106,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount = {}  # set empty volume_mount dict by default
          # Add VNC password
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
+        # mysecretdict must be a dict
+        assert isinstance(mysecretdict, dict),  f"mysecretdict has invalid type {type(mysecretdict)}"
+        assert len(mysecretdict)>0,             f"mysecretdict has invalid len {len(mysecretdict)}"
         # the should only be one secret type vnc
         secret_auth_name = next(iter(mysecretdict)) # first entry of the dict
         # create an entry /var/secrets/abcdesktop/vnc
@@ -1123,6 +1131,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # mount secret in /var/secrets/abcdesktop
         #
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
+        #secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
+        #localaccountsecret = secret.read_alldata
         for secret_auth_name in mysecretdict.keys():
             # https://kubernetes.io/docs/concepts/configuration/secret
             # create an entry eq: 
@@ -1528,37 +1538,38 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         localaccount_files = self.preparelocalaccount( localaccount_data )
         self.logger.debug('localaccount secret.create creating')
         secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
+        mysecretname = secret.get_name(userinfo )
         createdsecret = secret.create( authinfo, userinfo, data=localaccount_files )
         if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
-            mysecretname = self.get_name( userinfo )
-            self.logger.error((f"cannot create secret {mysecretname}"))
+            self.logger.error(f"cannot create secret {mysecretname}")
         else:
-            self.logger.debug('localaccount secret.create created')
+            self.logger.debug(f"localaccount secret.create {mysecretname} created")
 
         if userinfo.isPosixAccount():
             self.logger.debug('posixaccount secret.create creating')
             secret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
             createdsecret = secret.create( authinfo, userinfo, data=userinfo.getPosixAccount())
+            mysecretname = secret.get_name(userinfo )
             if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
-                mysecretname = self.get_name( userinfo )
-                self.logger.error((f"cannot create secret {mysecretname}"))
-            self.logger.debug('posixaccount secret.create created')
+                self.logger.error(f"cannot create secret {mysecretname}")
+            else:
+                self.logger.debug("posixaccount secret.create {mysecretname} created")
 
         # for each auth protocol enabled
-        local_secrets = authinfo.get_secrets()
+        local_secrets = authinfo.get_identity()
         if isinstance( local_secrets, dict ) :
-            for auth_env_built_key in local_secrets.keys():   
-                self.logger.debug(f"secret.create {auth_env_built_key} creating")
-                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=auth_env_built_key )
+            for identity in local_secrets.keys():   
+                self.logger.debug(f"secret.create {identity} creating")
+                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=None, secret_type=identity )
                 # build a kubernetes secret with the auth values 
                 # values can be empty to be updated later
                 if isinstance( secret, oc.od.secret.ODSecret):
-                    createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(auth_env_built_key) )
+                    mysecretname = secret.get_name(userinfo )
+                    createdsecret = secret.create( authinfo, userinfo, data=local_secrets.get(identity) )
                     if not isinstance( createdsecret, client.models.v1_secret.V1Secret):
-                        mysecretname = self.get_name( userinfo )
                         self.logger.error((f"cannot create secret {mysecretname}"))
                     else:
-                        self.logger.debug(f"secret.create {auth_env_built_key} created")
+                        self.logger.debug(f"secret.create {mysecretname} created")
     
         # Create flexvolume secrets
         self.logger.debug('flexvolume secrets creating')
@@ -1574,10 +1585,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # Flex volume use kubernetes secret, add mouting path
                     arguments = { 'mountPath': mountvol.containertarget, 'networkPath': mountvol.networkPath, 'mountOptions': mountvol.mountOptions }
                     # Build the kubernetes secret 
+                    mysecretname = secret.get_name(userinfo)
                     auth_secret = secret.create( authinfo, userinfo, arguments )
-                    if auth_secret is None:
-                        self.logger.error( f"Failed to build auth secret fstype={fstype}" )
-        self.logger.debug('flexvolume secrets created')
+                    if not isinstance( auth_secret, client.models.v1_secret.V1Secret):
+                        self.logger.error( f"Failed to build auth secret {mysecretname} fstype={fstype}" )
+                    else:
+                        self.logger.debug(f"secret.create {mysecretname} created")
+
 
     def get_annotations_lastlogin_datetime(self):
         """get_annotations_lastlogin_datetime
@@ -2144,6 +2158,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             dict: posic account dict 
         """
         if not userinfo.isPosixAccount():
+            # try to read a posix account from secret
             self.logger.debug('build a posixaccount secret trying')
             posixsecret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
             self.logger.debug('read the posixaccount secret trying')
@@ -2651,7 +2666,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if oc.od.settings.desktop['removehomedirectory'] is True or userinfo.name == 'Anonymous':
             pod_manifest['spec']['containers'][0]['lifecycle'] = {  
                 'preStop': {
-                    'exec': { 'command':  [ "/bin/bash", "-c", "rm -rf " + oc.od.settings.getballoon_homedirectory() + "/*" ] }
+                    'exec': { 'command':  [ "/bin/bash", "-c", "rm -rf ~/*" ] }
                 }   
         }
           
@@ -3003,47 +3018,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except ApiException as e:
             self.logger.info("Exception when calling list_namespaced_pod: %s" % e)
         
-        return None
-
-    def findPodAppByUser(self, authinfo:AuthInfo, userinfo:AuthUser,  appname:str )->client.models.v1_pod.V1Pod:
-        """findPodAppByUser find an application pod by user
-            filter use type=self.x11servertype_embeded only
-        Args:
-            authinfo (AuthInfo): authentification data
-            userinfo (AuthUser): user data 
-            appname (str): name of the application
-
-        Returns:
-            V1Pod: kubernetes.client.models.v1_pod.V1Pod or None if not found
-        """
-        self.logger.info('')
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
-        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-
-        access_userid = userinfo.userid
-        access_provider = authinfo.provider
-
-        try: 
-            label_selector= 'access_userid='    + access_userid + \
-                            ',type='            + self.x11servertype_embeded + \
-                            ',appname='         + appname
-
-            if oc.od.settings.desktop['authproviderneverchange'] is True:
-                label_selector += f",access_provider={access_provider}"
-
-            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
-
-            if isinstance(myPodList, client.models.v1_pod_list.V1PodList) :
-                for myPod in myPodList.items:
-                    myPhase = myPod.status.phase
-                    if myPod.metadata.deletion_timestamp is not None:
-                       myPhase = 'Terminating'
-                    if myPhase in [ 'Running', 'Pending', 'Succeeded' ] :  # 'Init:0/1'
-                        return myPod
-                    
-        except ApiException as e:
-            self.logger.info("Exception when calling CoreV1Api->read_namespaced_pod: %s\n" % e)
-
         return None
 
     def isPodBelongToUser( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str)->bool:
@@ -3477,7 +3451,7 @@ class ODAppInstanceBase(object):
         if isinstance(userargs, str) and len(userargs) > 0:
             env['APPARGS'] = userargs
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
-            env.update(authinfo.data.get('environment', {}))
+            env.update(authinfo.data.get('identity', {}))
 
         self.logger.debug('envlist creating')
         posixuser = self.orchestrator.alwaysgetPosixAccountUser( userinfo )

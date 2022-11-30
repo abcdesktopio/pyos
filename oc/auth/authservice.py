@@ -294,22 +294,14 @@ class AuthInfo(object):
     def set_data( self, data):
         self.data = data
 
-    def get_localaccount(self):
-        localaccount = None
+    def get_identity(self):
         if isinstance( self.claims, dict ):
-            if isinstance( self.claims.get('environment'), dict ):
-                localaccount = self.claims.get('environment').get('localaccount')
+            return self.claims.get('identity')
+        return {}
+
+    def get_localaccount(self):
+        localaccount = self.get_identity().get('localaccount')
         return localaccount
-
-    def get_secrets(self):
-        local_secrets = {}
-        # claims is always a dict 
-        if isinstance( self.claims.get('environment'), dict ):
-            for k in self.claims.get('environment').keys():
-                if k != 'localaccount':
-                    local_secrets[k]=self.claims.get('environment').get(k)
-        return local_secrets
-
 
     def isValid(self):
         bReturn = False
@@ -1987,7 +1979,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
     def createclaims( self, authinfo, userinfo, **arguments):
         userid = self.default_user_if_not_exist
         password = self.default_passwd_if_not_exist
-        claims = {  'environment': self.createauthenv(userinfo, userid, password) }
+        claims = {  'identity': self.createauthenv(userinfo, userid, password) }
         authinfo.set_claims(claims)
 
     def generateRawCredentials(self, userid, password, domain=None ):
@@ -2095,9 +2087,8 @@ class ODExternalAuthProvider(ODAuthProviderBase):
 class ODImplicitAuthProvider(ODAuthProviderBase):
     def __init__(self, manager, name, config):
         super().__init__(manager, name, config)
-        self.userid = config.get('userid', self.name)
+        self.uid = config.get('uid', self.name)
         self.username = config.get('username', self.name)
-        self.userinfo = copy.deepcopy(config.get('userinfo', {}))
         self.explicitproviderapproval = config.get('explicitproviderapproval') 
         self.dialog_url = config.get( 'dialog_url' )
     
@@ -2109,21 +2100,36 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
         return data
         
     def getuserinfo(self, authinfo, **params):
-
-        user = copy.deepcopy(self.userinfo)
-       
+        userinfo = {}
+        name = None
+        userid = None
+        uid=None
         # Check if token type is str
         if  isinstance(authinfo.token ,str) :
             # anonymous can have a username
             # user name is set has the auth token 
-            user['name']   = authinfo.token
-            user['userid'] = authinfo.token # take care, it must be uniqu
+            name   = authinfo.token
+            userid = authinfo.token # take care, it must be uniqu
+            uid    = self.safe_uid(name)
         else:
             # set default values
-            user['name']   = self.username      # anomymous by default
-            user['userid'] = str(uuid.uuid4())  # create a user id
-            
-        return user
+            name   = self.username      # anomymous by default
+            userid = str(uuid.uuid4())  # create a uniqu user id
+            uid    = self.uid           # anomymous by default
+        
+        userinfo['name'] = name
+        userinfo['userid'] = userid
+        anonymousPosix = AuthUser.getdefaultPosixAccount(
+            uid=uid, 
+            gid=uid, 
+            cn=name, 
+            uidNumber=oc.od.settings.getballoon_uid(),
+            gidNumber=oc.od.settings.getballoon_gid(),
+            homeDirectory=oc.od.settings.getballoon_homedirectory(),
+            loginShell=oc.od.settings.getballoon_loginShell(),
+            description='abcdesktop anonymous account' )
+        userinfo['posix'] = anonymousPosix
+        return userinfo
 
     def authenticate(self, userid=None, password=None, **params):
         if isinstance(userid,str):
@@ -2134,16 +2140,18 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
 
 class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
 
-     def __init__(self, manager, name, config):
+    def __init__(self, manager, name, config):
         super().__init__(manager, name, config)
 
-     def getuserinfo(self, authinfo, **params):
-        user = copy.deepcopy(self.userinfo)
-        # anonymous can have a username
-        # user name is set has the auth token
-        user['name']   = authinfo.token
-        user['userid'] = authinfo.token # take care, it must be uniqu
-        return user
+    #
+    # def getuserinfo(self, authinfo, **params):
+    #    userinfo = copy.deepcopy(self.userinfo)
+    #    # anonymous can have a username
+    #    # user name is set has the auth token
+    #    userinfo['name']   = authinfo.token
+    #    userinfo['userid'] = authinfo.token # take care, it must be uniqu
+    #
+    #    return userinfo
 
 
 @oc.logging.with_logger()
@@ -2471,7 +2479,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     
     def createclaims( self, authinfo, userinfo, userid, password,  **arguments):
         claims = { 'userid': userid, 'password': password }
-        claims['environment'] =  self.createauthenv(userinfo, userid, password)
+        claims['identity'] =  self.createauthenv(userinfo, userid, password)
         authinfo.set_claims(claims)
 
     def krb5_validate(self, userid, password):
@@ -3315,18 +3323,23 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             filter=config.get('site_filter', '(objectClass=subnet)'),
             attrs=config.get('site_attrs',['cn', 'siteObject', 'location']) )
 
-    def getdefault_uid(self, userinfo , user):
+    def getdefault_uid(self, userinfo:dict, user:str)->str:
         """getdefault_uid
             return a default uid if user if not a posix account
-
         Args:
-            userinfo (_type_): _description_
-            user (_type_): _description_
+            userinfo (dict): userinfo
+            user (str): _description_
+
+        Returns:
+            str: uid
         """
         uid = None
-        if isinstance( userinfo, dict):
-            # convert a sAMAccountName to a linux uid 
-            uid =  ODAuthProviderBase.safe_uid( userinfo.get('sAMAccountName') )
+        if isinstance( userinfo, dict) :
+            # the self.useridattr (sAMAccountName) may not exist if auth is kerberos only
+            uid = userinfo.get(self.useridattr)
+            if isinstance( uid, str ):
+                # convert a sAMAccountName to a linux uid 
+                uid = ODAuthProviderBase.safe_uid( uid )
         if not isinstance( uid, str ):
             uid = super().getdefault_uid(userinfo , user)
         return uid
@@ -3338,10 +3351,12 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         Returns:
             [str]: [kerberos realm]
         """
-        kerberos_realm = '' # dummy default value 
+        kerberos_realm = None
+        # self.kerberos_realm can be a dict or a str
+        # if it is a dict, read the realm from the domain key value
         if isinstance( self.kerberos_realm, dict ):
             kerberos_realm = self.kerberos_realm.get( self.domain )
-
+        # if it is a str, read the default kerberos_realm value
         if isinstance( self.kerberos_realm, str ):
             kerberos_realm = self.kerberos_realm
 
@@ -3387,32 +3402,39 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
 
     def createclaims( self, authinfo, userinfo, userid, password,  **arguments):
-        claims = { 'environment': self.createauthenv(userinfo, userid, password) }
+        claims = { 'identity': self.createauthenv(userinfo, userid, password) }
         claims.update( { 'userid': userid, 'password': password, 'domain': self.domain } )
         authinfo.set_claims(claims)
 
     def getuserinfo(self, authinfo, **params):
-  
+        self.logger.debug('')
         userinfo = super().getuserinfo(authinfo, **params)
     
-        if userinfo:
-            # Add always userid entry
-            # overwrite value from standard LDAP server
-            # useridattr should be 'sAMAccountName'
-            userinfo['userid'] = userinfo.get(self.useridattr)
+        if isinstance(userinfo, dict):
+            #
+            # Add always userid entry as sAMAccountName overwrite value from standard LDAP server
+            # in most case : useridattr should be 'sAMAccountName'
+            #
+            useridattr = userinfo.get(self.useridattr) 
+            if isinstance( useridattr, str ) and useridattr: 
+                userinfo['userid'] = userinfo.get(self.useridattr)
 
             # read homeDrive homeDirectory and profilePath attributs
             # homeDrive
-            homedrive = userinfo.get('homeDrive') 
-            if isinstance( homedrive, str ):  userinfo['homeDrive'] = homedrive
+            # homedrive = userinfo.get('homeDrive') 
+            # if isinstance( homedrive, str ) and homedrive: 
+            #    userinfo['homeDrive'] = homedrive
 
-            # homeDirectory
+            # homeDirectory replace chars
             homeDirectory = userinfo.get('homeDirectory') 
-            if isinstance( homeDirectory, str ): userinfo['homeDirectory'] = homeDirectory.replace('\\','/')
+            if isinstance( homeDirectory, str ): 
+                userinfo['homeDirectory'] = homeDirectory.replace('\\','/')
 
-            # profilePath
+            # profilePath  replace chars
             profilePath = userinfo.get('profilePath')
-            if isinstance( profilePath, str ):   userinfo['profilePath'] = profilePath.replace('\\','/')
+            if isinstance( profilePath, str ):   
+                userinfo['profilePath'] = profilePath.replace('\\','/')
+
         return userinfo
 
     
@@ -3827,7 +3849,7 @@ class ODImplicitTLSCLientAdAuthProvider(ODAdAuthProvider):
     # there is no password in createclaims for Implicit provider
     def createclaims(self, authinfo, userinfo, userid, **arguments):
         # for ODImplicitTLSCLientAdAuthProvider auth use TLS, password is None
-        claims = { 'environment': self.createauthenv(userinfo, userid, password=None) }
+        claims = { 'identity': self.createauthenv(userinfo, userid, password=None) }
         authinfo.set_claims( claims )
 
     def authenticate(self, userid, **params):

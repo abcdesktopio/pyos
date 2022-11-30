@@ -151,7 +151,7 @@ class ODVolumeActiveDirectory(ODVolumeHostPath):
         self.sAMAccountName         = userinfo.get('sAMAccountName')
         self.domainlogin            = self.sAMAccountName
         self.domainpassword         = None
-        self.domain                 = authinfo.data.get('ad_domain')
+        self.domain                 = authinfo.data.get('domain')
         
         # if claim is defined
         if type(authinfo.get('claims')) is dict:
