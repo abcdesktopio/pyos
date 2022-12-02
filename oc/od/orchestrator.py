@@ -3675,9 +3675,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         _app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( str(app['name']) + '_' + str(uuid.uuid4().hex) )
         app_container_name =  oc.auth.namedlib.normalize_name_dnsname( _app_container_name )
 
-        apprules = app.get('rules') 
         desktoprules = oc.od.settings.desktop['policies'].get('rules', {})
         rules = copy.deepcopy( desktoprules )
+        apprules = app.get('rules', {} ) 
         rules.update( apprules )
 
         self.logger.debug( f"reading pod desktop desktop={myDesktop.id} app_container_name={app_container_name}")
