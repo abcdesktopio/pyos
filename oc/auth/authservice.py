@@ -141,13 +141,25 @@ class AuthUser(dict):
     @staticmethod
     def getConfigdefaultPosixAccount():
         return AuthUser.getdefaultPosixAccount( 
-            uid=oc.od.settings.getballoon_name(),
+            uid=oc.od.settings.getballoon_loginname(),
             gid=oc.od.settings.getballoon_groupname(),
-            uidNumber=oc.od.settings.getballoon_uid(),
-            gidNumber=oc.od.settings.getballoon_gid(),
+            uidNumber=oc.od.settings.getballoon_uidNumber(),
+            gidNumber=oc.od.settings.getballoon_gidNumber(),
             homeDirectory=oc.od.settings.getballoon_homedirectory(),
             loginShell=oc.od.settings.getballoon_loginShell(),
             description='abcdesktop default account'
+        )
+
+    @staticmethod
+    def getPosixAccountfromlocalAccount( localaccount:dict )->dict:
+        return AuthUser.getdefaultPosixAccount( 
+            uid=localaccount.get('uid',oc.od.settings.getballoon_loginname()),
+            gid=localaccount.get('gid',oc.od.settings.getballoon_groupname()),
+            uidNumber=localaccount.get('uidNumber', oc.od.settings.getballoon_uidNumber()),
+            gidNumber=localaccount.get('gidNumber',oc.od.settings.getballoon_gidNumber()),
+            homeDirectory=localaccount.get('homeDirectory',oc.od.settings.getballoon_homedirectory()),
+            loginShell=localaccount.get('loginShell',oc.od.settings.getballoon_loginShell()),
+            description=localaccount.get('description','abcdesktop default account')
         )
 
     @staticmethod
@@ -200,19 +212,35 @@ class AuthUser(dict):
     
     @staticmethod
     def mkgroup ( moustachedata ):  
+
+        def issafe_groupid( gid:str )->str:
+            try:
+                gid_int = int( gid )
+                return str(gid_int)
+            except Exception as e:
+                logger.error( f"skipping {gid} can not convert as integer")
+                pass
+            return None
+
         etcgroup = chevron.render( oc.od.settings.DEFAULT_GROUP_FILE,  moustachedata )
         groups = moustachedata.get('groups')
+        logger.debug( f"add user groups {groups}" )
         if isinstance( groups, list ):
             for group in groups:
                 newline = f"{group['cn']}:x:{group['gidNumber']}:"
                 uids = group.get('memberUid')
-                if isinstance( uids, str ):
+                logger.debug( f"add user memberUid: {uids}" )
+                if isinstance(uids, str):
                     newline += uids
-                if isinstance( uids, list ):
-                    if len(uids) > 0:
-                        newline += uids[0]
-                        for uid in uids[1::]:
-                            newline += ',' + uid
+                if isinstance(uids, list) and len(uids) > 0:
+                    n=0
+                    for uid in uids:
+                        newline += uids[n]
+                        n=n+1
+                        break
+                    for uid in uids[n::]:
+                        newline += ',' + uid
+                logger.debug( f"new line for /etc/group:\n{newline}\n" )
                 etcgroup += '\n' + newline
             etcgroup += '\n'
         return etcgroup
@@ -700,7 +728,7 @@ class ODAuthTool(cherrypy.Tool):
 
         if isinstance( auth.data, dict ):
             # filter to this entries
-            for entry in [ 'domain', 'dn', 'labels' ] :
+            for entry in [ 'domain', 'labels' ] :
                 if auth.data.get(entry) :
                     auth_data_reduce[entry] = auth.data.get(entry)
 
@@ -1810,10 +1838,10 @@ class ODAuthProviderBase(ODRoleProviderBase):
                 'message': "userid consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character. regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')"
             }
         }
-        self.default_user_if_not_exist      = config.get('defaultuid', 'balloon' )
+        self.default_user_if_not_exist      = config.get('defaultuid', oc.od.settings.oc.od.settings.getballoon_loginname())
         self.default_passwd_if_not_exist    = config.get('defaultpassword', 'lmdpocpetit' )
-        self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', 4096 )
-        self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', 4096 )
+        self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', oc.od.settings.getballoon_uidNumber() )
+        self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', oc.od.settings.getballoon_gidNumber() )
         self.auth_protocol = config.get('auth_protocol', {} )
 
     def getdisplaydescription( self ):
@@ -1946,7 +1974,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             description = posixAccount.get('description')
             groups = posixAccount.get('groups')
             # futur usage
-            # homeDirectory = posixAccount.get('homeDirectory')
+            homeDirectory = posixAccount.get('homeDirectory')
             gecos = posixAccount.get('gecos')
 
         if not isinstance( loginShell, str ): loginShell = oc.od.settings.getballoon_loginShell()
@@ -2123,8 +2151,8 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
             uid=uid, 
             gid=uid, 
             cn=name, 
-            uidNumber=oc.od.settings.getballoon_uid(),
-            gidNumber=oc.od.settings.getballoon_gid(),
+            uidNumber=oc.od.settings.getballoon_uidNumber(),
+            gidNumber=oc.od.settings.getballoon_gidNumber(),
             homeDirectory=oc.od.settings.getballoon_homedirectory(),
             loginShell=oc.od.settings.getballoon_loginShell(),
             description='abcdesktop anonymous account' )
