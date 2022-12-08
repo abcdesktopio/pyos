@@ -47,10 +47,10 @@ fakedns      = {}
 # User balloon define
 # Balloon is the default user used inside container
 balloon_homedirectory = '/home/balloon'
-balloon_uid = 4096  # default user id
-balloon_gid = 4096  # default group id
+balloon_uidNumber = 4096  # default user id
+balloon_gidNumber = 4096  # default group id
 balloon_groupname = 'balloon'
-balloon_name = 'balloon'
+balloon_loginname = 'balloon'
 balloon_shell = '/bin/bash'
 balloon_passwd = 'lmdpocpetit'
 
@@ -121,8 +121,6 @@ jwt_config_desktop = None
 webrtc_server = None
 webrtc_enable = False
 
-# hostconfig define
-desktophostconfig = {}
 applicationhostconfig = {}
 
 list_hostconfigkey = [ 
@@ -169,30 +167,30 @@ list_hostconfigkey = [
         'secrets_requirement'   # custom for abcdesktop 
         ]
 
-def getballoon_name():
-    return balloon_name
+def getballoon_loginname():
+    return balloon_loginname
 
 def getballoon_groupname():
-    return balloon_name
+    return balloon_groupname
 
 def getballoon_loginShell():
     return balloon_shell
 
-def getballoon_uid():
+def getballoon_uidNumber():
     """[summary]
 
     Returns:
         int: balloon user id
     """
-    return balloon_uid
+    return balloon_uidNumber
 
-def getballoon_gid():
+def getballoon_gidNumber():
     """[summary]
 
     Returns:
         int: balloon group id
     """
-    return balloon_gid
+    return balloon_gidNumber
 
 def getballoon_homedirectory():
     return balloon_homedirectory
@@ -387,16 +385,15 @@ def filter_hostconfig( host_config ):
     return myhostconfig
 
 def init_desktop():
-    global desktophostconfig
     global applicationhostconfig
- 
     global desktop
     global desktop_pod
  
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
     # desktop authprovider can change on the fly 
-    desktop['authproviderneverchange'] = True # default value
+    desktop['authproviderneverchange'] = gconfig.get('desktop.authproviderneverchange', False )
+
     authmanagers = gconfig.get('authmanagers', {} )
     for manager in authmanagers.values():
         providers = manager.get('providers',{})
@@ -404,26 +401,6 @@ def init_desktop():
             if provider.get('explicitproviderapproval'): # one provider set explicitproviderapproval
                 desktop['authproviderneverchange'] = False # this allow a user to change auth provider on the fly
                 break
-
-
-    default_shm_size = DEFAULT_SHM_SIZE
-    desktophostconfig = gconfig.get(
-        'desktop.host_config',
-        {   'auto_remove'   : True,
-            'ipc_mode'      : 'shareable',
-            'pid_mode'      : True
-        } 
-    )
-
-    # check if desktophostconfig contains permit value
-    desktophostconfig = filter_hostconfig( desktophostconfig )
-
-    #
-    # if ipc_mode = 'shareable' and shm_size is not set 
-    # then set a shm_size value to max value default_shm_size
-    if desktophostconfig.get('ipc_mode') == 'shareable' and \
-       desktophostconfig.get('shm_size') is None:
-            desktophostconfig['shm_size'] = default_shm_size
 
 
     applicationhostconfig = gconfig.get(    
@@ -434,13 +411,14 @@ def init_desktop():
     )
 
     '''
-     {   'auto_remove'   : True,
-                                            'pid_mode'      : True,
-                                            'ipc_mode'      : 'shareable',
-                                            'network_mode'  : 'container'
-                                        }
+    {   'auto_remove'   : True,
+        'pid_mode'      : True,
+        'ipc_mode'      : 'shareable',
+        'network_mode'  : 'container'
+    }
     '''
-    # check if desktophostconfig contains permit value
+
+    # check if applicationhostconfig contains permit value
     applicationhostconfig = filter_hostconfig( applicationhostconfig )
 
     desktop_pod = gconfig.get( 'desktop.pod' )
@@ -449,18 +427,12 @@ def init_desktop():
         logger.error('this is a fatal error in configuration file')
         sys.exit(-1)
 
-
-    desktop['removehomedirectory']  = gconfig.get('desktop.removehomedirectory', False)
-    desktop['policies']             = gconfig.get('desktop.policies', {} )
-    desktop['webhookencodeparams']  = gconfig.get('desktop.webhookencodeparams', False )
-    desktop['webhookdict']          = gconfig.get('desktop.webhookdict', {} )
-
-
-    # desktopinitcontainercommand
-    # is an array 
-    # example ['sh', '-c',  'chown 4096:4096 /home/balloon' ]  
-
-    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
+    desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
+    desktop['policies']                 = gconfig.get('desktop.policies', {} )
+    desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
+    desktop['webhookdict']              = gconfig.get('desktop.webhookdict', {} )
+    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', 
+        ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
     desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt')
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim' )
@@ -473,12 +445,13 @@ def init_desktop():
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
 
     # add default env local vars if not set 
-    desktop['environmentlocal'] = gconfig.get(  'desktop.envlocal', 
-                    {   'DISPLAY'               : ':0.0',
-                        'LIBOVERLAY_SCROLLBAR'  : '0',
-                        'UBUNTU_MENUPROXY'      : '0',
-                        'HOME' 		            : '/home/balloon',
-                        'X11LISTEN'             : 'tcp'} )
+    desktop['environmentlocal'] = gconfig.get(  
+        'desktop.envlocal', 
+        {   'DISPLAY'               : ':0.0',
+            'LIBOVERLAY_SCROLLBAR'  : '0',
+            'UBUNTU_MENUPROXY'      : '0',
+            'X11LISTEN'             : 'tcp' } 
+    )
 
     init_balloon()
 
@@ -500,20 +473,20 @@ def init_geolocation():
     geolocation = gconfig.get('geolocation')
 
 def init_balloon():
-    global balloon_uid
-    global balloon_gid
+    global balloon_uidNumber
+    global balloon_gidNumber
     global balloon_shell
-    global balloon_name
+    global balloon_loginname
     global balloon_groupname
     global balloon_passwd
     global balloon_homedirectory
 
-    balloon_name = gconfig.get('desktop.username', 'balloon')
+    balloon_loginname = gconfig.get('desktop.username',  'balloon')
     balloon_groupname = gconfig.get('desktop.groupname', 'balloon')
-    balloon_uid = gconfig.get('desktop.userid', 4096)
-    balloon_gid = gconfig.get('destkop.groupid', 4096)
-    balloon_shell = gconfig.get('destkop.shell', '/bin/bash')
-    balloon_passwd = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
+    balloon_uidNumber = gconfig.get('desktop.userid', 4096)
+    balloon_gidNumber = gconfig.get('desktop.groupid', 4096)
+    balloon_shell     = gconfig.get('destkop.shell', '/bin/bash')
+    balloon_passwd    = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
     balloon_homedirectory = gconfig.get('desktop.userhomedirectory', '/home/balloon')
 
 
