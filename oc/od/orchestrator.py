@@ -3787,10 +3787,10 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         
         securitycontext = self.get_securitycontext( authinfo, userinfo )
 
-        """
+        
         #list[V1VolumeMount]
         # 
-        # note there is no imagePullSecrets, parameters ?
+        # note there is no imagePullSecrets, parameters
         #
         body = client.models.V1EphemeralContainer(  
             name=app_container_name,
@@ -3837,6 +3837,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             else:
                 # forward the exception
                 raise e
+                
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
 
@@ -3846,11 +3847,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # len_pod_spec_ephemeral_containers shoud not
         # len_pod_status_ephemeral_container_statuses can take delmay to be updated
         #
-        appinstancestatus = None
         #
-        """
 
-        
+        """
         # Fix python kubernetes
         # Ephemeral container not added to pod #1859
         # https://github.com/kubernetes-client/python/issues/1859
@@ -3889,6 +3888,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
+        """
 
         appinstancestatus = None
         for wait_time in [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2 ]:
