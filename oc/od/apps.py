@@ -434,11 +434,8 @@ class ODApps:
                 cmd.append('/composer/appli-docker-entrypoint.sh')
                 self.logger.warning( f"fixing cmd entry for image {imageid} update to {cmd}")
 
-        # read WORKING with fallback for compatibiliy with old version release
-        workingdir = inspect_dict.get('WorkingDir', oc.od.settings.getballoon_homedirectory() )
-
         # read USER with fallback for compatibiliy with old version release
-        user = inspect_dict.get('User') or json_image.get('status',{}).get('username') or oc.od.settings.getballoon_name()
+        # user = inspect_dict.get('User') or json_image.get('status',{}).get('username') or oc.od.settings.getballoon_loginname()
 
         # read the labels dict
         if isinstance( inspect_dict.get('Labels'), dict ):
@@ -512,8 +509,6 @@ class ODApps:
             myapp = {
                 'home': home,
                 'cmd': cmd,
-                'workingdir': workingdir,
-                'user': user,
                 'sha_id': sha_id,
                 'id': imageid,
                 'rules' : rules,
