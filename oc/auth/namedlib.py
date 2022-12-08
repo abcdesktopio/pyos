@@ -14,7 +14,7 @@
 
 from shellescape import quote
 
-def normalize_name(name, encoding='utf-8', tolower=True):
+def normalize_name(name:str, encoding:str='utf-8', tolower:bool=True)->str:
     newname = ''
     # permit only DNS name [a-z][A-Z][0-9]-
     #
@@ -42,16 +42,16 @@ def normalize_name(name, encoding='utf-8', tolower=True):
     return newname
 
 
-def normalize_name_dnsname( name ):
+def normalize_name_dnsname(name:str)->str:
     return normalize_name( name )[0:62]
 
-def normalize_name_tolabel( name ):
+def normalize_name_tolabel(name:str)->str:
     return normalize_name(name)
 
-def normalize_networkname(name):
+def normalize_networkname(name:str)->str:
     return normalize_name(name)
 
-def normalize_containername(name):
+def normalize_containername(name:str)->str:
     # get the last part of
     # registry.domain.tld:443/oc.user.14.04:latest
     # return oc.user.14.04
@@ -65,7 +65,7 @@ def normalize_containername(name):
       pass
     return newname
 
-def normalize_imagename(name):
+def normalize_imagename(name:str)->str:
     return str( name.rsplit('/',1)[-1].rsplit('.',1)[0].split(':',1)[0].replace('.', '-') )
 
 
@@ -79,7 +79,7 @@ def normalize_char( c ):
     return '_'
 
 # (([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')
-def normalize_label( name ):
+def normalize_label( name:str )->str:
     # permit only DNS name [a-z][A-Z][0-9]-
     newname = ''
     for c in name:
@@ -87,10 +87,44 @@ def normalize_label( name ):
     return newname
 
 # Take care 
-def normalize_shell_variable(myvar):
+def normalize_shell_variable(myvar:str)->str:
 
     newNormalizedVar = quote( myvar)
     # myvar.replace('\'', '\\\'')
     # newNormalizedVar = normalizedVar
     # newNormalizedVar = '\'' + normalizedVar + '\''
     return newNormalizedVar
+
+
+def snakeCaseToCamelCase(s:str)->str:
+    """snakeCaseToCamelCase
+        return None if an error occurs
+
+    Args:
+        s (str): str in snake_case format
+
+    Returns:
+        str: str in camelCase format
+    """
+    result=None
+    try:
+      # split underscore using split
+      temp = s.split('_')
+      # joining result
+      result = temp[0] + ''.join(ele.title() for ele in temp[1:])
+    except Exception as e:
+      pass
+    return result
+
+  
+def dictSnakeCaseToCamelCase(d:dict)->dict:
+    new_dict = {}
+    for key in d.keys():
+      entry = d.get(key)
+      newkey = snakeCaseToCamelCase(key) or key
+      if isinstance(entry, dict):
+        new_dict[newkey]=dictSnakeCaseToCamelCase(entry)
+      else:
+        new_dict[newkey]=entry
+    return new_dict
+
