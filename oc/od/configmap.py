@@ -92,7 +92,7 @@ class ODConfigMap():
         
     def get_name( self, userinfo ):   
         configmap_name = f"{self.configmapnameheader}-{self.normalize_name_configmap_type}-{userinfo.userid}{self.prefix}"
-        configmap_name = oc.auth.namedlib.normalize_name(configmap_name)        
+        configmap_name = oc.auth.namedlib.normalize_name_dnsname(configmap_name)        
         return configmap_name
 
     @staticmethod
