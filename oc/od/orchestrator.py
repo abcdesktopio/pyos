@@ -2714,15 +2714,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'containers': []
             }
         }
-        self.logger.debug('pod container created %s', currentcontainertype )
 
-        # by default remove Anonymous home directory at stop or if oc.od.settings.desktop['removehomedirectory']
-        if oc.od.settings.desktop['removehomedirectory'] is True or userinfo.name == 'Anonymous':
-            pod_manifest['spec']['containers'][0]['lifecycle'] = {  
-                'preStop': {
-                    'exec': { 'command':  [ "/bin/bash", "-c", "rm -rf ~/*" ] }
-                }   
-        }
 
          # Add graphical servives 
         currentcontainertype='graphical'
@@ -2742,6 +2734,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
             } )
             self.logger.debug('pod container created %s', currentcontainertype )
+            
+            # by default remove Anonymous home directory at stop or if oc.od.settings.desktop['removehomedirectory']
+            if oc.od.settings.desktop['removehomedirectory'] is True or userinfo.name == 'Anonymous':
+                pod_manifest['spec']['containers'][0]['lifecycle'] = {  
+                    'preStop': {
+                        'exec': {
+                            'command':  [ "/bin/bash", "-c", "rm -rf ~/*" ] 
+                        }
+                    }   
+                }
           
         # Add printer sound servives 
         currentcontainertype='printer'
