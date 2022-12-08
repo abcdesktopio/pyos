@@ -14,6 +14,7 @@
 import logging
 
 from yaml import serialize
+from oc.auth.authservice import AuthInfo, AuthUser
 import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
@@ -21,6 +22,9 @@ import oc.od.volume   # manage volume
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from kubernetes.client.models.v1_secret import V1Secret
+from kubernetes.client.models.v1_object_meta import V1ObjectMeta
+from kubernetes.client.models.v1_status import V1Status
 
 import base64
 import json
@@ -76,7 +80,7 @@ def list_secretype():
 @oc.logging.with_logger()
 class ODSecret():
 
-    def __init__( self, namespace, kubeapi, prefix, secret_type ):
+    def __init__( self, namespace:str, kubeapi, prefix:str, secret_type:str ):
         self.namespace  = namespace
         self.kubeapi    = kubeapi
         self.secretnameheader = 'auth' 
@@ -90,22 +94,13 @@ class ODSecret():
         else:
            self.prefix = ''
         
-    def get_name( self, userinfo ):   
+    def get_name( self, authinfo:AuthInfo,  userinfo:AuthUser )->str:   
         secret_name = self.secretnameheader + '-' + self.normalize_name_secret_type + '-' + userinfo.userid + self.prefix
-        secret_name = oc.auth.namedlib.normalize_name(secret_name)        
+        secret_name = oc.auth.namedlib.normalize_name_dnsname(secret_name)        
         return secret_name
 
-    def is_valid( self ):
-        """[is_valid]
-            check if secret is ready to use and contains all datas
-            if data id empty return False
-        Returns:
-            [bool]: [True if valid, else False]
-        """
-        return True
-
     @staticmethod
-    def b64tostr( s ):
+    def b64tostr( s:str )->str:
         """[b64tostr]
             convert b64 to str
         Args:
@@ -118,12 +113,12 @@ class ODSecret():
         return b
 
     @staticmethod
-    def b64tobytes( s ):    
+    def b64tobytes( s:str )->bytes:    
         b = base64.b64decode( s.encode('ascii') )
         return b
 
     @staticmethod
-    def b64todata( s ):    
+    def b64todata( s:str )->str:    
         b = base64.b64decode( s )
         try:
             # try to decode as utf8
@@ -135,19 +130,19 @@ class ODSecret():
         return b
 
     @staticmethod
-    def strtob64( s ):        
+    def strtob64( s:str )->str:        
         b = base64.b64encode( s.encode('utf-8') ).decode('ascii')
         return b
 
     @staticmethod
-    def bytestob64( s ):        
+    def bytestob64( s:bytes )->str:        
         b = base64.b64encode( s ).decode('ascii')
         return b
 
     @staticmethod
-    def read_data( secret:client.models.v1_secret.V1Secret, key:str)->str:
+    def read_data( secret:V1Secret, key:str)->str:
         data = None
-        if isinstance( secret, client.models.v1_secret.V1Secret ):
+        if isinstance( secret, V1Secret ):
             try:
                 b64data = secret.data.get(key)
                 data = oc.od.secret.ODSecret.b64todata( b64data )
@@ -156,10 +151,10 @@ class ODSecret():
         return data 
 
 
-    def read_alldata(self, userinfo)->dict:
+    def read_alldata(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
         readdata = None
-        secret = self.read( userinfo )
-        if isinstance( secret, client.models.v1_secret.V1Secret ):
+        secret = self.read( authinfo, userinfo )
+        if isinstance( secret, V1Secret ):
             readdata = {}
             for key in secret.data.keys():
                 try:
@@ -174,11 +169,10 @@ class ODSecret():
                     self.logger.error( f"failed to read secret key {key} {e}")
         return readdata 
         
-    def _create_dict(self, authinfo, userinfo,  arguments):       
-       
+    def _create_dict(self, authinfo:AuthInfo, userinfo:AuthUser, arguments:dict)->dict:       
+        assert isinstance(arguments, dict),  f"arguments has invalid type {type(arguments)}"
         # Default secret dict
         mydict_secret = {}
-
         # convert each argument key to base64
         for key in arguments.keys():
             argument_type = type(arguments[key])
@@ -196,52 +190,53 @@ class ODSecret():
                 mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
         return mydict_secret
 
-    def patch(self, authinfo, userinfo, old_secret, arguments ): 
-
+    def patch(self, authinfo:AuthInfo, userinfo:AuthUser, old_secret, arguments )->V1Secret: 
+        assert isinstance(arguments, dict),  f"arguments has invalid type {type(arguments)}"
         myauth_dict_secret = self._create_dict( authinfo, userinfo, arguments ) 
         # we suppose that the secret has changed 
         # labels_dict = { 'access_provider':  authinfo.provider, 'access_userid': userinfo.userid, 'access_type': self.access_type }
         # metadata = client.V1ObjectMeta( name=mysecretname, labels=labels_dict, namespace=self.namespace )        
-        mysecretname = self.get_name( userinfo )        
+        mysecretname = self.get_name( authinfo, userinfo )        
         body = { 'data' : myauth_dict_secret }
         created_secret = self.kubeapi.patch_namespaced_secret( name=mysecretname, namespace=self.namespace, body=body)
 
         return  created_secret
 
-    def _create(self, authinfo, userinfo, arguments ): 
+    def _create(self, authinfo:AuthInfo, userinfo:AuthUser, arguments:dict )->V1Secret: 
+        assert isinstance(arguments, dict),  f"arguments has invalid type {type(arguments)}"
         created_secret = None
         myauth_dict_secret = self._create_dict( authinfo, userinfo, arguments )  
-        mysecretname = self.get_name( userinfo )
+        mysecretname = self.get_name( authinfo, userinfo )
         labels_dict = { 'access_provider':  authinfo.provider, 'access_userid': userinfo.userid, 'access_type': self.access_type }
-        metadata = client.V1ObjectMeta( name=mysecretname, labels=labels_dict, namespace=self.namespace )        
-        mysecret = client.V1Secret( data=myauth_dict_secret, metadata=metadata, immutable=self.immutable, type=self.secret_type ) 
-        if isinstance( mysecret, client.models.v1_secret.V1Secret) :      
+        metadata = V1ObjectMeta( name=mysecretname, labels=labels_dict, namespace=self.namespace )        
+        mysecret = V1Secret( data=myauth_dict_secret, metadata=metadata, immutable=self.immutable, type=self.secret_type ) 
+        if isinstance( mysecret, V1Secret) :      
             created_secret = self.kubeapi.create_namespaced_secret( namespace=self.namespace, body=mysecret )
             self.logger.info( 'new secret name %s type %s created', mysecretname, self.secret_type )
-        return  created_secret
+        return created_secret
 
-    def read( self, userinfo ):
+    def read( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Secret:
         mysecret = None
         try:            
-            secret_name = self.get_name( userinfo )
+            secret_name = self.get_name( authinfo, userinfo )
             mysecret = self.kubeapi.read_namespaced_secret( name=secret_name, namespace=self.namespace )
         except ApiException as e:
             if e.status != 404:
                 self.logger.error('secret name %s can not be read: error %s', str(secret_name), e ) 
         return mysecret
       
-    def delete( self, userinfo ):
+    def delete( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Status:
         ''' delete a secret '''
         self.logger.debug('')
         v1status = None
         try:            
-            secret_name = self.get_name( userinfo )
-            v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
+            secret_name = self.get_name( authinfo, userinfo )
+            v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace, grace_period_seconds=0 )
         except ApiException as e:
             self.logger.error('secret name %s can not be deleted %s', str(secret_name), e ) 
         return v1status
 
-    def create(self, authinfo, userinfo, data ):
+    def create(self, authinfo:AuthInfo, userinfo:AuthUser, data:dict )->V1Secret:
         """[create secret]
 
         Args:
@@ -250,17 +245,17 @@ class ODSecret():
             data ([dict]): [dictionnary key value]
 
         Returns:
-            [client.models.v1_secret.V1Secret ]: [kubernetes V1Secrets]
+            [V1Secret]: [kubernetes V1Secrets]
         """
         self.logger.debug('')
         mysecret = None
         op = None
 
         # sanity check 
-        readsecret = self.read(userinfo)
+        readsecret = self.read(authinfo, userinfo)
         try:
             # if the secret already exists, patch it with new data
-            if isinstance( readsecret, client.models.v1_secret.V1Secret) :
+            if isinstance( readsecret, V1Secret) :
                 # a secret already exists, patch it with new data 
                 # it may contains obsolete value, for example if the password has changed
                 op = 'patch' # operation is used for log message
@@ -272,7 +267,7 @@ class ODSecret():
         except Exception as e:
             self.logger.error( 'Failed to %s secret type=%s %s', str(op), str(self.secret_type), str(e) )
         
-        if isinstance( mysecret, client.models.v1_secret.V1Secret) :
+        if isinstance( mysecret, V1Secret) :
             self.logger.info( '%s secret type=%s name=%s done', str(op), self.secret_type, mysecret.metadata.name )
 
         return mysecret
@@ -301,7 +296,7 @@ class ODSecretVNC( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='vnc' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='vnc'
-        self.immutable = True
+        # self.immutable = True
 
 class ODSecretCitrix( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
@@ -411,10 +406,10 @@ class ODSecretRemoteFileSystemDriverUsingKerberosAuth( ODSecret ):
 
     def _create_dict(self, authinfo, userinfo, arguments):       
         # Value must exists
-        principal   = authinfo.get_claims('identity')['kerberos']['PRINCIPAL']    # Exception if not set
-        realm       = authinfo.get_claims('identity')['kerberos']['REALM']
-        keytab      = authinfo.get_claims('identity')['kerberos']['keytab'] 
-        krb5_conf   = authinfo.get_claims('identity')['kerberos']['krb5_conf'] 
+        principal   = authinfo.get_identity()['kerberos']['PRINCIPAL']    # Exception if not set
+        realm       = authinfo.get_identity()['kerberos']['REALM']
+        keytab      = authinfo.get_identity()['kerberos']['keytab'] 
+        krb5_conf   = authinfo.get_identity()['kerberos']['krb5_conf'] 
 
         str_dict_data   = json.dumps( arguments )
         
