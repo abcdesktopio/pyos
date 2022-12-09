@@ -776,10 +776,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
         self.default_volumes_mount['log'] = { 'name': 'log',  'mountPath': '/var/log/desktop' }
 
+        self.default_volumes['dbus']       = { 'name': 'dbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
+        self.default_volumes_mount['dbus'] = { 'name': 'dbus',  'mountPath': '/var/run/dbus' }
+
+        self.default_volumes['runuser']       = { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
+        self.default_volumes_mount['runuser'] = { 'name': 'runuser',  'mountPath': '/run/user/' }
+
         self.default_volumes['x11socket'] = { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } }
         self.default_volumes_mount['x11socket'] = { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' }
+
         self.default_volumes['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } }
         self.default_volumes_mount['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' }
+
         self.default_volumes['cupsdsocket'] = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
         self.default_volumes_mount['cupsdsocket'] = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
 
@@ -1210,27 +1218,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # tmp volume is shared between all container inside the desktop pod
         #
         if volume_type in [ 'pod_desktop', 'container_app', 'ephemeral_container' ] :
-            # set tmp volume
-            volumes['tmp']       = self.default_volumes['tmp']
-            volumes_mount['tmp'] = self.default_volumes_mount['tmp']
-            # set x11unix socket, pulseaudiosocket and cupsdsocket
-            volumes['x11socket']   = self.default_volumes['x11socket']
-            volumes_mount['x11socket'] = self.default_volumes_mount['x11socket']
-            # pulseaudiosocket
-            volumes['pulseaudiosocket']   = self.default_volumes['pulseaudiosocket']
-            volumes_mount['pulseaudiosocket'] = self.default_volumes_mount['pulseaudiosocket']
-            # cupsdsocket
-            volumes['cupsdsocket']   = self.default_volumes['cupsdsocket']
-            volumes_mount['cupsdsocket'] = self.default_volumes_mount['cupsdsocket']
-            # set run volume use to write run files
-            volumes['run']       = self.default_volumes['run']
-            volumes_mount['run'] = self.default_volumes_mount['run']
-            # set log volume use to write log files
-            volumes['log']       = self.default_volumes['log']
-            volumes_mount['log'] = self.default_volumes_mount['log']
-            # set config in USER HOMEDIR /.local
-            # volumes['local'] = self.default_volumes['local']
-            # volumes_mount['local'] = self.default_volumes_mount['local']
+            # for each default 
+            for vol_name in [ 'tmp', 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'run', 'log', 'dbus', 'runuser' ]:
+                volumes[vol_name]       = self.default_volumes[vol_name]
+                volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+
 
         #
         # shm volume is shared between all container inside the desktop pod
@@ -3792,6 +3784,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # 
         # note there is no imagePullSecrets, parameters
         #
+        """
         body = client.models.V1EphemeralContainer(  
             name=app_container_name,
             security_context= securitycontext,
@@ -3807,6 +3800,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         pod_ephemeralcontainers = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
             name=myDesktop.id, 
             namespace=self.orchestrator.namespace )
+
         if not isinstance(pod_ephemeralcontainers, V1Pod ):
             raise ValueError( 'Invalid read_namespaced_pod_ephemeralcontainers')
 
@@ -3837,7 +3831,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             else:
                 # forward the exception
                 raise e
-                
+
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
 
@@ -3888,7 +3882,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
-        """
 
         appinstancestatus = None
         for wait_time in [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2 ]:
@@ -3900,6 +3893,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         if isinstance( c.state, V1ContainerState ):
                             appinstancestatus.message = self.get_phase(c)
                             break
+
             if isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus):
                 self.logger.info(f"read_namespaced_pod_ephemeralcontainers status.ephemeral_container_statuses updated in {wait_time}s" )
                 break
@@ -3907,6 +3901,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 self.logger.debug( f"waiting for {wait_time}" )
                 time.sleep( wait_time )
 
+            # re read again
             pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
                     name=myDesktop.id, 
                     namespace=self.orchestrator.namespace )
