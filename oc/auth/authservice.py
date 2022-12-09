@@ -2515,7 +2515,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return self.search(conn, basedn, scope, filter, attrs, True)
 
     def search(self, conn, basedn, scope, filter=None, attrs=None, one=False):
-        self.logger.debug(locals())
+        # uncomment can dump clear password
+        # self.logger.debug(locals())
+        self.logger.debug('')
         entries = []
         time_start = time.time() # expressed in seconds since the epoch, in UTC
         results = conn.search( search_base=basedn, search_filter=filter, search_scope=scope, attributes=attrs)
