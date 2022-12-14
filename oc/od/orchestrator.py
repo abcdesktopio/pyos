@@ -3245,45 +3245,33 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             if object_type == 'Normal' and event_object.reason == 'Started':
                 myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
-                # count number_of_container_started
-                number_of_container_started = 0
-                number_of_container_ready = 0
-                for c in myPod.status.container_statuses:
-                    if c.started is True:
-                        number_of_container_started = number_of_container_started + 1
-                    if c.ready is True:
-                        number_of_container_ready = number_of_container_ready + 1
-
-                if number_of_container_started < number_of_container_to_start:
-                    # we need to wait for started containers
-                    startedmsg =  f"b.Waiting for started containers {number_of_container_started}/{number_of_container_to_start}" 
-                    self.logger.debug( startedmsg )
-                    self.on_desktoplaunchprogress( startedmsg )
-                    # continue
-
-                # startedmsg =  f"b.Ready containers {number_of_container_ready}/{number_of_container_to_start}" 
-                # self.logger.debug( startedmsg )
-                # self.on_desktoplaunchprogress( startedmsg )
-
+                
                 # check if container_graphical_name is started and running
                 # if it is stop event
                 startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod)
+                self.logger.debug( f"getPodStartedMessage return {startedmsg}" )
                 self.on_desktoplaunchprogress( startedmsg )
 
+
                 if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
-                    self.on_desktoplaunchprogress(f"Your pod gets ip address {myPod.status.pod_ip} from network plugin")
+                    self.on_desktoplaunchprogress(f"b.Your pod gets ip address {myPod.status.pod_ip} from network plugin")
                     w.stop()
+                else:
+                    self.on_desktoplaunchprogress(f"b.Your pod is waiting for network plugins")
 
                 c = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
                 if isinstance( c, client.models.v1_container_status.V1ContainerStatus ):
-                    if c.ready is True and c.started is True :
+                    if c.started is True :
                         self.on_desktoplaunchprogress( startedmsg )
                         w.stop()
+                else:
+                    self.on_desktoplaunchprogress(f"b.Waiting for graphical service {self.graphicalcontainernameprefix}" )
 
         self.logger.debug( f"watch list_namespaced_event pod created object_type={object_type}")
     
         self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
         # watch list_namespaced_pod waiting for a valid ip addr
+        self.on_desktoplaunchprogress( "b.Waiting for your desktop quit Pending phase " )
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                 namespace=self.namespace, 
