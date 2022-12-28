@@ -157,7 +157,7 @@ class ODOrchestratorBase(object):
                                 'ssh'       : self.sshcontainernameprefix,
                                 'rdp'       : self.rdpcontainernameprefix 
         }
-
+        self.name                   = 'base'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
         self.x11servertype          = 'x11server'        
         self.x11servertype_embeded  = 'x11serverembeded' 
@@ -166,7 +166,6 @@ class ODOrchestratorBase(object):
         self.soundservertype        = 'pulseserver'
         self.endpoint_domain        = 'desktop'
         self.ephemeral_container    = 'ephemeral_container'
-        self.name = 'base'
 
     def get_containername( self, authinfo, userinfo, currentcontainertype, myuuid ):
         prefix = self.nameprefixdict[currentcontainertype]
@@ -776,8 +775,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
         self.default_volumes_mount['log'] = { 'name': 'log',  'mountPath': '/var/log/desktop' }
 
-        self.default_volumes['dbus']       = { 'name': 'dbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
-        self.default_volumes_mount['dbus'] = { 'name': 'dbus',  'mountPath': '/var/run/dbus' }
+        self.default_volumes['rundbus']       = { 'name': 'rundbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
+        self.default_volumes_mount['rundbus'] = { 'name': 'rundbus',  'mountPath': '/var/run/dbus' }
 
         self.default_volumes['runuser']       = { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
         self.default_volumes_mount['runuser'] = { 'name': 'runuser',  'mountPath': '/run/user/' }
@@ -790,6 +789,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.default_volumes['cupsdsocket'] = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
         self.default_volumes_mount['cupsdsocket'] = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
+
+        self.default_volumes['passwd']      = { 'name': 'passwd',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
+        self.default_volumes_mount['passwd'] = { 'name': 'passwd',  'mountPath': '/etc/passwd' }
+
+        self.default_volumes['shadow']      = { 'name': 'shadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
+        self.default_volumes_mount['shadow'] = { 'name': 'shadow',  'mountPath': '/etc/shadow' }
+
+        self.default_volumes['group']      = { 'name': 'group',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
+        self.default_volumes_mount['group'] = { 'name': 'group',  'mountPath': '/etc/group' }
+
+        self.default_volumes['gshadow']      = { 'name': 'gshadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
+        self.default_volumes_mount['gshadow'] = { 'name': 'gshadow',  'mountPath': '/etc/gshadow' }
 
         self.default_volumes['local']       = { 'name': 'local',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
         self.default_volumes_mount['local'] = { 'name': 'local',  'mountPath': '/home/balloon/.local' }
@@ -862,13 +873,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         return mysecretdict
 
-    def get_podname( self, authinfo:AuthInfo, userinfo:AuthUser, pod_uuid ):
+    def get_podname( self, authinfo:AuthInfo, userinfo:AuthUser, pod_sufix:str )->str:
         """[get_podname]
             return a pod name from authinfo, userinfo and uuid 
         Args:
             authinfo (AuthInfo): authentification data
             userinfo (AuthUser): user data 
-            pod_uuid ([str]): [uniqu uuid]
+            pod_sufix ([str]): [uniqu sufix]
 
         Returns:
             [str]: [name of the user pod]
@@ -876,7 +887,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         userid = userinfo.userid
         if authinfo.provider == 'anonymous':
             userid = 'anonymous'
-        return oc.auth.namedlib.normalize_name_dnsname( userid + self.containernameseparator + pod_uuid)[0:252]       
+        return oc.auth.namedlib.normalize_name_dnsname( userid + self.containernameseparator + pod_sufix)[0:252]       
  
     def get_labelvalue( self, label_value):
         """[get_labelvalue]
@@ -1215,14 +1226,29 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             volumes_mount['localtime'] = { 'name': 'localtime', 'mountPath' : '/etc/localtime' }
 
         #
-        # tmp volume is shared between all container inside the desktop pod
+        # volume shared between all container inside the desktop pod
         #
-        if volume_type in [ 'pod_desktop', 'container_app', 'ephemeral_container' ] :
-            # for each default 
-            for vol_name in [ 'tmp', 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'run', 'log', 'dbus', 'runuser' ]:
+        if volume_type in [ 'pod_desktop', 'container_app', 'ephemeral_container' ]:
+            
+            # # add local account
+            # for vol_name in [ 'passwd', 'group', 'shadow', 'gshadow']:
+            #    volumes[vol_name]       = self.default_volumes[vol_name]
+            #    volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+
+            # add socket service 
+            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket' ]:
                 volumes[vol_name]       = self.default_volumes[vol_name]
                 volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
 
+            # add tmp run log to support readonly filesystem
+            for vol_name in [ 'tmp', 'run', 'log' ]:
+                volumes[vol_name]       = self.default_volumes[vol_name]
+                volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+
+            # add dbus
+            for vol_name in [ 'rundbus', 'runuser' ]:
+                volumes[vol_name]       = self.default_volumes[vol_name]
+                volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
 
         #
         # shm volume is shared between all container inside the desktop pod
@@ -2419,8 +2445,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(env, dict),  f"env has invalid type {type(env)}, dict is expected"
         assert isinstance(posixuser, dict),  f"posixuser has invalid type {type(posixuser)}, dict is expected"
         for k, v in env.items():
-            new_value = chevron.render( v, posixuser )
-            env[k] = new_value 
+            if isinstance( v, str ):
+                try:
+                    new_value = chevron.render( v, posixuser )
+                    env[k] = new_value 
+                except Exception as e:
+                    pass
+        toto = 5 
     
     def get_ownerReferences( self, secrets:dict )->list:
         ownerReferences = []
@@ -3473,45 +3504,47 @@ class ODAppInstanceBase(object):
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
 
-        # read locale language from USER AGENT
-        language        = userinfo.get('locale', 'en_US')
-        lang            = language + '.UTF-8'
+
+
+
+        posixuser = self.orchestrator.alwaysgetPosixAccountUser( authinfo, userinfo )
 
         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist
         desktop_ip_addr = myDesktop.get_default_ipaddr('eth0')
 
         env = oc.od.settings.desktop['environmentlocal'].copy()
-        env.update( {   'DISPLAY': self.get_DISPLAY(desktop_ip_addr),
-                        'CONTAINER_IP_ADDR': desktop_ip_addr,   # CONTAINER_IP_ADDR is used by ocrun node js command
-                        'XAUTH_KEY': myDesktop.xauthkey,
-                        'BROADCAST_COOKIE': myDesktop.broadcast_cookie,
-                        'PULSEAUDIO_COOKIE': myDesktop.pulseaudio_cookie,
-                        'PULSE_SERVER':  self.get_PULSE_SERVER(desktop_ip_addr),
-                        'CUPS_SERVER':  self.get_CUPS_SERVER(desktop_ip_addr),
-                        'UNIQUERUNKEY' : app.get('uniquerunkey'),
-                        'HOME': '{{ homeDirectory }}',
-                        'LOGNAME': '{{ uid }}',
-                        'USER':'{{ uid }}'
-                    }
-        )
 
+        env['DISPLAY'] = self.get_DISPLAY(desktop_ip_addr)
+        env['CONTAINER_IP_ADDR'] = desktop_ip_addr   # CONTAINER_IP_ADDR is used by ocrun node js command
+        env['XAUTH_KEY'] = myDesktop.xauthkey
+        env['BROADCAST_COOKIE'] = myDesktop.broadcast_cookie
+        env['PULSEAUDIO_COOKIE'] = myDesktop.pulseaudio_cookie
+        env['PULSE_SERVER'] = self.get_PULSE_SERVER(desktop_ip_addr)
+        env['CUPS_SERVER'] = self.get_CUPS_SERVER(desktop_ip_addr)
+        env['UNIQUERUNKEY'] = app.get('uniquerunkey')
+        env['HOME'] = posixuser.get('homeDirectory')
+        env['LOGNAME'] = posixuser.get('uid')
+        env['USER'] = posixuser.get('uid')
+    
         #
         # update env with cuurent http request user LANG values
-        env.update ( {  'LANGUAGE'	    : language,
-                        'LANG'		    : lang,
-                        'LC_ALL'        : lang,
-                        'LC_PAPER'	    : lang,
-                        'LC_ADDRESS'    : lang,
-                        'LC_MONETARY'   : lang,
-                        'LC_TIME'	    : lang,
-                        'LC_MEASUREMENT': lang,
-                        'LC_TELEPHONE'  : lang,
-                        'LC_NUMERIC'    : lang,
-                        'LC_IDENTIFICATION' : lang,
-                        'PARENT_ID' 	    : myDesktop.id,
-                        'PARENT_HOSTNAME'   : myDesktop.nodehostname
-                    }
-        )
+        # read locale language from USER AGENT
+        language = userinfo.get('locale', 'en_US')
+        lang     = language + '.UTF-8'
+        env['LANGUAGE']=language
+        env['LANG']=lang
+        env['LC_ALL']=lang
+        env['LC_PAPER']=lang
+        env['LC_ADDRESS']=lang
+        env['LC_MONETARY']=lang
+        env['LC_TIME']=lang
+        env['LC_MEASUREMENT']=lang
+        env['LC_TELEPHONE']=lang
+        env['LC_NUMERIC']=lang
+        env['LC_IDENTIFICATION']=lang
+        env['PARENT_ID']=myDesktop.id,
+        env['PARENT_HOSTNAME']=myDesktop.nodehostname
+               
 
         # Add specific vars
         if isinstance( kwargs, dict ):
@@ -3523,10 +3556,6 @@ class ODAppInstanceBase(object):
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
             env.update(authinfo.data.get('identity', {}))
 
-        self.logger.debug('envlist creating')
-        posixuser = self.orchestrator.alwaysgetPosixAccountUser( authinfo, userinfo )
-        # replace  'UID' : '{{ uidNumber }}' by value 
-        ODOrchestratorKubernetes.expandchevron_envdict( env, posixuser )
 
         # convert env dictionnary to env list format for kubernetes
         envlist = ODOrchestratorKubernetes.envdict_to_kuberneteslist( env )
@@ -3537,6 +3566,9 @@ class ODAppInstanceBase(object):
     def get_securitycontext(self, authinfo:AuthInfo, userinfo:AuthUser ):
         securitycontext = self.orchestrator.updateSecurityContextWithUserInfo( self.type, authinfo, userinfo )
         return securitycontext
+
+   
+
 
 @oc.logging.with_logger()
 class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
@@ -3777,6 +3809,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # "field":"spec.ephemeralContainers[8].volumeMounts[0].subPath"}]},
         # "code":422}
         
+
         securitycontext = self.get_securitycontext( authinfo, userinfo )
 
         
@@ -3964,10 +3997,37 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return desktop_ip_addr + ':0'
 
     def get_PULSE_SERVER( self, desktop_ip_addr:str=None ):
-        return  desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT),
+        return  desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT)
 
     def get_CUPS_SERVER( self, desktop_ip_addr=None ):
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
+
+    def get_nodeSelector( self ):
+        """get_nodeSelector
+
+        Returns:
+            dict: dict of nodeSelector for self.type 
+
+        """
+        nodeSelector = oc.od.settings.desktop_pod.get(self.type, {}).get('nodeSelector',{})
+        return nodeSelector
+    
+    def get_appnodeSelector( self, app ):
+        """get_appnodeSelector
+            get the node selector merged data from 
+            desktop.pod['pod_application'] + app['nodeSelector']
+        Args:
+            app (dict): application dict 
+
+        Returns:
+            dict: dict 
+        """
+        assert isinstance(app, dict),  f"app has invalid type  {type(app)}"
+        nodeSelector = self.get_nodeSelector()
+        appnodeselector = app.get('nodeSelector')
+        if isinstance(appnodeselector, dict):
+            nodeSelector.update( appnodeselector )
+        return nodeSelector
 
     def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps=None ):
         self.logger.info('')
@@ -4173,24 +4233,11 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'type':             self.type,
             'uniquerunkey':     app.get('uniquerunkey'),
             'launch':           app.get('launch'),
-            'icon':             app.get('icon'),
-            'displayname':      app.get('displayname')
+            'icon':             app.get('icon')
         }
 
-        # container name
-        # DO NOT USE TOO LONG NAME for container name
-        # filter can failed or retrieve invalid value in case userid + app.name + uuid
-        # limit length is not defined but take care
-        _app_pod_name = self.orchestrator.get_normalized_username(
-            userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( str(app['name']) + '_' + str(uuid.uuid4().hex) )
-        app_pod_name =  oc.auth.namedlib.normalize_name_dnsname( _app_pod_name )
-
-        host_config = copy.deepcopy(oc.od.settings.applicationhostconfig)
-        self.logger.info('default application hostconfig=%s', host_config )
-
-        # load the specific hostconfig from the app object
-        host_config.update( app.get('host_config'))
-        self.logger.info('updated app values hostconfig=%s', host_config )
+        pod_sufix = 'app_' + app['name'] + '_' + str(uuid.uuid4().hex)
+        app_pod_name = self.orchestrator.get_podname( authinfo, userinfo, pod_sufix)
 
         # default empty dict annotations
         annotations = {}
@@ -4198,6 +4245,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         network_annotations = network_config.get( 'annotations' )
         if isinstance( network_annotations, dict):
             annotations.update( network_annotations )
+
+        # get the node selector merged data from desktop.pod['pod_application'] and app['nodeSelector']
+        nodeSelector = self.get_appnodeSelector(app)
 
         securitycontext = self.get_securitycontext( authinfo, userinfo )
 
@@ -4233,7 +4283,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 },
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'volumes': list_volumes,
-                'nodeSelector': oc.od.settings.desktop.get('nodeselector'),
+                'nodeSelector': nodeSelector,
                 'containers': [ {   
                     'imagePullSecrets': oc.od.settings.desktop_pod[self.type].get('imagePullSecrets'),
                     'imagePullPolicy':  oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),

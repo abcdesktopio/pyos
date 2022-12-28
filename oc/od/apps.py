@@ -356,8 +356,9 @@ class ODApps:
         apps = self.list_app_images()
         if isinstance( apps, list):
             for myapp in apps:
-                self.logger.debug( f"build_applist add {myapp['id']}")
-                mydict[ myapp['id'] ] = myapp
+                if isinstance( myapp, dict ):
+                    self.logger.debug( f"build_applist add {myapp['id']}")
+                    mydict[ myapp['id'] ] = myapp
         return mydict
 
     def get_json_applist(self, filter=True):
@@ -454,6 +455,7 @@ class ODApps:
         home = labels.get('oc.home')
         name = labels.get('oc.name')
         args = labels.get('oc.args')
+        containerengine = labels.get('oc.containerengine')
         uniquerunkey = labels.get('oc.uniquerunkey')
         showinview = labels.get('oc.showinview')
         displayname = labels.get('oc.displayname')
@@ -536,7 +538,8 @@ class ODApps:
                 'secrets_requirement' : secrets_requirement,
                 'run_inside_pod' : run_inside_pod,
                 'image_pull_policy' : image_pull_policy,
-                'image_pull_secrets': image_pull_secrets
+                'image_pull_secrets': image_pull_secrets,
+                'containerengine': containerengine
             }
 
         return myapp
