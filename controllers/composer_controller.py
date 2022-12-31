@@ -177,17 +177,19 @@ class ComposerController(BaseController):
             return cherrypy.HTTPError( status=400, message='invalid parameters' )
 
         containerid = args.get('containerid')
-        if type( containerid ) is not str:      
+        if not isinstance( containerid, str):
             return cherrypy.HTTPError( status=400, message='invalid parameter containerid')
         
         podname = args.get('podname')
-        if not isinstance( podname, str) :
-            return Results.error( message='invalid parameter podname')
-        
+        if not isinstance( podname, str):
+            return cherrypy.HTTPError( message='invalid parameter podname')
         
         result = oc.od.composer.removeContainerApp(auth, user, podname, containerid)
-        if result is not None:            
-            return Results.success(result=result)
+        if isinstance(result, bool):
+            if result is True:
+                return Results.success(result=result)
+            else:
+                return Results.error('failed to remove container')
         raise cherrypy.HTTPError( status=400, message='failed to remove container')
 
 
@@ -208,9 +210,9 @@ class ComposerController(BaseController):
         (auth, user ) = self.validate_env()
         desktop = oc.od.composer.finddesktop(authinfo=auth, userinfo=user) 
         # check desktop object
-        if not isinstance(desktop, oc.od.desktop.ODDesktop):  
+        if not isinstance(desktop, oc.od.desktop.ODDesktop):
             raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')          
-        if not hasattr(desktop, 'internaluri') :
+        if not hasattr(desktop, 'internaluri'):
             raise cherrypy.HTTPError( status=400, message='finddesktop does not return a valid desktop object')  
         if desktop.internaluri is None:
             raise cherrypy.HTTPError( status=400, message='finddesktop returns a desktop object with desktop.internaluri as None, unreachable')
