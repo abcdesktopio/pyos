@@ -121,8 +121,6 @@ jwt_config_desktop = None
 webrtc_server = None
 webrtc_enable = False
 
-applicationhostconfig = {}
-
 list_hostconfigkey = [ 
         'auto_remove',
         'cap_add', 
@@ -385,7 +383,6 @@ def filter_hostconfig( host_config ):
     return myhostconfig
 
 def init_desktop():
-    global applicationhostconfig
     global desktop
     global desktop_pod
  
@@ -401,25 +398,6 @@ def init_desktop():
             if provider.get('explicitproviderapproval'): # one provider set explicitproviderapproval
                 desktop['authproviderneverchange'] = False # this allow a user to change auth provider on the fly
                 break
-
-
-    applicationhostconfig = gconfig.get(    
-        'desktop.application_config',
-        {   'auto_remove'   : True,
-            'network_mode'  : 'container'
-        }
-    )
-
-    '''
-    {   'auto_remove'   : True,
-        'pid_mode'      : True,
-        'ipc_mode'      : 'shareable',
-        'network_mode'  : 'container'
-    }
-    '''
-
-    # check if applicationhostconfig contains permit value
-    applicationhostconfig = filter_hostconfig( applicationhostconfig )
 
     desktop_pod = gconfig.get( 'desktop.pod' )
     if not isinstance( desktop_pod, dict ):
