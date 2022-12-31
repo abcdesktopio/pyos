@@ -162,6 +162,7 @@ class ODOrchestratorBase(object):
         self.x11servertype          = 'x11server'        
         self.x11servertype_embeded  = 'x11serverembeded' 
         self.applicationtype        = 'pod_application'
+        self.applicationtypepull    = 'pod_application_pull'
         self.printerservertype      = 'cupsserver'
         self.soundservertype        = 'pulseserver'
         self.endpoint_domain        = 'desktop'
@@ -232,7 +233,7 @@ class ODOrchestratorBase(object):
     def countRunningContainerforUser( self, authinfo, userinfo):  
         raise NotImplementedError('%s.countRunningContainerforUser' % type(self))
 
-    def envContainerApp( self, authinfo, userinfo, containerid):
+    def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
         raise NotImplementedError('%s.envContainerApp' % type(self))
     
     def removeContainerApp( self, authinfo, userinfo, containerid):
@@ -1516,7 +1517,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if isinstance(myPod, V1Pod ):
             # deletedpod = self.removePod( myPod )
-            deletedpod = self.removePodSync( authinfo, userinfo, myPod )
+            # remove all application pod
+            myappinstance = ODAppInstanceKubernetesPod( self )
+            deletedpod = myappinstance.remove_all( authinfo, userinfo )
+            deletedpod = self.removePodSync( authinfo, userinfo, myPod ) and deletedpod
         
             # if isinstance(deletedpod,V1Pod) :
             #    removedesktopStatus['pod'] = deletedpod
@@ -1978,7 +1982,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env_result = None
         myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            env_result = myappinstance.envContainerApp(pod_name, containerid)
+            env_result = myappinstance.envContainerApp(authinfo, userinfo, pod_name, containerid)
         return env_result
 
     def stopContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
@@ -1990,7 +1994,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return stop_result
 
     def removeContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
-        self.stopContainerApp( authinfo, userinfo, pod_name, containerid)
+        return self.stopContainerApp( authinfo, userinfo, pod_name, containerid)
 
     def getappinstance( self, authinfo, userinfo, app ):    
         self.logger.debug('')
@@ -2128,7 +2132,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.info(f"pulling image on nodelist={listnode}")
         if isinstance( listnode, V1NodeList ):
             if len(listnode.items) < 1:
-                self.logger.error( f"nodeselector={oc.od.settings.desktop.get('nodeselector')} return empty list" )
+                self.logger.error( f"nodeSelector={label_selector} return empty list" )
             for node in listnode.items :
                 self.pullimage( app, node.metadata.name )
         else:
@@ -2166,7 +2170,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except Exception as e:
             self.logger.error( e )
         '''
-        labels = { 'type': self.applicationtype }
+        labels = { 'type': self.applicationtypepull }
 
         pod_manifest = {
             'apiVersion': 'v1',
@@ -3505,8 +3509,6 @@ class ODAppInstanceBase(object):
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
 
 
-
-
         posixuser = self.orchestrator.alwaysgetPosixAccountUser( authinfo, userinfo )
 
         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist
@@ -3593,7 +3595,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
     def get_CUPS_SERVER(  self, desktop_ip_addr:str='' ):
         return '/tmp/.cups.sock'
 
-    def envContainerApp(self, pod_name, container_name):
+    def envContainerApp(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
         """get_env
             return a dict of env VAR of an ephemeral container
 
@@ -3609,8 +3611,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             dict: VAR_NAME : VAR_VALUE
             or None if failed
         """
-        assert isinstance(pod_name,  str),  f"pod_name has invalid type  {type(pod_name)}"
-        assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
+        assert isinstance(pod_name, str),    f"pod_name has invalid type {type(pod_name)}"
+        assert isinstance(containerid, str), f"containerid has invalid type {type(containerid)}"
         env_result = None
         pod_ephemeralcontainers = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
             name=pod_name, 
@@ -3620,7 +3622,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         if isinstance(pod_ephemeralcontainers.spec.ephemeral_containers, list):
             for c in pod_ephemeralcontainers.spec.ephemeral_containers:
-                if c.name == container_name :
+                if c.name == containerid :
                     env_result = {}
                     #  convert name= value= to dict
                     for e in c.env:
@@ -3732,11 +3734,15 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         if isinstance(pod_ephemeralcontainers.spec.ephemeral_containers, list):
             for c_spec in pod_ephemeralcontainers.spec.ephemeral_containers:
-                c_status = self.get_status( pod_ephemeralcontainers, c_spec.name  )
+                app = None
+                c_status = self.get_status( pod_ephemeralcontainers, c_spec.name )
                 if isinstance( c_status, V1ContainerStatus ):
                     phase = self.get_phase( c_status )
                     if phase in phase_filter:
-                        app = apps.find_app_by_id( c_status.image ) if hasattr( apps, 'find_app_by_id' ) else {}
+                        if hasattr( apps, 'find_app_by_id' ):
+                            app = apps.find_app_by_id( c_status.image )
+                        if not isinstance(app,dict):
+                            app = {}
                         #
                         # convert an ephemeralcontainers container to json by filter entries
                         mycontainer = {}
@@ -3751,10 +3757,10 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         mycontainer['oc.args']      = app.get('args')
                         mycontainer['oc.icon']      = app.get('icon')
                         mycontainer['oc.launch']    = app.get('launch')
-                        mycontainer['oc.displayname']   = c_status.name
-                        mycontainer['runtime']          = 'kubernetes'
-                        mycontainer['type']             = 'ephemeralcontainer'
-                        mycontainer['status']           = phase
+                        mycontainer['oc.displayname'] = c_status.name
+                        mycontainer['runtime']        = 'kubernetes'
+                        mycontainer['type']           = 'ephemeralcontainer'
+                        mycontainer['status']         = phase
 
                         # add the object to the result array
                         result.append( mycontainer )
@@ -4012,7 +4018,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         nodeSelector = oc.od.settings.desktop_pod.get(self.type, {}).get('nodeSelector',{})
         return nodeSelector
     
-    def get_appnodeSelector( self, app ):
+    def get_appnodeSelector( self, app:dict ):
         """get_appnodeSelector
             get the node selector merged data from 
             desktop.pod['pod_application'] + app['nodeSelector']
@@ -4022,7 +4028,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         Returns:
             dict: dict 
         """
-        assert isinstance(app, dict),  f"app has invalid type  {type(app)}"
+        assert isinstance(app, dict),  f"app has invalid type {type(app)}"
         nodeSelector = self.get_nodeSelector()
         appnodeselector = app.get('nodeSelector')
         if isinstance(appnodeselector, dict):
@@ -4032,10 +4038,10 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps=None ):
         self.logger.info('')
 
-        if not isinstance( myDesktop, ODDesktop ):
-            raise ValueError( 'invalid desktop parameter')
-        if not isinstance( phase_filter, list ):
-            raise ValueError( 'invalid phase_filter parameter')
+        assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
+        assert isinstance(myDesktop, ODDesktop ),  f"invalid desktop parameter {type(myDesktop)}"
+        assert isinstance(phase_filter, list ),    f"invalid phase_filter parameter {type(phase_filter)}"
 
         result = []
         access_userid = userinfo.userid
@@ -4079,7 +4085,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return result
 
 
-    def envContainerApp( self, authinfo, userinfo, pod_name ):
+    def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
         '''get the environment vars exec for the containerid '''
         env_result = None
 
@@ -4103,6 +4109,22 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     env_result[ e.name ] =  e.value
         return env_result
 
+    def logContainerApp(self, pod_name:str, container_name:str)->str:
+        assert isinstance(pod_name,  str),  f"pod_name has invalid type  {type(pod_name)}"
+        assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
+        strlogs = 'no logs read'
+        try:
+            strlogs = self.orchestrator.kubeapi.read_namespaced_pod_log( 
+                name=pod_name, 
+                namespace=self.orchestrator.namespace, 
+                container=container_name, 
+                pretty='true' )
+        except ApiException as e:
+            self.logger.error( e )
+        except Exception as e:
+            self.logger.error( e )
+        return strlogs
+
     def stop( self, pod_name, container_name:None ):
         '''get the user's containerid stdout and stderr'''
         result = None
@@ -4114,11 +4136,40 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         v1status = self.orchestrator.kubeapi.delete_namespaced_pod(  
             name=pod_name,
-            namespace=self.namespace,
+            namespace=self.orchestrator.namespace,
             body=delete_options,
             propagation_policy=propagation_policy )
 
         result = isinstance( v1status, V1Pod ) or isinstance(v1status,V1Status)
+
+        return result
+
+
+    def remove_all( self, authinfo, userinfo ):
+        '''get the user's containerid stdout and stderr'''
+        result = True
+        access_userid = userinfo.userid
+        access_provider = authinfo.provider
+        label_selector = f"access_userid={access_userid},type={self.type},access_provider={access_provider}"
+
+        myPodList = self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector)
+        if isinstance( myPodList, V1PodList ) and len(myPodList.items) > 0 :
+            for pod in myPodList.items:
+                # propagation_policy = 'Background'
+                propagation_policy = 'Foreground'
+                grace_period_seconds = 0
+                delete_options = V1DeleteOptions( 
+                    propagation_policy = propagation_policy, 
+                    grace_period_seconds=grace_period_seconds )
+                try:
+                    v1status = self.orchestrator.kubeapi.delete_namespaced_pod(  
+                        name=pod.metadata.name,
+                        namespace=self.orchestrator.namespace,
+                        body=delete_options,
+                        propagation_policy=propagation_policy )
+                    result = isinstance( v1status, V1Pod ) and result
+                except Exception as e:
+                    self.logger.error( e )
 
         return result
 
@@ -4130,7 +4181,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         field_selector = f"metadata.name={pod_name}"
         label_selector = f"access_userid={access_userid},type={self.type},access_provider={access_provider}"
 
-        myPodList = self.orchestrator.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector, field_selector=field_selector)
+        myPodList = self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
         if isinstance( myPodList, V1PodList ) and len(myPodList.items) > 0 :
             # propagation_policy = 'Background'
             propagation_policy = 'Foreground'
@@ -4141,7 +4192,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
             v1status = self.kubeapi.delete_namespaced_pod(  
                 name=pod_name,
-                namespace=self.namespace,
+                namespace=self.orchestrator.namespace,
                 body=delete_options,
                 propagation_policy=propagation_policy )
 

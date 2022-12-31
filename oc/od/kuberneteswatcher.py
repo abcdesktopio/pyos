@@ -45,12 +45,12 @@ class ODKubernetesWatcher:
                         if isinstance( pod_event, client.models.v1_pod.V1Pod ) : 
                             self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
                             podtype = pod_event.metadata.labels.get('type')
-                            if podtype == self.orchestrator.applicationtype :
+                            if podtype == self.orchestrator.applicationtypepull :
                                 self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
                                 if isinstance( pod_event.status, client.models.v1_pod_status.V1PodStatus ):
                                     if not isinstance(pod_event.status.container_statuses, list):
                                         continue
-                                    state = pod_event.status.container_statuses[0].state     
+                                    state = pod_event.status.container_statuses[0].state
                                     if isinstance( state.terminated, client.models.v1_container_state_terminated.V1ContainerStateTerminated ):
                                         self.logger.debug( f"{event_type} -> {pod_event.metadata.name} phase: {pod_event.status.phase} reason:{state.terminated.reason}" )
                                         if state.terminated.reason == 'Completed':
@@ -71,12 +71,10 @@ class ODKubernetesWatcher:
                                 desktop = self.orchestrator.pod2desktop( pod_event )
                                 oc.od.composer.detach_container_from_network(desktop.name)
 
-
             except Exception as e:
                 self.logger.debug( e )
                 pass
                     
-        
     def start(self):
         self.logger.debug('starting watcher thread')
         self.thead_event = threading.Thread(target=self.loopforevent)
