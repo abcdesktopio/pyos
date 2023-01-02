@@ -2126,6 +2126,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return appinstancestatus
 
     def pullimage_on_all_nodes(self, app:dict):
+        """pullimage_on_all_nodes
+            pullimage app to all nodes
+        Args:
+            app (dict): app
+
+        Returns:
+            None
+        """
         self.logger.info('')
         label_selector=oc.od.settings.desktop.get('nodeselector')
         listnode = self.kubeapi.list_node(label_selector=label_selector)
