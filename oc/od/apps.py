@@ -455,7 +455,7 @@ class ODApps:
         home = labels.get('oc.home')
         name = labels.get('oc.name')
         args = labels.get('oc.args')
-        containerengine = labels.get('oc.containerengine')
+        containerengine = labels.get('oc.containerengine', 'ephemeral_container')
         uniquerunkey = labels.get('oc.uniquerunkey')
         showinview = labels.get('oc.showinview')
         displayname = labels.get('oc.displayname')
