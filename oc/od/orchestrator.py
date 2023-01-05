@@ -3790,7 +3790,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         desktoprules = oc.od.settings.desktop['policies'].get('rules', {})
         rules = copy.deepcopy( desktoprules )
-        apprules = app.get('rules', {} ) 
+        apprules = app.get('rules', {} ) or {} # app['rules] can be set to None
         rules.update( apprules )
 
         self.logger.debug( f"reading pod desktop desktop={myDesktop.id} app_container_name={app_container_name}")
@@ -4254,7 +4254,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def create(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
         self.logger.debug('')
 
-        rules = app.get('rules', {})
+        rules = app.get('rules', {}) or {} # app['rules] can be set to None
 
         network_config = self.orchestrator.applyappinstancerules_network( authinfo, rules )
 

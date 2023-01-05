@@ -476,9 +476,8 @@ class ODApps:
             pass
 
         # safe load convert json data json
-        rules = self.safe_load_label_json( imageid, labels, 'oc.rules' )
-        if rules:
-            self.logger.debug( '%s has rules %s', name, rules )
+        rules = self.safe_load_label_json( imageid, labels, 'oc.rules',  default_value={} ) 
+        self.logger.debug( f"{name} has rules {rules}" )
         acl   = self.safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
         secrets_requirement = self.safe_load_label_json( imageid, labels, 'oc.secrets_requirement' )
        
