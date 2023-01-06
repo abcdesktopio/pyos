@@ -770,6 +770,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
         self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
+        self.default_volumes['cache']          = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
+        # self.default_volumes_mount['cache'] = { 'name': 'cache',  'mountPath': '/cache' }
+
         self.default_volumes['run']       = { 'name': 'run',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1M' } }
         self.default_volumes_mount['run'] = { 'name': 'run',  'mountPath': '/var/run/desktop' }
 
@@ -1144,6 +1147,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             }
             self.logger.debug( f"volumes_mount['home']: {volumes_mount['home']}" )
             self.logger.debug( f"volumes['home']: {volumes['home']}")
+
+
+        # 'cache' volume
+        dotcache_user_homedirectory = user_homedirectory + '/.cache'
+        volumes['cache']       = self.default_volumes['cache']
+        volumes_mount['cache'] = {
+                'name':volume_home_name, 
+                'mountPath':dotcache_user_homedirectory
+            }
+
         return (volumes, volumes_mount)
 
 
