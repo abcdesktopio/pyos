@@ -209,9 +209,9 @@ def init_localaccount():
     global DEFAULT_GROUP_FILE
     global DEFAULT_SHADOW_FILE
     global DEFAULT_GSHADOW_FILE
-    DEFAULT_PASSWD_FILE = loadfile('passwd')
-    DEFAULT_GROUP_FILE  = loadfile('group' )
-    DEFAULT_SHADOW_FILE = loadfile('shadow')
+    DEFAULT_PASSWD_FILE  = loadfile('passwd')
+    DEFAULT_GROUP_FILE   = loadfile('group' )
+    DEFAULT_SHADOW_FILE  = loadfile('shadow')
     DEFAULT_GSHADOW_FILE = loadfile('gshadow')
 
 
