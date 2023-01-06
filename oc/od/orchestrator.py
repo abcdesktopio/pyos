@@ -1096,29 +1096,28 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if kwargs.get('type') != self.x11servertype:
             homedir_enabled = ODOrchestratorKubernetes.applyappinstancerules_homedir( authinfo, rules )
 
-        if not homedir_enabled:
-            return (volumes, volumes_mount)
-
         self.on_desktoplaunchprogress('Building home dir data storage')
         volume_home_name = self.get_volumename( 'home', userinfo )
         # by default hostpath
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']
 
-        if authinfo.provider == 'anonymous':
-            # anonymous doest not store data
-            homedirectorytype = 'emptyDir'
-
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.name )
         user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
 
-        if  homedirectorytype == 'emptyDir':
-            volumes['home'] = { 'name': volume_home_name, # home + userid
-                                'emptyDir': {}
-            }
-            volumes_mount['home'] = {   'name'      : volume_home_name,
-                                        'mountPath' : user_homedirectory, # /home/balloon
-            }
-        elif homedirectorytype == 'persistentVolumeClaim':
+        
+        # set default value 
+        # home is emptyDir
+        # cache is emptyDir Memory
+        volumes['home'] = { 'name': volume_home_name, 'emptyDir': {} }
+        volumes_mount['home']  = { 'name': volume_home_name, 'mountPath' : user_homedirectory }
+
+        # 'cache' volume
+        dotcache_user_homedirectory = user_homedirectory + '/.cache'
+        volumes['cache']       = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
+        volumes_mount['cache'] = { 'name': 'cache',  'mountPath':dotcache_user_homedirectory }
+
+        # now ovewrite home values
+        if homedirectorytype == 'persistentVolumeClaim':
             # Map the home directory
             volumes['home'] = {
                 'name': volume_home_name,
@@ -1145,18 +1144,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'name':volume_home_name, 
                 'mountPath':user_homedirectory
             }
-            self.logger.debug( f"volumes_mount['home']: {volumes_mount['home']}" )
-            self.logger.debug( f"volumes['home']: {volumes['home']}")
 
-
-        # 'cache' volume
-        dotcache_user_homedirectory = user_homedirectory + '/.cache'
-        volumes['cache']       = self.default_volumes['cache']
-        volumes_mount['cache'] = {
-                'name':volume_home_name, 
-                'mountPath':dotcache_user_homedirectory
-            }
-
+        self.logger.debug( f"volumes_mount['home']: {volumes_mount['home']}" )
+        self.logger.debug( f"volumes['home']: {volumes['home']}")
+        self.logger.debug( f"volumes_mount['cache']: {volumes_mount['cache']}" )
+        self.logger.debug( f"volumes['cache']: {volumes['cache']}")
         return (volumes, volumes_mount)
 
 
