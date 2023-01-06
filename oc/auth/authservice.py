@@ -152,6 +152,8 @@ class AuthUser(dict):
 
     @staticmethod
     def getPosixAccountfromlocalAccount( localaccount:dict )->dict:
+        if not isinstance(localaccount, dict):
+            localaccount = AuthUser.getConfigdefaultPosixAccount()
         return AuthUser.getdefaultPosixAccount( 
             uid=localaccount.get('uid',oc.od.settings.getballoon_loginname()),
             gid=localaccount.get('gid',oc.od.settings.getballoon_groupname()),
@@ -1986,14 +1988,14 @@ class ODAuthProviderBase(ODRoleProviderBase):
         hashes = {  
             'uid'  : uid,
             'gid'  : gid,
+            'gecos': gecos,
+            'groups': groups,
             'uidNumber': uidNumber,
             'gidNumber': gidNumber,
-            'groups': groups,
             'loginShell': loginShell,
             'description': description,
-            'gecos': gecos,
             'homeDirectory': homeDirectory,
-            'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) ) 
+            'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) )
         }
         return hashes
     
