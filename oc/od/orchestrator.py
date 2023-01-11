@@ -2797,7 +2797,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image':image,                                    
                 'env': envlist,
-                'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                'volumeMounts': [ pod_allvolumeMounts['tmp'] ],
                 'securityContext': securityContext,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
             } )
@@ -2815,7 +2815,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image': image,                                    
                 'env': envlist,
-                'volumeMounts': [ self.default_volumes_mount['tmp'] ],
+                'volumeMounts': [ pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'], ],
                 'securityContext': securityContext,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
             } )
@@ -3786,9 +3786,11 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
 
-        if kwargs.get('recurvise_counter', 0) > 5:
-            self.logger.error( 'too much try to patch_namespaced_pod_ephemeralcontainers ')
-            raise ODError( 'too much try to patch_namespaced_pod_ephemeralcontainers ')
+        #if kwargs.get('recurvise_counter', 0) > 5:
+        #    self.logger.error( 'too much try to patch_namespaced_pod_ephemeralcontainers ')
+        #    raise ODError( 'too much try to patch_namespaced_pod_ephemeralcontainers ')
+
+        kwargs.update( oc.od.settings.desktop_pod.get( self.type ) )
 
         _app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( str(app['name']) + '_' + str(uuid.uuid4().hex) )
         app_container_name =  oc.auth.namedlib.normalize_name_dnsname( _app_container_name )
@@ -3830,7 +3832,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         
 
         securitycontext = self.get_securitycontext( authinfo, userinfo )
-
+        securitycontext.update( app.get('securitycontext') )
         
         #list[V1VolumeMount]
         # 
@@ -4314,6 +4316,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         nodeSelector = self.get_appnodeSelector(app)
 
         securitycontext = self.get_securitycontext( authinfo, userinfo )
+        securitycontext.update( app.get('securitycontext') )
 
         workingDir = self.orchestrator.get_user_homedirectory( authinfo, userinfo )
 
