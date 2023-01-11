@@ -46,7 +46,7 @@ class ODApps:
             'showinview',   'displayname',      'mimetype',     'path',         'desktopfile',
             'executablefilename',   'secrets_requirement' ]
         # define private attributs keep
-        self.private_attr_list  = [ 'sha_id',  'acl',  'rules', 'privileged', 'security_opt', 'host_config' ]
+        self.private_attr_list  = [ 'sha_id',  'acl',  'rules', 'securityContext' ]
         self.thread_sleep_insert = 5
         self.thead_event = None
         # mongo db defines
@@ -465,7 +465,6 @@ class ODApps:
         legacyfileextensions = labels.get('oc.legacyfileextensions')
         usedefaultapplication = labels.get('oc.usedefaultapplication')
         execmode = labels.get('oc.execmode')
-        run_inside_pod = labels.get('oc.run_inside_pod', False)
         image_pull_policy = labels.get('image_pull_policy', 'IfNotPresent' )
         image_pull_secrets = labels.get('image_pull_secrets')
 
@@ -487,10 +486,9 @@ class ODApps:
                 secrets_requirement = [ secrets_requirement ]
             secrets_requirement = self.safe_secrets_requirement_prefix( secrets_requirement, oc.od.settings.namespace)
 
-        security_opt = self.safe_load_label_json(imageid, labels, 'oc.security_opt' )
-        host_config  = self.safe_load_label_json(imageid, labels, 'oc.host_config', default_value={})
-        host_config  = oc.od.settings.filter_hostconfig( host_config )
+        securitycontext = self.safe_load_label_json(imageid, labels, 'oc.securitycontext', default_value={} )
         
+        # executablefilename is used to query applist 
         executablefilename = None
         if isinstance(path,str):
             executablefilename = os.path.basename(path)
@@ -523,7 +521,6 @@ class ODApps:
                 'cat': cat,
                 'args': args,
                 'execmode': execmode,
-                'security_opt' : security_opt,
                 'showinview': showinview,
                 'displayname': displayname,
                 'mimetype': mimelist,
@@ -533,13 +530,14 @@ class ODApps:
                 'usedefaultapplication': usedefaultapplication,
                 'fileextensions': fileextensionslist,
                 'legacyfileextensions': legacyfileextensionslist,
-                'host_config' : host_config,
                 'secrets_requirement' : secrets_requirement,
-                'run_inside_pod' : run_inside_pod,
                 'image_pull_policy' : image_pull_policy,
                 'image_pull_secrets': image_pull_secrets,
-                'containerengine': containerengine
+                'containerengine': containerengine,
+                "securitycontext": securitycontext
             }
+        else:
+            self.logger.warning(f"skip application missing data sha_id={sha_id} launch={launch} name={name} icon={icon} imageid={imageid}")
 
         return myapp
  
@@ -602,15 +600,39 @@ class ODApps:
                 break
         return app
 
-    def del_image( self, image_id ):
-        # Lock here
-        bDeleted = None
-        app = self.find_app_by_id( image_id )
+    def find_app_by_key(self, key_value:str, key='name')->dict:
+        for app in self.myglobal_list.items():
+            if key_value == app.get(key) :
+                break
+        return app
+
+    def del_image( self, image:str )->bool:
+        """del_image
+            remove application image form application collection
+        Args:
+            image (str): image id or image name
+
+        Returns:
+            bool: True if image is deleted
+        """
+        bDeleted = False
+        app = self.find_app_by_id( image )
+        if not isinstance( app , dict ):
+            # try to find app by name
+            app = self.find_app_by_key( image, key='name' )
+
         if isinstance( app , dict ):
             bDeleted = self.remove_app_to_collection(app)
+
         return bDeleted
 
     def del_all_images(self):
+        """del_all_images
+            remove all application images form application collection
+
+        Returns:
+            list: list of deleted image
+        """
         images = []
         for key in self.myglobal_list.keys():
             bDeleted = self.remove_app_to_collection(self.myglobal_list[key])
@@ -620,8 +642,9 @@ class ODApps:
                     images.append( app_id )
         return images
 
-    def findappbyname(self, authinfo, keyname:str):
-        """find application by keyname
+    def find_app_by_authinfo_and_name(self, authinfo, keyname:str):
+        """ find_app_by_authinfo_and_name
+            find application by keyname
 
         Args:
             authinfo ([type]): [description]
