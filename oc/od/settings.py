@@ -121,59 +121,10 @@ jwt_config_desktop = None
 webrtc_server = None
 webrtc_enable = False
 
-list_hostconfigkey = [ 
-        'auto_remove',
-        'cap_add', 
-        'cap_drop',
-        'cpu_count',
-        'cpu_percent',
-        'cpu_rt_period',
-        'cpu_rt_runtime',
-        'cpu_quota',
-        'cpu_shares',
-        'cpuset_cpus',
-        'cpuset_mems',
-        'device_cgroup_rules',
-        'device_read_bps',
-        'device_read_iops',
-        'device_write_bps',
-        'device_write_iops',
-        'devices',
-        'device_requests',
-        'ipc_mode',
-        'mem_limit',
-        'mem_reservation',
-        'mem_swappiness',
-        'memswap_limit',
-        'network_mode',
-        'nano_cpus',
-        'oom_kill_disable',
-        'oom_score_adj',
-        'pid_mode',
-        'pids_limit',
-        'privileged',
-        'read_only',
-        'restart_policy',
-        'runtime',
-        'security_opt',
-        'shm_size', 
-        'storage_opt',
-        'sysctls',
-        'tmpfs',
-        'ulimits',
-        'uts_mode',
-        'secrets_requirement'   # custom for abcdesktop 
-        ]
-
-def getballoon_loginname():
-    return balloon_loginname
-
-def getballoon_groupname():
-    return balloon_groupname
-
-def getballoon_loginShell():
-    return balloon_shell
-
+def getballoon_loginname():     return balloon_loginname
+def getballoon_groupname():     return balloon_groupname
+def getballoon_loginShell():    return balloon_shell
+def getballoon_homedirectory(): return balloon_homedirectory
 def getballoon_uidNumber():
     """[summary]
 
@@ -190,8 +141,6 @@ def getballoon_gidNumber():
     """
     return balloon_gidNumber
 
-def getballoon_homedirectory():
-    return balloon_homedirectory
 
 def getFQDN(hostname):
     ''' concat defaultdomainname to hostname set in configuration file  '''
@@ -368,19 +317,6 @@ def init_tls():
         logger.warning('Read HOWTO-configure documentation')
 
 
-def filter_hostconfig( host_config ):
-    """[filter_hostconfig]
-        safe function
-        return a filtered host_config dict with only entry from the list_hostconfigkey list
-    Args:
-        host_config ([dict]): [filtered host_config]
-    """
-
-    myhostconfig = {}
-    for keyconfig in host_config.keys():
-        if keyconfig in list_hostconfigkey:
-            myhostconfig[keyconfig] =  host_config[keyconfig]
-    return myhostconfig
 
 def init_desktop():
     global desktop
@@ -569,30 +505,6 @@ def init_controllers():
         # wrapper for StoreController key value
         # config use default wallpaper 'img' 
         controllers['StoreController']['wrapped_key'].update( { 'backgroundType': 'img' } )
-
-
-def read_kubernetes_resource_limits( hostconfig ):
-    """ [read_resource_limits]
-        convert docker cpu_period and cpu_quota as a kubernetes cpu limit ressource
-        convert docker mem as a kubernetes cpu limit ressource
-    Returns:
-        [dict]: [kubernetes resources limit dict]
-    """
-    limits = {} 
-    # you set --cpus="1.5", the container is guaranteed at most one and a half of the CPUs. 
-    # This is the equivalent of setting --cpu-period="100000" and --cpu-quota="150000".
-    cpu_period = hostconfig.get('cpu_period')
-    cpu_quota  = hostconfig.get('cpu_quota')
-    if isinstance( cpu_period, int ) and isinstance( cpu_quota,  int ) :
-        cpu_period = cpu_period / 100000
-        cpu_quota  = cpu_quota  / 100000
-        cpu        = float( "{:.1f}".format(cpu_period * cpu_quota) )
-        limits.update( { 'cpu': cpu } )
-    
-    mem_limit = hostconfig.get('mem_limit')
-    if isinstance(mem_limit, str ) :
-        limits.update( { 'memory': str(mem_limit) } )
-    return { 'limits': limits }
 
 def init_config_mongodb():
     """init mongodb config
