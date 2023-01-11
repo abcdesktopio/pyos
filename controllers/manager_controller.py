@@ -198,17 +198,17 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
         if image == '*':
-            oc.od.composer.del_application_all_images()
+            images_deleted = oc.od.composer.del_application_all_images()
             cherrypy.response.status = 200
-            return "OK"
+            return images_deleted
 
-        app = oc.od.services.services.apps.find_app_by_id( image_id=image)
-        if isinstance( app, dict):
-            del_image = oc.od.composer.del_application_image( image )
-            return del_image
-        else: 
-            cherrypy.response.status = 404
-            return "Not found"
+        del_images = oc.od.composer.del_application_image( image )
+        if isinstance(del_images, list):
+            if len( del_images ) > 0:
+                return del_images
+        
+        cherrypy.response.status = 404
+        return "Not found"
         
 
     def handle_image_PATCH( self, image=None, json_images=None ):
