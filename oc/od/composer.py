@@ -372,7 +372,7 @@ def finddesktop( authinfo, userinfo  ):
     Returns:
         [ODesktop]: oc.od.desktop.ODDesktop Desktop Object or None if not found
     """
-    services.messageinfo.push(userinfo.userid, 'looking for your desktop.')        
+    services.messageinfo.push(userinfo.userid, 'Looking for your desktop.')        
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo)     
     return myDesktop
@@ -732,7 +732,7 @@ def notify_user( access_userid, access_type, method, data ):
     
 
 def getapp(authinfo:AuthInfo, name:str)->dict:
-    app = services.apps.findappbyname(authinfo, name)
+    app = services.apps.find_app_by_authinfo_and_name(authinfo, name)
     if not isinstance(app, dict):
         raise ODError(message=f"Fatal error - Cannot find image associated to application {name}")
     return app
@@ -897,12 +897,21 @@ def add_application_image( json_images ):
     return json_put
 
 
-def del_application_image( image ):
-    # remove entry from mongodb
+def del_application_image( image:str )->list:
+    """del_application_image
+
+    Args:
+        image (str): image id or image name
+
+    Returns:
+        list: delete image
+    """
+    images = []
     deleted_image = oc.od.services.services.apps.del_image( image )
     if deleted_image is True:
         notity_pyos_buildapplist()
-    return deleted_image
+        images.append( image )
+    return images
 
 def del_application_all_images():
     # remove entry from mongodb
