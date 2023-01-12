@@ -414,7 +414,6 @@ def stopContainerApp(auth, user, podname, containerid):
         services.fail2ban.fail_login( user.userid )
         raise ODError( 'stopcontainer::invalid user')
 
-    services.accounting.accountex('api', 'container_app')
     result = myOrchestrator.stopContainerApp( auth, user, podname, containerid )
     return result
 
