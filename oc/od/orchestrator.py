@@ -2405,7 +2405,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         assert isinstance(containernameprefix, str),  f"env has invalid type {type(containernameprefix)}, str is expected"
         assert isinstance(myPod, V1Pod),  f"myPod has invalid type {type(myPod)}, V1Pod is expected"
-        startedmsg = f"b.{myPod.status.phase}"
+        startedmsg = f"b.{myPod.status.phase.lower()}"
         c = self.getcontainerfromPod( containernameprefix, myPod )
         if isinstance( c, V1ContainerStatus):
             startedmsg += f": {c.name} "
@@ -2912,7 +2912,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
 
         if not isinstance(pod, V1Pod ):
-            self.on_desktoplaunchprogress('e.Create Pod failed.' )
+            self.on_desktoplaunchprogress('e.Create pod failed.' )
             raise ValueError( 'Invalid create_namespaced_pod type')
 
         number_of_container_started = 0
@@ -2945,7 +2945,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             object_type = event_object.type
             self.logger.info( f"object_type={object_type} reason={event_object.reason}")
 
-            message = f"b.{event_object.reason} {event_object.message}" 
+            message = f"b.{event_object.reason} {event_object.message.lower()}" 
                 
             self.on_desktoplaunchprogress( message )
 
@@ -3018,7 +3018,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 w.stop()
                 continue
 
-            self.on_desktoplaunchprogress( f"b.Your {pod_event.kind} is {event_type.lower()} " )    
+            self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()} " )    
             self.logger.info( f"pod_event.status.phase={pod_event.status.phase}" )
             #if isinstance( pod_event.status.pod_ip, str):     
             #    self.on_desktoplaunchprogress(f"c.Your pod gets ip address {pod_event.status.pod_ip} from network plugin")  
@@ -3786,11 +3786,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
 
-        #if kwargs.get('recurvise_counter', 0) > 5:
-        #    self.logger.error( 'too much try to patch_namespaced_pod_ephemeralcontainers ')
-        #    raise ODError( 'too much try to patch_namespaced_pod_ephemeralcontainers ')
-
-        kwargs.update( oc.od.settings.desktop_pod.get( self.type ) )
+        self.logger.debug("create {self.type} getting shareProcessNamespace and shareProcessMemory options from desktop config")
+        shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
+        kwargs['shareProcessNamespace'] = shareProcessNamespace
+        shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
+        kwargs['shareProcessMemory'] = shareProcessMemory
+        self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
 
         _app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( str(app['name']) + '_' + str(uuid.uuid4().hex) )
         app_container_name =  oc.auth.namedlib.normalize_name_dnsname( _app_container_name )
@@ -3829,75 +3830,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # "message":"Forbidden: cannot be set for an Ephemeral Container",
         # "field":"spec.ephemeralContainers[8].volumeMounts[0].subPath"}]},
         # "code":422}
-        
-
         securitycontext = self.get_securitycontext( authinfo, userinfo )
         securitycontext.update( app.get('securitycontext') )
         
-        #list[V1VolumeMount]
-        # 
-        # note there is no imagePullSecrets, parameters
-        #
-        """
-        body = client.models.V1EphemeralContainer(  
-            name=app_container_name,
-            security_context= securitycontext,
-            env=envlist,
-            image=app['id'],
-            command=app.get('cmd'),
-            target_container_name=myDesktop.container_name,
-            image_pull_policy=app.get('image_pull_policy'),
-            volume_mounts = list_volumeMounts,
-            working_dir = workingDir
-        )
-
-        pod_ephemeralcontainers = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
-            name=myDesktop.id, 
-            namespace=self.orchestrator.namespace )
-
-        if not isinstance(pod_ephemeralcontainers, V1Pod ):
-            raise ValueError( 'Invalid read_namespaced_pod_ephemeralcontainers')
-
-        # append body to pod_ephemeralcontainers.spec.ephemeral_containers
-        if not isinstance( pod_ephemeralcontainers.spec.ephemeral_containers, list ):
-            # create entry for the first time
-            pod_ephemeralcontainers.spec.ephemeral_containers = list()
-        pod_ephemeralcontainers.spec.ephemeral_containers.append( body )
-
-        try:
-            pod=self.orchestrator.kubeapi.patch_namespaced_pod_ephemeralcontainers(
-                name=myDesktop.id, 
-                namespace=self.orchestrator.namespace, 
-                body=pod_ephemeralcontainers )
-        except ApiException as e:
-            if e.status == 409:
-                # "status":"Failure",
-                # "message":"Operation cannot be fulfilled on pods the object has been modified; please apply your changes to the latest version and try again",
-                # "reason":"Conflict",
-                # "details":{"name":"12896316-ca68ecaf-7315-46f0-8d07-5af4e79ef6fe","kind":"pods"},"code":409}\n'
-                wait_time = random.random()
-                self.logger.info( f"Operation cannot be fulfilled on pods the object has been modified; waiting for {wait_time}")
-                time.sleep( wait_time )
-                self.logger.debug( f"end of wait time, retrying to call read_namespaced_pod_ephemeralcontainers pod and patch_namespaced_pod_ephemeralcontainers")
-                # recursive call
-                kwargs['recurvise_counter'] = kwargs.get('recurvise_counter', 0) + 1
-                return self.create( myDesktop, app, authinfo, userinfo, userargs, **kwargs )
-            else:
-                # forward the exception
-                raise e
-
-        if not isinstance(pod, V1Pod ):
-            raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
-
-        self.logger.debug( f"patch_namespaced_pod_ephemeralcontainers done")
-        #
-        # len_pod_status_ephemeral_container_statuses can be None, but
-        # len_pod_spec_ephemeral_containers shoud not
-        # len_pod_status_ephemeral_container_statuses can take delmay to be updated
-        #
-        #
-
-        """
         # Fix python kubernetes
         # Ephemeral container not added to pod #1859
         # https://github.com/kubernetes-client/python/issues/1859
