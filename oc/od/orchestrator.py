@@ -902,16 +902,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [str]: [return normalized label name]
         """
+        assert isinstance(label_value, str),  f"label_value has invalid type {type(label_value)}"
         normalize_data = oc.auth.namedlib.normalize_label( label_value )
         no_accent_normalize_data = oc.lib.remove_accents( normalize_data )
         return no_accent_normalize_data
 
     def logs( self, authinfo:AuthInfo, userinfo:AuthUser ):
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+
         strlogs = ''
         myPod =  self.findPodByUser(authinfo, userinfo)
-
         if myPod is None :            
-            self.logger.info( 'No pod found for user %s ',  userinfo.userid )
+            self.logger.info( f"No pod found for user {userinfo.userid}" )
             return strlogs
 
         try:
@@ -948,6 +952,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def build_volumes_secrets( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement:list, rules={}, **kwargs:dict)->dict:
         self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+
         volumes = {}        # set empty dict of V1Volume dict by default
         volumes_mount = {}  # set empty dict of V1VolumeMount by default
         #
@@ -991,6 +998,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def build_volumes_flexvolumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
         if isinstance( rules, dict ):
@@ -1076,6 +1086,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (volumes, volumes_mount)
 
     def get_user_homedirectory(self, authinfo:AuthInfo, userinfo:AuthUser )->str:
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         localaccount = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
         localaccount_secret = localaccount.read( authinfo,userinfo )
         homeDirectory = oc.od.secret.ODSecretLocalAccount.read_data( localaccount_secret, 'homeDirectory' )
@@ -1085,6 +1098,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def build_volumes_home( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
         #
@@ -1101,7 +1116,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # by default hostpath
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']
 
-        subpath_name = oc.auth.namedlib.normalize_name( userinfo.name )
+        subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
         user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
 
         
@@ -1109,12 +1124,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # home is emptyDir
         # cache is emptyDir Memory
         volumes['home'] = { 'name': volume_home_name, 'emptyDir': {} }
-        volumes_mount['home']  = { 'name': volume_home_name, 'mountPath' : user_homedirectory }
+        volumes_mount['home']  = { 'name': volume_home_name, 'mountPath': user_homedirectory }
 
         # 'cache' volume
         dotcache_user_homedirectory = user_homedirectory + '/.cache'
         volumes['cache']       = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
-        volumes_mount['cache'] = { 'name': 'cache',  'mountPath':dotcache_user_homedirectory }
+        volumes_mount['cache'] = { 'name': 'cache',  'mountPath': dotcache_user_homedirectory }
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
@@ -1216,7 +1231,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Args:
             authinfo ([type]): [description]
             userinfo (AuthUser): user data
-            volume_type ([str]): 'container_desktop' 'pod_desktop', 'container_app', 'pod_application', 'ephemeral_container'
+            volume_type ([str]): 'container_desktop' 'pod_desktop', 'pod_application', 'ephemeral_container'
             rules (dict, optional): [description]. Defaults to {}.
 
         Returns:
@@ -1234,7 +1249,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # volume shared between all container inside the desktop pod
         #
-        if volume_type in [ 'pod_desktop', 'container_app', 'ephemeral_container' ]:
+        if volume_type in [ 'pod_desktop', 'ephemeral_container' ]:
             
             # # add local account
             # for vol_name in [ 'passwd', 'group', 'shadow', 'gshadow']:
