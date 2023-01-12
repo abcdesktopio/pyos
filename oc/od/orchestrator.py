@@ -3872,6 +3872,26 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
 
+        """
+        # watch list_namespaced_event
+        w = watch.Watch()                 
+        # read_namespaced_pod
+        for event in w.stream(  self.orchestrator.kubeapi.read_namespaced_pod, 
+                                namespace=self.orchestrator.namespace, 
+                                name=pod.metadata.name ):  
+            event_object = event.get('object')
+            if not isinstance(event_object, CoreV1Event ):
+                self.logger.error( 'event_object type is %s skipping event waiting for CoreV1Event', type(event_object))
+                continue
+            
+            # Valid values for event types (new types could be added in future)
+            #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
+            #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
+            object_type = event_object.type
+            self.logger.info( f"object_type={object_type} reason={event_object.reason}")
+            message = f"b.{event_object.reason} {event_object.message.lower()}"
+        """
+
         appinstancestatus = None
         for wait_time in [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2 ]:
             self.logger.debug( f"pod.status.ephemeral_container_statuses={pod.status.ephemeral_container_statuses}")
