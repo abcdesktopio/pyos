@@ -7,7 +7,7 @@ import logging
 import chevron
 
 from cherrypy.lib.reprconf import Config
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 import oc.datastore
 import oc.pyutils as pyutils
@@ -404,71 +404,65 @@ def init_balloon():
     balloon_homedirectory = gconfig.get('desktop.userhomedirectory', '/home/balloon')
 
 
+def _resolv( fqdh:str )->str:
+    """_resolv
+        run gethostbyname(fqdh)
+        exit(-1) if error
+
+    Args:
+        fqdh (str): full qualified host name
+
+    Returns:
+        str: ip address
+    """    
+    assert isinstance(fqdh, str), 'invalid full qualified host name' 
+    try:
+        ipaddr = socket.gethostbyname(fqdh)
+    except socket.gaierror as err:
+        logger.error(f"Cannot resolve hostname:{fqdh}")
+        logger.error(f"Cannot start: {err}")
+        sys.exit(-1)
+    return ipaddr
+
 def init_config_memcached():
     global memconnectionstring
-    global kubernetes_default_domain
+    # global kubernetes_default_domain
     # Build memcached memconnectionstring
-    memcachedhostname = gconfig.get('memcacheserver')
-    memcachedipaddr = None
- 
-    if memcachedhostname is None:
-        memcachedhostname = 'memcached' # this is the default value in docker mode
-        memcachedhostname += '.' + kubernetes_default_domain # this is the default value in docker mode
-        logger.info( 'memcachedhostname is %s', memcachedhostname)
-    try:
-        memcachedipaddr = socket.gethostbyname(memcachedhostname)
-        logger.info( 'host %s resolved as %s', memcachedhostname, memcachedipaddr)
-    except socket.gaierror as err:
-        logger.error('Cannot resolve hostname: %s', memcachedhostname)
-        logger.error('Cannot start: %s', err)
-        sys.exit(-1)
+    memcachedserver = os.getenv('MEMCACHESERVER') or gconfig.get('memcacheserver', 'memcached'+ '.' + kubernetes_default_domain )
 
+    logger.debug( f"memcachedserver is read as {memcachedserver}" )
+    memcachedipaddr = _resolv(memcachedserver)
+
+    logger.info( f"host {memcachedserver} resolved as {memcachedipaddr}")
     memcachedport = gconfig.get('memcachedport', 11211)
-    memconnectionstring = str(memcachedipaddr) + ":" + str(memcachedport)
-    logger.info('Memcached connection string is set to: %s', memconnectionstring)
+    memconnectionstring = f"{memcachedserver}:{memcachedport}"
+    logger.info(f"memcachedserver is set to {memcachedserver}")
+    logger.info( f"memcached connection string is set to {memconnectionstring}")
 
 
 def get_mongoconfig():
-    # try to use the mongodbserver in config file
-    # if not set 
-    #   try to read the MONGODB_URL env var
-    #       if not set 
-    #           use localhost
-    global kubernetes_default_domain
+    """get_mongoconfig
+        get mongoconfigurl from env
+                - MONGODB_URL
+            or from config file
+                - config('mongodburl')
+        parse mongodburl to resolv hostmane
+        exit if error
+    Returns:
+        MongoClientConfig : MongoClientConfig instance 
+    """
 
-    # read mongodb_url env var in upper case and lower case
+    # read mongodb_url env var
     # 'mongodb://pyos:YWUwNDJhZTI3NjVjZDg4Zjhk@mongodb.abcdesktop.svc.cluster.local:30017'
-    env_mongodb_url = os.getenv('MONGODB_URL')
-    if env_mongodb_url is None:
-        # try lower case
-        env_mongodb_url = os.getenv('mongodb_url')
+    mongodburl = os.getenv('MONGODB_URL') or gconfig.get('mongodburl',f"mongodb://mongodb.{kubernetes_default_domain}")
+    logger.debug( f"mongodburl is read as {mongodburl}" )
 
-    logger.info('MONGODB_URL: %s' % str(env_mongodb_url) )
-    if env_mongodb_url is None:
-        mongodburl = gconfig.get('mongodburl')
-    else:
-        mongodburl = env_mongodb_url
+    parsedmongourl = urlparse( mongodburl )
+    assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
+    mongodbhostipaddr = _resolv(parsedmongourl.hostname)
 
-    mongodbhost = None
-    if mongodburl is None:
-        mongodbhost = 'mongodb' # this is the default value in docker mode
-        mongodbhost += '.' + kubernetes_default_domain # this is the default value in docker mode
-        mongodburl = 'mongodb://' + mongodbhost + ':27017'
-        logger.info( 'mongodburl is %s', mongodburl)
-    else:
-        logger.info( 'mongodburl is set by env %s', mongodburl)
-    # make sure gethostbyname works
-    try:
-        parsedmongourl = urlparse( mongodburl )
-        mongodbhost = parsedmongourl.hostname
-        mongodbhostipaddr = socket.gethostbyname( mongodbhost )
-        logger.info( 'host %s resolved as %s', mongodbhost, mongodbhostipaddr)
-    except socket.gaierror as err:
-        logger.error('Cannot resolve hostname: %s', str(mongodbhost) )
-        logger.error('Cannot start: %s', err)
-        sys.exit(-1)
-
-    logger.info('mongodburl is set to: %s', mongodburl)
+    logger.info(f"host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
+    logger.info(f"mongodburl is set to {mongodburl}")
     return oc.datastore.MongoClientConfig( mongodburl )
 
 
@@ -510,16 +504,16 @@ def init_config_mongodb():
     """init mongodb config
     """
     global mongoconfig
-    # Build mongo database
     mongoconfig = get_mongoconfig()
-    logger.info('MongoDB connection string: %s' % mongoconfig)
+    logger.info(f"MongoDB config: {mongoconfig}")
 
 
 def init_config_fail2ban():
+    """init fail2ban config
+    """
     global fail2banconfig
     fail2banconfig = gconfig.get('fail2ban', { 'enable' : False } )
     logger.info(f"Fail2ban config: {fail2banconfig}" )
-
 
 
 def init_config_auth():
