@@ -468,9 +468,6 @@ class ODOrchestrator(ODOrchestratorBase):
     def __init__(self ):
         super().__init__()
         self.name = 'docker'
-
-    def createvolume(self, prefix:str, authinfo:AuthInfo, userinfo:AuthUser, removeifexist: bool=False ):
-        raise NotImplementedError('%s.createvolume' % type(self))
         
     def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
         self.logger.info('externals ressources are not supported in docker mode')  
@@ -489,9 +486,6 @@ class ODOrchestrator(ODOrchestratorBase):
 
     def removedesktop(self, authinfo, userinfo, args={}):
         raise NotImplementedError('%s.removedesktop' % type(self))
-        
-    def removecontainer( self, desktopid, remove_volume_home=False ):
-        raise NotImplementedError('%s.removecontainer' % type(self))
 
     def is_instance_app( self, appinstance ):
         raise NotImplementedError('%s.is_instance_app' % type(self))

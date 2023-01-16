@@ -768,11 +768,11 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
-        def isTimeAfter( timeafter ) :
-            return False
-
-        def isTimeBefore( timebefore ) :
-            return False
+        #def isTimeAfter( timeafter ) :
+        #    return False
+        #
+        #def isTimeBefore( timebefore ) :
+        #    return False
 
 
         def isGeoLocation(user, geolocation):
@@ -2986,7 +2986,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return default_authenv
     
 
-    def paged_search( self, conn, basedn, filter, attrlist, scope=ldap3.SUBTREE, sizelimit=0):
+    def paged_search( self, conn, basedn, filter, attrlist, scope=ldap3.SUBTREE):
+        # sizelimit=0
         entry_list = conn.extend.standard.paged_search(search_base = basedn,
                                             search_filter = filter,
                                             search_scope = scope,

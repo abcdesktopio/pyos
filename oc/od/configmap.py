@@ -103,7 +103,7 @@ class ODConfigMap():
         mydict_configmap = arguments
         return mydict_configmap
 
-    def patch(self, authinfo, userinfo, old_configmap, arguments ): 
+    def patch(self, authinfo, userinfo, arguments ): 
 
         myauth_dict_configmap = self._create_dict( authinfo, userinfo, arguments ) 
         # we suppose that the configmap has changed 
