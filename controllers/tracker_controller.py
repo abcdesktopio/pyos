@@ -14,10 +14,7 @@
 
 import logging
 import cherrypy
-
-from oc.cherrypy import Results,getclientipaddr
-
-import oc.od.settings as settings
+from oc.cherrypy import Results
 import oc.od.locator
 from oc.od.base_controller import BaseController
 import oc.od.tracker
@@ -45,8 +42,4 @@ class TrackerController(BaseController):
         description = arguments.get('description', 'description') 
         issuetype   = arguments.get('issue', { 'name': 'Bug' }) 
         new_issue   = myjira.issue( description=description, summary=summary, issuetype=issuetype )
-
         return Results.success(result=new_issue)
-
-
-   

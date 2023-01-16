@@ -17,7 +17,6 @@ import cherrypy
 import os
 import subprocess
 import uuid
-import time
 import mergedeep
 import copy
 import requests
@@ -25,11 +24,9 @@ import json
 import crypt
 import datetime
 import re
-import copy
 from urllib.parse import urlparse
 from ldap import filter as ldap_filter
 import ldap3
-
 
 #
 # from ldap3.utils.log import set_library_log_detail_level, get_detail_level_name, set_library_log_hide_sensitive_data, EXTENDED
@@ -47,9 +44,7 @@ from requests_oauthlib import OAuth2Session
 
 from threading import Lock
 from collections import OrderedDict
-
-
-from oc.cherrypy import getclientipaddr, getclientremote_ip, getclientreal_ip, getclientxforwardedfor_listip, getclienthttp_headers
+from oc.cherrypy import getclientipaddr, getclientreal_ip, getclientxforwardedfor_listip, getclienthttp_headers
 from netaddr import IPNetwork, IPAddress
 
 
@@ -60,7 +55,7 @@ import jwt
 import oc.auth.jwt
 import oc.od.acl
 import oc.lib
-from   oc.od.error          import *    # import all error classes
+from oc.od.error import AuthenticationError, InvalidCredentialsError, AuthenticationFailureError, ExternalAuthError, AuthenticationDenied
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +89,6 @@ class AuthRoles(dict):
     def merge(self, newroles ):
         if not isinstance( newroles, AuthRoles):
               raise ValueError('merge error invalid roles AuthRoles object type %s', str( type(newroles) ) )
-        z = newroles.copy()
         mergedeep.merge( newroles, self, strategy=mergedeep.Strategy.ADDITIVE) 
         return newroles
 
@@ -214,16 +208,6 @@ class AuthUser(dict):
     
     @staticmethod
     def mkgroup ( moustachedata ):  
-
-        def issafe_groupid( gid:str )->str:
-            try:
-                gid_int = int( gid )
-                return str(gid_int)
-            except Exception as e:
-                logger.error( f"skipping {gid} can not convert as integer")
-                pass
-            return None
-
         etcgroup = chevron.render( oc.od.settings.DEFAULT_GROUP_FILE,  moustachedata )
         groups = moustachedata.get('groups')
         logger.debug( f"add user groups {groups}" )
@@ -394,7 +378,6 @@ class AuthCache(object):
             self.setuser( dict_token.get('user'))
             self.setauth( dict_token.get('auth'))            
             self.setroles( dict_token.get('roles'))
-            self.userdecodedsuccessful = True
         self._origin = origin
         self.auth_duration_in_milliseconds = auth_duration_in_milliseconds
 
@@ -566,7 +549,7 @@ class ODAuthTool(cherrypy.Tool):
         if not hasattr(cherrypy.request, 'odauthcache') :  
             # attr is not found
             # parse_auth_request() will decode the cookie token 
-            self.logger.debug( f"current http request build cached odauthcache" ) 
+            self.logger.debug( "current http request build cached odauthcache" ) 
             cherrypy.request.odauthcache = self.parse_auth_request()    
         else:
             # self.logger.debug( f"current http request has cached odauthcache" ) 
@@ -695,7 +678,8 @@ class ODAuthTool(cherrypy.Tool):
 
         for manager_name in manager_list_name:
             provider = self._findprovider( provider_name, manager_name )
-            if isinstance( provider, ODAuthProviderBase ) : break
+            if isinstance( provider, ODAuthProviderBase ): 
+                break
 
         return provider
 
@@ -1122,11 +1106,8 @@ class ODAuthTool(cherrypy.Tool):
         if not isinstance(providers, dict):
             raise AuthenticationFailureError('No authentication provider found')
 
-        # get the length of providers dict 
-        l = len( providers )
-        # if there is only one provider 
-        # return the only one 
-        if l == 1:
+        # if there is only one provider then return the only one
+        if len( providers ) == 1:
             # return the first value in the dict
             provider = providers[ next(iter(providers)) ] 
             return provider
@@ -1283,7 +1264,7 @@ class ODAuthTool(cherrypy.Tool):
         # now we have found a new provider 
         # dump this info in log file
         # and them run auth
-        self.logger.info( f"metadirectory translating user auth")
+        self.logger.info(  "metadirectory translating user auth")
         self.logger.info( f"metadirectory replay from provider {provider_meta.name} -> {new_provider.name}" )
         self.logger.info( f"metadirectory replay from user {arguments.get('userid')} -> {new_userid}" )
         self.logger.info( f"metadirectory replay from domain {provider_meta.domain} -> {new_domain}" )
@@ -1689,7 +1670,7 @@ class ODAuthManagerBase(object):
     def getclientdata(self):
         # list(map(lambda p: p.getclientdata(), self.providers.values()))
         # filter get p.showclientdata == True
-        providersmaplist = list( filter( lambda p: p.showclientdata == True, self.providers.values() ) )
+        providersmaplist = list( filter( lambda p: p.showclientdata is True, self.providers.values() ) )
         providers = list( map(lambda p: p.getclientdata(), providersmaplist )) 
         return { 'name': self.name, 'providers': providers }
 
@@ -1841,7 +1822,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             }
         }
         self.default_user_if_not_exist      = config.get('defaultuid', oc.od.settings.oc.od.settings.getballoon_loginname())
-        self.default_passwd_if_not_exist    = config.get('defaultpassword', 'lmdpocpetit' )
+        self.default_passwd_if_not_exist    = config.get('defaultpassword', oc.od.settings.getballoon_password()  )
         self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', oc.od.settings.getballoon_uidNumber() )
         self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', oc.od.settings.getballoon_gidNumber() )
         self.auth_protocol = config.get('auth_protocol', {} )
@@ -1916,29 +1897,30 @@ class ODAuthProviderBase(ODRoleProviderBase):
         """
         assert isinstance( uid, str), f"bad uid str is expected type {type(uid)}"
         
-        l = len(uid)
+        lenuid = len(uid)
         i=0
         new_uid = ''
-        for i in range(0,l):
-            if uid[i].isalpha():
+        for i in range(0,lenuid):
+            if uid[i].isalnum():
                 new_uid = new_uid + uid[i].lower()
                 break
 
         if len(new_uid) < 1:
-            raise ValueError( f"invalid uid value")
+            raise ValueError( "invalid uid value")
 
-        for j in range(i+1,l):
+        for j in range(i+1,lenuid):
             if uid[j].isalnum() or uid[j] == '-':
                new_uid = new_uid + uid[j].lower()
  
         if permit_dollar is True:
             # last char may be a dollar
-            if l>1 and uid[l-1] == "$":  new_uid.append( '$' )
+            if lenuid>1 and uid[lenuid-1] == "$":  
+                new_uid.append( '$' )
         
         # never more than USER_NAME_MAX_LENGTH
         new_uid= new_uid[0:UID_MAX_LENGTH-1]
-        if len(new_uid) < 1:
-            raise ValueError( f"invalid uid value")
+        if not new_uid:
+            raise ValueError("invalid uid value")
         return new_uid
 
     def getdefault_gid(self, userinfo , user):
@@ -1979,11 +1961,16 @@ class ODAuthProviderBase(ODRoleProviderBase):
             homeDirectory = posixAccount.get('homeDirectory')
             gecos = posixAccount.get('gecos')
 
-        if not isinstance( loginShell, str ): loginShell = oc.od.settings.getballoon_loginShell()
-        if not isinstance( uid, str ): uid = self.getdefault_uid( userinfo, user )
-        if not isinstance( gid, str ): gid = self.getdefault_gid( userinfo, user )
-        if not isinstance( password, str ): password = self.default_passwd_if_not_exist
-        if not isinstance( homeDirectory, str ): homeDirectory = oc.od.settings.getballoon_homedirectory()
+        if not isinstance( loginShell, str ): 
+            loginShell = oc.od.settings.getballoon_loginShell()
+        if not isinstance( uid, str ): 
+            uid = self.getdefault_uid( userinfo, user )
+        if not isinstance( gid, str ): 
+            gid = self.getdefault_gid( userinfo, user )
+        if not isinstance( password, str ): 
+            password = self.default_passwd_if_not_exist
+        if not isinstance( homeDirectory, str ): 
+            homeDirectory = oc.od.settings.getballoon_homedirectory()
         
         hashes = {  
             'uid'  : uid,
@@ -2011,12 +1998,6 @@ class ODAuthProviderBase(ODRoleProviderBase):
         password = self.default_passwd_if_not_exist
         claims = {  'identity': self.createauthenv(userinfo, userid, password) }
         authinfo.set_claims(claims)
-
-    def generateRawCredentials(self, userid, password, domain=None ):
-        dict_raw = { 'user': userid, 'password':password }
-        if domain :
-            dict_raw['domain'] = domain
-        return dict_raw
 
 # Implement OAuth 2.0 AuthProvider
 
@@ -2513,15 +2494,16 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         authinfo.set_claims(claims)
 
     def krb5_validate(self, userid, password):
-        conn = None
-
-        if not isinstance(userid,str) or len(userid) < 1 :
+        assert isinstance(userid,str), f"userid must be str, get {type(userid)}"
+        assert isinstance(password,str), f"password must be str, get {type(password)}"
+  
+        if not userid :
             raise AuthenticationError('user can not be an empty string')
 
         if len(userid) > KRB5_UID_MAX_LENGTH :
             raise AuthenticationError('user length must be less than 256 characters')
 
-        if not isinstance(password,str) or len(password) < 1 :
+        if len(password) < 1 :
             raise AuthenticationError('password can not be an empty string')
 
         # kerberos password length Limit.
@@ -2531,8 +2513,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
 
     def ntlm_validate(self, userid, password):
-        conn = None
-        if not isinstance(userid,str) or len(userid) < 1 :
+        assert isinstance(userid,str), f"userid must be str, get {type(userid)}"
+        assert isinstance(password,str), f"password must be str, get {type(password)}"
+        if not userid :
             raise AuthenticationError('user can not be an empty string')
 
         # Limit the size of strings that are accepted. As an absolute limit any
@@ -2546,7 +2529,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if len(userid) >= 104 :
             raise AuthenticationError('user login can be no longer than 104 characters')
 
-        if not isinstance(password,str) or len(password) < 1 :
+        if not password :
             raise AuthenticationError('password can not be an empty string')
 
         # ntlm password length Limit.
@@ -2577,16 +2560,19 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             [conn]: [ldap3.core.connection.Connection ]
         """
 
+        assert isinstance(userid,str), f"userid must be str, get {type(userid)}"
+        assert isinstance(password,str), f"password must be str, get {type(password)}"
+
         # LDAP by itself doesn't place any restriction on the username
         # especially as LDAP doesn't really specify which attribute qualifies as the username.
         # The DN is similarly unencumbered.
         # set max value to 256
-        if not isinstance(userid, str)  or len(userid) < 1 :
+        if not userid :
             raise AuthenticationError('user can not be an empty string')
         if len(userid) > LDAP_UID_MAX_LENGTH :
             raise AuthenticationError('user length must be less than 256 characters')
 
-        if not isinstance(password,str) or len(password) < 1 :
+        if not password :
             raise AuthenticationError('password can not be an empty string')
 
         # LDAP BIND password length Limit.
@@ -2877,7 +2863,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 data['dn'] = entry.entry_dn
                 # if only the first entry is need as param
                 # return it 
-                if one: return data
+                if one: 
+                    return data
                 # else append to a entries list
                 entries.append(data)
             return entries
@@ -2931,7 +2918,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             if isinstance(item,bytes): 
                 try:
                     item = item.decode('utf-8')
-                except UnicodeDecodeError as e:
+                except UnicodeDecodeError:
                     # raw binary data
                     # Could be an raw binary JPEG data
                     # self.logger.warning('Attribute %s not decoded as utf-8, use raw data type: %s exception:%s', name, type(item), e)
@@ -2946,9 +2933,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     def get_kerberos_realm( self ):
         return self.kerberos_realm
 
-
     def createauthenv(self, userinfo, userid, password):
-        
+        #
         # create a localaccount entry in default_authenv dict
         default_authenv = super().createauthenv(userinfo, userid, password)
 
@@ -2957,42 +2943,56 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             try:
                 dict_hash = self.generateKerberosKeytab( userid, password )
                 if isinstance( dict_hash, dict ): 
-                    default_authenv.update( { 'kerberos' : { 'PRINCIPAL'   : userid,
-                                                             'REALM' : self.get_kerberos_realm(),
-                                                              **dict_hash } } )
+                    default_authenv.update( { 
+                        'kerberos' : { 
+                            'PRINCIPAL': userid,
+                            'REALM': self.get_kerberos_realm(),
+                            **dict_hash 
+                        } 
+                    })
             except Exception as e:
-                self.logger.error( 'generateKerberosKeytab failed, authenv can not be completed' )
+                self.logger.error( f"generateKerberosKeytab failed, authenv can not be completed {e}" )
         
         # if ntlm is enabled
         if self.auth_protocol.get('ntlm') is True :
             try:
                 dict_hash = self.generateNTLMhash(password)
                 if isinstance( dict_hash, dict ):
-                    default_authenv.update( { 'ntlm' : { 'NTLM_USER'   : userid,
-                                                         'NTLM_DOMAIN' : self.domain,
-                                                          **dict_hash } } )
+                    default_authenv.update( { 
+                        'ntlm' : { 
+                            'NTLM_USER'   : userid,
+                            'NTLM_DOMAIN' : self.domain,
+                            **dict_hash 
+                        } 
+                    } )
             except Exception as e:
-                self.logger.error( 'generateNTLMhash failed, authenv can not be completed' )
+                self.logger.error( f"generateNTLMhash failed, authenv can not be completed {e}" )
 
         # if cntlm is enabled
         if self.auth_protocol.get('cntlm') is True :
             try:
                 dict_hash = self.generateCNTLMhash( userid, password, self.domain)
                 if isinstance( dict_hash, dict ):
-                    default_authenv.update( { 'cntlm' : {   'NTLM_USER'   : userid,
-                                                            'NTLM_DOMAIN' : self.domain,
-                                                            **dict_hash } } )
+                    default_authenv.update( { 
+                        'cntlm' : {   
+                            'NTLM_USER'   : userid,
+                            'NTLM_DOMAIN' : self.domain,
+                            **dict_hash } 
+                        } )
             except Exception as e:
-                self.logger.error( 'generateCNTLMhash failed, authenv can not be completed' )
+                self.logger.error( f"generateCNTLMhash failed, authenv can not be completed {e}" )
 
         # if citrix is enabled
         if self.auth_protocol.get('citrix') is True :
             try:
                 dict_hash = self.generateCitrixAllRegionsini( username=userid, password=password, domain=self.domain) 
                 if isinstance( dict_hash, dict ):
-                    default_authenv.update( { 'citrix' : dict_hash } )
+                    default_authenv.update( { 
+                        'citrix' : dict_hash 
+                        } 
+                    )
             except Exception as e:
-                self.logger.error( 'generateCitrixAllRegionsini failed, authenv can not be completed' )
+                self.logger.error( f"generateCitrixAllRegionsini failed, authenv can not be completed {e}" )
         
         return default_authenv
     
@@ -3057,19 +3057,20 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.logger.debug( f"store_cred_into {krb5ccname} {store_cred_result.usage}" )
             # exported_cred = gssapi.raw.export_cred(req_creds.creds)
 
-        return store_cred_result
+        #
+        # old code version with kinit subprocess
+        #    userPrincipalName = userid + '@' + self.kerberos_realm
+        #   cmd = [ self.kerberos_kinit, '-c', krb5ccname, userPrincipalName ]
+        #    my_env = os.environ.copy()
+        #    if self.kerberos_krb5_conf :
+        #       my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
+        #    self.logger.info( 'run kinit command %s', cmd )
+        #    process = subprocess.run(cmd, input=password.encode(),  env=my_env )
+        #    success = process.returncode
+        #    return result
+        #
 
-        ''' old code version with kinit subprocess
-            userPrincipalName = userid + '@' + self.kerberos_realm
-            cmd = [ self.kerberos_kinit, '-c', krb5ccname, userPrincipalName ]
-            my_env = os.environ.copy()
-            if self.kerberos_krb5_conf :
-               my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
-            self.logger.info( 'run kinit command %s', cmd )
-            process = subprocess.run(cmd, input=password.encode(),  env=my_env )
-            success = process.returncode
-            return result
-        '''
+        return store_cred_result
 
 
     def generateKerberosKeytab(self, principal, password ):
@@ -3784,7 +3785,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         self.logger.debug( f"objectSid is {objectSid}")
 
         if not isinstance(objectSid, str):
-            self.logger.debug( f"objectSid is not a str, return None")
+            self.logger.debug( "objectSid is not a str, return None")
             return foreingdistinguished_name
         #
         # look for objectSid inside the metadirecotry LDAP
@@ -3850,11 +3851,11 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         self.logger.debug( f"foreing_distinguished_name is {foreing_distinguished_name}")
 
         if not isinstance(foreing_distinguished_name, list):
-            self.logger.debug( f"foreing_distinguished_name is not a list, return False")
+            self.logger.debug( "foreing_distinguished_name is not a list, return False")
             return memberof
 
         for userdistinguished_name in foreing_distinguished_name:
-            self.logger.debug( f"call super().isMemberOf")
+            self.logger.debug( f"call super().isMemberOf {userdistinguished_name} {groupdistinguished_name}")
             if super().isMemberOf( authinfo, userdistinguished_name, groupdistinguished_name):
                 memberof = True
                 break

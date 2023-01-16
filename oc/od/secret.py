@@ -12,15 +12,12 @@
 # Software description: cloud native desktop service
 #
 import logging
-
-from yaml import serialize
-from oc.auth.authservice import AuthInfo, AuthUser
 import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
 import oc.od.volume   # manage volume
+from   oc.auth.authservice import AuthInfo, AuthUser
 
-from kubernetes import client
 from kubernetes.client.rest import ApiException
 from kubernetes.client.models.v1_secret import V1Secret
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
@@ -123,7 +120,7 @@ class ODSecret():
         try:
             # try to decode as utf8
             b = b.decode('utf-8')
-        except Exception as e:
+        except Exception:
             # self.logger.error( 'failed to decode b64 str %s', str(e))
             # don't care if decode as utf8 has failed, it should not be a utf8
             pass
@@ -296,7 +293,6 @@ class ODSecretVNC( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='vnc' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='vnc'
-        # self.immutable = True
 
 class ODSecretCitrix( ODSecret ):
     ''' Create a secret used for userinfo ldif '''

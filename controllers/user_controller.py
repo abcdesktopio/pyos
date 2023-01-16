@@ -37,7 +37,7 @@ class UserController(BaseController):
         arguments = cherrypy.request.json
         try:
             return services.auth.getuserinfo(arguments.get('token_provider'), arguments.get('token'))
-        except Exception as e:
+        except Exception:
             return {'userid': None, 'name': None}
 
     @cherrypy.expose

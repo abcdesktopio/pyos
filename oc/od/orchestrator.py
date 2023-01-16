@@ -12,24 +12,20 @@
 # Software description: cloud native desktop service
 #
 
-from distutils.log import error
 import logging
-
-from gssapi import SecurityContext
 import oc.logging
 from oc.od.apps import ODApps
-from oc.od.error import ODError
+import oc.od.error
 import oc.od.settings
 import oc.lib 
 import oc.auth.namedlib
 import os
 import time
+import datetime
 import binascii
 import urllib3
 
-import time
-import random
-import datetime
+
 import yaml
 import json
 import uuid
@@ -45,9 +41,9 @@ from kubernetes.stream.ws_client import ERROR_CHANNEL
 from kubernetes.client.rest import ApiException
 
 from kubernetes.client.models.v1_pod import V1Pod
-from kubernetes.client.models.v1_pod_spec import V1PodSpec
+# from kubernetes.client.models.v1_pod_spec import V1PodSpec
 from kubernetes.client.models.v1_pod_status import V1PodStatus
-from kubernetes.client.models.v1_container import V1Container
+# from kubernetes.client.models.v1_container import V1Container
 from kubernetes.client.models.v1_ephemeral_container import V1EphemeralContainer
 from kubernetes.client.models.v1_status import V1Status
 # kubernetes.client.models.v1_container
@@ -56,28 +52,27 @@ from kubernetes.client.models.v1_container_state import V1ContainerState
 from kubernetes.client.models.v1_container_state_terminated import V1ContainerStateTerminated
 from kubernetes.client.models.v1_container_state_running import V1ContainerStateRunning
 from kubernetes.client.models.v1_container_state_waiting import V1ContainerStateWaiting
-# Volume
 
-from kubernetes.client.models.v1_volume import V1Volume
-from kubernetes.client.models.v1_volume_mount import V1VolumeMount
-from kubernetes.client.models.v1_local_volume_source import V1LocalVolumeSource
-from kubernetes.client.models.v1_flex_volume_source import V1FlexVolumeSource
-from kubernetes.client.models.v1_host_path_volume_source import V1HostPathVolumeSource
-from kubernetes.client.models.v1_secret_volume_source import V1SecretVolumeSource
-from kubernetes.client.models.v1_secret_list import V1SecretList
+# Volume
+#from kubernetes.client.models.v1_volume import V1Volume
+#from kubernetes.client.models.v1_volume_mount import V1VolumeMount
+#from kubernetes.client.models.v1_local_volume_source import V1LocalVolumeSource
+#from kubernetes.client.models.v1_flex_volume_source import V1FlexVolumeSource
+#from kubernetes.client.models.v1_host_path_volume_source import V1HostPathVolumeSource
+#from kubernetes.client.models.v1_secret_volume_source import V1SecretVolumeSource
 
 # Secret
 from kubernetes.client.models.v1_secret import V1Secret
-from kubernetes.client.models.v1_secret_list import V1SecretList
+#from kubernetes.client.models.v1_secret_list import V1SecretList
 
 from kubernetes.client.models.core_v1_event import CoreV1Event
 from kubernetes.client.models.v1_node_list import V1NodeList
 from kubernetes.client.models.v1_env_var import V1EnvVar 
 from kubernetes.client.models.v1_pod_list import V1PodList
-from kubernetes.client.models.v1_config_map import V1ConfigMap
-from kubernetes.client.models.v1_endpoint import V1Endpoint
+#from kubernetes.client.models.v1_config_map import V1ConfigMap
+#from kubernetes.client.models.v1_endpoint import V1Endpoint
 from kubernetes.client.models.v1_endpoints import V1Endpoints
-from kubernetes.client.models.v1_endpoints_list import V1EndpointsList
+#from kubernetes.client.models.v1_endpoints_list import V1EndpointsList
 from kubernetes.client.models.v1_endpoint_subset import V1EndpointSubset 
 from kubernetes.client.models.core_v1_endpoint_port import CoreV1EndpointPort
 from kubernetes.client.models.v1_endpoint_address import V1EndpointAddress
@@ -92,7 +87,7 @@ import oc.od.volume         # manage volume for desktop
 import oc.od.secret         # manage secret for kubernetes
 import oc.od.configmap
 import oc.od.appinstancestatus
-from   oc.od.error          import *    # import all error classes
+from   oc.od.error          import ODAPIError   # import all error classes
 from   oc.od.desktop        import ODDesktop
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 from   oc.od.vnc_password   import ODVncPassword
@@ -795,15 +790,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.default_volumes_mount['cupsdsocket'] = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
 
         self.default_volumes['passwd']      = { 'name': 'passwd',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
-        self.default_volumes_mount['passwd'] = { 'name': 'passwd',  'mountPath': '/etc/passwd' }
+        self.default_volumes_mount['passwd']= { 'name': 'passwd',  'mountPath': '/etc/passwd' }
 
-        self.default_volumes['shadow']      = { 'name': 'shadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
+        self.default_volumes['shadow']       = { 'name': 'shadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
         self.default_volumes_mount['shadow'] = { 'name': 'shadow',  'mountPath': '/etc/shadow' }
 
-        self.default_volumes['group']      = { 'name': 'group',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
+        self.default_volumes['group']       = { 'name': 'group',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
         self.default_volumes_mount['group'] = { 'name': 'group',  'mountPath': '/etc/group' }
 
-        self.default_volumes['gshadow']      = { 'name': 'gshadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
+        self.default_volumes['gshadow']       = { 'name': 'gshadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
         self.default_volumes_mount['gshadow'] = { 'name': 'gshadow',  'mountPath': '/etc/gshadow' }
 
         self.default_volumes['local']       = { 'name': 'local',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
@@ -816,7 +811,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #self.kupeapi.close()
         pass
 
-    def is_configured(self): 
+    def is_configured(self)->bool: 
         """[is_configured]
             return True if kubernetes is configured 
             call list_node() API  
@@ -835,7 +830,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return bReturn
 
 
-    def listEndpointAddresses( self, endpoint_name:str ):
+    def listEndpointAddresses( self, endpoint_name:str )->tuple:
         list_endpoint_addresses = None
         list_endpoint_port = None
         endpoint = self.kubeapi.read_namespaced_endpoints( name=endpoint_name, namespace=self.namespace )
@@ -862,7 +857,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (list_endpoint_port, list_endpoint_addresses)
 
 
-    def findAllSecretsByUser( self, authinfo:AuthInfo, userinfo:AuthUser):
+    def findAllSecretsByUser( self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
         """[findAllSecretsByUser]
             list all user secret for all supported type
         Args:
@@ -893,7 +888,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             userid = 'anonymous'
         return oc.auth.namedlib.normalize_name_dnsname( userid + self.containernameseparator + pod_sufix)[0:252]       
  
-    def get_labelvalue( self, label_value):
+    def get_labelvalue( self, label_value:str)->str:
         """[get_labelvalue]
 
         Args:
@@ -907,48 +902,34 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         no_accent_normalize_data = oc.lib.remove_accents( normalize_data )
         return no_accent_normalize_data
 
-    def logs( self, authinfo:AuthInfo, userinfo:AuthUser ):
+    def logs( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
+        """logs
+
+        Args:
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
+
+        Returns:
+            str: str log content
+            return '' empty str by default ( if not found of error ) 
+        """
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
 
         strlogs = ''
-        myPod =  self.findPodByUser(authinfo, userinfo)
-        if myPod is None :            
+        myPod = self.findPodByUser(authinfo, userinfo)
+        if isinstance(myPod, V1Pod):
+            try:
+                myDesktop = self.pod2desktop( pod=myPod )
+                pod_name = myPod.metadata.name  
+                container_name = myDesktop.container_name
+                strlogs = self.kubeapi.read_namespaced_pod_log( name=pod_name, namespace=self.namespace, container=container_name, pretty='true' )
+            except ApiException as e:
+                self.logger.error( str(e) )
+        else:
             self.logger.info( f"No pod found for user {userinfo.userid}" )
-            return strlogs
-
-        try:
-            myDesktop = self.pod2desktop( pod=myPod )
-            pod_name = myPod.metadata.name  
-            container_name = myDesktop.container_name
-            strlogs = self.kubeapi.read_namespaced_pod_log( name=pod_name, namespace=self.namespace, container=container_name, pretty='true' )
-        except ApiException as e:
-            self.logger.error( str(e) )
-
         return strlogs
-
-
-
-
-    '''
-    'volumes': [
-                                {
-                                    'name': volume_home_name,
-                                    'persistentVolumeClaim': {
-                                        'claimName': 'task-pv-claim'
-                                    }
-                                }
-                ],
-    'volumeMounts': [ 
-                                { 
-                                    'name': volume_mount_name,
-                                    'mountPath' : balloon_home_dir_path,
-                                    'subPath'  : name
-                                }
-                    ]
-    ''' 
-
 
     def build_volumes_secrets( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement:list, rules={}, **kwargs:dict)->dict:
         self.logger.debug('')
@@ -960,7 +941,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # mount secret in /var/secrets/abcdesktop
         #
-        self.logger.debug( f"listing list_dict_secret_data access_type='auth'" )
+        self.logger.debug( "listing list_dict_secret_data access_type='auth'" )
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
         for secret_auth_name in mysecretdict.keys():
             # https://kubernetes.io/docs/concepts/configuration/secret
@@ -1004,14 +985,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
         if isinstance( rules, dict ):
-            self.logger.debug( f"selected volume by rules" )
+            self.logger.debug( f"selected volume by rules {rules}" )
             mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo, rules=rules.get('volumes') )
             for mountvol in mountvols:
                 fstype = mountvol.fstype
                 volume_name = self.get_volumename( mountvol.name, userinfo )
-
+                self.logger.debug( f"selected volume fstype:{fstype} volumes name:{volume_name}")
                 if fstype=='nfs':
-                    self.logger.debug( f"selected nfs volumes")
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
                         'mountPath': mountvol.mountPath 
@@ -1102,24 +1082,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
-        #
-        # if type is self.x11servertype then keep user home dir data
-        # else do not use the default home dir to metapplimode
-        homedir_enabled = True
-
-        # if the pod or container is not an x11servertype
-        if kwargs.get('type') != self.x11servertype:
-            homedir_enabled = ODOrchestratorKubernetes.applyappinstancerules_homedir( authinfo, rules )
-
         self.on_desktoplaunchprogress('Building home dir data storage')
         volume_home_name = self.get_volumename( 'home', userinfo )
         # by default hostpath
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']
-
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
         user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
 
-        
         # set default value 
         # home is emptyDir
         # cache is emptyDir Memory
@@ -2108,9 +2077,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             bool: True if enable, else False
         """
-        bReturn = isinstance( oc.od.settings.desktop_pod.get(currentcontainertype), dict ) and \
-                  oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop_pod[currentcontainertype].get('acl') ) and \
-                  oc.od.settings.desktop_pod[currentcontainertype].get('enable') == True
+
+        bReturn =   isinstance( oc.od.settings.desktop_pod.get(currentcontainertype), dict ) is True and \
+                    oc.od.acl.ODAcl().isAllowed( authinfo, oc.od.settings.desktop_pod[currentcontainertype].get('acl') ) is True and \
+                    oc.od.settings.desktop_pod[currentcontainertype].get('enable') is True
         return bReturn
 
     def createappinstance(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs )->oc.od.appinstancestatus.ODAppInstanceStatus:
@@ -2481,9 +2451,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 try:
                     new_value = chevron.render( v, posixuser )
                     env[k] = new_value 
-                except Exception as e:
+                except Exception:
                     pass
-        toto = 5 
     
     def get_ownerReferences( self, secrets:dict )->list:
         ownerReferences = []
@@ -3277,18 +3246,23 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.debug( f"network_status is {network_status}" )
                 for interface in network_status :
                     self.logger.debug( f"reading interface {interface}" )
-                    if not isinstance( interface, dict ): continue
+                    if not isinstance( interface, dict ): 
+                        continue
                     # read interface
                     name = interface.get('interface')
-                    if not isinstance( name, str ): continue
+                    if not isinstance( name, str ): 
+                        continue
                     # read ips
                     ips = interface.get('ips')
-                    if  not isinstance( ips, list ): continue
+                    if  not isinstance( ips, list ): 
+                        continue
                     # read mac
                     mac = interface.get('mac')
-                    if not isinstance( mac, str ) : continue
+                    if not isinstance( mac, str ) :
+                         continue
                     # read default ips[0]
-                    if len(ips) == 1:   ips = str(ips[0])
+                    if len(ips) == 1:   
+                        ips = str(ips[0])
                     desktop_interfaces.update( { name : { 'mac': mac, 'ips': ips } } )
  
         desktop_container = self.getcontainerfromPod( self.graphicalcontainernameprefix, pod )
@@ -4043,7 +4017,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     phase = myPod.status.phase
                     # keep only Running pod
                     if myPod.metadata.deletion_timestamp is not None:
-                        myPhase = 'Terminating'
+                        phase = 'Terminating'
+
                     mycontainer = {}
                     if phase in phase_filter:
                         #

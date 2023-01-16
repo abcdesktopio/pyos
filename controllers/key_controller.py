@@ -11,16 +11,12 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-
 import logging
 import cherrypy
-import json  
-
 
 # Desktop.io lib
 import oc.logging
 from oc.od.base_controller import BaseController
-from oc.od.services import services
 
 logger = logging.getLogger(__name__)
 

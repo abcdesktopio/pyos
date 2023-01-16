@@ -15,7 +15,6 @@ import logging
 import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
-import crypt
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -194,8 +193,6 @@ class ODConfigMapLocalAccount( ODConfigMap ):
     def __init__( self, namespace, kubeapi, prefix=None, configmap_type='localaccount' ):
         super().__init__( namespace, kubeapi, prefix, configmap_type)
         self.access_type='localaccount'
-        self.DEFAULT_PASSWDFILE = ""
-        self.DEFAULT_SHADOWFILE = ""
 
     def _create_dict(self, authinfo, userinfo,  arguments):   
         

@@ -20,7 +20,7 @@ import oc.od.locator
 import oc.auth.authservice
 import oc.od.desktop
 
-from oc.cherrypy    import Results,getclientipaddr
+from oc.cherrypy    import getclientipaddr
 from oc.od.services import services
 
 logger = logging.getLogger(__name__)
@@ -114,9 +114,11 @@ def whoami(auth, user):
                 # https://tools.ietf.org/html/rfc2798
 
                 userphotoattributname = None
-                if auth.providertype == 'ldap':             userphotoattributname = 'jpegPhoto'
+                if auth.providertype == 'ldap':             
+                    userphotoattributname = 'jpegPhoto'
                 # If Active Directory attribut name is thumbnailPhoto
-                if auth.providertype == 'activedirectory':  userphotoattributname = 'thumbnailPhoto'
+                if auth.providertype == 'activedirectory':  
+                    userphotoattributname = 'thumbnailPhoto'
 
                 if isinstance( userphotoattributname, str) :    
                     userphoto = data.get( userphotoattributname )

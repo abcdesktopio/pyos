@@ -1,13 +1,11 @@
 import os
 import socket
-import platform
 import sys
 
 import logging
-import chevron
 
 from cherrypy.lib.reprconf import Config
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import urlparse
 
 import oc.datastore
 import oc.pyutils as pyutils
@@ -17,9 +15,6 @@ import base64
 
 logger = logging.getLogger(__name__)
 
-# for dev use 
-# ABCDESKTOP_PYOS_EXEC_MODE = 'dev'
-ABCDESKTOP_PYOS_EXEC_MODE = 'dev'
 # current pyos release
 ABCDESKTOP_PYOS_CURRENT_RELEASE = '3.0'
 # supported image format
@@ -29,7 +24,6 @@ defaultConfigurationFilename = 'od.config'
 
 config  = {}	    # use for application config and global config
 gconfig = {}	    # use for global config
-supportedLocals = []
 
 # Default namespace used by kubernetes is abcdesktop
 namespace = 'abcdesktop' 
@@ -37,7 +31,6 @@ namespace = 'abcdesktop'
 mongoconfig = None  # Mongodb config Object Class
 fail2banconfig = None # Fail2ban config 
 
-authprovider = {}  # auth provider dict
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
 menuconfig   = {}  # default menu config
@@ -47,20 +40,17 @@ fakedns      = {}
 # User balloon define
 # Balloon is the default user used inside container
 balloon_homedirectory = '/home/balloon'
-balloon_uidNumber = 4096  # default user id
-balloon_gidNumber = 4096  # default group id
-balloon_groupname = 'balloon'
-balloon_loginname = 'balloon'
-balloon_shell = '/bin/bash'
-balloon_passwd = 'lmdpocpetit'
+balloon_uidNumber = 4096            # default user id
+balloon_gidNumber = 4096            # default group id
+balloon_groupname = 'balloon'       # default group name
+balloon_loginname = 'balloon'       # default login name
+balloon_shell     = '/bin/bash'     # default shell
+balloon_password  = 'lmdpocpetit'   # default password
 
-# developer specific params
-developer_instance = False
-
+developer_instance = False          # developer specific params
 
 DEFAULT_SHM_SIZE = '64M' # default size of shared memeory
 
-defaultdomainname = None  # default local domain name to build fqdn
 memconnectionstring = None  # memcache connection syting format 'server:port'
 services_http_request_denied = {} # deny http request 
 
@@ -97,19 +87,10 @@ kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
 default_server_ipaddr   = None  # THIS IS NOT THE BINDING IP ADDR 
 default_host_url        = None  # default FQDN host name to reach the web site
 default_host_url_is_securised = False  # is default_host_url securized https
-default_host_accesscontrol_allow_origin = None # host_accesscontrol_allow_origin
-
-desktopwebhookencodeparams = False  # url encode webhook params 
-desktopwebhookdict         = {}     # addtional dict data
 
 # String to route (container target_ip) or (public host url) default is
 # public host 
 websocketrouting = None
-
-webdaventryname = None  # name of the entry of mount point
-webdavurl = None  # url to mount webdav
-webdavgroupfilter = False  # boolean use group filter
-webdavgroup = []  # list of group startwith
 dock = {}  # Web dock JSON config
 
 internaldns = { 'subdomain': None, 'domain': None, 'secret': None }
@@ -121,11 +102,15 @@ jwt_config_desktop = None
 webrtc_server = None
 webrtc_enable = False
 
-def getballoon_loginname():     return balloon_loginname
-def getballoon_groupname():     return balloon_groupname
-def getballoon_loginShell():    return balloon_shell
-def getballoon_homedirectory(): return balloon_homedirectory
-def getballoon_uidNumber():
+def getballoon_loginname()->str:     
+    return balloon_loginname
+def getballoon_groupname()->str:     
+    return balloon_groupname
+def getballoon_loginShell()->str:    
+    return balloon_shell
+def getballoon_homedirectory()->str: 
+    return balloon_homedirectory
+def getballoon_uidNumber()->int:
     """[summary]
 
     Returns:
@@ -133,7 +118,7 @@ def getballoon_uidNumber():
     """
     return balloon_uidNumber
 
-def getballoon_gidNumber():
+def getballoon_gidNumber()->int:
     """[summary]
 
     Returns:
@@ -142,16 +127,13 @@ def getballoon_gidNumber():
     return balloon_gidNumber
 
 
-def getFQDN(hostname):
-    ''' concat defaultdomainname to hostname set in configuration file  '''
-    ''' return hostname if defaultdomainname is not set                 '''
-    ''' or if hostname contains a dot                                   '''
-    fqdn = hostname 
-    if isinstance(hostname, str):        
-        if '.' not in hostname and defaultdomainname is not None :
-           fqdn = hostname + '.' + defaultdomainname
-    return fqdn
+def getballoon_password()->str:
+    """[getballoon_password]
 
+    Returns:
+        str: getballoon_password
+    """
+    return balloon_password
 
 def init_localaccount():
     global DEFAULT_PASSWD_FILE
@@ -286,37 +268,6 @@ def init_fakedns():
     global fakedns
     fakedns = gconfig.get('fakedns', { 'interfacename': 'eth0' } )
 
-def init_tls():
-    global clienttlskey
-    global clienttlscert
-    global tlscacert
-    global defaultdockertcpport
-    global defaultdomainname
-
-    # How to connect to docker daemon
-    # TLS Section
-    clienttlskey = gconfig.get('daemondockertlskey', None)
-    clienttlscert = gconfig.get('daemondockertlscert', None)
-    tlscacert = gconfig.get('daemondockertlscacert', None)
-
-    # default docker daemon listen port tcp
-    defaultdockertcpport = gconfig.get('daemondockertcpport', 2376)
-    defaultdomainname = gconfig.get('daemondockerdomainname', None)
-
-    if clienttlskey is None:
-        logger.warning('SECURITY Warning clienttlskey is not set')
-    
-    if clienttlscert is None:
-        logger.warning('SECURITY Warning clienttlscert is not set')
-    
-    if tlscacert is None:
-        logger.warning('SECURITY Warning tlscacert is not set')
-
-    if clienttlskey is None or clienttlscert is None or tlscacert is None:
-        logger.warning('SECURITY Warning connection to docker daemon on host may failed or is insecure')
-        logger.warning('Read HOWTO-configure documentation')
-
-
 
 def init_desktop():
     global desktop
@@ -392,7 +343,7 @@ def init_balloon():
     global balloon_shell
     global balloon_loginname
     global balloon_groupname
-    global balloon_passwd
+    global balloon_password
     global balloon_homedirectory
 
     balloon_loginname = gconfig.get('desktop.username',  'balloon')
@@ -400,7 +351,7 @@ def init_balloon():
     balloon_uidNumber = gconfig.get('desktop.userid', 4096)
     balloon_gidNumber = gconfig.get('desktop.groupid', 4096)
     balloon_shell     = gconfig.get('destkop.shell', '/bin/bash')
-    balloon_passwd    = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
+    balloon_password    = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
     balloon_homedirectory = gconfig.get('desktop.userhomedirectory', '/home/balloon')
 
 
@@ -472,10 +423,20 @@ def init_controllers():
     global controllers
     # by default manager controller is protected by filtering source ip address as local net 
     # local net is defined as list_local_subnet
-    controllers = gconfig.get(  'controllers', \
-                                { 'ManagerController': { 'permitip':    [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8', '169.254.0.0/16', '127.0.0.0/8' ] },
-                                  'StoreController':   { 'wrapped_key': {} } 
-                                } )
+    controllers = gconfig.get(  
+        'controllers',  { 
+            'ManagerController': { 
+                'permitip': [ 
+                    '10.0.0.0/8', 
+                    '172.16.0.0/12', 
+                    '192.168.0.0/16', 
+                    'fd00::/8', 
+                    '169.254.0.0/16', 
+                    '127.0.0.0/8' ] 
+            },
+            'StoreController': { 'wrapped_key': {} } 
+        } 
+    )
 
     #
     # safe check controllers config  
@@ -487,18 +448,29 @@ def init_controllers():
         controllers['StoreController']['wrapped_key'] = {}
     # ManagerController config must be a dict
     if not isinstance( controllers.get('ManagerController'), dict ):   
-         controllers['ManagerController'] = { 'permitip':    [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8', '169.254.0.0/16', '127.0.0.0/8' ] }
-    # end of 
+        controllers['ManagerController'] = { 
+            'permitip':    [ 
+                '10.0.0.0/8', 
+                '172.16.0.0/12', 
+                '192.168.0.0/16', 
+                'fd00::/8', 
+                '169.254.0.0/16', 
+                '127.0.0.0/8' ] 
+        }
 
     if desktop['environmentlocal'].get('SET_DEFAULT_COLOR'):
         # wrapper for StoreController key value
         # config use default 'color'  
-        controllers['StoreController']['wrapped_key'].update( { 'color': desktop['environmentlocal'].get('SET_DEFAULT_COLOR') } )
+        controllers['StoreController']['wrapped_key'].update( 
+            { 'color': desktop['environmentlocal'].get('SET_DEFAULT_COLOR') } 
+        )
 
     if desktop['environmentlocal'].get('SET_DEFAULT_WALLPAPER') :
         # wrapper for StoreController key value
         # config use default wallpaper 'img' 
-        controllers['StoreController']['wrapped_key'].update( { 'backgroundType': 'img' } )
+        controllers['StoreController']['wrapped_key'].update( 
+            { 'backgroundType': 'img' } 
+        )
 
 def init_config_mongodb():
     """init mongodb config
@@ -517,7 +489,7 @@ def init_config_fail2ban():
 
 
 def init_config_auth():
-    global authprovider
+
     global authmanagers
 
     def parse_provider_configref( authmanagers, provider_type ):
@@ -551,33 +523,6 @@ def init_config_auth():
     parse_provider_configref( authmanagers, 'metaexplicit.providers')
 
 
-def getAuthProvider(name):
-    provider = authprovider.get(name, {})
-    provider['provider'] = name
-    logger.debug('%s => %s', name, provider)
-    return provider
-
-#
-# init_config_check return True if
-# system is Linux and
-# kernel release and version are more than min_r, min_v
-# return False if failed
-def init_config_check(min_r, min_v):
-    check = False
-    system = platform.system()
-    release = platform.release()
-    if system == 'Linux':
-        release = platform.release()
-        if release is not None:
-            ar_release = release.split('.')
-            if (ar_release and len(ar_release) > 2):
-                r = int(ar_release[0])
-                v = int(ar_release[1])
-                if (r > min_r) or (r == min_r and v > min_v):
-                    check = True
-    return check
-
-
 def init_jwt_config():
     """read jwt_token_user and jwt_token_desktop pem key file
     """
@@ -602,10 +547,8 @@ def init_locales():
     # all containers application must support this list
     # by default support en_US language
     supportedLocales = gconfig.get('language', ['en_US'])
-    logger.info('Supported local language is set to  %s', supportedLocales)
+    logger.info("Supported local language is set to {supportedLocales}")
 
-def init_config_logging():
-    pass
 
 def loadfile(filename:str)->str:
     """loadfile

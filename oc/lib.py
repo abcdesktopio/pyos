@@ -12,14 +12,12 @@
 #
 
 # -*- coding: utf-8 -*-
-import random   # for randomStringwithDigitsAndSymbols
-import string   # for randomStringwithDigitsAndSymbols
+import random           # for randomStringwithDigitsAndSymbols
+import string           # for randomStringwithDigitsAndSymbols
 import unicodedata      # for remove accent
 import logging
 import cherrypy
 import oc.od.settings   # settings lib
-
-from urllib.parse import urlparse
 
 # logger instance
 logger = logging.getLogger(__name__)

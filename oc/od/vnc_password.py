@@ -13,10 +13,6 @@
 #
 import base64
 import oc.lib
-from os import urandom
-# from Crypto.Cipher import AES
-# from hashlib import pbkdf2_hmac
-
 
 class ODVncPassword():
     """[ODVncPassword]
@@ -66,73 +62,10 @@ class ODVncPassword():
         """
         return data + "=" * (-len(data)%8)
 
-
     def getcypherkey(self):
         ciphertextb32 = base64.b32encode( self._key )
         strencrypt = ciphertextb32.decode("utf-8")
         return strencrypt
-
-
-    def encrypt( self ):
-        """[encrypt]
-            only obscuring
-            
-        Returns:
-            [str]: [ base 32 str]
-        """
-        if self._vncpassword is None:
-            self.make()
-
-        # convert _vncpassword as bytes
-        bvncpassword = str.encode(self._vncpassword)
-        bs = AES.block_size
-        salt = urandom(bs - len(b'Salted__'))
-        pbk = pbkdf2_hmac('sha256', self._key, salt, 10000, 48)
-        key = pbk[:32]
-        iv = pbk[32:48]
-
-        # create cipher
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        result = (b'Salted__' + salt)
-        chunk = bvncpassword[:1024*bs]
-        padding_length = (bs - len(chunk) % bs) or bs
-        chunk += (padding_length * chr(padding_length)).encode()
-        result += cipher.encrypt(chunk)
-        b32result = base64.b32encode( result )
-        return b32result
-
-    def decrypt( self, ciphertext ):
-        """[decrypt]
-            only obscuring
-            decrypt is not to encrypt, 
-            decrypt decoded xor string
-  
-        Args:
-            ciphertext ([str]): [cypher xor base64 formated ]
-
-        Returns:
-            [str]: [plain text data]
-        """
-
-        """
-        # restor = pad if need
-        ciphertextb32 = str.encode( ciphertext )
-        # decode b32
-        ciphertext =  base64.b32decode( ciphertextb32 )
-        iv = ciphertext[:16]
-        # create cipher
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        result = (b'Salted__' + salt)
-
-        cipher.decrypt( enc[16:] )
-        b32result = base64.b32encode( result )
-        return b32result
-      
-        msg = cipher.decrypt(ciphertext)
-        
-        self._vncpassword = msg.decode("utf-8")
-        """
-        return self._vncpassword
 
     def getplain( self ):
         """[getplain]

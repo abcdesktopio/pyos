@@ -15,7 +15,6 @@
 #
 
 import logging
-from tokenize import String
 import requests
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
@@ -695,7 +694,7 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
         else:
             logger.error( f"command {webhookcmd} subprocess.run return {str(type(proc))}" )
             if messageinfo:
-                messageinfo.push(f"e.Webhooking updated service error, read the log file ")
+                messageinfo.push("e.Webhooking updated service error, please read the log file ")
     except subprocess.CalledProcessError as e:
         if messageinfo:
             messageinfo.push(f"e.Webhooking updated service error {e}" )
@@ -836,7 +835,7 @@ def notify_endpoint( url ):
 
 
 def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addresses):
-    if oc.od.settings.developer_instance == True:
+    if oc.od.settings.developer_instance is True:
             pyos_endpoint_addresses = [ 'localhost' ]
     for pyos_endpoint_address in pyos_endpoint_addresses:
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"

@@ -22,8 +22,6 @@ import threading
 import copy
 import oc.od.settings
 import pymongo
-from bson import json_util, ObjectId
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -49,26 +47,27 @@ class ODApps:
         self.private_attr_list  = [ 'sha_id',  'acl',  'rules', 'securityContext' ]
         self.thread_sleep_insert = 5
         self.thead_event = None
+
         # mongo db defines
+        self.databasename = 'applications'
+        self.index_name = 'id' # id is the name of the image repoTags[0]
+        self.image_collection_name = 'image'
         if mongoconfig :
-            self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig)
-            self.databasename = 'applications'
-            self.index_name = 'id' # id is the name of the image repoTags[0]
-            self.image_collection_name = 'image'
-            self.init_collection( collection_name=self.image_collection_name)
+            self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig, self.databasename)
+            self.init_collection( collection_name=self.image_collection_name )
 
     def init_collection( self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore)
+        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename)
         db = mongo_client[self.databasename]
         col = db[collection_name]
         try:
             col.create_index( [ (self.index_name, pymongo.ASCENDING) ], unique=True )
         except Exception as e:
-            self.logger.info( e )
+            self.logger.error( e )
         mongo_client.close()
 
     def get_collection(self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore)
+        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename)
         db = mongo_client[self.databasename]
         return db[collection_name]
 
@@ -471,7 +470,7 @@ class ODApps:
         try:
             if isinstance(usedefaultapplication, str ):
                 usedefaultapplication = json.loads(usedefaultapplication)
-        except Exception as e:
+        except Exception:
             pass
 
         # safe load convert json data json
@@ -558,24 +557,6 @@ class ODApps:
                 if self.append_app_to_collection( myapp ):
                     applist = myapp
         return applist
-
-    def remove_app( self, documentKey ):
-        return self.cached_applist(bRefresh=True)
-
-    def add_app( self, myapp):
-        self.logger.debug('')
-        bReturn = False
-        if isinstance(myapp,dict) :
-            # Lock here
-            self.lock.acquire()
-            try:
-                # add new application to myglobal_list dict
-                self.myglobal_list[ myapp['id'] ] = myapp
-                bReturn = True
-            finally:
-                self.lock.release()
-            self.logger.debug( 'updated global applist %s', myapp['id'])
-        return bReturn
 
     @staticmethod
     def get_id_from_sha_id( sha_id ):

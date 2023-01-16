@@ -1,6 +1,5 @@
 import requests
 import json
-import subprocess
 import string
 import random
 import threading
@@ -211,7 +210,7 @@ class janusclient( object ):
                 for e in datalist:
                     if e['id'] > currentid:
                         currentid = e['id']
-            except:
+            except Exception:   
                 pass
             return currentid
            
@@ -225,7 +224,7 @@ class janusclient( object ):
                 for e in datalist:
                     if e['description'] == description:
                         return self.info( e['id'] )
-            except:
+            except Exception:
                 pass
             return None
 

@@ -12,22 +12,44 @@
 # Software description: cloud native desktop service
 # 
 
-from oc.od.composer import selectOrchestrator
 from oc.od.services import services
+import oc.od.orchestrator
 
 class ODAccounting:
     def __init__(self):
         #
         # set accounting value to zero by default
         self.accounting = {
-            'api':  { 'bad_parameters': 0, 'env_container_app':0 , 'stop_container_app':0 , 'log_container_app':0, 'list_container_app':0  },
-            'login': { 'success': 0, 'failed': 0, 'anonymous':0 },
-            'container': {},
-            'image': {},
-            'desktop': { 'new': 0, 'resumed': 0, 'current':0, 'createfailed':0, 'remove': 0 },
-            'desktopmetappli': { 'new': 0, 'resumed': 0, 'current':0, 'createfailed':0, 'remove': 0 },
-            'applist': { 'installed': 0, 'cached': 0, 'build':0 },
-            'container': { 'current': 0, 'reused': 0, 'error':0, 'accessdenied':0 },            
+            'api':  { 
+                'bad_parameters': 0, 
+                'env_container_app':0 , 
+                'stop_container_app':0 , 
+                'log_container_app':0, 
+                'list_container_app':0  
+            },
+            'login': { 
+                'success': 0, 
+                'failed': 0, 
+                'anonymous':0 
+            },
+            'desktop': { 
+                'new': 0, 
+                'resumed': 0, 
+                'current':0, 
+                'createfailed':0, 
+                'remove': 0 
+            },
+            'applist': { 
+                'installed': 0, 
+                'cached': 0, 
+                'build':0 
+            },
+            'container': { 
+                'current': 0, 
+                'reused': 0, 
+                'error':0, 
+                'accessdenied':0
+            }            
         }
 
     def get(self, keyname):

@@ -27,7 +27,7 @@ import urllib
 
 from oc.od.services import services
 
-from oc.cherrypy import Results, getclientipaddr
+from oc.cherrypy import Results
 from oc.od.base_controller import BaseController
 
 
@@ -323,8 +323,8 @@ class ComposerController(BaseController):
                         'type':         'desktop'
             }
             # store the accouting data in collectionname 'loginHistory'
-            services.datastore.addtocollection( databasename=user.userid, 
-                                                collectionname='loginHistory', 
+            services.datastore.addtocollection( databasename='loginHistory', 
+                                                collectionname=user.userid, 
                                                 datadict=datadict)
 
             target = desktop.ipAddr

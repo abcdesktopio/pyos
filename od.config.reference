@@ -418,25 +418,6 @@ desktop.usesoundcontainer: False
 # desktop.usesoundcontainer: True
 
 
-#
-# desktop.applicationconfig
-# desktop.hostconfig
-# use host_config dictionary
-# read host_config page on abcdesktop website
-#
-desktop.applicationconfig : {      
-                        'auto_remove'   : True,
-                        'ipc_mode'      : 'shareable',
-                        'pid_mode'      : True,
-                        'network_mode'  : 'container',
-                        'shm_size'      : '256M' }
-
-desktop.hostconfig : {  'auto_remove'   : True,
-                        'ipc_mode'      : 'shareable',
-                        'pid_mode'      : True,
-                        'network_mode'  : 'container',
-                        'shm_size'      : '256M' }
-
 
 # desktop.shareipcnamespace
 # the value is a string 

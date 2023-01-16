@@ -16,7 +16,7 @@ import inspect
 import logging
 import logging.config
 import pymongo
-import graypy           # graylog lib
+import graypy # graylog lib
 import cherrypy
 from cherrypy.lib.reprconf import Config
 from cherrypy._cplogging import LogManager

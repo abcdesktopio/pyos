@@ -1,8 +1,6 @@
-from errno import ESTALE
 import logging
 import oc.od.settings as settings
 import oc.od.orchestrator
-import oc.od.dockerwatcher
 import oc.od.kuberneteswatcher
 import oc.auth.authservice
 import oc.od.apps
@@ -169,10 +167,11 @@ class ODServices(object):
 
     def init_datastore(self):
         self.logger.info('')
-        replicaset_name = 'rs0'
         import oc.datastore
         self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongoconfig)
+        
         '''
+        replicaset_name = 'rs0'
         # check if replicaset is configured
         if not self.datastore.getstatus_replicaset(replicaset_name):
            self.logger.info(f"replicaset {replicaset_name} does not exist")
@@ -228,10 +227,6 @@ class ODServices(object):
         self.apps = oc.od.apps.ODApps(mongoconfig=settings.mongoconfig)
         self.apps.cached_applist(bRefresh=True)
 
-    def init_dockerwatcher( self ):
-        self.logger.info('')
-        self.dockerwatcher = oc.od.dockerwatcher.ODDockerWatcher()
-
     def init_kuberneteswatcher( self ):
         self.logger.info('')
         self.kuberneteswatcher = oc.od.kuberneteswatcher.ODKubernetesWatcher()
@@ -264,8 +259,6 @@ def init():
     # now list images application
     services.init_applist()
 
-    # run docker watcher for images and network object
     # watch image pull rm event
     # watch network create destroy event
-    # services.init_dockerwatcher()
     services.init_kuberneteswatcher()

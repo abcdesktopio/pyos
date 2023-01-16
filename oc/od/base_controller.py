@@ -17,8 +17,6 @@ import cherrypy
 import oc.logging
 import re
 
-from collections import OrderedDict
-
 from netaddr import IPNetwork, IPAddress
 from oc.cherrypy import WebAppError, getclientipaddr
 from oc.od.services import services

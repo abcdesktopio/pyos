@@ -13,7 +13,6 @@
 # 
 
 import logging
-from re import M
 import oc.logging
 import json
 logger = logging.getLogger(__name__)
@@ -167,16 +166,10 @@ class ODDesktop(object):
         self._websocketrouting = val
 
     def isRunning(self):
-        status = str(self._status)
-        if status.lower() == 'running':
-           return True
-        return False
+        return str(self._status).lower() == 'running'
 
     def isTerminating(self):
-        status = str(self._status)
-        if status.lower() == 'terminating':
-           return True
-        return False
+        return str(self._status).lower() == 'terminating'
 
     def get_default_ipaddr(self,interface_name=None):
         mydefault_ipaddr = None

@@ -32,9 +32,6 @@ class AESCipher:
             key = Random.new().read(self.randomkey)
         self.key = hashlib.md5(key).hexdigest()[:self.BS]
 
-    def getkey(self):
-        return self.key
-
     def encrypt(self, raw):
         raw = self.pad(raw)
         iv = Random.new().read(AES.block_size)

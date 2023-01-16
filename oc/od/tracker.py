@@ -63,6 +63,3 @@ class jiraclient( object ):
             submitissue = { 'project': self.project_id, 'id' : new_issue.id, 'key': new_issue.key }
         
         return submitissue
-
-
-

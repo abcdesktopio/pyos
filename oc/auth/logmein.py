@@ -1,9 +1,9 @@
 # from
 from cryptography.hazmat._oid import ObjectIdentifier
 from netaddr import IPNetwork, IPAddress
+
 # import 
 import logging
-import cryptography.x509.oid 
 import oc.logging
 import cryptography.x509.oid 
 
@@ -40,7 +40,7 @@ class ODLogmein:
                     for network in self.network_list:
                         IPNetwork( network )
                 except Exception as e:
-                    self.logger.error( "invalid logmein_network_list value, logmein is disabled")
+                    self.logger.error( f"invalid logmein_network_list value, logmein is disabled {e}")
                     self.enable = False
 
     def request_match(self, ipsource) :

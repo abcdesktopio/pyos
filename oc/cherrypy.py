@@ -47,11 +47,11 @@ def getclientreal_ip():
             # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
             # str( ipaddr ) returns '127.0.0.1'
             realip = str( ipaddr )
-    # No logging is possible inside getclientipaddr
-    except netaddr.core.AddrFormatError as e: 
-            # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
+            # No logging is possible inside getclientipaddr
+    except netaddr.core.AddrFormatError: 
+        # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
         pass
-    except Exception as e: 
+    except Exception: 
         pass
     return realip
 
@@ -72,10 +72,10 @@ def getclientxforwardedfor_listip():
                     # reconvert to string safer way
                     clientiplist.append( str(ipaddr) )
                 # No logging is possible inside getclientipaddr
-                except netaddr.core.AddrFormatError as e: 
+                except netaddr.core.AddrFormatError: 
                     # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
                     pass
-                except Exception as e : 
+                except Exception: 
                     pass
     return clientiplist
 
@@ -96,10 +96,10 @@ def getclientxforwardedfor_ip():
                 clientip = str( ipaddr )
 
         # No logging is possible inside getclientipaddr
-        except netaddr.core.AddrFormatError as e: 
+        except netaddr.core.AddrFormatError: 
             # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
             pass
-        except Exception as e : 
+        except Exception: 
             pass
     return clientip
 

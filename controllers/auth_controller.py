@@ -611,8 +611,8 @@ class AuthController(BaseController):
     def login(self):
         # 
         # this request launchdesktop a desktop
-        #
         # this request could take a while and takes up to 180s
+        #
         cherrypy.response.timeout = 180
         # can raise exception 
         self.isban_ip()
@@ -621,7 +621,7 @@ class AuthController(BaseController):
         # can raise exception
         (auth, user ) = self.validate_env()
         # push a start message to database cache info
-        services.messageinfo.start( user.userid, f"b.Launching desktop")
+        services.messageinfo.start( user.userid, "b.Launching desktop")
         # launch the user desktop 
         return self.root.composer._launchdesktop( auth, user, args)
 
@@ -631,8 +631,8 @@ class AuthController(BaseController):
     @cherrypy.tools.json_in()
     def refreshtoken(self):
         self.logger.debug('')
-        # get params from json request
-        args = cherrypy.request.json
+        # no params from json request
+        # args = cherrypy.request.json
         # can raise exception
         (auth, user) = self.validate_env()
         # update token

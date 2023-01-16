@@ -15,60 +15,39 @@ import logging
 import oc.logging
 import pymongo
 import pymongo.errors
-from urllib.parse import urlparse
 from pymongo import MongoClient
-from bson.objectid import ObjectId
-
+# from bson.objectid import ObjectId
 
 logger = logging.getLogger(__name__)
 
 class ODDatastoreClient(object):
-    def getstoredvalue(self, databasename, key):
-        pass
-
-    def removestoredvalue(self, databasename, key):
-        raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'removestoredvalue'))
 
     def getcollection(self, databasename, collectionname, myfilter=None, limit=0):
         raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'getcollection'))
 
-    def setstoredvalue(self, databasename, key, value):
-        raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'setstoredvalue'))
-
     def addtocollection(self, databasename, collectionname, datadict):
         raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'addtocollection'))
 
-    def updatestoredvalue(self, databasename, collectionname, myreq, datadict):
-        raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'updatestoredvalue'))
-
-    def deletestoredvalue(self, databasename, collectionname, id):
-        raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'deletestoredvalue'))
-
 @oc.logging.with_logger()
 class MongoClientConfig(object):
-    def __init__(self, serverfqdn, serverport=None):
-        self.serverfqdn = serverfqdn    # can be an url connection string mongodb://myDBReader:D1fficultP%40ssw0rd@mongodb0.example.com:27017/?authSource=admin         
-        self.serverport = serverport    # server port must be None to use mongodb://server:port format
-        self.logger.info( 'mongodb client config server %s', serverfqdn )
+    def __init__(self, hosturl):
+        # can be an url connection string mongodb://myDBReader:D1fficultP%40ssw0rd@mongodb0.example.com:27017/?authSource=admin
+        self.hosturl = hosturl    
        
     def __str__(self):
-        data = '%s:%s' % (self.serverfqdn, self.serverport) if self.serverport else self.serverfqdn
-        return data
+        return self.hosturl
 
-    def gethost(self):
-        urlconfig = urlparse(self.serverfqdn)
-        host = urlconfig.hostname
-        if urlconfig.port:
-            host += ':' + str( urlconfig.port )
-        return host
+    # def gethost(self):
+    #    urlconfig = urlparse(self.hosturl)
+    #    return urlconfig.hostname
 
 
 @oc.logging.with_logger()
 class ODMongoDatastoreClient(ODDatastoreClient):
 
-    def __init__(self, conf):
-        self.serverfqdn = conf.serverfqdn
-        self.serverport = conf.serverport
+    def __init__(self, hosturl, databasename=None):
+        self.databasename = databasename
+        self.hosturl = hosturl
          # Defaults to 20000 (20 seconds). 
         # set to 5000 (5 seconds). 
         self.connectTimeoutMS = 3000  
@@ -78,10 +57,102 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         # set to 5000 (5 seconds). 
         self.socketTimeoutMS  = 2000  
         self.serverSelectionTimeoutMS = 2000
+        self.index_name = 'kind'
+
+    def createhosturl( self, databasename ):
+        return f"{self.hosturl}/?authSource={databasename}"
+
+    def createclient(self, databasename):
+        hosturl = self.createhosturl( databasename )
+        return MongoClient(host=hosturl, connectTimeoutMS=self.connectTimeoutMS, socketTimeoutMS=self.socketTimeoutMS, serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
+
+    def get_document_value_in_collection(self, databasename, collectionname, key):
+        obj = None
+        self.logger.debug( f"database={databasename} collectionname={collectionname} key={key}" )
+        try:            
+            client = self.createclient(databasename)        
+            collection = client[databasename][collectionname]            
+            if collection is not None:
+                obj = collection.find_one( { self.index_name:key })
+                if obj is not None:
+                    data = obj.get(key, None)                 
+                    client.close()
+                    return data          
+            client.close()  
+        except pymongo.errors.ConnectionFailure as e:
+            self.logger.error( f"get_document_value_in_collection: {e}" )       
+        except Exception as e :            
+            self.logger.error( f"get_document_value_in_collection: {e}" )       
+        return obj
+
+    def getcollection(self, databasename, collectionname, myfilter=None, limit=0):
+        self.logger.debug( f"database={databasename} collectionname={collectionname}" )
+        mycollection = []
+        try:            
+            client = self.createclient(databasename)        
+            collection = client[databasename][collectionname]                        
+            if collection is not None:
+                findcollection = collection.find() if myfilter is None else collection.find(filter=myfilter, limit=limit)
+                for obj in findcollection:
+                    id = obj.get('_id', None)  # should never be None
+                    if id is not None: 
+                        id = str(id) # translate type to string
+                    obj['_id'] = id
+                    mycollection.append(obj)
+            client.close()
+        except pymongo.errors.ConnectionFailure  as e  :
+            self.logger.error( 'getcollection ' + str(e) ) 
+        except Exception  as e  :            
+            self.logger.error( 'getcollection ' + str(e) ) 
+
+        return mycollection
 
 
+    def set_document_value_in_collection(self, databasename, collectionname, key, value):
+        self.logger.debug( f"database={databasename} collectionname={collectionname} key={key} value={value}")
+        datadict = value if isinstance(value, dict) else {key: value}
+        try:            
+            client = self.createclient(databasename)
+            collection = client[databasename][collectionname]
+            #
+            # do not use index only few entries (< 5)
+            # if the collection does not exist or does not have self.index_name
+            # index_information = collection.index_information()
+            # if index_information.get( self.index_name +'_1' ) is None:
+            #    collection.create_index([( self.index_name, pymongo.ASCENDING )], unique=True, background=True, hidden=True)
+            #                                      
+            obj = collection.find_one( {self.index_name: key })
+            datadict[self.index_name] = key
+            if isinstance(obj, dict):
+                collection.replace_one({'_id': obj['_id']}, datadict)
+            else:
+                collection.insert_one( datadict )
+            client.close()
+            return True
+        except pymongo.errors.ConnectionFailure  as e :
+            self.logger.error( f"set_document_value_in_collection {e}" ) 
+        except Exception  as e  :            
+            self.logger.error( f"set_document_value_in_collection {e}" ) 
+        return False
+
+
+    def addtocollection(self, databasename, collectionname, datadict):
+        try:
+            client = self.createclient(databasename)        
+            collection = client[databasename][collectionname]                                    
+            collection.insert_one(datadict)
+            client.close()
+            return True
+        except pymongo.errors.ConnectionFailure  as e  :
+            self.logger.error( f"addtocollection {e}" )     
+        except Exception  as e  :
+            self.logger.error( f"addtocollection {e}" ) 
+
+        return False
+
+    """
     def config_replicaset( self, replicaset_name ):
-        mongoclientcfg = MongoClientConfig( self.serverfqdn, self.serverport )
+        mongoclientcfg = ODMongoDatastoreClient( self.config.hosturl )
         host = mongoclientcfg.gethost()
         config = { '_id': replicaset_name, 'members': [ { '_id':0, 'host': host } ] }
         return config
@@ -120,136 +191,4 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         except Exception as e:
             self.logger.error( e )
         return False
-
-    # Store database call
-    # return None is not found or failure
-    def getstoredvalue(self, databasename, key):
-        obj = None
-        self.logger.debug( 'database=%s key=%s', databasename, key )
-        try:            
-            client = self.createclient()        
-            collection = client[databasename][key]            
-            if collection is not None:
-                obj = collection.find_one()
-                if obj is not None:
-                    data = obj.get(key, None)                 
-                    client.close()
-                    return data          
-            client.close()  
-        except pymongo.errors.ConnectionFailure as e:
-            self.logger.error( 'getstoredvalue: ' + str(e) )       
-        except Exception as e :            
-            self.logger.error( 'getstoredvalue: ' + str(e) )       
-        
-        return obj
-
-    # Store database call
-    def removestoredvalue(self, databasename, key):
-        try:            
-            client = self.createclient()        
-            collection = client[databasename][key]                        
-            if collection is not None:
-                collection.remove()
-            client.close()
-            return True
-        except pymongo.errors.ConnectionFailure as e :
-            self.logger.error( 'removestoredvalue ' + str(e) ) 
-        except Exception as e :            
-            self.logger.error( 'removestoredvalue ' + str(e) ) 
-        
-        return False
-
-    def getcollection(self, databasename, collectionname, myfilter=None, limit=0):
-        self.logger.debug( 'database=%s collectionname=%s', databasename, collectionname )
-        mycollection = []
-        try:            
-            client = self.createclient()        
-            collection = client[databasename][collectionname]                        
-            if collection is not None:
-                findcollection = collection.find() if myfilter is None else collection.find(filter=myfilter, limit=limit)
-                for obj in findcollection:
-                    id = obj.get('_id', None)  # should never be None
-                    if id is not None: 
-                        id = str(id) # translate type to string
-                    obj['_id'] = id
-                    mycollection.append(obj)
-            client.close()
-        except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( 'getcollection ' + str(e) ) 
-        except Exception  as e  :            
-            self.logger.error( 'getcollection ' + str(e) ) 
-
-        return mycollection
-
-    def setstoredvalue(self, databasename, key, value):
-        self.logger.debug( 'database=%s key=%s value=%s', databasename, key, str(value) )
-        datadict = value if isinstance(value, dict) else {key: value}
-        try:            
-            client = self.createclient()        
-            collection = client[databasename][key]                                    
-            obj = collection.find_one()
-            if obj is not None:
-                collection.replace_one({'_id': obj['_id']}, datadict)
-            else:
-                collection.insert_one(datadict)
-            client.close()
-            return True
-        except pymongo.errors.ConnectionFailure  as e :
-            self.logger.error( 'setstoredvalue ' + str(e) ) 
-        except Exception  as e  :            
-            self.logger.error( 'setstoredvalue ' + str(e) ) 
-
-        return False
-
-    def addtocollection(self, databasename, collectionname, datadict):
-        try:
-            client = self.createclient()        
-            collection = client[databasename][collectionname]                                    
-            collection.insert_one(datadict)
-            client.close()
-            return True
-        except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( 'addtocollection ' + str(e) )     
-        except Exception  as e  :
-            self.logger.error( 'addtocollection ' + str(e) ) 
-
-        return False
-
-    def updatestoredvalue(self, databasename, collectionname, myreq, datadict):
-        try:
-            client = self.createclient()        
-            collection = client[databasename][collectionname]                                    
-            collection.update_one(myreq, {"$set": datadict}, upsert=True)
-            client.close()
-            return True
-
-        except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( 'updatestoredvalue ' + str(e) ) 
-        
-        except Exception  as e :
-            self.logger.error( 'updatestoredvalue ' + str(e) ) 
-
-        return False
-
-    def deletestoredvalue(self, databasename, collectionname, id):
-        try:
-            client = self.createclient()        
-            collection = client[databasename][collectionname]                                    
-            collection.delete_one({'_id': ObjectId(id)})
-            client.close()
-            return True
-        
-        except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( 'deletestoredvalue ' + str(e) ) 
-                
-        except Exception as e :
-            self.logger.error( 'deletestoredvalue ' + str(e) ) 
-
-        return False
-
-    def createclient(self):
-        return MongoClient(self.serverfqdn, self.serverport, connectTimeoutMS=self.connectTimeoutMS, socketTimeoutMS=self.socketTimeoutMS, serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
-
-    def getcollectionfromdb(self, databasename, collectionname):
-        client = self.createclient()        
-        return client[databasename][collectionname]
+    """

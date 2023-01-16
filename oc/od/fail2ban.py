@@ -9,20 +9,19 @@ logger = logging.getLogger(__name__)
 class ODFail2ban:
 
     def __init__(self, mongoconfig, fail2banconfig={}):
+        self.databasename = 'fail2ban'
+        self.ip_collection_name = 'ipaddr'
+        self.login_collection_name = 'login'
         self.enable = fail2banconfig.get('enable') # specify a positive non-zero value 
         self.failmaxvaluebeforeban = fail2banconfig.get('failsbeforeban', 5 ) # specify a positive non-zero value 
         self.banexpireAfterSeconds = fail2banconfig.get('banexpireafterseconds', 30*60 )
         self.protectedNetworks    = fail2banconfig.get('protectednetworks', [] )
-        self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig)
-        self.databasename = 'fail2ban'
-        self.ip_collection_name = 'ipaddr'
-        self.login_collection_name = 'login'
-
+        self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig,  self.databasename)
         self.collections_name = [ self.ip_collection_name, self.login_collection_name ]
-        self.sanity_filter = {  self.ip_collection_name:"0123456789.", 
-                                self.login_collection_name:"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_\\/ " }
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore)  
-        db = mongo_client[self.databasename]
+        self.sanity_filter = {  
+            self.ip_collection_name:"0123456789.", 
+            self.login_collection_name:"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_\\/ " 
+        }
         # create a new database instance
         self.index_name = 'id'
         self.counter = 'count'
@@ -49,7 +48,8 @@ class ODFail2ban:
         return True
 
     def init_collection( self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore) 
+        self.logger.debug('')
+        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename ) 
         db = mongo_client[self.databasename]
         col = db[collection_name]
         try:
@@ -79,7 +79,7 @@ class ODFail2ban:
         self.logger.debug( f"dump list is {list_ban_dummy_ipaddr}")
         
     def get_collection(self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore) 
+        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore, self.databasename) 
         db = mongo_client[self.databasename]
         return db[collection_name]
 

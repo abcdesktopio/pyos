@@ -19,7 +19,6 @@ class ODPrelogin:
         self.enable = config.get('enable')
         self.network_list = config.get('network_list', [] )
         self.http_attribut = config.get('http_attribut')
-        self.prelogin_url_redirect_on_error = config.get('url_redirect_on_error')
         self.http_attribut_to_force_auth_prelogin = config.get('http_attribut_to_force_auth_prelogin')
 
         # check configuration value prelogin_url 
@@ -38,7 +37,7 @@ class ODPrelogin:
                     for network in self.network_list:
                         IPNetwork( network )
                 except Exception as e:
-                    self.logger.error( "invalid prelogin_network_list value, prelogin is disabled")
+                    self.logger.error( f"invalid prelogin_network_list value, prelogin is disabled {e}")
                     self.enable = False
 
 
@@ -94,7 +93,7 @@ class ODPrelogin:
         userid = userid.upper() # always cache data in upper case only 
         self.logger.info( f"prelogin_html setting key={sessionid} value={userid} timeout={self.maxlogintimeout}" )
         bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxlogintimeout )
-        if not isinstance( bset, bool) or bset == False:
+        if not isinstance( bset, bool) or bset is False:
             self.logger.error( f"memcacheclient:set failed to set data key={sessionid} value={userid}" )
         html_data = chevron.render( self.mustache_data, prelogindict )
         # self.logger.debug( html_data )

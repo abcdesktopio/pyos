@@ -14,10 +14,8 @@
 
 import jwt
 import logging
-import time
 import uuid
 from Crypto.PublicKey import RSA as rsa
-from Crypto.Cipher import PKCS1_v1_5   
 
 import oc.od.services
 

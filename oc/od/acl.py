@@ -66,8 +66,10 @@ class ODAcl():
                 ispermit = True
 
         # special case for "all" keyword
-        if "all" in permit: ispermit = True
-        if "all" in deny:   isdeny = True
+        if "all" in permit: 
+            ispermit = True
+        if "all" in deny:   
+            isdeny = True
 
         # this is an acl
         # always starts by denied 

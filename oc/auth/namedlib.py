@@ -31,10 +31,12 @@ def normalize_name(name:str, encoding:str='utf-8', tolower:bool=True)->str:
         newname = newname + '-'
     
     # remove the first char if it's a '-'
-    if newname[ 0 ] == '-':                 newname = newname[1::]
+    if newname[ 0 ] == '-':                 
+      newname = newname[1::]
     
     # remove the last char if it's a '-'
-    if newname[ len(newname) - 1 ] == '-':  newname = newname[:-1:]
+    if newname[ len(newname) - 1 ] == '-':  
+      newname = newname[:-1:]
 
     if tolower is True:
       newname = newname.lower()
@@ -45,7 +47,7 @@ def normalize_name(name:str, encoding:str='utf-8', tolower:bool=True)->str:
 def normalize_name_dnsname(name:str)->str:
     return normalize_name( name )[0:62]
 
-def normalize_name_tolabel(name:str)->str:
+def normalize_name_label(name:str)->str:
     return normalize_name(name)
 
 def normalize_networkname(name:str)->str:
@@ -112,7 +114,7 @@ def snakeCaseToCamelCase(s:str)->str:
       temp = s.split('_')
       # joining result
       result = temp[0] + ''.join(ele.title() for ele in temp[1:])
-    except Exception as e:
+    except Exception:
       pass
     return result
 
@@ -127,4 +129,3 @@ def dictSnakeCaseToCamelCase(d:dict)->dict:
       else:
         new_dict[newkey]=entry
     return new_dict
-
