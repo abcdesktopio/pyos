@@ -64,15 +64,14 @@ class ODMongoDatastoreClient(ODDatastoreClient):
 
     def createclient(self, databasename):
         hosturl = self.createhosturl( databasename )
-        self.logger.debug( f"createclient MongoClient {hosturl}")
+        # self.logger.debug( f"createclient MongoClient {hosturl}")
         mongo_client = MongoClient(
             host=hosturl, 
             connectTimeoutMS=self.connectTimeoutMS, 
             socketTimeoutMS=self.socketTimeoutMS, 
             serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
-        server_info = mongo_client.server_info()
-        self.logger.debug( f"server_info={server_info}")
-        mongo_client.get_database(databasename)
+        # server_info = mongo_client.server_info()
+        # self.logger.debug( f"server_info={server_info}")
         return mongo_client
 
     def get_document_value_in_collection(self, databasename, collectionname, key):
