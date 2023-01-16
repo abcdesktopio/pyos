@@ -21,7 +21,6 @@ class ODServices(object):
         self.keymanager = None
         self.locatorPublicInternet = None
         self.webrtc = None
-        self.dockerwatcher = None
         self.kuberneteswatcher = None
         self.imagewatcher = None
         self.apps = None
@@ -42,7 +41,6 @@ class ODServices(object):
         self.init_datacache()
         self.init_auth()
         self.init_internaldns()
-        self.init_resolvnetbios()
         self.init_jwtdesktop()
         self.init_locator()
         self.init_keymanager()
@@ -54,7 +52,6 @@ class ODServices(object):
     def start(self):
         """start
             start threads 
-                * dockerwatcher
                 * kuberneteswatcher
         """
         self.logger.debug('')
@@ -65,7 +62,6 @@ class ODServices(object):
     def stop( self):
         """stop
             stop threads 
-                * dockerwatcher
                 * kuberneteswatcher
         """
         self.logger.debug('')
@@ -212,13 +208,6 @@ class ODServices(object):
         self.logger.info('')
         import oc.auth.authservice
         self.auth = oc.auth.authservice.ODAuthTool(settings.default_host_url, settings.jwt_config_user, settings.authmanagers) 
-
-    def init_resolvnetbios( self ):
-        """resolvnetbios DEPRECATED
-        """
-        self.logger.info('')
-        import oc.od.resolvnetbios
-        self.resolvnetbios = oc.od.resolvnetbios.ODResolvNetbios()
 
     def init_applist( self ):
         self.logger.info('')

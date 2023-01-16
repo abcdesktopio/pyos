@@ -25,7 +25,6 @@ class ODDesktopKeyManager(object):
 
     def __init__( self, config ):
         self.privateprefix = 'priv.'
-        self.publicprefix = 'priv.'
         self.expire_in = config.get('exp', 180)
         self.algorithms=['RS256']
         jwt_desktop_privatekeyfile    = config.get('jwtdesktopprivatekeyfile')

@@ -15,7 +15,6 @@ import logging
 import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
-import oc.od.resolvnetbios
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +219,7 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
                 mountwebdavdirname = '/home/balloon/' + oc.od.settings.webdaventryname
         '''
         return all( [ super().is_mountable(), self.networkPath, self._containertarget ] )
-        
+
     '''
     def mount_command(self):
 

@@ -22,7 +22,6 @@ import subprocess
 from subprocess import run, PIPE
 from string import Formatter
 import urllib
-from urllib.parse import urlencode, urlunparse, urlparse, parse_qsl
 
 logger = logging.getLogger(__name__)
 
@@ -73,26 +72,6 @@ class Lazy(object):
     def __call__(self):
         return self.value
         
-
-class SafeDict(dict): 
-    def __init__(self, *args, **kwargs): 
-        super().__init__(*args, **kwargs)
-        self.default = ''
-
-    def __missing__(self, key): 
-        return self.default
-
-
-class QuerystringFormatter(Formatter):
-    def format_field(self, value, format_spec):
-        return  urllib.quote(super().format_field(str(value), format_spec))
-
-    def get_value(self, key, args, kwargs):
-        try:
-            return super().get_value(key, args, kwargs)
-        except (KeyError,IndexError):
-            return ''
-
 class LazyToken(object):
     def __init__(self, value): 
         self.value = value
@@ -138,82 +117,7 @@ def import_classes(package, module_name_filter=None, class_name_filter=None, bas
             classes.append(class_)                
 
     return classes
-
-
-def format_safe(template, params={}, **kwparams):
-    return template.format_map(SafeDict({**get_formatdata(params),**kwparams}))
-
-
-def format_url(template, params={}, **kwparams):        
-    args = {**get_formatdata(params),**kwparams}
-    parts = list(urllib.urlparse(template))
-
-    for i in range(0,len(parts)): 
-        if i==4: 
-            parts[i] = QuerystringFormatter().format(parts[i], **args)
-        else:
-            parts[i] = format(parts[i], **args)
-
-    return urllib.urlunparse(parts)
-
-
-def format_querystring(template, params={}, **kwparams):
-    return QuerystringFormatter().format(template, **{**get_formatdata(params),**kwparams})
-
-
-def format_querystring_params(querystring, params={}, **kwparams):
-    if isinstance(querystring, str):
-        querystring = urllib.parse_qsl(querystring)
-
-    context = {**get_formatdata(params), **kwparams}
-    parts = {}
-    for k,v in querystring:
-        value = format_safe(v, context)
-        if value: 
-            parts[k] = value
-
-    return urllib.urlencode(parts)
-
-
-def update_querystring(url, params={}, **kwparams):
-    parts = list(urlparse(url))
-    parts[4] = update_qs(parts[4], params, **kwparams)
-    return urlunparse(parts)
-
-
-def update_qs(querystring, params={}, **kwparams):
-    qs = dict(parse_qsl(querystring))
-    qs.update(get_formatdata(params))
-    qs.update(kwparams)
-    return urlencode(qs)
-
-
-def get_formatdata(source):
-    if isinstance(source, dict) or isinstance(source, list): 
-        return dict(source)
-    has_dict = hasattr(source, '__dict__')
-    has_class = hasattr(source, '__class__')
-    if not has_dict and not has_class: 
-        return source
-
-    data = dict()
-
-    if (has_dict):
-        data.update([(k,LazyToken(lambda k=k: getattr(source, k))) for k,v in vars(source).items() if not k.startswith('_')])
-
-    if (has_class):
-        data.update([(k,LazyToken(lambda f=v.fget: f(source))) for (k,v) in source.__class__.__dict__.items() if not k.startswith('_') and isinstance(v, property)])
-
-    return data
-
-
-def get_property(obj, path, default=None):
-    try:
-        return functools.reduce(lambda o,n: getattr(o,n), [obj, *path.split('.')])
-    except AttributeError:
-        return default
-
-
+    
 def get_setting(obj, path, default=None):
     def getter(o,n):
         if isinstance(o, dict): 

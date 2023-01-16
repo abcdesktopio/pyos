@@ -681,8 +681,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def __init__(self):
         super().__init__()
-
-        self.DEFAULT_K8S_TIMEOUT_SECONDS = 15
+        
         self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS = 30
 
         self.appinstance_classes = {    'ephemeral_container': ODAppInstanceKubernetesEphemeralContainer,

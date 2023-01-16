@@ -18,7 +18,7 @@ class ODVncPassword():
     """[ODVncPassword]
         ODVncPassword class  
     """
-    def __init__(self, key=None, defaultvncpassword=None) -> None:
+    def __init__(self, defaultvncpassword=None) -> None:
         """[__init__]
             init ODVncPassword class
         Args:
@@ -30,15 +30,7 @@ class ODVncPassword():
         # passlength must respect len(labels) <= 63 chars for kubernetes
         # 35 is the max len
         self._passlength = 15
-        self._key = key
-        if key is None:
-            # key length use password length
-            self._key = oc.lib.randomStringwithHexa( 32 )
         self._vncpassword = defaultvncpassword
-
-
-    def get_key( self ):
-        return self._key
 
     def make( self ):
         """[make]
@@ -49,23 +41,6 @@ class ODVncPassword():
         """
         self._vncpassword = oc.lib.randomStringwithDigitsAndSymbols( self._passlength )
         return self._vncpassword
-
-    @staticmethod
-    def repadb32(data):
-        """[repad]
-            restore padding for base32 if need ( using modulo 8 )
-        Args:
-            data ([str]): [string without base32 pad]
-
-        Returns:
-            [str]: [string with base32 pad if need ]
-        """
-        return data + "=" * (-len(data)%8)
-
-    def getcypherkey(self):
-        ciphertextb32 = base64.b32encode( self._key )
-        strencrypt = ciphertextb32.decode("utf-8")
-        return strencrypt
 
     def getplain( self ):
         """[getplain]
