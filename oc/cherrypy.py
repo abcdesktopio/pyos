@@ -228,7 +228,7 @@ class Results(object):
         return Results.result(message, 200, result)
 
     @staticmethod
-    def error(message='unknow error', status=500, context=None):
+    def error(message='unknow error', status=500, _context=None):
         return Results.result(message, status)
 
     @staticmethod
