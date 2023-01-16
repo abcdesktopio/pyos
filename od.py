@@ -46,7 +46,7 @@ class APIDispatcher(Dispatcher):
         return Dispatcher.__call__(self, path_info.lower()) 
 
 def api_handle_error():
-    ex_type, ex, ex_tb = sys.exc_info()
+    _ex_type, ex, _ex_tb = sys.exc_info()
     
     status = 500
     message = None
@@ -76,7 +76,7 @@ def api_handle_error():
 
 
 def api_build_error(status, message, traceback, version):
-    ex_type, ex, ex_tb = sys.exc_info()
+    _ex_type, ex, _ex_tb = sys.exc_info()
 
     if isinstance(ex, oc.cherrypy.WebAppError):
         cherrypy.response.status = ex.status

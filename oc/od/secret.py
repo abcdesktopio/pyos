@@ -66,14 +66,6 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
     # return the secret object
     return secret
 
-def list_secretype():
-    """[list_secretype]
-        list all supported secret type
-    Returns:
-        [list]: [list of supported secret type]
-    """
-    return [ 'cifs', 'cifs_kerberos', 'webdav', 'ldif', 'citrix', 'vnc' ]
-
 @oc.logging.with_logger()
 class ODSecret():
 

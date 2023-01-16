@@ -547,7 +547,7 @@ def init_locales():
     # all containers application must support this list
     # by default support en_US language
     supportedLocales = gconfig.get('language', ['en_US'])
-    logger.info(f"Supported local language is set to {supportedLocales}")
+    # logger.info(f"Supported local language is set to {supportedLocales}")
 
 
 def loadfile(filename:str)->str:

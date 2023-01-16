@@ -155,11 +155,8 @@ class ODOrchestratorBase(object):
         self.name                   = 'base'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
         self.x11servertype          = 'x11server'        
-        self.x11servertype_embeded  = 'x11serverembeded' 
         self.applicationtype        = 'pod_application'
         self.applicationtypepull    = 'pod_application_pull'
-        self.printerservertype      = 'cupsserver'
-        self.soundservertype        = 'pulseserver'
         self.endpoint_domain        = 'desktop'
         self.ephemeral_container    = 'ephemeral_container'
 
@@ -170,13 +167,13 @@ class ODOrchestratorBase(object):
         # return self.get_basecontainername( prefix, userid, myuuid )
         return name
 
-    def get_basecontainername( self, containernameprefix, userid, container_name ):
-        user_container_name = self.containernameseparator
-        if isinstance( userid, str ):
-            user_container_name = userid + self.containernameseparator
-        name = containernameprefix + self.containernameseparator + user_container_name + container_name
-        name = oc.auth.namedlib.normalize_name_dnsname( name )
-        return name
+    # def get_basecontainername( self, containernameprefix, userid, container_name ):
+    #    user_container_name = self.containernameseparator
+    #    if isinstance( userid, str ):
+    #        user_container_name = userid + self.containernameseparator
+    #    name = containernameprefix + self.containernameseparator + user_container_name + container_name
+    #    name = oc.auth.namedlib.normalize_name_dnsname( name )
+    #    return name
 
     def get_normalized_username(self, name ):
         """[get_normalized_username]
@@ -210,8 +207,8 @@ class ODOrchestratorBase(object):
     def getsecretuserinfo(self, authinfo, userinfo):
         raise NotImplementedError('%s.getsecretuserinfo' % type(self))
 
-    def garbargecollector( self, timeout ):
-        raise NotImplementedError(f"{type(self)}.garbargecollector")
+    def garbagecollector( self, timeout ):
+        raise NotImplementedError(f"{type(self)}.garbagecollector")
 
     def execwaitincontainer( self, desktop, command, timeout):
         raise NotImplementedError(f"{type(self)}.execwaitincontainer")
@@ -681,7 +678,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def __init__(self):
         super().__init__()
-        
+
         self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS = 30
 
         self.appinstance_classes = {    'ephemeral_container': ODAppInstanceKubernetesEphemeralContainer,

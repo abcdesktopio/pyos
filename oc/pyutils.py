@@ -25,10 +25,6 @@ import urllib
 
 logger = logging.getLogger(__name__)
 
-class ApplicationError(Exception):
-    def __init__(self,message):
-        super().__init__(message)
-
 class Event(object):
     def __init__(self):
         self._handlers = list()
@@ -71,19 +67,6 @@ class Lazy(object):
 
     def __call__(self):
         return self.value
-        
-class LazyToken(object):
-    def __init__(self, value): 
-        self.value = value
-    def __str__(self): 
-        return str(self.value())
-    def __getitem__(self, key): 
-        return self.value()[key]
-    def __getattr__(self, name): 
-        return getattr(self.value(),name)
-    def __call__(self): 
-        return self.value()
-
 
 def get_class(path, class_name=None):
     if not class_name:
@@ -98,7 +81,7 @@ def import_classes(package, module_name_filter=None, class_name_filter=None, bas
     classes = []
     path = importlib.import_module(package).__path__
     logger.debug( "Loading module in directory %s" % path)
-    for null, name, ispkg in pkgutil.iter_modules(importlib.import_module(package).__path__):
+    for _filefinder, name, ispkg in pkgutil.iter_modules(importlib.import_module(package).__path__):
         if ispkg or (module_name_filter and not re.match(module_name_filter, name)):
             continue 
 
@@ -117,7 +100,7 @@ def import_classes(package, module_name_filter=None, class_name_filter=None, bas
             classes.append(class_)                
 
     return classes
-    
+
 def get_setting(obj, path, default=None):
     def getter(o,n):
         if isinstance(o, dict): 

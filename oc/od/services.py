@@ -13,7 +13,6 @@ class ODServices(object):
         self.datastore = None
         self.sharecache = None
         self.messageinfo = None
-        self.encryption = None
         self.auth = None
         self.accounting = None
         self.internaldns = None
@@ -22,7 +21,7 @@ class ODServices(object):
         self.locatorPublicInternet = None
         self.webrtc = None
         self.kuberneteswatcher = None
-        self.imagewatcher = None
+        # self.imagewatcher = None
         self.apps = None
         self.prelogin = None
         self.logmein = None

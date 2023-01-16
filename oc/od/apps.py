@@ -45,7 +45,6 @@ class ODApps:
             'executablefilename',   'secrets_requirement' ]
         # define private attributs keep
         self.private_attr_list  = [ 'sha_id',  'acl',  'rules', 'securityContext' ]
-        self.thread_sleep_insert = 5
         self.thead_event = None
 
         # mongo db defines
@@ -222,43 +221,6 @@ class ODApps:
             if self.is_app_allowed( auth, myapp ) is True :
                 appdict[ app ] = myapp
         return appdict
-
-    def user_applist( self, auth, filter ):
-        """[user_applist] return a list of user application list
-        make a copy to remove security entries 
-        keep only public_attr_list data
-        self.public_attr_list   = [ 'launch', 'name', 'icon',       'keyword',      'uniquerunkey',
-                                    'cat',    'args',  'execmode',  'showinview', 'displayname', 
-                                    'mimetype', 'path', 'desktopfile', 'executablefilename' ]
-        Args:
-            auth ([type]): [description]
-
-        Returns:
-            [list]: [list of application]
-        """
-        self.logger.info('')
-        userapplist = []
-        
-        # Lock here 
-        # run a quick deep copy of self.myglobal_list 
-        self.lock.acquire()
-        try:
-            applist = copy.deepcopy( self.myglobal_list )
-        finally:
-            self.lock.release()
-
-        # for each app in docker images
-        for myapp in applist.values():
-            if self.is_app_allowed( auth, myapp ) is True :
-                newapp = {}
-
-                # filter only public attr 
-                # do not push system informations
-                # to web user
-                for a in self.public_attr_list:
-                        newapp[a] = myapp[a]
-                userapplist.append( newapp )
-        return userapplist
 
     def default_appdict( self, auth, default_app, filtered_public_attr_list=False ):    
         """default_appdict
