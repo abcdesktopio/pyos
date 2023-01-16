@@ -549,7 +549,7 @@ class ODAuthTool(cherrypy.Tool):
         if not hasattr(cherrypy.request, 'odauthcache') :  
             # attr is not found
             # parse_auth_request() will decode the cookie token 
-            self.logger.debug( "current http request build cached odauthcache" ) 
+            # self.logger.debug( "current http request has no odauthcache" ) 
             cherrypy.request.odauthcache = self.parse_auth_request()    
         else:
             # self.logger.debug( f"current http request has cached odauthcache" ) 
@@ -1557,28 +1557,17 @@ class ODAuthTool(cherrypy.Tool):
         return self.findmanager(provider, manager).finalize(provider, authinfo, **arguments)
 
     def authorize(self, allow_anonymous=False, allow_authentified=True):        
-        self.logger.debug('')
-
-        # reset cache data
         if allow_anonymous is True: 
             return
-
         if not self.provider or not self.providertype:
-            self.raise_unauthorized('Invalid token')
-        
-        is_unauthorized = not allow_authentified
-        if is_unauthorized is True:
-            self.raise_unauthorized()       
+            raise cherrypy.HTTPError(401, 'Invalid token')
+        if not allow_authentified:
+            raise cherrypy.HTTPError(401, 'Unauthorized')    
 
     def logout(self):
         """[logout]
         """
         pass
-        
-
-    def raise_unauthorized(self, message='Unauthorized'):
-        raise cherrypy.HTTPError(401, message)
-               
         
           
 @oc.logging.with_logger()
@@ -2751,7 +2740,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
                 # read supported_sasl_mechanisms supported by the ldap server
                 supported_sasl_mechanisms = server.info.supported_sasl_mechanisms if server.info else None
-                self.logger.debug( "fsupported_sasl_mechanisms by {server_name} return {supported_sasl_mechanisms}" )
+                self.logger.debug( f"supported_sasl_mechanisms by {server_name} return {supported_sasl_mechanisms}" )
                 del c # remove the c Connection, only use to get supported_sasl_mechanisms 
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):

@@ -35,7 +35,7 @@ def resolvlocation_activeDirectory( ipAddr, locatorPrivateActiveDirectory ):
     return location
     
 
-def resolvlocation( ipAddr, locatorPublicInternet, locatorPrivateActiveDirectory, **kargs ):
+def resolvlocation( ipAddr, locatorPublicInternet, locatorPrivateActiveDirectory ):
 
     assert type(ipAddr) is str, "ipAddr is not a str: %r" % id
 

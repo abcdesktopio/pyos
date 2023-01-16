@@ -187,7 +187,7 @@ class ODSecret():
                 mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
         return mydict_secret
 
-    def patch(self, authinfo:AuthInfo, userinfo:AuthUser, old_secret, arguments )->V1Secret: 
+    def patch(self, authinfo:AuthInfo, userinfo:AuthUser, arguments )->V1Secret: 
         assert isinstance(arguments, dict),  f"arguments has invalid type {type(arguments)}"
         myauth_dict_secret = self._create_dict( authinfo, userinfo, arguments ) 
         # we suppose that the secret has changed 
@@ -196,7 +196,6 @@ class ODSecret():
         mysecretname = self.get_name( authinfo, userinfo )        
         body = { 'data' : myauth_dict_secret }
         created_secret = self.kubeapi.patch_namespaced_secret( name=mysecretname, namespace=self.namespace, body=body)
-
         return  created_secret
 
     def _create(self, authinfo:AuthInfo, userinfo:AuthUser, arguments:dict )->V1Secret: 
@@ -256,7 +255,7 @@ class ODSecret():
                 # a secret already exists, patch it with new data 
                 # it may contains obsolete value, for example if the password has changed
                 op = 'patch' # operation is used for log message
-                mysecret = self.patch( authinfo, userinfo, old_secret=readsecret, arguments=data )
+                mysecret = self.patch( authinfo, userinfo, arguments=data )
             else:
                 # the secret does not exist, create a new one
                 op = 'create'  # operation is used for log message

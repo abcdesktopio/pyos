@@ -43,12 +43,7 @@ def create_NT_hashed_password_v1(passwd, user=None, domain=None):
     digest = hashlib.new('md4', passwd.encode('utf-16le')).digest()
     return digest
 
-
 def create_NT_hashed_password_v2(passwd, user, domain):
     "create NT hashed password"
     digest = create_NT_hashed_password_v1(passwd)
-
-    return hmac.new(
-        digest,
-        (user.upper() + domain).encode('utf-16le')).digest()
-    return digest
+    return hmac.new( digest,(user.upper() + domain).encode('utf-16le')).digest()

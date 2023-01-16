@@ -227,7 +227,7 @@ def get_setting(obj, path, default=None):
     except (AttributeError,KeyError,IndexError):
         return default
 
-def execproc(command,environment={},stdout=subprocess.PIPE,timeout=60,rawoutput=False,input=None, encoding='utf8'):
+def execproc(command,environment={},stdout=subprocess.PIPE,timeout=60,input=None, encoding='utf8'):
     try:
         env = os.environ.copy()
         if type(environment) is dict and len(environment) > 0: 

@@ -48,7 +48,7 @@ class ODFail2ban:
         return True
 
     def init_collection( self, collection_name ):
-        self.logger.debug('')
+        self.logger.debug(f"{self.databasename} {collection_name}")
         mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename ) 
         db = mongo_client[self.databasename]
         col = db[collection_name]

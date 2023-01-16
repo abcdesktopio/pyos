@@ -208,19 +208,19 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
        
 
     def is_mountable( self ):
-        return all( [ super().is_mountable(), self.networkPath, self._containertarget ] )
-
         ''' OLD CODE WAS 
-                    memberOf = arguments.get('memberOf', [])
-                    hasuserWebdavOption = oc.auth.ad.adconfig.isMemberOf(memberOf, oc.od.settings.webdavgroup)
-                    sAMAccountName = arguments.get('sAMAccountName', None)
+            memberOf = arguments.get('memberOf', [])
+            hasuserWebdavOption = oc.auth.ad.adconfig.isMemberOf(memberOf, oc.od.settings.webdavgroup)
+            sAMAccountName = arguments.get('sAMAccountName', None)
 
-                    if all([hasuserWebdavOption, sAMAccountName, oc.od.settings.webdavurl, oc.od.settings.webdaventryname]):
-                        self.logger.info('hasuserWebdavOption: True')
-                        setmessageinfo('Mounting ' + str(oc.od.settings.webdavurl))
-                        mountwebdavpoint = oc.od.settings.getmount_remotewebdav_point(sAMAccountName)
-                        mountwebdavdirname = '/home/balloon/' + oc.od.settings.webdaventryname
+            if all([hasuserWebdavOption, sAMAccountName, oc.od.settings.webdavurl, oc.od.settings.webdaventryname]):
+                self.logger.info('hasuserWebdavOption: True')
+                setmessageinfo('Mounting ' + str(oc.od.settings.webdavurl))
+                mountwebdavpoint = oc.od.settings.getmount_remotewebdav_point(sAMAccountName)
+                mountwebdavdirname = '/home/balloon/' + oc.od.settings.webdaventryname
         '''
+        return all( [ super().is_mountable(), self.networkPath, self._containertarget ] )
+        
     '''
     def mount_command(self):
 
