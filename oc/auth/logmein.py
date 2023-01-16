@@ -16,7 +16,6 @@ class ODLogmein:
         self.enable = config.get('enable', False)
         self.network_list = config.get('network_list', [])
         self.http_attribut = config.get('http_attribut')
-        self.url_redirect_on_error = config.get('redirect_on_error')
         self.permit_querystring = config.get('permit_querystring', False)
         oid_query_list = config.get('oid_list', [ cryptography.x509.oid.NameOID.USER_ID, cryptography.x509.oid.NameOID.COMMON_NAME ] )
         self.oid_query_list = []
