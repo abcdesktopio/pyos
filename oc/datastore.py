@@ -61,15 +61,6 @@ class ODMongoDatastoreClient(ODDatastoreClient):
     def __init__(self, conf):
         self.serverfqdn = conf.serverfqdn
         self.serverport = conf.serverport
-         # Defaults to 20000 (20 seconds). 
-        # set to 5000 (5 seconds). 
-        self.connectTimeoutMS = 3000  
-        # Controls how long (in milliseconds) the driver will wait for a response after sending an ordinary (non-monitoring) database operation 
-        # before concluding that a network error has occurred. 
-        # Defaults to None (no timeout).
-        # set to 5000 (5 seconds). 
-        self.socketTimeoutMS  = 2000  
-        self.serverSelectionTimeoutMS = 2000
 
     # Store database call
     # return None is not found or failure
@@ -198,7 +189,10 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         return False
 
     def createclient(self):
-        return MongoClient(self.serverfqdn, self.serverport, connectTimeoutMS=self.connectTimeoutMS, socketTimeoutMS=self.socketTimeoutMS, serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
+        return MongoClient(
+            self.serverfqdn, 
+            self.serverport
+        )
 
     def getcollectionfromdb(self, databasename, collectionname):
         client = self.createclient()        
