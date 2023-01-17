@@ -16,9 +16,11 @@ import oc.logging
 import pymongo
 import pymongo.errors
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 # from bson.objectid import ObjectId
 
 logger = logging.getLogger(__name__)
+
 
 class ODDatastoreClient(object):
 
@@ -50,13 +52,13 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         self.hosturl = hosturl
          # Defaults to 20000 (20 seconds). 
         # set to 5000 (5 seconds). 
-        self.connectTimeoutMS = 3000  
+        # self.connectTimeoutMS = 3000  
         # Controls how long (in milliseconds) the driver will wait for a response after sending an ordinary (non-monitoring) database operation 
         # before concluding that a network error has occurred. 
         # Defaults to None (no timeout).
         # set to 5000 (5 seconds). 
-        self.socketTimeoutMS  = 2000  
-        self.serverSelectionTimeoutMS = 2000
+        # self.socketTimeoutMS  = 5000  
+        # self.serverSelectionTimeoutMS = 5000
         self.index_name = 'kind'
 
     def createhosturl( self, databasename ):
@@ -65,11 +67,10 @@ class ODMongoDatastoreClient(ODDatastoreClient):
     def createclient(self, databasename):
         hosturl = self.createhosturl( databasename )
         # self.logger.debug( f"createclient MongoClient {hosturl}")
-        mongo_client = MongoClient(
-            host=hosturl, 
-            connectTimeoutMS=self.connectTimeoutMS, 
-            socketTimeoutMS=self.socketTimeoutMS, 
-            serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
+        mongo_client = MongoClient(host=hosturl)
+        # connectTimeoutMS=self.connectTimeoutMS, 
+        # socketTimeoutMS=self.socketTimeoutMS, 
+        # serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
         # server_info = mongo_client.server_info()
         # self.logger.debug( f"server_info={server_info}")
         return mongo_client
