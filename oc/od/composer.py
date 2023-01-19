@@ -620,9 +620,6 @@ def openapp( auth, user={}, kwargs={} ):
     if not isinstance( myDesktop, ODDesktop):
         raise ODError( status=404, message='openapp:findDesktopByUser not found')
 
-    myOrchestrator.nodehostname = myDesktop.nodehostname
-    kwargs[ 'homedirectory_type' ] = settings.desktop['homedirectorytype']
-
     # get application object from application name
     app = getapp(auth, appname)
     if not isinstance( app, dict ):
@@ -634,14 +631,6 @@ def openapp( auth, user={}, kwargs={} ):
     if not services.apps.is_app_allowed( auth, app ) :
         logger.error( 'SECURITY Warning applist has been modified or updated')
         raise ODError( status=401, message='Application access is denied by security policy')
-
-    # new App instance Orchestrator Object
-    myOrchestrator = selectOrchestrator()
-
-    # find the desktop for the current user
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
-    if not isinstance( myDesktop, ODDesktop):
-        raise ODError( 'openapp:findDesktopByUser not found')
 
     # Check limit apps counter
     max_app_counter = oc.od.settings.desktop['policies'].get('max_app_counter')
@@ -731,8 +720,8 @@ def notify_user( access_userid, access_type, method, data ):
 
 def getapp(authinfo:AuthInfo, name:str)->dict:
     app = services.apps.find_app_by_authinfo_and_name(authinfo, name)
-    if not isinstance(app, dict):
-        raise ODError(message=f"Fatal error - Cannot find image associated to application {name}")
+    # if not isinstance(app, dict):
+    #    raise ODError(message=f"Fatal error - Cannot find image associated to application {name}")
     return app
 
 
