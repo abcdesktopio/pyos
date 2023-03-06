@@ -76,7 +76,6 @@ class ODSecret():
         self.access_type='auth'
         self.secret_type = namespace + '/' + secret_type
         self.normalize_name_secret_type = secret_type.replace( '/', '-')
-        self.immutable = False
         self.typeConverterValues = {}
         if type(prefix) is str:
             self.prefix = '-' + prefix
@@ -197,7 +196,7 @@ class ODSecret():
         mysecretname = self.get_name( authinfo, userinfo )
         labels_dict = { 'access_provider':  authinfo.provider, 'access_userid': userinfo.userid, 'access_type': self.access_type }
         metadata = V1ObjectMeta( name=mysecretname, labels=labels_dict, namespace=self.namespace )        
-        mysecret = V1Secret( data=myauth_dict_secret, metadata=metadata, immutable=self.immutable, type=self.secret_type ) 
+        mysecret = V1Secret( data=myauth_dict_secret, metadata=metadata, type=self.secret_type ) 
         if isinstance( mysecret, V1Secret) :      
             created_secret = self.kubeapi.create_namespaced_secret( namespace=self.namespace, body=mysecret )
             self.logger.info( 'new secret name %s type %s created', mysecretname, self.secret_type )
