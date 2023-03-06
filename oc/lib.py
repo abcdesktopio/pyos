@@ -18,6 +18,7 @@ import unicodedata      # for remove accent
 import logging
 import cherrypy
 import oc.od.settings   # settings lib
+import uuid
 
 # logger instance
 logger = logging.getLogger(__name__)
@@ -63,7 +64,11 @@ def remove_accents(input_str):
     r = s.lower()
     return r
 
-        
+def uuid_digits( ndigits:int=5)->str:
+    digits = uuid.uuid4().hex
+    local_uuid = digits[-ndigits:]
+    return local_uuid
+
 def getCookie(name):
     """[getCookie] get the cookie name value
         retrieve the cookie name value 
