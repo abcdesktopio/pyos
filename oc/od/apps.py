@@ -32,7 +32,7 @@ class ODApps:
     """ ODApps
         manage application list 
     """
-    def __init__(self, mongoconfig=None ):
+    def __init__(self, mongodburl=None ):
         self.lock = threading.Lock()
         self.myglobal_list = {}
         self.build_image_counter = 0
@@ -51,8 +51,8 @@ class ODApps:
         self.databasename = 'applications'
         self.index_name = 'id' # id is the name of the image repoTags[0]
         self.image_collection_name = 'image'
-        if mongoconfig :
-            self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig, self.databasename)
+        if isinstance( mongodburl, str) :
+            self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl, self.databasename)
             self.init_collection( collection_name=self.image_collection_name )
 
     def init_collection( self, collection_name ):
@@ -182,16 +182,18 @@ class ODApps:
         return self.myglobal_list
 
     
-    def updatemap(self, mymap, app, attr):
+    def updatemap(self, mymap, app:dict, attr):
+        assert isinstance( app, dict), f"bad app type dict is expected {type(app)}"
         mylist = app.get(attr)
         image = app.get('id')
-        if image is None or not isinstance(mylist, list):
+        # safe test
+        if not image or not isinstance(mylist, list):
             return
 
         for e in mylist:
             oldapp = mymap.get(e)
             if oldapp is not None:
-                if app.get('usedefaultapplication'):
+                if app.get('usedefaultapplication') is True:
                     mymap[e] = image
             else:
                 mymap[e] = image
@@ -200,10 +202,10 @@ class ODApps:
     # Query image list
     # label label image
     # mymap is map the update
-    def buildmap(self, applist, attr ):
+    def buildmap(self, applist, attr )->dict:
         mymap = {}
-        for app in applist.keys():
-            self.updatemap(mymap, applist[app], attr)
+        for app in applist.values():
+            self.updatemap(mymap, app, attr)
         return mymap
 
     def labeltoList(self, mimetype, separator=';'):
@@ -293,10 +295,9 @@ class ODApps:
             try:
                 load_json = json.loads(data)
             except Exception as e:
-                self.logger.error( 'image:%s invalid label=%s, json format %s, skipping label', name, label, e)
-                self.logger.error( 'image:%s label=%s data=%s', name, label, data )
+                self.logger.error( f"json.loads failed image:{name} invalid label={label}, err={e}, skipping label type data={type(data)}")
         else:
-            self.logger.debug( f"image:{name} label:{label} type is not detected:{type(data)}" )
+            self.logger.debug( f"image:{name} label:{label} type is unknow:{type(data)}" )
         return load_json
 
     def safe_secrets_requirement_prefix( self, secrets_requirement, namespace ):
@@ -407,38 +408,17 @@ class ODApps:
             labels = json_image
 
         # read oc specific value
-        desktopfile = labels.get('oc.desktopfile')
         icon = labels.get('oc.icon')
         icondata = labels.get('oc.icondata')
-        keyword = labels.get('oc.keyword')
-        cat = labels.get('oc.cat')
         launch = labels.get('oc.launch')
-        home = labels.get('oc.home')
         name = labels.get('oc.name')
-        args = labels.get('oc.args')
-        containerengine = labels.get('oc.containerengine', 'ephemeral_container')
-        uniquerunkey = labels.get('oc.uniquerunkey')
-        showinview = labels.get('oc.showinview')
-        displayname = labels.get('oc.displayname')
-        mimetype = labels.get('oc.mimetype')
         path = labels.get('oc.path')
-        fileextensions = labels.get('oc.fileextensions')
-        legacyfileextensions = labels.get('oc.legacyfileextensions')
-        usedefaultapplication = labels.get('oc.usedefaultapplication')
-        execmode = labels.get('oc.execmode')
-        image_pull_policy = labels.get('image_pull_policy', 'IfNotPresent' )
-        image_pull_secrets = labels.get('image_pull_secrets')
-
-        try:
-            if isinstance(usedefaultapplication, str ):
-                usedefaultapplication = json.loads(usedefaultapplication)
-        except Exception:
-            pass
 
         # safe load convert json data json
-        rules = self.safe_load_label_json( imageid, labels, 'oc.rules',  default_value={} ) 
+        usedefaultapplication = self.safe_load_label_json( imageid, labels, 'oc.usedefaultapplication',  default_value=False )
+        rules = self.safe_load_label_json( imageid, labels, 'oc.rules', default_value={} ) 
+        acl   = self.safe_load_label_json( imageid, labels, 'oc.acl',   default_value={ "permit": [ "all" ] } )
         self.logger.debug( f"{name} has rules {rules}" )
-        acl   = self.safe_load_label_json( imageid, labels, 'oc.acl', default_value={ "permit": [ "all" ] } )
         secrets_requirement = self.safe_load_label_json( imageid, labels, 'oc.secrets_requirement' )
        
         if secrets_requirement is not None: 
@@ -454,10 +434,6 @@ class ODApps:
         if isinstance(path,str):
             executablefilename = os.path.basename(path)
 
-        mimelist = self.labeltoList(mimetype)
-        fileextensionslist = self.labeltoList(fileextensions)
-        legacyfileextensionslist = self.labeltoList(legacyfileextensions)
-
         # icon_url = None
         # check if icon file name exists and icon data is str
         if isinstance(icon, str) and isinstance(icondata, str):
@@ -467,35 +443,37 @@ class ODApps:
 
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
-                'home': home,
-                'cmd': cmd,
-                'sha_id': sha_id,
-                'id': imageid,
-                'rules' : rules,
-                'acl': acl,
-                'launch': launch,
-                'name': name,
-                'icon': icon,
-                'icondata' : icondata,
-                'keyword': keyword,
-                'uniquerunkey': uniquerunkey,
-                'cat': cat,
-                'args': args,
-                'execmode': execmode,
-                'showinview': showinview,
-                'displayname': displayname,
-                'mimetype': mimelist,
-                'path': path,
-                'desktopfile': desktopfile,
-                'executablefilename': executablefilename,
+                'cmd':          cmd,
+                'path':         path,
+                'sha_id':       sha_id,
+                'id':           imageid,
+                'rules' :       rules,
+                'acl':          acl,
+                'launch':       launch,
+                'name':         name,
+                'icon':         icon,
+                'icondata' :    icondata,
+                'keyword':      labels.get('oc.keyword'),
+                'uniquerunkey': labels.get('oc.uniquerunkey'),
+                'cat':          labels.get('oc.cat'),
+                'args':         labels.get('oc.args'),
+                'execmode':     labels.get('oc.execmode'),
+                'showinview':   labels.get('oc.showinview'),
+                'displayname':  labels.get('oc.displayname'),
+                'home':         labels.get('oc.home'),
+                'desktopfile':  labels.get('oc.desktopfile'),
+                'executeclassname':     labels.get('oc.executeclassname'),
+                'executablefilename':   executablefilename,
                 'usedefaultapplication': usedefaultapplication,
-                'fileextensions': fileextensionslist,
-                'legacyfileextensions': legacyfileextensionslist,
+                'mimetype':             self.labeltoList( labels.get('oc.mimetype') ),
+                'fileextensions':       self.labeltoList( labels.get('oc.fileextensions') ),
+                'legacyfileextensions': self.labeltoList( labels.get('oc.legacyfileextensions') ),
                 'secrets_requirement' : secrets_requirement,
-                'image_pull_policy' : image_pull_policy,
-                'image_pull_secrets': image_pull_secrets,
-                'containerengine': containerengine,
-                "securitycontext": securitycontext
+                'image_pull_policy' :   labels.get('image_pull_policy', 'IfNotPresent' ),
+                'image_pull_secrets':   labels.get('image_pull_secrets'),
+                'containerengine':      labels.get('oc.containerengine', 'ephemeral_container'),
+                'securitycontext':      securitycontext
+
             }
         else:
             self.logger.warning(f"skip application missing data sha_id={sha_id} launch={launch} name={name} icon={icon} imageid={imageid}")
@@ -607,23 +585,26 @@ class ODApps:
 
         # quick look up inside the applist
         # keyname should be the key of the userappdict most case
+        # for example keyname = 'abcdesktopio/2048-alpine.d:3.0'
         app = userappdict.get(keyname)
-        if app is not None: 
+        if isinstance(app, dict): 
             return app
 
+        # app is not found
         # look for in deep
         # look if name is the id or launch or executablefilename or path again
-        for keyapp in userappdict.keys():
-            app = userappdict[ keyapp ]
-            for n in ['name','launch','path','executablefilename']:
-                if app.get(n) == keyname :
-                    return app
+        for app in userappdict.values():
+            if isinstance( app, dict):
+                for n in ['name','launch','path','executablefilename']:
+                    if app.get(n) == keyname :
+                        return app
 
         app = None
         # image is not found try to find the app using the mimetype tagged as default 
         mimemap = self.buildmap(userappdict, 'mimetype' ) # build  mimemap
-        # if image is mimetype get the associated imageid from the mimetype
-        appid = mimemap.get(keyname)
-        if appid:
-            app = userappdict.get( appid )
+        # if keyname is mimetype get the associated imageid from the mimetype
+        application_key = mimemap.get(keyname)
+        if application_key:
+            app = userappdict.get( application_key )
+
         return app # can be None if not found
