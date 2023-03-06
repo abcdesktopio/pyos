@@ -66,6 +66,8 @@ class CoreController(BaseController):
             id = menuconfig
         elif provider == 'geolocation':    
             id = oc.od.settings.geolocation
+        elif provider == 'executeclasses':    
+            id = oc.od.settings.executeclasses.items()
         elif provider == 'tracker' :
             id = oc.od.tracker.jiraclient().isenable()
         elif provider == 'webrtc':
