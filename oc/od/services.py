@@ -92,7 +92,10 @@ class ODServices(object):
 
     def init_fail2ban( self ):
         import oc.od.fail2ban
-        self.fail2ban = oc.od.fail2ban.ODFail2ban( mongoconfig=settings.mongoconfig, fail2banconfig=settings.fail2banconfig )
+        self.fail2ban = oc.od.fail2ban.ODFail2ban( 
+            mongodburl=settings.mongodburl, 
+            fail2banconfig=settings.fail2banconfig 
+        )
         # self.fail2ban.test()
 
     def init_webrtc(self):
@@ -163,7 +166,7 @@ class ODServices(object):
     def init_datastore(self):
         self.logger.info('')
         import oc.datastore
-        self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongoconfig)
+        self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongodburl)
         
         '''
         replicaset_name = 'rs0'
@@ -212,7 +215,7 @@ class ODServices(object):
         self.logger.info('')
         import oc.od.apps 
         # Build applist cache data
-        self.apps = oc.od.apps.ODApps(mongoconfig=settings.mongoconfig)
+        self.apps = oc.od.apps.ODApps(mongodburl=settings.mongodburl)
         self.apps.cached_applist(bRefresh=True)
 
     def init_kuberneteswatcher( self ):
