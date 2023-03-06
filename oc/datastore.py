@@ -31,25 +31,11 @@ class ODDatastoreClient(object):
         raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'addtocollection'))
 
 @oc.logging.with_logger()
-class MongoClientConfig(object):
-    def __init__(self, hosturl):
-        # can be an url connection string mongodb://myDBReader:D1fficultP%40ssw0rd@mongodb0.example.com:27017/?authSource=admin
-        self.hosturl = hosturl    
-       
-    def __str__(self):
-        return self.hosturl
-
-    # def gethost(self):
-    #    urlconfig = urlparse(self.hosturl)
-    #    return urlconfig.hostname
-
-
-@oc.logging.with_logger()
 class ODMongoDatastoreClient(ODDatastoreClient):
 
-    def __init__(self, hosturl, databasename=None):
+    def __init__(self, mongodburl, databasename=None):
         self.databasename = databasename
-        self.hosturl = hosturl
+        self.mongodburl = mongodburl
          # Defaults to 20000 (20 seconds). 
         # set to 5000 (5 seconds). 
         # self.connectTimeoutMS = 3000  
@@ -62,13 +48,13 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         self.index_name = 'kind'
 
     def createhosturl( self, databasename ):
-        return f"{self.hosturl}/?authSource={databasename}"
+        return f"{self.mongodburl}/{databasename}?authSource=admin"
 
     def createclient(self, databasename):
         self.logger.debug( f"databasename={databasename}")
         # hosturl = self.createhosturl( databasename )
         # self.logger.debug( f"hosturl={hosturl}")
-        hosturl = self.hosturl
+        hosturl = self.createhosturl( databasename )
         self.logger.debug( f"createclient MongoClient {hosturl}")
         mongo_client = MongoClient(host=hosturl)
         # connectTimeoutMS=self.connectTimeoutMS, 
