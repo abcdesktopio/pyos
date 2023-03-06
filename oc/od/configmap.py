@@ -83,7 +83,6 @@ class ODConfigMap():
         self.access_type='auth'
         self.configmap_type = namespace + '/' + configmap_type
         self.normalize_name_configmap_type = configmap_type.replace( '/', '-')
-        self.immutable = False
         if type(prefix) is str:
             self.prefix = '-' + prefix
         else:
@@ -119,7 +118,7 @@ class ODConfigMap():
         myconfigmapname = self.get_name( userinfo )
         labels_dict = { 'access_provider':  authinfo.provider, 'access_userid': userinfo.userid, 'access_type': self.access_type }
         metadata = client.V1ObjectMeta( name=myconfigmapname, labels=labels_dict, namespace=self.namespace )  
-        myconfigmap = client.V1ConfigMap( data=myauth_dict_configmap, metadata=metadata, immutable=True )         
+        myconfigmap = client.V1ConfigMap( data=myauth_dict_configmap, metadata=metadata )         
         created_configmap = self.kubeapi.create_namespaced_config_map( namespace=self.namespace, body=myconfigmap)
         self.logger.info( 'new configmap name %s created', myconfigmapname )
         return  created_configmap
