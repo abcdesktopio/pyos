@@ -66,9 +66,10 @@ class ODMongoDatastoreClient(ODDatastoreClient):
 
     def createclient(self, databasename):
         self.logger.debug( f"databasename={databasename}")
-        hosturl = self.createhosturl( databasename )
-        self.logger.debug( f"hosturl={hosturl}")
-        # self.logger.debug( f"createclient MongoClient {hosturl}")
+        # hosturl = self.createhosturl( databasename )
+        # self.logger.debug( f"hosturl={hosturl}")
+        hosturl = self.hosturl
+        self.logger.debug( f"createclient MongoClient {hosturl}")
         mongo_client = MongoClient(host=hosturl)
         # connectTimeoutMS=self.connectTimeoutMS, 
         # socketTimeoutMS=self.socketTimeoutMS, 
