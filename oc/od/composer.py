@@ -501,6 +501,10 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     # copy a env dict from configuration file
     env = oc.od.settings.desktop['environmentlocal'].copy()
 
+    for key in authinfo.data.get('labels').keys():
+        if isinstance( oc.od.settings.desktop['environmentlocalrules'].get( key ), dict ):
+            env.update( oc.od.settings.desktop['environmentlocalrules'].get( key ) )
+
     locale = userinfo['locale']
     language = locale
     lang = locale + '.UTF-8'
