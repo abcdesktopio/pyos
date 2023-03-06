@@ -1,3 +1,4 @@
+from distutils.util import execute
 import os
 import socket
 import sys
@@ -28,7 +29,7 @@ gconfig = {}	    # use for global config
 # Default namespace used by kubernetes is abcdesktop
 namespace = 'abcdesktop' 
 
-mongoconfig = None  # Mongodb config Object Class
+mongodburl = None  # Mongodb config Object Class
 fail2banconfig = None # Fail2ban config 
 
 authmanagers = {}  # auth manager dict 
@@ -36,6 +37,9 @@ controllers  = {}  # controllers dict
 menuconfig   = {}  # default menu config
 geolocation  = None  # default geolocation 
 fakedns      = {}
+
+executeclasses = {}
+executeclassesmap = {}
 
 # User balloon define
 # Balloon is the default user used inside container
@@ -49,7 +53,7 @@ balloon_password  = 'lmdpocpetit'   # default password
 
 developer_instance = False          # developer specific params
 
-DEFAULT_SHM_SIZE = '64M' # default size of shared memeory
+DEFAULT_SHM_SIZE = '64M' # default size of shared memeory 
 
 memconnectionstring = None  # memcache connection syting format 'server:port'
 services_http_request_denied = {} # deny http request 
@@ -301,7 +305,6 @@ def init_desktop():
     desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
     desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt')
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim' )
-    desktop['nodeselector']             = gconfig.get('desktop.nodeselector')    
     desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
     desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
     desktop['useinternalfqdn']          = gconfig.get('desktop.useinternalfqdn', False ) 
@@ -317,6 +320,12 @@ def init_desktop():
             'UBUNTU_MENUPROXY'      : '0',
             'X11LISTEN'             : 'tcp' } 
     )
+
+    # add default env local rules vars if not set 
+    desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
+    # environmentlocalrules must be a dict 
+    if not isinstance( desktop['environmentlocalrules'], dict ):
+        desktop['environmentlocalrules'] = {}   
 
     init_balloon()
 
@@ -391,9 +400,9 @@ def init_config_memcached():
     logger.info( f"memcached connection string is set to {memconnectionstring}")
 
 
-def get_mongoconfig():
-    """get_mongoconfig
-        get mongoconfigurl from env
+def get_mongodburl():
+    """mongodburl
+        get get_mongodburl from env
                 - MONGODB_URL
             or from config file
                 - config('mongodburl')
@@ -414,7 +423,7 @@ def get_mongoconfig():
 
     logger.info(f"host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
     logger.info(f"mongodburl is set to {mongodburl}")
-    return oc.datastore.MongoClientConfig( mongodburl )
+    return mongodburl
 
 
 def init_controllers():
@@ -475,9 +484,9 @@ def init_controllers():
 def init_config_mongodb():
     """init mongodb config
     """
-    global mongoconfig
-    mongoconfig = get_mongoconfig()
-    logger.info(f"MongoDB config: {mongoconfig}")
+    global mongodburl
+    mongodburl =get_mongodburl()
+    logger.info(f"MongoDB url: {mongodburl}")
 
 
 def init_config_fail2ban():
@@ -597,6 +606,28 @@ def init_dock():
         # logger.info("default user dock %s ", str( dock ))
 
 
+def init_executeclass():
+    global executeclasses
+    global executeclassesmap 
+    # no limits
+    default_executeclass =  {
+        'nodeSelector' : None,
+        'resources': None
+    }
+    executeclasses = gconfig.get('executeclasses', {} )
+    if not isinstance( executeclasses.get('default'), dict ):
+        executeclasses['default'] = default_executeclass
+
+    executeclassesmap = gconfig.get('executeclassesmap', {} )
+    if not isinstance( executeclassesmap.get('default'), dict ):
+        executeclassesmap['default'] = { 'executeclassname' : 'default' }
+
+def get_default_executeclass():
+    default_executeclassname = executeclassesmap.get('default',{}).get('executeclassname')
+    executeclass = executeclasses.get(default_executeclassname)
+    return executeclass
+
+
 def get_default_appdict():
     return dock
 
@@ -629,6 +660,9 @@ def init():
     # if developer_instance is set to True then pyos is not supposed to run inside kubernetes pod 
     global developer_instance
     developer_instance =  gconfig.get('developer_instance', False )
+
+    # load execute classes
+    init_executeclass()
 
     # load default menu config
     init_menuconfig()
