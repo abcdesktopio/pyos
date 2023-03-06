@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODFail2ban:
 
-    def __init__(self, mongoconfig, fail2banconfig={}):
+    def __init__(self, mongodburl, fail2banconfig={}):
         self.databasename = 'fail2ban'
         self.ip_collection_name = 'ipaddr'
         self.login_collection_name = 'login'
@@ -16,7 +16,7 @@ class ODFail2ban:
         self.failmaxvaluebeforeban = fail2banconfig.get('failsbeforeban', 5 ) # specify a positive non-zero value 
         self.banexpireAfterSeconds = fail2banconfig.get('banexpireafterseconds', 30*60 )
         self.protectedNetworks    = fail2banconfig.get('protectednetworks', [] )
-        self.datastore = oc.datastore.ODMongoDatastoreClient(mongoconfig,  self.databasename)
+        self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl,  self.databasename)
         self.collections_name = [ self.ip_collection_name, self.login_collection_name ]
         self.sanity_filter = {  
             self.ip_collection_name:"0123456789.", 
@@ -49,7 +49,7 @@ class ODFail2ban:
 
     def init_collection( self, collection_name ):
         self.logger.debug(f"{self.databasename} {collection_name}")
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename ) 
+        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore, self.databasename ) 
         db = mongo_client[self.databasename]
         col = db[collection_name]
         try:
