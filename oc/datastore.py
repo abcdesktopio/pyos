@@ -49,7 +49,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         self.index_name = 'kind'
 
     def createhosturl( self, databasename ):
-        return f"{self.mongodburl}/{databasename}?authSource={self.authenticationDatabase}"
+        return f"{self.mongodburl}/{databasename}?authSource={databasename}"
 
     def createclient(self, databasename):
         self.logger.debug( f"databasename={databasename}")
