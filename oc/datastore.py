@@ -34,6 +34,7 @@ class ODDatastoreClient(object):
 class ODMongoDatastoreClient(ODDatastoreClient):
 
     def __init__(self, mongodburl, databasename=None):
+        self.authenticationDatabase = 'admin'
         self.databasename = databasename
         self.mongodburl = mongodburl
          # Defaults to 20000 (20 seconds). 
@@ -48,7 +49,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         self.index_name = 'kind'
 
     def createhosturl( self, databasename ):
-        return f"{self.mongodburl}/{databasename}?authSource={databasename}"
+        return f"{self.mongodburl}/{databasename}?authSource={self.authenticationDatabase}"
 
     def createclient(self, databasename):
         self.logger.debug( f"databasename={databasename}")
