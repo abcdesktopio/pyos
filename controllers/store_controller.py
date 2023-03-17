@@ -71,7 +71,7 @@ class StoreController(BaseController):
         if all([userid, key]):
             value = self.wrapped_get(userid, key)
         if value is None:
-            raise cherrypy.HTTPError( status=400, message=f"value not found: userid={userid} key={key}")
+            raise cherrypy.HTTPError( status=404, message=f"value not found: userid={userid} key={key}")
         
         return Results.success(result=value)
 
