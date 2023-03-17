@@ -3003,7 +3003,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )  
 
             initContainers.append( {    'name':             self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy', 'IfNotPresent'),
                                         'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                         'image':            image,       
                                         'command':          oc.od.settings.desktop_pod[currentcontainertype].get('command'),
@@ -3063,7 +3063,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': oc.od.settings.desktop.get('nodeselector'), 
                 'initContainers': initContainers,
-                'containers': [ {   'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                'containers': [ {   'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
                                     'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
@@ -3095,7 +3095,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
                 pod_manifest['spec']['containers'].append( { 
                         'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                        'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
                         'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                         'image': image,                                    
                         'env': envlist,
@@ -3113,7 +3113,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
                                     'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,                                    
                                     'env': envlist,
@@ -3143,7 +3143,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
                                     'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,                                  
                                     'env': envlist,
@@ -3160,7 +3160,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
                                     'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image,                                 
                                     'env': envlist,
@@ -3177,7 +3177,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             pod_manifest['spec']['containers'].append( { 
                                     'name': self.get_containername( currentcontainertype, userinfo.userid, myuuid ),
-                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                                    'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
                                     'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                                     'image': image, 
                                     'securityContext': oc.od.settings.desktop_pod[currentcontainertype].get('securityContext'),                                
