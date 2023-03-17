@@ -2684,7 +2684,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             initcontainer = {
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
-                'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
+                'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
                 'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image': image,       
                 'command': command,
