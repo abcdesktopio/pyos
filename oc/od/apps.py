@@ -387,7 +387,8 @@ class ODApps:
             # this is a docker image format
             inspect_dict = json_image.get('Config')
         else:
-            inspect_dict = json_image
+            # this is a crictl inspecti
+            inspect_dict = json_image.get('info',{}).get('imageSpec',{}).get('config')
 
         # read the CMD with fallback for compatibiliy with old version release
         cmd = inspect_dict.get('Cmd', '/composer/appli-dockerentrypoint.sh' )
