@@ -42,5 +42,13 @@ messagebus:x:102:
 ssl-cert:x:103:
 pulse:x:104:
 pulse-access:x:105:
+plocate:x:106:
+input:x:107:
+sgx:x:108:
+kvm:x:109:
+render:x:110:
+balloon:x:4096:
+nogroup:x:65534:
+render:x:110:
 ssh:x:4095:
 {{ gid }}:x:{{ gidNumber }}:
