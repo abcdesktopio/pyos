@@ -532,10 +532,10 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     #                  'ACCEPTCUTTEXT': 'disabled'
     #  }
     # 
-    # for key in authinfo.data.get('labels').keys():
-    #    if isinstance( oc.od.settings.desktop['environmentlocalrules'].get( key ), dict ):
-    #        env.update( oc.od.settings.desktop['environmentlocalrules'].get( key ) )
-    #
+    
+    for key in authinfo.data.get('labels').keys():
+        if isinstance( oc.od.settings.desktop['environmentlocalrules'].get( key ), dict ):
+            env.update( oc.od.settings.desktop['environmentlocalrules'].get( key ) )
 
     locale = userinfo['locale']
     language = locale
