@@ -2023,6 +2023,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def removePodSync(self, authinfo, userinfo, myPod=None ):
         self.logger.debug('')
+        
         # get the user's pod
         if not isinstance(myPod, client.models.v1_pod.V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
@@ -2030,6 +2031,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         nTry = 0
         nMaxTry = 42
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
+            self.logger.info( f"removedesktop removePodSync {myPod.metadata.name} for {authinfo.provider} {userinfo.userid}" )
             deletedPod = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
             if isinstance(deletedPod, client.models.v1_pod.V1Pod ):
                 while nTry<nMaxTry:
@@ -2075,6 +2077,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if isinstance(myPod, client.models.v1_pod.V1Pod ):
             # deletedpod = self.removePod( myPod )
+            self.logger.info( f"removedesktop for {authinfo.provider} {userinfo.userid}" )
             deletedpod = self.removePodSync( authinfo, userinfo, myPod )
             if deletedpod is True:
                 # if isinstance(deletedpod,client.models.v1_pod.V1Pod) :
