@@ -355,7 +355,11 @@ class ODApps:
         run_inside_pod = labels.get('oc.run_inside_pod', False)
 
         if usedefaultapplication is not None:
-            usedefaultapplication = json.loads(usedefaultapplication)
+            try:
+                if isinstance(usedefaultapplication, str ):
+                    usedefaultapplication = json.loads(usedefaultapplication)
+            except Exception:
+                pass
 
         # safe load convert json data json
         rules = safe_load_label_json( imageid, labels, 'oc.rules' )
