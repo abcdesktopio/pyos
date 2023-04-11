@@ -3600,11 +3600,11 @@ class ODAppInstanceBase(object):
         executeclassname = app.get('executeclassname')
         if isinstance( executeclassname, str ):
             class_resources = oc.od.settings.executeclasses.get(executeclassname,{}).get('resources') 
-            if isinstance( class_resources, {} ):
+            if isinstance( class_resources, dict ):
                 resources.update( class_resources )
 
         app_resources = app.get('resources')
-        if isinstance( app_resources, {} ):
+        if isinstance( app_resources, dict ):
             resources.update( app_resources )
 
         return resources
