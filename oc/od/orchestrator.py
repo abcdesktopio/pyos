@@ -1496,6 +1496,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         deletedpod = False # default value 
         self.logger.debug('')
+        self.logger.info( f"removedesktop for {authinfo.provider} {userinfo.userid}" )
 
         # get the user's pod
         if not isinstance(myPod, V1Pod ):
