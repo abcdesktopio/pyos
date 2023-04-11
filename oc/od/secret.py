@@ -253,7 +253,7 @@ class ODSecretVNC( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='vnc' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='vnc'
-        self.immutable = True
+        self.immutable = False
 
 class ODSecretCitrix( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
