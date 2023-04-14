@@ -2465,23 +2465,37 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             ownerReferences.append( ownerReference )
         return ownerReferences   
 
-    def get_executeclasse( self, authinfo:AuthInfo, userinfo:AuthUser, executeclassname:str)->dict:
+    def get_executeclasse( self, authinfo:AuthInfo, userinfo:AuthUser, executeclassname:str=None)->dict:
+        """get_executeclasse
+
+            return a dict like { 
+                'nodeSelector':None, 
+                'resources':{
+                'requests':{'memory':"256Mi",'cpu':"100m"},
+                'limits':  {'memory':"1Gi",'cpu':"1000m"} 
+            } 
+
+
+        Args:
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
+            executeclassname (str, optional): name of the executeclass. Defaults to None.
+
+        Returns:
+            dict: dict executeclasse
+        """
         self.logger.debug('')
         executeclass = None
+        
         if isinstance( executeclassname, str ):
             executeclass = oc.od.settings.executeclasses.get(executeclassname)
+
         if not isinstance( executeclass, dict ):
-            for tagtuple in authinfo.get_labels().items():
-                tag = tagtuple[0]
-                if oc.od.settings.executeclassesmap.get(tag):
-                    tagexecuteclassename = oc.od.settings.executeclassesmap.get(tag,{}).get('executeclassname')
-                    if tagexecuteclassename:
-                        tagexecuteclasse =  oc.od.settings.executeclasses.get(tagexecuteclassename)
-                        if isinstance(tagexecuteclasse, dict):
-                            executeclass = tagexecuteclasse
-                            break
-        if not isinstance( executeclass, dict ):
-            executeclass = oc.od.settings.get_default_executeclass()
+            tagexecuteclassname = authinfo.get_labels().get('executeclassname','default')
+            if isinstance( tagexecuteclassname, str ) and \
+               isinstance( oc.od.settings.executeclasses.get(tagexecuteclassname), dict) :
+                    executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname)
+        
         #
         self.logger.debug(f"executeclass={executeclass}")
         return executeclass
@@ -2489,14 +2503,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def get_resources( self, currentcontainertype:str, executeclass:dict )->dict:
         self.logger.debug('')
-        resources = {}
-        executeclass_ressources = executeclass.get('resources')
-        if isinstance( executeclass_ressources, dict ):
-            resources.update(executeclass_ressources)
+        resources = {} # resource is a always a dict 
         currentcontainertype_ressources = oc.od.settings.desktop_pod[currentcontainertype].get('resources')
         if isinstance( currentcontainertype_ressources, dict ):
             resources.update(currentcontainertype_ressources)
-        self.logger.debug(f"resources={resources}")
+
+        executeclass_ressources = executeclass.get('resources')
+        if isinstance( executeclass_ressources, dict ):
+            resources.update(executeclass_ressources)
+ 
+        self.logger.debug(f" get_resources return {resources}")
         return resources
 
 
@@ -2522,7 +2538,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None # default return object
         env      = kwargs.get('env', {} )
 
-        executeclasse = self.get_executeclasse( authinfo, userinfo, kwargs.get('excuteclassename') )
+        # get the execute class if user has a executeclassname tag
+        executeclasse = self.get_executeclasse( authinfo, userinfo )
 
         # add a new VNC Password to env var
         self.logger.debug(' vnc kubernetes secret checking')
@@ -3505,6 +3522,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 class ODAppInstanceBase(object):
     def __init__(self,orchestrator):
         self.orchestrator = orchestrator
+        self.type=None # default value overwrited by class instance 
+        self.executeclassename='default' # default value overwrited by class instance 
 
     def findRunningAppInstanceforUserandImage( self, authinfo, userinfo, app):
         raise NotImplementedError('%s.build_volumes' % type(self))
@@ -3527,7 +3546,6 @@ class ODAppInstanceBase(object):
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
 
-
         posixuser = self.orchestrator.alwaysgetPosixAccountUser( authinfo, userinfo )
 
         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist
@@ -3546,6 +3564,7 @@ class ODAppInstanceBase(object):
         env['HOME'] = posixuser.get('homeDirectory')
         env['LOGNAME'] = posixuser.get('uid')
         env['USER'] = posixuser.get('uid')
+        env['ABCDESKTOP_EXECUTECLASS_RUNTIME'] = self.type
     
         #
         # update env with cuurent http request user LANG values
@@ -3585,6 +3604,9 @@ class ODAppInstanceBase(object):
         return envlist
 
     def get_securitycontext(self, authinfo:AuthInfo, userinfo:AuthUser, app:dict  ):
+        assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
+        assert isinstance(app,  dict),             f"desktop has invalid type  {type(app)}"
         securitycontext = {}
         user_securitycontext = self.orchestrator.updateSecurityContextWithUserInfo( self.type, authinfo, userinfo )
         app_securitycontext = app.get('securitycontext',{}) or {} 
@@ -3593,19 +3615,16 @@ class ODAppInstanceBase(object):
         return securitycontext
 
     def get_resources( self, authinfo:AuthInfo, userinfo:AuthUser, app:dict ):
-        resources = {}
-        default_config_resources = oc.od.settings.desktop_pod[self.type].get('resources', {}) or {}
-        resources.update( default_config_resources )
-
-        executeclassname = app.get('executeclassname')
-        if isinstance( executeclassname, str ):
-            class_resources = oc.od.settings.executeclasses.get(executeclassname,{}).get('resources') 
-            if isinstance( class_resources, dict ):
-                resources.update( class_resources )
-
-        app_resources = app.get('resources')
-        if isinstance( app_resources, dict ):
-            resources.update( app_resources )
+        assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
+        assert isinstance(app,        dict),       f"desktop has invalid type  {type(app)}"
+       
+        executeclassname =  app.get('executeclassname')
+        self.logger.debug( f"app name={app.get('name')} has executeclassname={executeclassname}")
+        executeclass = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
+        self.logger.debug( f"executeclass={executeclass}")
+        resources = self.orchestrator.get_resources( self.type, executeclass )
+        self.logger.debug( f"resources={resources}")
 
         return resources
 
