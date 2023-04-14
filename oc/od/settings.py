@@ -39,7 +39,11 @@ geolocation  = None  # default geolocation
 fakedns      = {}
 
 executeclasses = {}
-executeclassesmap = {}
+# no limits
+default_executeclass =  {
+        'nodeSelector' : None,
+        'resources': None
+}
 
 # User balloon define
 # Balloon is the default user used inside container
@@ -608,24 +612,12 @@ def init_dock():
 
 def init_executeclass():
     global executeclasses
-    global executeclassesmap 
-    # no limits
-    default_executeclass =  {
-        'nodeSelector' : None,
-        'resources': None
-    }
+
     executeclasses = gconfig.get('executeclasses', {} )
     if not isinstance( executeclasses.get('default'), dict ):
+        logger.error('something wrong in the config file no default executeclass has been defined ')
+        logger.error('fixing default execute class {default_executeclass}')
         executeclasses['default'] = default_executeclass
-
-    executeclassesmap = gconfig.get('executeclassesmap', {} )
-    if not isinstance( executeclassesmap.get('default'), dict ):
-        executeclassesmap['default'] = { 'executeclassname' : 'default' }
-
-def get_default_executeclass():
-    default_executeclassname = executeclassesmap.get('default',{}).get('executeclassname')
-    executeclass = executeclasses.get(default_executeclassname)
-    return executeclass
 
 
 def get_default_appdict():
