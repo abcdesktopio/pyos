@@ -911,6 +911,9 @@ class ODOrchestrator(ODOrchestratorBase):
         if homedir_enabled:
             volume_filter.append( oc.od.settings.balloon_homedirectory )
 
+        if oc.od.settings.desktophostconfig.get('shm_size'):
+            volume_filter.append( '/dev/shm' )
+
         if isinstance( app.get('secrets_requirement'), list ):
             for secret in app.get('secrets_requirement'):
                 volume_filter.append( oc.od.settings.desktop['secretsrootdirectory'] + secret )
@@ -1717,8 +1720,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # shm volume is shared between all container inside the desktop pod
         # 
-        if volume_type in [ 'pod_desktop', 'container_desktop' ] \
-            and oc.od.settings.desktophostconfig.get('shm_size'):
+        if volume_type in [ 'pod_desktop', 'container_desktop' ] and oc.od.settings.desktophostconfig.get('shm_size'):
                 # set shm memory volume
                 self.logger.debug( f"adding volume ['shm'] to {volume_type}" )
                 volumes['shm']       = self.default_volumes['shm']
