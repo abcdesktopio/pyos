@@ -908,10 +908,11 @@ class ODOrchestrator(ODOrchestratorBase):
         storage_container = infra.getcontainer( storage_container_id ) if storage_container_id else desktop
 
         volume_filter = [ '/tmp' ]
-        if homedir_enabled:
+        # add home volume if enabled
+        if homedir_enabled: 
             volume_filter.append( oc.od.settings.balloon_homedirectory )
-
-        if oc.od.settings.desktophostconfig.get('shm_size'):
+        # add /dev/shm volume if shm_size is set in desktophostconfig 
+        if oc.od.settings.desktophostconfig.get('shm_size'):  
             volume_filter.append( '/dev/shm' )
 
         if isinstance( app.get('secrets_requirement'), list ):
