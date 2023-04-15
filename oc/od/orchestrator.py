@@ -13,6 +13,7 @@
 #
 
 import logging
+import resource
 import oc.logging
 from oc.od.apps import ODApps
 import oc.od.error
@@ -46,6 +47,8 @@ from kubernetes.client.models.v1_pod_status import V1PodStatus
 # from kubernetes.client.models.v1_container import V1Container
 from kubernetes.client.models.v1_ephemeral_container import V1EphemeralContainer
 from kubernetes.client.models.v1_status import V1Status
+from kubernetes.client.models.v1_container import V1Container
+
 # kubernetes.client.models.v1_container
 from kubernetes.client.models.v1_container_status import V1ContainerStatus
 from kubernetes.client.models.v1_container_state import V1ContainerState
@@ -77,6 +80,7 @@ from kubernetes.client.models.v1_endpoint_subset import V1EndpointSubset
 from kubernetes.client.models.core_v1_endpoint_port import CoreV1EndpointPort
 from kubernetes.client.models.v1_endpoint_address import V1EndpointAddress
 from kubernetes.client.models.v1_object_meta import V1ObjectMeta
+from kubernetes.client.models.v1_resource_requirements import V1ResourceRequirements
 
 from kubernetes.client.models.v1_delete_options import V1DeleteOptions
 
@@ -1240,8 +1244,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # shm volume is shared between all container inside the desktop pod
         #
-        if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ]: 
-        #    if kwargs.get('shareProcessMemory') is True:
+        if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ]:
             volumes['shm']       = self.default_volumes['shm']
             volumes_mount['shm'] = self.default_volumes_mount['shm']
 
@@ -2515,7 +2518,30 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f" get_resources return {resources}")
         return resources
 
+    def read_pod_resources( self, pod_name:str)->dict:
+        """read_pod_resources 
+            read resource of graphicalcontainer container
 
+        Args:
+            pod_name (str): name of pod
+
+        Returns:
+            dict: resource of graphicalcontainer container, None if failed
+            example {'limits': {'cpu': '1200m', 'memory': '6Gi'}, 'requests': {'cpu': '300m', 'memory': '56Mi'}}
+        """
+        resources=None
+        # read pod 
+        self.logger.debug('read_namespaced_pod creating' )  
+        try:
+            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+            if isinstance(myPod, V1Pod ):
+                c = self.getcontainerSpecfromPod( self.graphicalcontainernameprefix, myPod )
+                if isinstance( c, V1Container ) and isinstance( c.resources, V1ResourceRequirements ):
+                    resources = c.resources.to_dict()
+        except ApiException as e:
+            pass
+
+        return resources
 
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)->ODDesktop:
         """createdesktop
@@ -3224,6 +3250,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         return c
         return None
 
+    def getcontainerSpecfromPod( self,  prefix:str, pod:V1Pod ) -> V1Container:
+        """getcontainerfromPod
+            return the v1_container_status of a container inside a pod
+
+        Args:
+            prefix (str): container prefix
+            pod (V1Pod): pod
+
+        Returns:
+            V1ContainerStatus: return v1_container_status, None if unreadable
+        """
+        assert isinstance(prefix,str), f"prefix invalid type {type(prefix)}"
+        assert isinstance(pod,V1Pod) , f"pod invalid type {type(pod)}"
+        # get the container id for the desktop object
+        if isinstance( pod.spec.containers, list):
+            for c in pod.spec.containers:
+                if hasattr( c, 'name') and c.name[0] == prefix:
+                    return c
+        return None
+
     def build_internalPodFQDN( self, myPod: V1Pod )->str:
         """build_internalPodFQDN
 
@@ -3564,7 +3610,6 @@ class ODAppInstanceBase(object):
         env['HOME'] = posixuser.get('homeDirectory')
         env['LOGNAME'] = posixuser.get('uid')
         env['USER'] = posixuser.get('uid')
-        env['ABCDESKTOP_EXECUTECLASS_RUNTIME'] = self.type
     
         #
         # update env with cuurent http request user LANG values
@@ -3853,6 +3898,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return result
 
 
+
     def create(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
         self.logger.debug('')
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
@@ -3860,9 +3906,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         self.logger.debug("create {self.type} getting shareProcessNamespace and shareProcessMemory options from desktop config")
         shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
-        kwargs['shareProcessNamespace'] = shareProcessNamespace
         shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
-        kwargs['shareProcessMemory'] = shareProcessMemory
         self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
 
         _app_container_name = app['name'] + '_' +  oc.lib.uuid_digits()
@@ -3875,9 +3919,15 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         rules.update( apprules )
 
         self.logger.debug( f"reading pod desktop desktop={myDesktop.id} app_container_name={app_container_name}")
-        envlist = self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
 
-        (_volumebind, volumeMounts) = self.orchestrator.build_volumes( 
+        # resources = self.get_resources( authinfo, userinfo, app )
+        envlist = self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
+        # add EXECUTION CONTEXT env var inside the container
+        envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RUNTIME',   'value': self.type} )
+        resources = self.orchestrator.read_pod_resources(myDesktop.name)
+        envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RESOURCES', 'value': json.dumps(resources) } )
+
+        (volumeBinds, volumeMounts) = self.orchestrator.build_volumes( 
             authinfo,
             userinfo,
             volume_type=self.type,
@@ -3885,11 +3935,11 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             rules=rules,
             **kwargs
         )
-
+        list_volumeBinds = list( volumeBinds.values() )
         list_volumeMounts = list( volumeMounts.values() )
-        self.logger.debug( f"list volume pod desktop {list_volumeMounts}")
+        self.logger.debug( f"list volume binds pod desktop {list_volumeBinds}")
+        self.logger.debug( f"list volume mounts pod desktop {list_volumeMounts}")
 
- 
         workingDir = self.orchestrator.get_user_homedirectory( authinfo, userinfo )
         self.logger.debug( f"user workingDir={workingDir}")
 
@@ -3904,6 +3954,11 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # "field":"spec.ephemeralContainers[8].volumeMounts[0].subPath"}]},
         # "code":422}
         securitycontext = self.get_securitycontext( authinfo, userinfo, app )
+
+        # apply network rules
+        # network_config = self.applyappinstancerules_network( authinfo, rules )
+        # apply homedir rules
+        # homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
         
         # Fix python kubernetes
         # Ephemeral container not added to pod #1859
@@ -4072,9 +4127,12 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         """
         assert isinstance(app, dict),  f"app has invalid type {type(app)}"
         nodeSelector = {}
-        executeclass = self.orchestrator.get_executeclasse( authinfo, userinfo, app.get('executeclassename') )
+        executeclassname =  app.get('executeclassname')
+        self.logger.debug( f"app name={app.get('name')} has executeclassname={executeclassname}")
+        executeclass = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
         executeclass_nodeSelector = executeclass.get('nodeSelector',{}) or {}
         nodeSelector.update(executeclass_nodeSelector)
+        self.logger.debug( f"nodeSelector for name={app.get('name')} is nodeSelector={nodeSelector}")
         return nodeSelector
 
     def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps=None ):
@@ -4294,7 +4352,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         network_config = self.orchestrator.applyappinstancerules_network( authinfo, rules )
 
-        (volumebind, volumeMounts) = self.orchestrator.build_volumes(   
+        (volumeBinds, volumeMounts) = self.orchestrator.build_volumes(   
             authinfo,
             userinfo,
             volume_type='pod_application',
@@ -4302,22 +4360,16 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             rules=rules,
             **kwargs)
 
-        list_volumes = list( volumebind.values() )
+        list_volumeBinds = list( volumeBinds.values() )
         list_volumeMounts = list( volumeMounts.values() )
-        self.logger.info( 'volumes=%s', volumebind.values() )
-        self.logger.info( 'volumeMounts=%s', volumeMounts.values() )
+        self.logger.debug( f"list volume binds pod desktop {list_volumeBinds}")
+        self.logger.debug( f"list volume mounts pod desktop {list_volumeMounts}")
 
         # apply network rules
         # network_config = self.applyappinstancerules_network( authinfo, rules )
         # apply homedir rules
         # homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
-        envlist = self.get_env_for_appinstance( 
-            myDesktop, 
-            app, 
-            authinfo, 
-            userinfo, 
-            userargs, 
-            **kwargs )
+        envlist = self.get_env_for_appinstance( myDesktop, app, authinfo, userinfo, userargs, **kwargs )
 
         command = [ '/composer/appli-docker-entrypoint.sh' ]
         labels = {  
@@ -4348,6 +4400,11 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         resources = self.get_resources( authinfo, userinfo, app )
         affinity = self.get_affinity( authinfo, userinfo, app, myDesktop )
 
+        # update envlist
+        # add EXECUTION CONTEXT env var inside the container
+        envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RUNTIME',   'value': self.type} )
+        envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RESOURCES', 'value': json.dumps(resources) } )
+
         pod_manifest = {
             'apiVersion': 'v1',
             'kind': 'Pod',
@@ -4362,7 +4419,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'securityContext': securitycontext,
                 'affinity': affinity,
                 'automountServiceAccountToken': False,  # disable service account inside pod
-                'volumes': list_volumes,
+                'volumes': list_volumeBinds,
                 'nodeSelector': nodeSelector,
                 'containers': [ {   
                     'imagePullSecrets': oc.od.settings.desktop_pod[self.type].get('imagePullSecrets'),
@@ -4383,6 +4440,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid create_namespaced_pod type')
+
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
         fillednetworkconfig = self.orchestrator.filldictcontextvalue(   
