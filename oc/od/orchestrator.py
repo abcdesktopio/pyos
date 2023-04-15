@@ -13,7 +13,6 @@
 #
 
 import logging
-import resource
 import oc.logging
 from oc.od.apps import ODApps
 import oc.od.error
