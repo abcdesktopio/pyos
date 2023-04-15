@@ -513,16 +513,6 @@ desktop.allowPrivilegeEscalation: False
 desktop.defaultbackgroundcolors : [ '#6EC6F0', '#333333', '#666666', '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6' ]
 
 
-# desktop.nodeselector
-# Value None or dict 
-# This option permits to assign user pods to nodes
-# It specifies a map of key-value pairs. 
-# For the pod to be eligible to run on a node, 
-# the node must have each of the indicated key-value pairs as labels (it can have additional labels as well). 
-# The most common usage is one key-value pair.
-# { 'disktype': 'ssd' }
-# desktop.nodeselector: None
-
 # desktop.imagePullSecret
 # The desktop.imagePullSecret is the name of the secret used by Kubernetes to access to the private registry. 
 # The type of desktop.imagePullSecret is a string. 
