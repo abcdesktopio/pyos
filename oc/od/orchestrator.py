@@ -2135,14 +2135,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if len(listnode.items) < 1:
                 self.logger.error( f"nodeSelector={label_selector} return empty list" )
             for node in listnode.items :
+                self.logger.debug( f"pulling image on node={node}")
                 self.pullimage( app, node.metadata.name )
         else:
-            self.logger.error(
-                f"Can not get list of node. V1NodeList Error in config file \n\
-                desktop.nodeselector={label_selector} is wrong"
-            )
+            self.logger.error( f"Can not get list of nodes. V1NodeList Error in config file desktop.nodeselector={label_selector} is wrong" )
 
     def pullimage(self, app:dict, nodename:str )->V1Pod:
+        self.logger.debug('')
         self.logger.info(f"pull by creating pod image={app['name']} on nodename={nodename}")
         self.logger.info(f"app unique id {app.get('_id')}")
         h = hashlib.new('sha256')
@@ -2199,11 +2198,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             }
         }
 
+        self.logger.debug( f"pulimage create pod {pod_manifest}")
+
         pod = None
         try:
             pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
             if isinstance(pod, V1Pod ):
                 self.logger.info( f"create_namespaced_pod pull image ask to run on {pod.spec.node_name}" )
+            else:
+                self.logger.error( f"error in pulimage failed to create pod {podname}")
         except client.exceptions.ApiException as e:
              self.logger.error( e )
         except Exception as e:
