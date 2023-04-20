@@ -15,16 +15,16 @@
 #
 
 class ODError(Exception):
-    def __init__(self,message):
+    def __init__(self, status:int=500, message:str=None ):
         super().__init__(message)
 
 class ODResourceNotFound(ODError):
     def __init__(self,message):
-        super().__init__(message)
+        super().__init__(status=404,message=message)
 
 class ODAPIError(ODError):
     def __init__(self,message):
-        super().__init__(message)
+        super().__init__(status=500,message=message)
 
 #
 # defined some AuthenticationError

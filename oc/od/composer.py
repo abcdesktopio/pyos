@@ -411,7 +411,7 @@ def stopContainerApp(auth, user, podname, containerid):
 
     if not myOrchestrator.isPodBelongToUser( auth, user, podname ):
         services.fail2ban.fail_login( user.userid )
-        raise ODError( 'stopcontainer::invalid user')
+        raise ODError( status=401, message='stopcontainer::invalid user')
 
     result = myOrchestrator.stopContainerApp( auth, user, podname, containerid )
     return result
@@ -429,7 +429,7 @@ def logContainerApp(authinfo, userinfo, podname, containerid):
 
     if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
         services.fail2ban.fail_login( userinfo.userid )
-        raise ODError( 'isPodBelongToUser::invalid user')
+        raise ODError( status=401, message='isPodBelongToUser::invalid user')
 
     services.accounting.accountex('api', 'log_container_app' )
     result = myOrchestrator.logContainerApp( authinfo, userinfo, podname, containerid )
@@ -449,7 +449,7 @@ def removeContainerApp(authinfo, userinfo, podname, container_id):
 
     if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
         services.fail2ban.fail_login( userinfo.userid )
-        raise ODError( 'isPodBelongToUser::invalid user')
+        raise ODError( status=401, message='isPodBelongToUser::invalid user')
 
     services.accounting.accountex('api', 'remove_container_app' )
     result = myOrchestrator.removeContainerApp( authinfo, userinfo, podname, container_id )
@@ -488,7 +488,7 @@ def envContainerApp(authinfo, userinfo, podname, containerid ):
 
     if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
         services.fail2ban.fail_login( userinfo.userid )
-        raise ODError( 'isPodBelongToUser::invalid user')
+        raise ODError( status=401, message='isPodBelongToUser::invalid user')
 
     services.accounting.accountex('api', 'env_container_app')
     result = myOrchestrator.envContainerApp( authinfo, userinfo, podname, containerid )
@@ -642,7 +642,7 @@ def openapp( auth, user={}, kwargs={} ):
         # count running applications
         running_user_applications_counter = myOrchestrator.countRunningAppforUser( auth, user, myDesktop )
         if running_user_applications_counter > max_app_counter:
-            raise ODError( f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
+            raise ODError( status=400, message=f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
 
     """
     Deprecated
@@ -666,7 +666,7 @@ def openapp( auth, user={}, kwargs={} ):
 
     appinstancestatus = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
     if not isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus ):
-        raise ODError(f"Failed to run application return {type(appinstancestatus)}")
+        raise ODError( status=500, message=f"Failed to run application return {type(appinstancestatus)}")
     logger.info(f"app {appinstancestatus.id} is {appinstancestatus.message}")
     
     runwebhook( appinstancestatus )
@@ -733,7 +733,7 @@ def launch_app_in_process(orchestrator, app, appinstance, userargs):
     cmd = [ app['path'],  app['args'], userargs ]
     result = orchestrator.execininstance(appinstance, cmd)
     if type(result) is not dict:
-        raise ODError(message= 'execininstance error result is not a dict')
+        raise ODError(status=500, message= 'execininstance error result is not a dict')
     return (cmd, result)
 
 def garbagecollector( expirein, force=False ):
