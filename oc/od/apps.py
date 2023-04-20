@@ -523,9 +523,12 @@ class ODApps:
         return app
 
     def find_app_by_key(self, key_value:str, key='name')->dict:
+        app=None
+        assert isinstance(key, str),f"key has invalid type {type(key)}"
         for app in self.myglobal_list.items():
-            if key_value == app.get(key) :
-                break
+            if isinstance( app, dict ):
+                if key_value == app.get(key) :
+                    break
         return app
 
     def del_image( self, image:str )->bool:
@@ -538,6 +541,7 @@ class ODApps:
             bool: True if image is deleted
         """
         bDeleted = False
+        assert isinstance(image, str),f"image has invalid type {type(image)}"
         app = self.find_app_by_id( image )
         if not isinstance( app , dict ):
             # try to find app by name
