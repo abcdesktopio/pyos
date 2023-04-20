@@ -857,18 +857,28 @@ def add_and_pull_application_image( json_images ):
     Returns:
         json: _description_
     """
+    logger.debug('')
+
     # add entry from mongodb
-    json_put =  oc.od.services.services.apps.add_json_image_to_collection( json_images )
-
-    if json_put is not None:
+    logger.debug('add json_image to collection start')
+    json_put = oc.od.services.services.apps.add_json_image_to_collection( json_images )
+    logger.debug(f"json_put type is {type(json_put)}")
+    if isinstance( json_put, dict ) or isinstance( json_put, list ):
+        logger.debug('add json_image to collection done')
         # new Orchestrator Object
-        myOrchestrator = notity_pyos_buildapplist()
-
+        myOrchestrator = selectOrchestrator()
+        
         if isinstance( json_put, dict ):
             myOrchestrator.pullimage_on_all_nodes( json_put )
         elif isinstance( json_put, list ):
             for app in json_put:
                 myOrchestrator.pullimage_on_all_nodes( app )
+
+        # broadcast event to all pyos instance 
+        # to sync applist object
+        notity_pyos_buildapplist()
+    else:
+        logger.error('add json_image to collection failed')
             
     return json_put
 
