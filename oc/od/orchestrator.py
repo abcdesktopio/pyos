@@ -2103,16 +2103,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             ODAppInstanceStatus: oc.od.appinstancestatus.ODAppInstanceStatus
         """
+        self.logger.debug('')
         assert isinstance(myDesktop, ODDesktop),f"desktop has invalid type {type(myDesktop)}"
-        assert isinstance(app,dict),            f"app has invalid type {type(app)}"
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(app,       dict),     f"app has invalid type {type(app)}"
+        assert isinstance(authinfo,  AuthInfo), f"authinfo has invalid type {type(authinfo)}"
         # read the container enigne specific value from app properties
         containerengine = app.get('containerengine', 'ephemeral_container' )
         if containerengine not in self.appinstance_classes.keys():
             raise ValueError( f"unknow containerengine value {containerengine} must be defined in {list(self.appinstance_classes.keys())}")
         appinstance_class = self.appinstance_classes.get(containerengine)
         appinstance = appinstance_class(self)
+        self.logger.debug(f"createappinstance containerengine={containerengine} type={appinstance.type}")
         appinstancestatus = appinstance.create(myDesktop, app, authinfo, userinfo, userargs, **kwargs )
+        self.logger.debug(f"createappinstance appinstancestatus={appinstancestatus}")
         return appinstancestatus
 
     def pullimage_on_all_nodes(self, app:dict):
