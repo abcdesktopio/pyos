@@ -315,6 +315,7 @@ def init_desktop():
     desktop['uselocaltime']             = gconfig.get('desktop.uselocaltime', False ) 
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
+    desktop['nodeselector']             = gconfig.get('desktop.nodeselector')
 
     # add default env local vars if not set 
     desktop['environmentlocal'] = gconfig.get(  
