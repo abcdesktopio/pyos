@@ -64,7 +64,6 @@ services_http_request_denied = {} # deny http request
 
 jira = None             # Jira tracker configuration 
 
-routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
 tipsinfoconfig = {}
 desktopdescription = {} # define a network interface name mapping 
 # like { 'internalip': 'eth1', 'externalip': 'net2'}
@@ -191,7 +190,6 @@ def init_defaulthostfqdn():
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
     global default_server_ipaddr            # default ip addr to fake real ip source in geoip
-    global routehostcookiename              # name of the cookie with the hostname value for an efficient LoadBalacing
     global services_http_request_denied     # denied http request uri
 
 
@@ -218,9 +216,6 @@ def init_defaulthostfqdn():
             logger.warning('correct default_server_ipaddr to localhost' )
             default_server_ipaddr = '127.0.0.1' # dummy value localhost
     logger.info('default_server_ipaddr: %s', default_server_ipaddr)
-
-    routehostcookiename = gconfig.get('routehostcookiename','abcdesktop_host')
-    logger.info('route host cookie name: %s', routehostcookiename)
 
     # if not set autologin is denied 
     services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True} )
@@ -316,6 +311,12 @@ def init_desktop():
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
     desktop['nodeselector']             = gconfig.get('desktop.nodeselector')
+
+    if desktop['nodeselector'] is not None and not isinstance(desktop['nodeselector'],str):
+        logger.error( 'nodeselector must be a string label=value' )
+        sys.exit(-1)
+
+
 
     # add default env local vars if not set 
     desktop['environmentlocal'] = gconfig.get(  
