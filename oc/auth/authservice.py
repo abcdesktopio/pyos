@@ -548,7 +548,7 @@ class ODAuthTool(cherrypy.Tool):
         # by adding the cherrypy.request.odauthcache attribut
         if not hasattr(cherrypy.request, 'odauthcache') :  
             # attr is not found
-            # parse_auth_request() will decode the cookie token 
+            # parse_auth_request() will decode the token 
             # self.logger.debug( "current http request has no odauthcache" ) 
             cherrypy.request.odauthcache = self.parse_auth_request()    
         else:
