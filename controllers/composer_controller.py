@@ -305,14 +305,6 @@ class ComposerController(BaseController):
             # self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
             # self.logger.info('Service is running on node %s', str(desktop.nodehostname) )
             
-            # set cookie for a optimized load balacing http request
-            # if loadbalancing support cookie persistance routing
-            # cookie name is abcdesktop_host
-            # match the worker node hostname to recieve next http request on this node
-            # send the request to the worker node where the pod is hosted
-            if isinstance(desktop.nodehostname, str):
-                oc.lib.setCookie( oc.od.settings.routehostcookiename, desktop.nodehostname, path='/' )
-
             # build an accounting data
             datadict={  **user,
                         'provider':     auth.providertype,
