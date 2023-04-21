@@ -69,66 +69,6 @@ def uuid_digits( ndigits:int=5)->str:
     local_uuid = digits[-ndigits:]
     return local_uuid
 
-def getCookie(name):
-    """[getCookie] get the cookie name value
-        retrieve the cookie name value 
-        return the value, None if not set
-    Args:
-        name ([str]): [name of the cookie]
-
-    Returns:
-        [str]: [value of the cookie]
-        None if not
-    """
-    c = cherrypy.request.cookie.get(name)
-    if c and hasattr(c, 'value') :
-        return c.value
-    else:
-        return None
-
-
-def setCookie( name, value, path='/', expire_in=None):    
-    """[setCookie] set a cookie
-
-    Args:
-        name ([str]): [name of the cookie]
-        value ([str]): [value of the cookie]
-        path (str, optional): [path of the cookie]. Defaults to '/'.
-        expire_in ([int], optional): [Number of seconds until the cookie expires]. Defaults to None.
-    """
-    cherrypy.response.cookie[name] = value
-    
-    
-    # A cookie with the HttpOnly attribute is inaccessible to the JavaScript Document.cookie API; it is sent only to the server
-    cherrypy.response.cookie[name]['httponly'] = True
-    # A cookie with the Secure attribute is sent to the server only with an encrypted request over the HTTPS protocol, 
-    # never with unsecured HTTP, and therefore can't easily be accessed by a man-in-the-middle attacker. 
-    # set secure cookie if default_host_url starts with https
-    # dev do not need https 
-    cherrypy.response.cookie[name]['secure']   = oc.od.settings.default_host_url_is_securised
-    cherrypy.response.cookie[name]['path'] = path
-    # cherrypy.response.cookie[name]['samesite']= None
-    # cherrypy.response.cookie[name]['secure']=True
-    # cherrypy.response.cookie[name]['SameSite']='
-    if expire_in :
-        cherrypy.response.cookie[name]['max-age'] = expire_in    # Number of seconds until the cookie expires 
-    cherrypy.response.cookie[name]['version'] = 1
-
-def removeCookie(name, path='/'):
-    """[removeCookie] delete a cookie
-
-    Args:
-        name ([str]): [name of the cookie]
-        path (str, optional): [path of the cookie]. Defaults to '/'.
-    """
-    # When you wish to “delete” (expire) a cookie, therefore, 
-    # you must set cherrypy.response.cookie[key] = value first, 
-    # and then set its expires attribute to 0.
-    cherrypy.response.cookie[name] = ''
-    cherrypy.response.cookie[name]['expires'] = 0
-    cherrypy.response.cookie[name]['path'] = path
-
-
 def load_local_file( filename ):
     """[load_local_file]
         load file utf-8 text data 
