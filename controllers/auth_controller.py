@@ -24,8 +24,7 @@ import urllib.parse
 from oc.od.base_controller import BaseController
 from oc.cherrypy import Results, getclientipaddr 
 from oc.od.services import services
-import oc.od.composer 
-from oc.lib import removeCookie
+import oc.od.composer
 import oc.od.settings
 import json
 
@@ -94,8 +93,7 @@ class AuthController(BaseController):
     @cherrypy.tools.json_in()
     def disconnect(self):
         """
-            Disconnect a connected user, 
-            remove ONLY all cookies (by setting empty value)
+            Disconnect a connected user
             Keep desktop running
         Args:
             None
@@ -139,9 +137,6 @@ class AuthController(BaseController):
             else:
                 response = Results.error( message='removedesktop failed' )
                 response['result'] = { 'url': url } # always add a url in result to logout
-
-            # Always removeCookie routehostcookiename
-            removeCookie( oc.od.settings.routehostcookiename )
 
             # Always call logout auth services 
             # nothing to do
