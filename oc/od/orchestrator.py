@@ -1022,6 +1022,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # Read data from secret    
                     secret_name         = secret.get_name( authinfo, userinfo )
                     secret_dict_data    = secret.read_alldata( authinfo, userinfo )
+                    if not isinstance( secret_dict_data, dict ):
+                        # skipping bad values
+                        self.logger.error( f"Invalid value read from secret={secret_name} type={str(type(secret_dict_data))}" )
+                        continue
+
                     mountPath           = secret_dict_data.get( 'mountPath')
                     networkPath         = secret_dict_data.get( 'networkPath' )
                     
@@ -1345,9 +1350,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             Remove a pod
             like command 'kubectl delete pods'
         Args:
-            myPod (_type_): _description_
+            myPod (V1Pod): V1Pod
             propagation_policy (str, optional): propagation_policy. Defaults to 'Foreground'.
-             # https://kubernetes.io/docs/concepts/architecture/garbage-collection/
+            # https://kubernetes.io/docs/concepts/architecture/garbage-collection/
             # propagation_policy = 'Background'
             # propagation_policy = 'Foreground'
             # Foreground: Children are deleted before the parent (post-order)
@@ -1469,7 +1474,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         nTry = 0
         nMaxTry = 42
         if isinstance(myPod, V1Pod ):
-            deletedPod = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
+            deletedPod = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=30 )
             if isinstance(deletedPod, V1Pod ):
                 while nTry<nMaxTry:
                     try:
@@ -1516,25 +1521,23 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # deletedpod = self.removePod( myPod )
             # remove all application pod
             myappinstance = ODAppInstanceKubernetesPod( self )
-            deletedpod = myappinstance.remove_all( authinfo, userinfo )
-            deletedpod = self.removePodSync( authinfo, userinfo, myPod ) and deletedpod
-        
-            # if isinstance(deletedpod,V1Pod) :
-            #    removedesktopStatus['pod'] = deletedpod
-            # else:
-            #    removedesktopStatus['pod'] = False
-
-            removethreads =  [  { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ], 'thread':None },
-                                { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ], 'thread':None } ]
+            
+            removethreads =  [  
+                { 'fct':self.removePod,   'args': [ myPod ] },
+                { 'fct':myappinstance.removeAppInstanceKubernetesPod, 'args': [ authinfo, userinfo ] },
+                { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ] },
+                { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ] } 
+            ]
    
             for removethread in removethreads:
                 self.logger.debug( f"calling thread {removethread['fct'].__name__}" )
                 removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
                 removethread['thread'].start()
- 
+
+            deletedpod = True
             # need to wait for removethread['thread'].join()
-            for removethread in removethreads:
-                removethread['thread'].join()
+            # for removethread in removethreads:
+            #    removethread['thread'].join()
 
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
@@ -4256,7 +4259,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return result
 
 
-    def remove_all( self, authinfo, userinfo ):
+    def removeAppInstanceKubernetesPod( self, authinfo, userinfo ):
         '''get the user's containerid stdout and stderr'''
         result = True
         access_userid = userinfo.userid
