@@ -1518,10 +1518,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPod = self.findPodByUser(authinfo, userinfo )
 
         if isinstance(myPod, V1Pod ):
-            # deletedpod = self.removePod( myPod )
-            # remove all application pod
+            # create an array of threads to remove user objects  
+            # removePod: remove the user pod 
+            # removeAppInstanceKubernetesPod: remove all applications pod
+            # removesecrets: remove secret 
+            # removeconfigmap: remove config map
             myappinstance = ODAppInstanceKubernetesPod( self )
-            
+
             removethreads =  [  
                 { 'fct':self.removePod,   'args': [ myPod ] },
                 { 'fct':myappinstance.removeAppInstanceKubernetesPod, 'args': [ authinfo, userinfo ] },
