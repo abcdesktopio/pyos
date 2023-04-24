@@ -45,7 +45,7 @@ class ODKubernetesWatcher:
                         if isinstance( pod_event, client.models.v1_pod.V1Pod ) : 
                             self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
                             podtype = pod_event.metadata.labels.get('type')
-                            if podtype == self.orchestrator.applicationtypepull :
+                            if podtype == self.orchestrator.pod_application_pull :
                                 self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
                                 if isinstance( pod_event.status, client.models.v1_pod_status.V1PodStatus ):
                                     if not isinstance(pod_event.status.container_statuses, list):
