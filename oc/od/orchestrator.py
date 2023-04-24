@@ -158,8 +158,8 @@ class ODOrchestratorBase(object):
         self.name                   = 'base'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
         self.x11servertype          = 'x11server'        
-        self.applicationtype        = 'pod_application'
-        self.applicationtypepull    = 'pod_application_pull'
+        self.pod_application        = 'pod_application'
+        self.pod_application_pull    = 'pod_application_pull'
         self.endpoint_domain        = 'desktop'
         self.ephemeral_container    = 'ephemeral_container'
 
@@ -2129,6 +2129,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         self.logger.info('')
         label_selector=oc.od.settings.desktop.get('nodeselector')
+        self.logger.info('list_node label_selector={label_selector}')
         listnode = self.kubeapi.list_node(label_selector=label_selector)
         self.logger.info(f"pulling image on nodelist={listnode}")
         if isinstance( listnode, V1NodeList ):
@@ -2170,7 +2171,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except Exception as e:
             self.logger.error( e )
         '''
-        labels = { 'type': self.applicationtypepull }
+        labels = { 'type': self.pod_application_pull }
 
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2189,7 +2190,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # When imagePullSecrets hasn’t been set, 
                     # the secrets of the default service account in the current namespace is used instead. 
                     # If those aren’t defined either, default or no credentials are used
-                    'imagePullSecrets': oc.od.settings.desktop_pod.get(self.applicationtype,{}).get('imagePullSecrets'),
+                    'imagePullSecrets': oc.od.settings.desktop_pod.get(self.pod_application,{}).get('imagePullSecrets'),
                     'imagePullPolicy': 'Always',
                     'image': app['id'],
                     'command': ['/bin/sleep'],
@@ -2825,7 +2826,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # by default remove anonymous home directory content at stop 
             # or if oc.od.settings.desktop['removehomedirectory'] is True
             if oc.od.settings.desktop['removehomedirectory'] is True \
-               or userinfo.name == 'Anonymous':
+               or userinfo.name == 'anonymous':
                 pod_manifest['spec']['containers'][0]['lifecycle'] = {  
                     'preStop': {
                         'exec': {
@@ -4094,7 +4095,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def __init__(self, orchestrator):
         super().__init__( orchestrator)
-        self.type = self.orchestrator.applicationtype
+        self.type = self.orchestrator.pod_application
 
     @staticmethod
     def isinstance( pod:V1Pod ):
