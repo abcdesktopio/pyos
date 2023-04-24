@@ -1080,16 +1080,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount = {}  # set empty volume_mount dict by default
         self.on_desktoplaunchprogress('Building home dir data storage')
         volume_home_name = self.get_volumename( 'home', userinfo )
+
         # by default hostpath
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
         user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
 
+        
         # set default value 
         # home is emptyDir
         # cache is emptyDir Memory
         volumes['home']         = { 'name': volume_home_name, 'emptyDir': {} }
         volumes_mount['home']   = { 'name': volume_home_name, 'mountPath': user_homedirectory }
+
+        
 
         # 'cache' volume
         # dotcache_user_homedirectory = user_homedirectory + '/.cache'
@@ -1110,12 +1114,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'mountPath':user_homedirectory, 
                 'subPath': subpath_name 
             }
-        elif homedirectorytype == 'hostPath':
+        elif homedirectorytype == 'hostPath' :
             # Map the home directory
             # mount_volume = '/mnt/abcdesktop/$USERNAME' on host
             # volume type is 'DirectoryOrCreate'
             # same as 'subPath' but use hostpath
             # 'subPath' is not supported for ephemeral container
+            #
+            # An empty directory will be created there as needed with permission set to 0755, 
+            # having the same group and ownership with Kubelet.
+            #
             mount_volume = oc.od.settings.desktop['hostPathRoot'] + '/' + subpath_name
             volumes['home'] = {
                 'name':volume_home_name, 
@@ -2823,17 +2831,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             } )
             self.logger.debug('pod container created %s', currentcontainertype )
             
-            # by default remove anonymous home directory content at stop 
+            # by default remove anonymous home directory content at preStop 
             # or if oc.od.settings.desktop['removehomedirectory'] is True
-            if oc.od.settings.desktop['removehomedirectory'] is True \
-               or userinfo.name == 'anonymous':
+            if oc.od.settings.desktop['removehomedirectory'] is True or authinfo.provider == 'anonymous':
                 pod_manifest['spec']['containers'][0]['lifecycle'] = {  
-                    'preStop': {
-                        'exec': {
-                            'command':  [ "/bin/bash", "-c", "rm -rf ~/*" ] 
-                        }
-                    }   
-                }
+                    'preStop': { 'exec': { 'command':  oc.od.settings.desktop['prestopexeccommand'] } } 
+                } 
+                self.logger.debug(f"adding command pod['spec']['containers'][0]['lifecycle']={pod_manifest['spec']['containers'][0]['lifecycle']}")
           
         # Add printer sound servives 
         currentcontainertype='printer'

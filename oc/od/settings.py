@@ -311,6 +311,7 @@ def init_desktop():
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
     desktop['nodeselector']             = gconfig.get('desktop.nodeselector')
+    desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
 
     if desktop['nodeselector'] is not None and not isinstance(desktop['nodeselector'],str):
         logger.error( 'nodeselector must be a string label=value' )
