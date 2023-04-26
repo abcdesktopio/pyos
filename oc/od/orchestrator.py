@@ -159,9 +159,10 @@ class ODOrchestratorBase(object):
         self.desktoplaunchprogress  = oc.pyutils.Event()        
         self.x11servertype          = 'x11server'        
         self.pod_application        = 'pod_application'
-        self.pod_application_pull    = 'pod_application_pull'
+        self.pod_application_pull   = 'pod_application_pull'
         self.endpoint_domain        = 'desktop'
         self.ephemeral_container    = 'ephemeral_container'
+        self.abcdesktop_role_desktop = 'desktop'
 
     def get_containername( self, authinfo, userinfo, currentcontainertype, myuuid ):
         prefix = self.nameprefixdict[currentcontainertype]
@@ -2609,7 +2610,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.logger.debug('labels creating')
         # build label dictionnary
-        labels = {  
+        labels = { 
+            'abcdesktop/role':      self.abcdesktop_role_desktop,
             'access_provider':      authinfo.provider,
             'access_providertype':  authinfo.providertype,
             'access_userid':        userinfo.userid,
@@ -4388,7 +4390,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         envlist = self.get_env_for_appinstance( myDesktop, app, authinfo, userinfo, userargs, **kwargs )
 
         command = [ '/composer/appli-docker-entrypoint.sh' ]
-        labels = {  
+        labels = {
             'access_providertype':  authinfo.providertype,
             'access_provider':  authinfo.provider,
             'access_userid':    userinfo.userid,
