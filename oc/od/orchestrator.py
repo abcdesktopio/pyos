@@ -2611,7 +2611,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('labels creating')
         # build label dictionnary
         labels = { 
-            'abcdesktop/role':      self.abcdesktop_role_desktop,
+            'abcdesktop.io/role':   self.abcdesktop_role_desktop,
             'access_provider':      authinfo.provider,
             'access_providertype':  authinfo.providertype,
             'access_userid':        userinfo.userid,
@@ -2620,7 +2620,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'netpol/ocuser' :       'true',
             'xauthkey':             env[ 'XAUTH_KEY' ], 
             'pulseaudio_cookie':    env[ 'PULSEAUDIO_COOKIE' ],
-            'broadcast_cookie':     env[ 'BROADCAST_COOKIE' ] 
+            'broadcast_cookie':     env[ 'BROADCAST_COOKIE' ]
         }
 
         # add authinfo labels and env 
