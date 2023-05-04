@@ -382,12 +382,15 @@ def _resolv( fqdh:str )->str:
     Returns:
         str: ip address
     """    
-    assert isinstance(fqdh, str), 'invalid full qualified host name' 
+    assert isinstance(fqdh, str), 'invalid full qualified host name'
+    logger.debug( f"trying to gethostbyname {fqdh}" )
     try:
         ipaddr = socket.gethostbyname(fqdh)
     except socket.gaierror as err:
         logger.error(f"Cannot resolve hostname:{fqdh}")
         logger.error(f"Cannot start: {err}")
+        logger.error(f"This is a fatal error, check coredns config")
+        logger.error(f"kubectl get pods -n kube-system")
         sys.exit(-1)
     return ipaddr
 
@@ -399,7 +402,6 @@ def init_config_memcached():
 
     logger.debug( f"memcachedserver is read as {memcachedserver}" )
     memcachedipaddr = _resolv(memcachedserver)
-
     logger.info( f"host {memcachedserver} resolved as {memcachedipaddr}")
     memcachedport = gconfig.get('memcachedport', 11211)
     memconnectionstring = f"{memcachedserver}:{memcachedport}"
@@ -423,11 +425,9 @@ def get_mongodburl():
     # 'mongodb://pyos:YWUwNDJhZTI3NjVjZDg4Zjhk@mongodb.abcdesktop.svc.cluster.local:30017'
     mongodburl = os.getenv('MONGODB_URL') or gconfig.get('mongodburl',f"mongodb://mongodb.{kubernetes_default_domain}")
     logger.debug( f"mongodburl is read as {mongodburl}" )
-
     parsedmongourl = urlparse( mongodburl )
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
     mongodbhostipaddr = _resolv(parsedmongourl.hostname)
-
     logger.info(f"host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
     logger.info(f"mongodburl is set to {mongodburl}")
     return mongodburl
@@ -619,7 +619,7 @@ def init_executeclass():
     executeclasses = gconfig.get('executeclasses', {} )
     if not isinstance( executeclasses.get('default'), dict ):
         logger.error('something wrong in the config file no default executeclass has been defined ')
-        logger.error('fixing default execute class {default_executeclass}')
+        logger.error(f"fixing default execute class {default_executeclass}")
         executeclasses['default'] = default_executeclass
 
 
