@@ -688,11 +688,11 @@ class ODOrchestrator(ODOrchestratorBase):
 
         # Check if share memory is enable if config file 
         # add the volume mappping for /dev/shm device
-        # if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
-        #    # if ipc_mode = 'shareable' then
-        #    # application does not use own shm memory but the pod share memory 
-        #    volumes.append('/dev/shm')
-        #    volumesbind.append('/dev/shm:/dev/shm')
+        if oc.od.settings.desktophostconfig.get('ipc_mode') == 'shareable':
+           # if ipc_mode = 'shareable' then
+           # application does not use own shm memory but the pod share memory 
+          volumes.append('/dev/shm')
+          volumesbind.append('/dev/shm:/dev/shm')
 
         # if home is volume, create a volume or reuse the volume
         if kwargs.get('homedirectory_type') == 'volume':        
@@ -887,11 +887,10 @@ class ODOrchestrator(ODOrchestratorBase):
         return (new_volumebind, new_volume)
 
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
-
+        self.logger.debug('')
         assert type(app)       is dict,      "app       invalid type %r" % type(app)
         assert type(myDesktop) is ODDesktop, "myDesktop invalid type %r" % type(myDesktop)
         
-
         rules = app.get('rules') 
         network_config = self.applyappinstancerules_network( authinfo, rules )  # apply network rules 
         homedir_enabled = self.applyappinstancerules_homedir( authinfo, rules ) # apply volumes rules
@@ -1679,7 +1678,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [type]: [description]
         """
-        
+        self.logger.debug('')
+
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
     
@@ -1722,11 +1722,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # shm volume is shared between all container inside the desktop pod
         # 
         if volume_type in [ 'pod_desktop', 'container_desktop' ] and oc.od.settings.desktophostconfig.get('shm_size'):
-                # set shm memory volume
-                self.logger.debug( f"adding volume ['shm'] to {volume_type}" )
-                volumes['shm']       = self.default_volumes['shm']
-                volumes_mount['shm'] = self.default_volumes_mount['shm'] 
-                self.logger.debug( f"added volume ['shm'] to {volume_type}" )
+            # set shm memory volume
+            self.logger.debug( f"adding volume ['shm'] to {volume_type}" )
+            volumes['shm']       = self.default_volumes['shm']
+            volumes_mount['shm'] = self.default_volumes_mount['shm'] 
+            self.logger.debug( f"added volume ['shm'] to {volume_type}" )
 
        
         # if a config map localaccount exist
@@ -3202,7 +3202,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None
         self.on_desktoplaunchprogress('b.Creating your desktop')
         self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
-        pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
+
+
+        pod = None
+        try:
+            pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
+        except ApiException as e:
+            self.logger.error( e )
+            msg=f"Create pod failed {e.reason} {e.body}"
+            self.on_desktoplaunchprogress( msg )
+            return msg
+        except Exception as e:
+            self.logger.error( e )
+            msg=f"Create pod failed {e}"
+            self.on_desktoplaunchprogress( msg )
+            return msg
 
         if not isinstance(pod, client.models.v1_pod.V1Pod ):
             self.on_desktoplaunchprogress('e.Create Pod failed.' )
@@ -3244,10 +3258,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             if object_type == 'Warning':
                 # These events are to warn that something might go wrong
-                self.logger.warning( f"something might go wrong object_type={object_type} reason={event_object.reason} message={event_object.message}")
-                self.on_desktoplaunchprogress( f"b.Something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
+                msg = f"b. {object_type} reason={event_object.reason} message={event_object.message}"
+                self.logger.error(msg)
+                self.on_desktoplaunchprogress( msg )
                 w.stop()
-                continue
+                return msg
+                # continue
 
             if object_type == 'Normal' and event_object.reason == 'Started':
                 myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
