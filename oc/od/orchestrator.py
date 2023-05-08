@@ -2971,7 +2971,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None
         self.on_desktoplaunchprogress('b.Creating your desktop')
         self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
-        pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
+
+        pod = None
+        try:
+            pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
+        except ApiException as e:
+            self.logger.error( e )
+            msg=f"Create pod failed {e.reason} {e.body}"
+            self.on_desktoplaunchprogress( msg )
+            return msg
+        except Exception as e:
+            self.logger.error( e )
+            msg=f"Create pod failed {e}"
+            self.on_desktoplaunchprogress( msg )
+            return msg
 
         if not isinstance(pod, V1Pod ):
             self.on_desktoplaunchprogress('e.Create pod failed.' )
@@ -3013,10 +3026,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             if object_type == 'Warning':
                 # These events are to warn that something might go wrong
-                self.logger.warning( f"something might go wrong object_type={object_type} reason={event_object.reason} message={event_object.message}")
-                self.on_desktoplaunchprogress( f"b.Something might go wrong {object_type} reason={event_object.reason} message={event_object.message}" )
+                msg = f"b. {object_type} reason={event_object.reason} message={event_object.message}"
+                self.logger.error(msg)
+                self.on_desktoplaunchprogress( msg )
                 w.stop()
-                continue
+                return msg
+                # continue
 
             if object_type == 'Normal' and event_object.reason == 'Started':
                 myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
