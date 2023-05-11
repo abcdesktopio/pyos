@@ -21,23 +21,24 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODDesktop(object):
 
-    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None, storage_container_id=None, labels=None, websockettcpport=None  ):
+    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None, storage_container_id=None, labels=None, websockettcpport=None, uid=None  ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
+
         # remove the 'docker://' prefix if exist
         if container_id and container_id.startswith('docker://'):
             container_id = container_id[9:] # 9 is the length of the string 'docker://'
         if storage_container_id and storage_container_id.startswith('docker://'):
             storage_container_id = storage_container_id[9:] # 9 is the length of the string 'docker://'    
             
-        self._container_id = container_id
-        self._nodehostname = nodehostname
-        self._vncPassword = vncPassword
-        self._hostname = hostname
-        self._container_name = container_name
-        self._name = name
-        self._fqdn = fqdn
+        self._container_id  = container_id
+        self._nodehostname  = nodehostname
+        self._vncPassword   = vncPassword
+        self._hostname      = hostname
+        self._name          = name
+        self._fqdn          = fqdn
+        self._container_name        = container_name
         self._desktop_interfaces    = desktop_interfaces
         self._websocketroute        = websocketroute
         self._websocketrouting      = websocketrouting
@@ -46,7 +47,7 @@ class ODDesktop(object):
         self._pulseaudio_cookie     = pulseaudio_cookie
         self._broadcast_cookie      = broadcast_cookie
         self._storage_container_id  = storage_container_id
-        self._labels = labels
+        self._uid                   = uid
 
     # id is the container id in docker mode
     # id is the pod id in kubernetes node
@@ -57,6 +58,14 @@ class ODDesktop(object):
     @id.setter
     def id(self, val ):
         self._id = val
+
+    @property
+    def uid(self):
+        return self._uid
+
+    @uid.setter
+    def uid(self, val ):
+        self._uid = val
 
     @property
     def labels(self):
