@@ -47,6 +47,7 @@ class ODDesktop(object):
         self._pulseaudio_cookie     = pulseaudio_cookie
         self._broadcast_cookie      = broadcast_cookie
         self._storage_container_id  = storage_container_id
+        self._labels                = labels
         self._uid                   = uid
 
     # id is the container id in docker mode
