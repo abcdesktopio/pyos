@@ -13,6 +13,7 @@
 #
 
 import logging
+from typing_extensions import assert_type
 import oc.logging
 from oc.od.apps import ODApps
 import oc.od.error
@@ -28,7 +29,6 @@ import urllib3
 
 import yaml
 import json
-import uuid
 import chevron
 import requests
 import copy
@@ -39,6 +39,8 @@ from kubernetes import client, config, watch
 from kubernetes.stream import stream
 from kubernetes.stream.ws_client import ERROR_CHANNEL
 from kubernetes.client.rest import ApiException
+
+from kubernetes.client.api.core_v1_api import CoreV1Api
 
 from kubernetes.client.models.v1_pod import V1Pod
 # from kubernetes.client.models.v1_pod_spec import V1PodSpec
@@ -56,6 +58,7 @@ from kubernetes.client.models.v1_container_state_running import V1ContainerState
 from kubernetes.client.models.v1_container_state_waiting import V1ContainerStateWaiting
 
 # Volume
+from kubernetes.client.models.v1_persistent_volume_claim import V1PersistentVolumeClaim
 #from kubernetes.client.models.v1_volume import V1Volume
 #from kubernetes.client.models.v1_volume_mount import V1VolumeMount
 #from kubernetes.client.models.v1_local_volume_source import V1LocalVolumeSource
@@ -86,7 +89,8 @@ from kubernetes.client.models.v1_delete_options import V1DeleteOptions
 
 import oc.lib
 import oc.od.acl
-import oc.od.volume         # manage volume for desktop
+import oc.od.volume
+import oc.od.persistentvolumeclaim
 import oc.od.secret         # manage secret for kubernetes
 import oc.od.configmap
 import oc.od.appinstancestatus
@@ -1069,14 +1073,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def get_user_homedirectory(self, authinfo:AuthInfo, userinfo:AuthUser )->str:
         self.logger.debug('')
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
-        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+        assert_type(authinfo, AuthInfo)
+        assert_type(userinfo, AuthUser)
         localaccount = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
         localaccount_secret = localaccount.read( authinfo,userinfo )
         homeDirectory = oc.od.secret.ODSecretLocalAccount.read_data( localaccount_secret, 'homeDirectory' )
         if not isinstance( homeDirectory, str ):
             homeDirectory = oc.od.settings.getballoon_homedirectory()
         return homeDirectory
+
+    def get_mixedataforchevron(self, authinfo:AuthInfo, userinfo:AuthUser )->dict:
+        assert_type(authinfo, AuthInfo)
+        assert_type(userinfo, AuthUser)
+        mixedata = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+        mixedata.update( authinfo.todict() )
+        mixedata.update( authinfo.get_labels())
+        mixedata.update( userinfo )
+        mixedata['provider']=authinfo.provider.lower()
+        return mixedata
 
     def build_volumes_home( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
@@ -1099,8 +1113,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes['home']         = { 'name': volume_home_name, 'emptyDir': {} }
         volumes_mount['home']   = { 'name': volume_home_name, 'mountPath': user_homedirectory }
 
-        
-
         # 'cache' volume
         # dotcache_user_homedirectory = user_homedirectory + '/.cache'
         # volumes['cache']       = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
@@ -1108,18 +1120,48 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
+            assert isinstance( oc.od.settings.desktop['persistentvolumeclaimspec'], dict),  f"desktop.persistentvolumeclaimspec has invalid type {type(oc.od.settings.desktop['persistentvolumespec'])}"
+            claimName = None
+            if volume_type in [ 'pod_desktop', 'pod_application' ] :
+                # create a pvc to store desktop volume
+                persistentvolumespec = copy.deepcopy( oc.od.settings.desktop['persistentvolumespec'] )
+                persistentvolumeclaimspec = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaimspec'] )
+                # use chevron mustache to replace template value in persistentvolumespec and persistentvolumeclaimspec
+                mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
+                self.updateChevronDictWithmixedData( persistentvolumespec, mixeddata=mixeddata)
+                self.updateChevronDictWithmixedData( persistentvolumeclaimspec, mixeddata=mixeddata)
+                self.logger.debug( f"persistentvolumespec={persistentvolumespec}" )
+                self.logger.debug( f"persistentvolumeclaimspec={persistentvolumeclaimspec}" )
+                self.on_desktoplaunchprogress( f"b.Creating your own volume to store files" )
+                # create the user's persistentVolumeClaim if not exist
+                odvol = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim( self.namespace, self.kubeapi )
+                pvc = odvol.create( authinfo=authinfo,
+                                    userinfo=userinfo, 
+                                    persistentvolumespec=persistentvolumespec,
+                                    persistentvolumeclaimspec=persistentvolumeclaimspec )
+                # wait for user's persistentVolumeClaim to bound 
+                if isinstance( pvc, V1PersistentVolumeClaim ):
+                    claimName = pvc.metadata.name
+                    (status,msg) = odvol.waitforBoundPVC( name=claimName, callback_notify=self.on_desktoplaunchprogress )
+                    if status is False:
+                        self.logger.error( f"PersistentVolumeClaim {claimName} can NOT Bound, {msg}")
+                        # we continue but this can be a fatal error
+                    else:
+                        self.logger.debug( msg )
+                    self.on_desktoplaunchprogress( msg )
+
+
+            if volume_type in [ 'ephemeral_container']:
+                pvc = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim(self.namespace, self.kubeapi).find_pvc(authinfo, userinfo)
+                assert isinstance(pvc, V1PersistentVolumeClaim ),  f"persistentvolumeclaim for {volume_type} is not found"
+                claimName = pvc.metadata.name
+               
             # Map the home directory
-            volumes['home'] = {
-                'name': volume_home_name,
-                'persistentVolumeClaim': {
-                    'claimName': oc.od.settings.desktop['persistentvolumeclaim'] 
-                }
-            }
-            volumes_mount['home'] = { 
-                'name':volume_home_name, 
-                'mountPath':user_homedirectory, 
-                'subPath': subpath_name 
-            }
+            # volume_type is in [ 'ephemeral_container', 'pod_desktop', 'pod_application' ] :
+            self.logger.debug( f"claimName={claimName}" )
+            volumes['home']         = { 'name': volume_home_name,  'persistentVolumeClaim': { 'claimName': claimName } }
+            volumes_mount['home']   = { 'name': volume_home_name,  'mountPath': user_homedirectory }
+           
         elif homedirectorytype == 'hostPath' :
             # Map the home directory
             # mount_volume = '/mnt/abcdesktop/$USERNAME' on host
@@ -1222,6 +1264,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
+
+        #
+        # mount home volume
+        #
+        (home_volumes, home_volumes_mount) = self.build_volumes_home(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
+        volumes.update(home_volumes)
+        volumes_mount.update(home_volumes_mount)
+
+
         #
         # Set localtime to server time
         #
@@ -1271,7 +1322,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             volumes_mount.update( configmap_localaccount_volumes_mount )
 
         #
-        # mount secret in /var/secrets/abcdesktop
+        # mount vnc secret in /var/secrets/abcdesktop
         # always add vnc secret for 'pod_desktop'
         if volume_type in [ 'pod_desktop'  ] :
             (vnc_volumes, vnc_volumes_mount) = \
@@ -1287,13 +1338,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes.update(secret_volumes)
         volumes_mount.update(secret_volumes_mount)
 
-        #
-        # mount home volume
-        #
-        (home_volumes, home_volumes_mount) = \
-            self.build_volumes_home(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
-        volumes.update(home_volumes)
-        volumes_mount.update(home_volumes_mount)
 
         #
         # mount flexvolume
@@ -2261,6 +2305,23 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return posixaccount
 
+
+    def updateChevronDictWithmixedData( self, d, mixeddata:dict):
+        if isinstance( d, dict):
+            for k in d.keys():
+                d[k] = self.updateChevronDictWithmixedData( d[k], mixeddata)
+            return d
+        if isinstance( d, list):
+            for i in range(len(d)):
+                d[i] = self.updateChevronDictWithmixedData( d[i], mixeddata)
+            return d
+        if isinstance( d, str):
+            return chevron.render( d, mixeddata )
+        else:
+            return d
+
+
+
     def updateCommandWithUserInfo( self, currentcontainertype:str, authinfo: AuthInfo, userinfo:AuthUser ) -> list:
         """updateCommandWithUserInfo
 
@@ -2348,8 +2409,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             str: name of the container image
         """
-        assert isinstance(currentcontainertype, str),  f"currentcontainertype has invalid type {type(currentcontainertype)}, str is expected"
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert_type(currentcontainertype, str)
+        assert_type(authinfo, AuthInfo)
+
         imageforcurrentcontainertype = None
         image = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('image')
         if isinstance( image, str):
@@ -2592,7 +2654,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(' vnc kubernetes secret checking')
         plaintext_vnc_password = ODVncPassword().getplain()
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
-        vnc_secret_password = vnc_secret.create( authinfo, userinfo, data={ 'password' : plaintext_vnc_password } )
+        vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
         if not isinstance( vnc_secret_password, V1Secret ):
             raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
@@ -2977,12 +3039,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
         except ApiException as e:
             self.logger.error( e )
-            msg=f"Create pod failed {e.reason} {e.body}"
+            msg=f"e.Create pod failed {e.reason} {e.body}"
             self.on_desktoplaunchprogress( msg )
             return msg
         except Exception as e:
             self.logger.error( e )
-            msg=f"Create pod failed {e}"
+            msg=f"e.Create pod failed {e}"
             self.on_desktoplaunchprogress( msg )
             return msg
 
@@ -3327,7 +3389,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             defaultFQDN = myPod.metadata.name + '.' + myPod.spec.subdomain + '.' + oc.od.settings.kubernetes_default_domain
         return defaultFQDN
 
-    def pod2desktop( self, pod:V1Pod, authinfo=None, userinfo=None )->ODDesktop:
+    def pod2desktop( self, pod:V1Pod, authinfo:AuthInfo=None, userinfo:AuthUser=None )->ODDesktop:
         """pod2Desktop convert a Pod to Desktop Object
         Args:
             myPod ([V1Pod): kubernetes.V1Pod
@@ -3417,7 +3479,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
             websocketroute = pod.metadata.labels.get('websocketroute'),
             storage_container_id = storage_container_id,
-            labels = pod.metadata.labels 
+            labels = pod.metadata.labels,
+            uid = pod.metadata.uid
         )
         return myDesktop
 
@@ -3960,6 +4023,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         resources = self.orchestrator.read_pod_resources(myDesktop.name)
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RESOURCES', 'value': json.dumps(resources) } )
 
+        kwargs['uid'] = myDesktop.uid
+        kwargs['container_name'] = myDesktop.container_name
         (volumeBinds, volumeMounts) = self.orchestrator.build_volumes( 
             authinfo,
             userinfo,

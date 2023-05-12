@@ -299,11 +299,9 @@ def init_desktop():
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
     desktop['webhookdict']              = gconfig.get('desktop.webhookdict', {} )
-    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', 
-        ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
+    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
     desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt')
-    desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim' )
     desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
     desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
     desktop['useinternalfqdn']          = gconfig.get('desktop.useinternalfqdn', False ) 
@@ -312,6 +310,8 @@ def init_desktop():
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
     desktop['nodeselector']             = gconfig.get('desktop.nodeselector')
     desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
+    desktop['persistentvolumeclaimspec']= gconfig.get('desktop.persistentvolumeclaimspec')
+    desktop['persistentvolumespec']     = gconfig.get('desktop.persistentvolumespec')
 
     if desktop['nodeselector'] is not None and not isinstance(desktop['nodeselector'],str):
         logger.error( 'nodeselector must be a string label=value' )
