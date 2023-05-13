@@ -2673,7 +2673,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('labels creating')
         # build label dictionnary
         labels = { 
-            'abcdesktop.io/role':   self.abcdesktop_role_desktop,
+            'abcdesktop/role':      self.abcdesktop_role_desktop,
             'access_provider':      authinfo.provider,
             'access_providertype':  authinfo.providertype,
             'access_userid':        userinfo.userid,
