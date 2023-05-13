@@ -46,17 +46,16 @@ class ODPersistentVolumeClaim():
         if type(prefix) is str:
             self.prefix +=  prefix
 
-    def get_pv_name( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
-        return self.get_name(authinfo=authinfo, userinfo=userinfo)
+    def get_pv_name( self, authinfo:AuthInfo, userinfo:AuthUser, suffix:str )->str:
+        return self.get_name(authinfo=authinfo, userinfo=userinfo, suffix=suffix)
 
-    def get_pvc_name( self, authinfo:AuthInfo, userinfo:AuthUser )->str: 
-        return self.get_name(authinfo=authinfo, userinfo=userinfo)  
+    def get_pvc_name( self, authinfo:AuthInfo, userinfo:AuthUser, suffix:str )->str: 
+        return self.get_name(authinfo=authinfo, userinfo=userinfo, suffix=suffix)  
 
     def get_name( self, authinfo:AuthInfo, userinfo:AuthUser, suffix:str='' )->str:   
         assert_type( authinfo, AuthInfo)
         assert_type( userinfo, AuthUser)
-        myuuid = oc.lib.uuid_digits()
-        name = self.prefix + authinfo.provider + self.separator + userinfo.userid + self.separator +  myuuid
+        name = self.prefix + authinfo.provider + self.separator + userinfo.userid + self.separator + suffix
         name = name.lower()
         name = oc.auth.namedlib.normalize_name_dnsname(name)     
         return name
@@ -101,12 +100,19 @@ class ODPersistentVolumeClaim():
         # A bucket or path inside bucket will be created automatically
         # for the PV and removed when the PV will be removed
         assert_type( persistentvolumeclaimspec, dict )
-        # create a V1PersistentVolume
+
+        # unique suffix to get the same name between pvc and pv
+        suffix = oc.lib.uuid_digits()
+
+        # create a V1PersistentVolume if need
         persistentvolume = None
         if isinstance( persistentvolumespec, dict ): 
-            persistentvolume  = self.create_pv( authinfo=authinfo, userinfo=userinfo, persistentvolumespec=persistentvolumespec )
-        # create a V1PersistentVolume
-        pvc = self.create_pvc( authinfo=authinfo, userinfo=userinfo, persistentvolume=persistentvolume, persistentvolumeclaimspec=persistentvolumeclaimspec )
+            self.logger.debug( f"create a persistentvolume suffix={suffix}" )
+            persistentvolume  = self.create_pv( authinfo=authinfo, userinfo=userinfo, persistentvolumespec=persistentvolumespec, suffix=suffix )
+        
+        # create a V1PersistentVolumeClaim
+        self.logger.debug( f"create a persistentvolumeclaim suffix={suffix}" )
+        pvc = self.create_pvc( authinfo=authinfo, userinfo=userinfo, persistentvolume=persistentvolume, persistentvolumeclaimspec=persistentvolumeclaimspec,  suffix=suffix  )
         return pvc
 
 
@@ -175,7 +181,7 @@ class ODPersistentVolumeClaim():
         return pvc
 
 
-    def create_pv( self, authinfo:AuthInfo, userinfo:AuthUser, persistentvolumespec:dict )->V1PersistentVolume:
+    def create_pv( self, authinfo:AuthInfo, userinfo:AuthUser, persistentvolumespec:dict, suffix:str )->V1PersistentVolume:
         self.logger.debug('')
         pv = self.find_pv( authinfo, userinfo )
         if isinstance( pv, V1PersistentVolume ):
@@ -183,7 +189,7 @@ class ODPersistentVolumeClaim():
             return pv 
 
         self.logger.debug( "pv not found, create a new one" )
-        pv_name = self.get_pv_name( authinfo, userinfo )
+        pv_name = self.get_pv_name( authinfo, userinfo, suffix )
         pv_labels = self.get_labels( authinfo, userinfo )
         # spec:
         # storageClassName: manual
@@ -216,7 +222,7 @@ class ODPersistentVolumeClaim():
 
 
 
-    def create_pvc( self, authinfo:AuthInfo, userinfo:AuthUser, persistentvolume:V1PersistentVolume, persistentvolumeclaimspec:dict )->V1PersistentVolumeClaim:
+    def create_pvc( self, authinfo:AuthInfo, userinfo:AuthUser, persistentvolume:V1PersistentVolume, persistentvolumeclaimspec:dict, suffix:str )->V1PersistentVolumeClaim:
 
         assert_type(authinfo, AuthInfo)
         assert_type(userinfo, AuthUser)
@@ -245,7 +251,7 @@ class ODPersistentVolumeClaim():
         #            storage_class_name='',
         #            resources=V1ResourceRequirements( requests={ 'storage': '1Gi'} ),
         #            volume_name = pv_name )
-        pvc_name = self.get_pvc_name(  authinfo, userinfo )
+        pvc_name = self.get_pvc_name(  authinfo, userinfo, suffix )
         if isinstance( persistentvolume, V1PersistentVolume):
             persistentvolumeclaimspec['volumeName'] = persistentvolume.metadata.name
 
