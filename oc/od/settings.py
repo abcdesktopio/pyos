@@ -308,16 +308,15 @@ def init_desktop():
     desktop['uselocaltime']             = gconfig.get('desktop.uselocaltime', False ) 
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
-    desktop['nodeselector']             = gconfig.get('desktop.nodeselector')
+    desktop['nodeselector']             = gconfig.get('desktop.nodeselector', )
     desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
     desktop['persistentvolumeclaimspec']= gconfig.get('desktop.persistentvolumeclaimspec')
     desktop['persistentvolumespec']     = gconfig.get('desktop.persistentvolumespec')
 
-    if desktop['nodeselector'] is not None and not isinstance(desktop['nodeselector'],str):
-        logger.error( 'nodeselector must be a string label=value' )
-        sys.exit(-1)
-
-
+    if desktop['nodeselector'] is not None:
+        if not isinstance(desktop['nodeselector'], dict):
+            logger.error( 'nodeselector must be a dict or None' )
+            sys.exit(-1)
 
     # add default env local vars if not set 
     desktop['environmentlocal'] = gconfig.get(  
