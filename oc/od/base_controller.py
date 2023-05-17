@@ -27,17 +27,25 @@ logger = logging.getLogger(__name__)
 class BaseController(object):
 
      def __init__( self, config=None):
-          self.enable = True # by default a controller is enabled
+          # by default a controller is enabled event if config is not set
+          self.enable = True 
           self.config = config
+
           # init with default value
-          self.ipnetworklistfilter = None
+          # ipnetworklistfilter is None by default
+          self.ipnetworklistfilter = None    
+          # requestsallowed is None by default
           self.requestsallowed = None
+          # apikey  is None by default
+
           self.apikey = None
           # set value from config
           if isinstance( config, dict ):
-               self.init_ipfilter( config )
+               self.init_ipfilter()
                self.requestsallowed = config.get('requestsallowed')
-               self.enable = config.get('enable', True ) # by default a controller is enabled
+               # by default a controller is enabled
+               self.enable = config.get('enable', True )
+               # apikey is a list of str
                self.apikey = config.get('apikey')
           class_filter=r'^(\w+)Controller$'
           self.controllerprefix = re.match(class_filter, self.__class__.__name__).group(1).lower()
@@ -85,7 +93,7 @@ class BaseController(object):
           else:
                self.requestsallowed = { method: permission }
 
-     def init_ipfilter( self, config:dict ):
+     def init_ipfilter( self ):
           """init_ipfilter
                load config dict
                read 'permitip' network list
@@ -94,7 +102,7 @@ class BaseController(object):
           Args:
               config (dict): configuration
           """
-          if not isinstance(config,dict):
+          if not isinstance( self.config ,dict):
                return
 
           ipfilterlist = self.config.get('permitip')
@@ -178,9 +186,12 @@ class BaseController(object):
           return bReturn
 
      def is_apikey(self):
+          self.logger.debug('')
           bReturn = False
           apikey = cherrypy.request.headers.get('X-API-Key') or cherrypy.request.headers.get('X-Api-Key')
+          self.logger.debug( f"read http header apikey={apikey}" )
           for k in self.apikey:
+               self.logger.debug( f"compare apikey {k}={apikey}" )
                bReturn = k == apikey
                if bReturn is True:
                     break 
@@ -191,13 +202,17 @@ class BaseController(object):
           if not self.enable :
                raise cherrypy.HTTPError( 400, "The controller is disabled in configuration file")
 
+          # Check if the controller has an apikey filter 
+          # if set it must match to the apikey list entries
           if not self.apifilter():
                # 403 -  rejected.
-               raise cherrypy.HTTPError(status=403)
+               raise cherrypy.HTTPError(status=403, message='X-API-Key http header is denied')
 
+          # Check if the controller has an ip filter 
+          # if set it must match to the ip network entries
           if not self.ipfilter():
                # 403.6 - IP address rejected.
-               raise cherrypy.HTTPError(status=403)
+               raise cherrypy.HTTPError(status=403, message='ip address is denied')
 
           if isinstance( self.requestsallowed, dict ):
                # read the request path
@@ -220,11 +235,13 @@ class BaseController(object):
                     raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
 
      def apifilter(self):
+          self.logger.debug('')
           if isinstance(self.apikey, list):
                return self.is_apikey()          
           return True
           
      def ipfilter( self ):
+          self.logger.debug('')
           if not isinstance(self.ipnetworklistfilter, list) :
                return True
           ipclient = getclientipaddr()
