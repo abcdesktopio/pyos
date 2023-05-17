@@ -819,7 +819,11 @@ def listAllSecretsByUser(authinfo, userinfo ):
 
 def notify_endpoint( url ):
     try:
-        response = requests.get(url)
+        headers = None
+        apikey = oc.od.settings.controllers.get('ManagerController').get('apikey', [ None ])[0]
+        if isinstance( apikey, str ) :
+            headers={'X-API-Key': apikey }
+        response = requests.get(url, headers=headers )
         if isinstance( response, requests.models.Response ):
             return response.ok
     except Exception as e:
