@@ -29,12 +29,16 @@ class BaseController(object):
      def __init__( self, config=None):
           self.enable = True # by default a controller is enabled
           self.config = config
+          # init with default value
           self.ipnetworklistfilter = None
           self.requestsallowed = None
+          self.apikey = None
+          # set value from config
           if isinstance( config, dict ):
                self.init_ipfilter( config )
                self.requestsallowed = config.get('requestsallowed')
                self.enable = config.get('enable', True ) # by default a controller is enabled
+               self.apikey = config.get('apikey')
           class_filter=r'^(\w+)Controller$'
           self.controllerprefix = re.match(class_filter, self.__class__.__name__).group(1).lower()
 
@@ -173,10 +177,23 @@ class BaseController(object):
                self.logger.error( e )
           return bReturn
 
+     def is_apikey(self):
+          bReturn = False
+          apikey = cherrypy.request.headers.get('X-API-Key') or cherrypy.request.headers.get('X-Api-Key')
+          for k in self.apikey:
+               bReturn = k == apikey
+               if bReturn is True:
+                    break 
+          return bReturn
+
      def is_permit_request(self):
           
           if not self.enable :
-               raise cherrypy.HTTPError( 400, "The contolleur is disable in configuration file")
+               raise cherrypy.HTTPError( 400, "The controller is disabled in configuration file")
+
+          if not self.apifilter():
+               # 403 -  rejected.
+               raise cherrypy.HTTPError(status=403)
 
           if not self.ipfilter():
                # 403.6 - IP address rejected.
@@ -202,6 +219,11 @@ class BaseController(object):
                     self.logger.error( 'request is denied' )
                     raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
 
+     def apifilter(self):
+          if isinstance(self.apikey, list):
+               return self.is_apikey()          
+          return True
+          
      def ipfilter( self ):
           if not isinstance(self.ipnetworklistfilter, list) :
                return True
