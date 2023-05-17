@@ -2177,6 +2177,35 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"createappinstance appinstancestatus={appinstancestatus}")
         return appinstancestatus
 
+
+    def labelfilter2str( self, labelfilter )->str:
+        """labelfilter2str
+
+        Args:
+            labelfilter (dict or str): labelfilter
+
+        Returns:
+            str: labelfilter string formated
+        """
+        label_selector = ''
+        if isinstance( labelfilter, dict ):
+            for k in labelfilter:
+                if len( label_selector ) > 0:
+                    label_selector += ','
+                label_selector += f"{k}={labelfilter[k]}"
+        elif isinstance(labelfilter, str ):
+            label_selector = labelfilter
+        return label_selector
+
+    def get_label_nodeselector( self )->str:
+        """get_label_nodeselector
+            convert a dict filter as string
+        Returns:
+            str: nodeselector str label filter
+        """
+        label_selector = self.labelfilter2str( oc.od.settings.desktop.get('nodeselector') )
+        return label_selector
+
     def pullimage_on_all_nodes(self, app:dict):
         """pullimage_on_all_nodes
             pullimage app to all nodes
@@ -2187,7 +2216,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             None
         """
         self.logger.info('')
-        label_selector=oc.od.settings.desktop.get('nodeselector')
+        label_selector = self.get_label_nodeselector()
         self.logger.info('list_node label_selector={label_selector}')
         listnode = self.kubeapi.list_node(label_selector=label_selector)
         self.logger.info(f"pulling image on nodelist={listnode}")
@@ -2581,7 +2610,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if isinstance( tagexecuteclassname, str ) and \
                isinstance( oc.od.settings.executeclasses.get(tagexecuteclassname), dict) :
                     executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname)
-        
+
+        if isinstance( executeclass, dict ):
+            if executeclass.get('nodeSelector') is None:
+                executeclass['nodeSelector'] = oc.od.settings.desktop.get('nodeselector')
+
         #
         self.logger.debug(f"executeclass={executeclass}")
         return executeclass
