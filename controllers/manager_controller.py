@@ -34,7 +34,6 @@ class ManagerController(BaseController):
     '''
         Description: Manager Controller 
     '''
-
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
 
