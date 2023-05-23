@@ -15,6 +15,7 @@
 #
 
 import logging
+from typing_extensions import assert_type
 import requests
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
@@ -505,7 +506,7 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
         if isinstance( oc.od.settings.desktop['environmentlocalrules'].get( key ), dict ):
             env.update( oc.od.settings.desktop['environmentlocalrules'].get( key ) )
 
-    locale = userinfo['locale']
+    locale = userinfo.get('locale', 'C')
     language = locale
     lang = locale + '.UTF-8'
 
@@ -602,6 +603,26 @@ def createdesktop( authinfo, userinfo, args  ):
     return myDesktop
 
 
+def sampledesktop(userid:str='dry_run123'):
+
+    assert_type( userid, str )
+    # fake an authinfo object
+    authinfo = AuthInfo( provider='anonymous')
+    # fake an userinfo object
+    userinfo = AuthUser( { 'userid':userid, 'name': 'anonymous' } )
+    
+    kwargs   = {}
+    myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, kwargs  )
+
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+    myOrchestrator.desktoplaunchprogress = None
+
+    myCreateDesktopArguments['dry_run'] = 'All'
+    # Create the desktop                
+    jsonDesktop = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo, **myCreateDesktopArguments )
+    return jsonDesktop
+    
 
 def list_desktop():
     # new Orchestrator Object
