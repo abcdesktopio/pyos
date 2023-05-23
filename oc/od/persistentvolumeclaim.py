@@ -185,7 +185,7 @@ class ODPersistentVolumeClaim():
         self.logger.debug('')
         pv = self.find_pv( authinfo, userinfo )
         if isinstance( pv, V1PersistentVolume ):
-            self.logger.debug( f"pv has been found name {pv.metadata.name}" )
+            self.logger.debug( f"pv has been found name={pv.metadata.name}" )
             return pv 
 
         self.logger.debug( "pv not found, create a new one" )
@@ -230,6 +230,7 @@ class ODPersistentVolumeClaim():
 
         pvc = self.find_pvc( authinfo, userinfo )
         if isinstance( pvc, V1PersistentVolumeClaim ):
+            self.logger.debug( f"pvc has been found name={pvc.metadata.name}" )
             return pvc 
 
         #
