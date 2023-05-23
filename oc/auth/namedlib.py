@@ -35,7 +35,7 @@ def normalize_name(name:str, encoding:str='utf-8', tolower:bool=True)->str:
       newname = newname[1::]
     
     # remove the last char if it's a '-'
-    if newname[ len(newname) - 1 ] == '-':  
+    if newname[ -1 ] == '-':  
       newname = newname[:-1:]
 
     if tolower is True:
@@ -60,8 +60,7 @@ def normalize_containername(name:str)->str:
     newname = name
     try:
       a = name.split('/')
-      p = len(a) - 1
-      b = a[p].split(':')
+      b = a[-1].split(':')
       newname = b[0]
     except Exception:
       pass
