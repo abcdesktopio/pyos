@@ -2684,7 +2684,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         executeclasse = self.get_executeclasse( authinfo, userinfo )
 
         # add a new VNC Password to env var
-        self.logger.debug(' vnc kubernetes secret checking')
+        self.logger.debug('vnc kubernetes secret checking')
         plaintext_vnc_password = ODVncPassword().getplain()
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
         vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
@@ -2796,7 +2796,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         list_pod_allvolumes = list( pod_allvolumes.values() )
         list_pod_allvolumeMounts = list( pod_allvolumeMounts.values() )
 
-       
         # graphical volumes
         (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=secrets_requirement, rules=rules,  **kwargs)
         list_volumeMounts = list( volumeMounts.values() )
@@ -2838,7 +2837,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # init runAsUser 0 (root)
             # to allow chmod 'command':  [ 'sh', '-c',  'chown 4096:4096 /home/balloon /tmp' ] 
             self.logger.debug( f"pod container creating {currentcontainertype}" )
-            securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext', { 'runAsUser': 0 } )
+            securityContext = oc.od.settings.desktop_pod[currentcontainertype].get('securityContext', {'runAsUser':0, 'runAsGroup':0})
             self.logger.debug( f"pod container {currentcontainertype} use securityContext {securityContext}" )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
             command = self.updateCommandWithUserInfo( currentcontainertype, authinfo, userinfo )
@@ -2846,16 +2845,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             initcontainer = {
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image': image,       
                 'command': command,
                 'volumeMounts': list_pod_allvolumeMounts,
                 'env': envlist,
                 'securityContext': securityContext
             }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                initcontainer['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
             initContainers.append( initcontainer )
-
-            self.logger.debug('pod container created %s', currentcontainertype )
+            self.logger.debug( f"pod container created {currentcontainertype}" )
 
 
         # default empty dict annotations
@@ -2921,43 +2920,49 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
             resources = self.get_resources( currentcontainertype, executeclasse )
-            pod_manifest['spec']['containers'].append( { 
+            graphical_container = { 
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy', 'IfNotPresent'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image':image,                                    
                 'env': envlist,
                 'workingDir': env['HOME'],
                 'volumeMounts': list_volumeMounts,
-                'securityContext': securityContext,
                 'resources': resources              
-            } )
-            self.logger.debug('pod container created %s', currentcontainertype )
-            
+            }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                graphical_container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+            if securityContext :
+                graphical_container['securityContext'] = securityContext
+
             # by default remove anonymous home directory content at preStop 
             # or if oc.od.settings.desktop['removehomedirectory'] is True
             if oc.od.settings.desktop['removehomedirectory'] is True or authinfo.provider == 'anonymous':
-                pod_manifest['spec']['containers'][0]['lifecycle'] = {  
-                    'preStop': { 'exec': { 'command':  oc.od.settings.desktop['prestopexeccommand'] } } 
+                graphical_container['lifecycle'] = {  
+                    'preStop': { 'exec': { 'command': oc.od.settings.desktop['prestopexeccommand'] } } 
                 } 
-                self.logger.debug(f"adding command pod['spec']['containers'][0]['lifecycle']={pod_manifest['spec']['containers'][0]['lifecycle']}")
-          
+                self.logger.debug(f"adding command graphical_container['lifecycle']={graphical_container['lifecycle']}")
+            pod_manifest['spec']['containers'].append( graphical_container )
+            self.logger.debug('pod container created %s', currentcontainertype )
+
         # Add printer sound servives 
         currentcontainertype='printer'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug('pod container creating %s', currentcontainertype )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
-            pod_manifest['spec']['containers'].append( { 
+            printer_container = { 
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image':image,                                    
                 'env': envlist,
                 'volumeMounts': [ pod_allvolumeMounts['tmp'] ],
-                'securityContext': securityContext,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
-            } )
+            }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                printer_container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+            if securityContext :
+                printer_container['securityContext'] = securityContext
+            pod_manifest['spec']['containers'].append( printer_container )
             self.logger.debug('pod container created %s', currentcontainertype )
 
         # Add printer sound servives 
@@ -2966,16 +2971,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('pod container creating %s', currentcontainertype )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo  )
-            pod_manifest['spec']['containers'].append( { 
+            sound_container = { 
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image': image,                                    
                 'env': envlist,
                 'volumeMounts': [ pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'], ],
-                'securityContext': securityContext,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
-            } )
+            }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                sound_container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+            if securityContext :
+                sound_container['securityContext'] = securityContext
+            pod_manifest['spec']['containers'].append( sound_container )
             self.logger.debug( "pod container created {currentcontainertype}" )
 
         # Add ssh service 
@@ -2984,17 +2992,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('pod container creating %s', currentcontainertype )
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
-            pod_manifest['spec']['containers'].append( { 
+            ssh_container = { 
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image': image,                                    
                 'env': envlist,
-                'securityContext': securityContext,
                 'volumeMounts': list_volumeMounts,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                             
-            } )
-            self.logger.debug( "pod container created {currentcontainertype}" )
+            }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                ssh_container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+            if securityContext :
+                ssh_container['securityContext'] = securityContext
+            pod_manifest['spec']['containers'].append( ssh_container )
+            self.logger.debug( f"pod container created {currentcontainertype}" )
 
         # Add filer service 
         currentcontainertype = 'filer'
@@ -3014,17 +3025,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('pod container creating %s', currentcontainertype )
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
-            pod_manifest['spec']['containers'].append( { 
+            filer_container = { 
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy':  oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy','IfNotPresent'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image': image,                                  
                 'env': envlist,
                 'volumeMounts': list_volumeMounts,
-                'securityContext': securityContext,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                                      
-            } )
-            self.logger.debug( "pod container created {currentcontainertype}" )
+            }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                filer_container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+            if securityContext :
+                filer_container['securityContext'] = securityContext
+            pod_manifest['spec']['containers'].append( filer_container )
+            self.logger.debug( f"pod container created {currentcontainertype}" )
 
         # Add storage service 
         currentcontainertype = 'storage'
@@ -3032,17 +3046,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('pod container creating %s', currentcontainertype )
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
-            pod_manifest['spec']['containers'].append( { 
+            storage_container = { 
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
                 'image': image,                                 
                 'env': envlist,
                 'volumeMounts':  list_pod_allvolumeMounts,
-                'securityContext': securityContext,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')
-            } )
-            self.logger.debug( "pod container created {currentcontainertype}" )
+            }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                storage_container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+            if securityContext :
+                storage_container['securityContext'] = securityContext
+            pod_manifest['spec']['containers'].append( storage_container )
+            
+            self.logger.debug( f"pod container created {currentcontainertype}" )
 
         # Add rdp service 
         currentcontainertype = 'rdp'
@@ -3050,26 +3068,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('pod container creating %s', currentcontainertype )
             securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
             image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
-            pod_manifest['spec']['containers'].append( { 
+            rdp_container = { 
                 'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
                 'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy'),
-                'imagePullSecrets': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'),
-                'image': image, 
-                'securityContext': securityContext,                                
+                'image': image,                             
                 'env': envlist,
                 'volumeMounts':  list_volumeMounts,
                 'resources': oc.od.settings.desktop_pod[currentcontainertype].get('resources')                      
-            } )
-            self.logger.debug( "pod container created {currentcontainertype}" )
+            }
+            if oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'):
+                rdp_container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+            if securityContext :
+                rdp_container['securityContext'] = securityContext
+            pod_manifest['spec']['containers'].append( rdp_container )
+            self.logger.debug( f"pod container created {currentcontainertype}" )
 
         # we are ready to create our Pod 
         myDesktop = None
         self.on_desktoplaunchprogress('b.Creating your desktop')
-        self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
+        jsonpod_manifest = json.dumps( pod_manifest, indent=2 )
+        self.logger.info( 'dump yaml %s', jsonpod_manifest )
+        dry_run = kwargs.get('dry_run')
 
         pod = None
         try:
-            pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
+            pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest, dry_run=dry_run )
         except ApiException as e:
             self.logger.error( e )
             msg=f"e.Create pod failed {e.reason} {e.body}"
@@ -3084,6 +3107,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance(pod, V1Pod ):
             self.on_desktoplaunchprogress('e.Create pod failed.' )
             raise ValueError( 'Invalid create_namespaced_pod type')
+
+        # return json 
+        if dry_run == 'All':
+            return pod_manifest
 
         number_of_container_started = 0
         number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
