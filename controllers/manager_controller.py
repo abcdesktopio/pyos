@@ -363,3 +363,10 @@ class ManagerController(BaseController):
            ban = services.fail2ban.unban( args[0], collection_name=collection)
            return ban
         raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
+
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def sampledesktop(self):
+        result = oc.od.composer.sampledesktop()
+        return result
