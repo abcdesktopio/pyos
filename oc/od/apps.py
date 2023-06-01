@@ -42,7 +42,7 @@ class ODApps:
             'id',           'launch',           'name',         'icon',         'icondata',
             'keyword',      'uniquerunkey',     'cat',          'args',         'execmode',
             'showinview',   'displayname',      'mimetype',     'path',         'desktopfile',
-            'executablefilename',   'secrets_requirement' ]
+            'executablefilename',   'secrets_requirement', 'architecture', 'os' ]
         # define private attributs keep
         self.private_attr_list  = [ 'sha_id',  'acl',  'rules', 'securityContext' ]
         self.thead_event = None
@@ -381,6 +381,11 @@ class ODApps:
         if not isinstance(sha_id,str): # skip image if no Id or id
             return None
 
+        # Read Architecture
+        image_architecture = json_image.get('Architecture')
+        # Read OS
+        image_os = json_image.get('Os')
+
         # read the config
         inspect_dict = None
         if isinstance( json_image.get('Config'), dict ):
@@ -448,7 +453,9 @@ class ODApps:
                 'path':         path,
                 'sha_id':       sha_id,
                 'id':           imageid,
-                'rules' :       rules,
+                'architecture': image_architecture,
+                'os':           image_os,
+                'rules':        rules,
                 'acl':          acl,
                 'launch':       launch,
                 'name':         name,
