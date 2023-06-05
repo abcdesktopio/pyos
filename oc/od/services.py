@@ -1,3 +1,4 @@
+from errno import ESTALE
 import logging
 import oc.od.settings as settings
 import oc.od.orchestrator
@@ -229,15 +230,26 @@ services = ODServices()
 def init_infra():
     """init_infra
 
-       find configuration docker and kubernetes
+       find configuration for kubernetes
     """
     logger.info('')
 
     # Check kubernetes config 
     myOrchestrator = oc.od.orchestrator.ODOrchestratorKubernetes()
     if not myOrchestrator.is_configured():
-       logger.error('Config fkubernetes is not detected')
-       exit(-1)
+        logger.error('Kubernetes config is not detected')
+        exit(-1)
+
+    # check if service account can call list_node
+    # pyos service account can have clusterRole or Role
+    if not myOrchestrator.is_list_node_enabled():
+        logger.warning('Kubernetes service account can NOT query list_node')
+        if isinstance( oc.od.settings.desktop.get('nodeselector'), dict ):
+            logger.warning('Kubernetes service account can NOT query list_node and desktop.nodeselector is a dict')
+            logger.warning('prefetch images feature is disable')
+    else:
+        logger.debug('Kubernetes service account can query list_node')
+
 
 def init():
     # init all services 

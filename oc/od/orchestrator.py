@@ -819,6 +819,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [bool]: [True if kubernetes is configured, else False]
         """
+        return self.bConfigure
+        
+    def is_list_node_enabled(self)->bool: 
+        """[is_list_node_enabled]
+            return True if kubernetes is configured and can call list_node() API  
+        Returns:
+            [bool]: [True if kubernetes is configured, else False]
+        """
         bReturn = False
         try:
             if self.bConfigure :
@@ -2184,11 +2192,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def labelfilter2str( self, labelfilter )->str:
         """labelfilter2str
+            convert a dict filter to str
 
         Args:
             labelfilter (dict or str): labelfilter
 
-        Returns:
+get_label_nodeselector        Returns:
             str: labelfilter string formated
         """
         label_selector = ''
@@ -2199,6 +2208,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 label_selector += f"{k}={labelfilter[k]}"
         elif isinstance(labelfilter, str ):
             label_selector = labelfilter
+
         return label_selector
 
     def get_label_nodeselector( self )->str:
@@ -2220,18 +2230,50 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             None
         """
         self.logger.info('')
-        label_selector = self.get_label_nodeselector()
-        self.logger.info('list_node label_selector={label_selector}')
-        listnode = self.kubeapi.list_node(label_selector=label_selector)
-        self.logger.info(f"pulling image on nodelist={listnode}")
-        if isinstance( listnode, V1NodeList ):
-            if len(listnode.items) < 1:
-                self.logger.error( f"nodeSelector={label_selector} return empty list" )
-            for node in listnode.items :
+        bReturn = True # default value 
+        nodeselector = oc.od.settings.desktop.get('nodeselector')
+        if isinstance( nodeselector, dict ):
+            # convert dict as filter str
+            label_selector = self.get_label_nodeselector()
+            self.logger.info('list_node label_selector={label_selector}')
+
+            # Check if we can call list_node
+            # if the pyos_service account has ClusterRole
+            try:
+                # query nodes
+                listnode = self.kubeapi.list_node(label_selector=label_selector)
+                self.logger.info(f"pulling image on nodelist={listnode}")
+            except Exception as e:
+                self.logger.error( f"Can not get list of nodes. V1NodeList Error in config file desktop.nodeselector={label_selector} is wrong" )
+                return False
+
+            if isinstance( listnode, V1NodeList ):
+                if len(listnode.items) < 1:
+                    self.logger.error( f"nodeSelector={label_selector} return empty list" )
+                for node in listnode.items :
+                    self.logger.debug( f"pulling image on node={node}")
+                    pod = self.pullimage( app, node.metadata.name )
+                    if not isinstance( pod, V1Pod ):
+                        bReturn = False
+            else:
+                self.logger.error( f"Can not get list of nodes. V1NodeList Error in config file desktop.nodeselector={label_selector} is wrong" )
+        
+        # node selector is a string, only one node name
+        if isinstance( nodeselector, str ):
+            pod = self.pullimage( app, node )
+            if not isinstance( pod, V1Pod ):
+                bReturn = False
+
+        # node selector is a list of node name
+        if isinstance( nodeselector, list ):
+            for node in nodeselector :
                 self.logger.debug( f"pulling image on node={node}")
-                self.pullimage( app, node.metadata.name )
-        else:
-            self.logger.error( f"Can not get list of nodes. V1NodeList Error in config file desktop.nodeselector={label_selector} is wrong" )
+                pod = self.pullimage( app, node )
+                if not isinstance( pod, V1Pod ):
+                    bReturn = False
+                    
+        return bReturn
+
 
     def pullimage(self, app:dict, nodename:str )->V1Pod:
         self.logger.debug('')
@@ -2693,6 +2735,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return container
 
+    def create_vnc_secret( self, authinfo:AuthInfo, userinfo:AuthUser, kwargs:dict ):
+        """create_vnc_secret
+
+        Args:
+            authinfo (AuthInfo): authinfo
+            userinfo (AuthUser): userinfo
+            kwargs (dict): kwargs
+
+        Raises:
+            ODAPIError: vnc kubernetes secret create failed 
+        """
+        self.logger.debug('vnc kubernetes secret checking')
+        plaintext_vnc_password = ODVncPassword().getplain()
+        if kwargs.get('dry_run') != 'All':
+            vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
+            vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
+            if not isinstance( vnc_secret_password, V1Secret ):
+                raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
+        self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
+
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)->ODDesktop:
         """createdesktop
             create the user pod 
@@ -2705,7 +2767,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             ValueError: _description_
 
         Returns:
-            ODDesktop: desktop object
+            ODDesktop: desktop object or str  
         """
         self.logger.debug('createdesktop start' )
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -2717,17 +2779,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # get the execute class if user has a executeclassname tag
         executeclasse = self.get_executeclasse( authinfo, userinfo )
 
-        # add a new VNC Password to env var
-        self.logger.debug('vnc kubernetes secret checking')
-        plaintext_vnc_password = ODVncPassword().getplain()
-        if kwargs.get('dry_run') != 'All':
-            vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
-            vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
-            if not isinstance( vnc_secret_password, V1Secret ):
-                raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
-        self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
+        # add a new VNC Password 
+        self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo, kwargs=kwargs )
 
-        # generate XAUTH key
+
+        # create ENV for pod 
+        # XAUTH key
         self.logger.debug('env creating')
         env[ 'XAUTH_KEY' ] = self.generate_xauthkey() # generate XAUTH_KEY
         env[ 'PULSEAUDIO_COOKIE' ] = self.generate_pulseaudiocookie()   # generate PULSEAUDIO cookie
@@ -2738,6 +2795,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug( f"HOME={env[ 'HOME']}")
         self.logger.debug('env created')
 
+        # create labels for pod
         self.logger.debug('labels creating')
         # build label dictionnary
         labels = { 
@@ -2771,8 +2829,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         kwargs['type'] = self.x11servertype
         self.logger.debug('labels created')
 
+        # create pod name
+        # pod uuid suffix
         myuuid = oc.lib.uuid_digits()
-
         pod_name = self.get_podname( authinfo, userinfo, myuuid ) 
         self.logger.debug('pod name is %s', pod_name )
 
@@ -2802,7 +2861,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         )
         self.logger.debug('rules created')
 
+        # new step
         self.on_desktoplaunchprogress('b.Building data storage for your desktop')
+
         self.logger.debug('secrets_requirement creating for graphical')
         currentcontainertype = 'graphical'
         secrets_requirement = None # default value add all secret if no filter 
@@ -2960,84 +3021,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['containers'].append( graphical_container )
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
-        # Add printer sound servives 
-        currentcontainertype='printer'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            printer_container = self.addcontainertopod( 
-                authinfo=authinfo, 
-                userinfo=userinfo, 
-                currentcontainertype=currentcontainertype, 
-                myuuid=myuuid,
-                envlist=envlist,
-                list_volumeMounts= [ pod_allvolumeMounts['tmp'] ] 
-            )
-            pod_manifest['spec']['containers'].append( printer_container )
-            self.logger.debug(f"pod container created {currentcontainertype}" )
+        containers = { 
+            'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts['tmp'] ] },
+            'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'] ] },
+            'ssh':      { 'list_volumeMounts':  list_volumeMounts },
+            'filer':    { 'list_volumeMounts':  list_volumeMounts },
+            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts },
+            'rdp':      { 'list_volumeMounts':  list_volumeMounts } }
 
-        # Add printer sound servives 
-        currentcontainertype= 'sound'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            sound_container = self.addcontainertopod( 
-                authinfo=authinfo, 
-                userinfo=userinfo, 
-                currentcontainertype=currentcontainertype, 
-                myuuid=myuuid,
-                envlist=envlist,
-                list_volumeMounts= [ pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'] ] )
-            pod_manifest['spec']['containers'].append( sound_container )
-            self.logger.debug(f"pod container created {currentcontainertype}" )
-
-        # Add ssh service 
-        currentcontainertype = 'ssh'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            ssh_container = self.addcontainertopod( 
-                authinfo=authinfo, 
-                userinfo=userinfo, 
-                currentcontainertype=currentcontainertype, 
-                myuuid=myuuid,
-                envlist=envlist,
-                list_volumeMounts=list_volumeMounts )
-            pod_manifest['spec']['containers'].append( ssh_container )
-            self.logger.debug( f"pod container created {currentcontainertype}" )
-
-        # Add filer service 
-        currentcontainertype = 'filer'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            filer_container = self.addcontainertopod( 
-                authinfo=authinfo, 
-                userinfo=userinfo, 
-                currentcontainertype=currentcontainertype, 
-                myuuid=myuuid,
-                envlist=envlist,
-                list_volumeMounts=list_volumeMounts )
-            pod_manifest['spec']['containers'].append( filer_container )
-            self.logger.debug( f"pod container created {currentcontainertype}" )
-
-        # Add storage service 
-        currentcontainertype = 'storage'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            storage_container = self.addcontainertopod( 
-                authinfo=authinfo, 
-                userinfo=userinfo, 
-                currentcontainertype=currentcontainertype, 
-                myuuid=myuuid,
-                envlist=envlist,
-                list_volumeMounts=list_pod_allvolumeMounts )
-            pod_manifest['spec']['containers'].append( storage_container )
-            self.logger.debug( f"pod container created {currentcontainertype}" )
-
-        # Add rdp service 
-        currentcontainertype = 'rdp'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            rdp_container = self.addcontainertopod( 
-                authinfo=authinfo, 
-                userinfo=userinfo, 
-                currentcontainertype=currentcontainertype, 
-                myuuid=myuuid,
-                envlist=envlist,
-                list_volumeMounts=list_volumeMounts )
-            pod_manifest['spec']['containers'].append( rdp_container )
-            self.logger.debug( f"pod container created {currentcontainertype}" )
+        for currentcontainertype in containers.keys():
+            if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                new_container = self.addcontainertopod( 
+                    authinfo=authinfo, 
+                    userinfo=userinfo, 
+                    currentcontainertype=currentcontainertype, 
+                    myuuid=myuuid,
+                    envlist=envlist,
+                    list_volumeMounts=containers[currentcontainertype].get('list_volumeMounts')
+                )
+                pod_manifest['spec']['containers'].append( new_container )
+                self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
 
         # we are ready to create our Pod 
         myDesktop = None
