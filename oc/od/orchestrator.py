@@ -2726,7 +2726,7 @@ get_label_nodeselector        Returns:
         }
         if isinstance( workingdir, str):
             container['workingDir'] = workingdir
-        if isinstance( command, str):
+        if isinstance( command, list):
             container['command'] = command
         if isinstance( oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'), dict):
             container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
@@ -2930,6 +2930,7 @@ get_label_nodeselector        Returns:
         currentcontainertype = 'init'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             command = self.updateCommandWithUserInfo( currentcontainertype, authinfo, userinfo )
+            self.logger.debug(f"init command={command}")
             init_container = self.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
