@@ -888,23 +888,26 @@ def add_and_pull_application_image( json_images ):
     logger.debug('add json_image to collection start')
     json_put = oc.od.services.services.apps.add_json_image_to_collection( json_images )
     logger.debug(f"json_put type is {type(json_put)}")
+    pulling = False
     if isinstance( json_put, dict ) or isinstance( json_put, list ):
         logger.debug('add json_image to collection done')
         # new Orchestrator Object
         myOrchestrator = selectOrchestrator()
-        
+        # there is only one image
         if isinstance( json_put, dict ):
-            myOrchestrator.pullimage_on_all_nodes( json_put )
-        elif isinstance( json_put, list ):
+            json_put['pulling'] = myOrchestrator.pullimage_on_all_nodes( json_put )
+
+        elif isinstance( json_put, list ) and len(json_put)>0:
+            pulling = True
             for app in json_put:
-                myOrchestrator.pullimage_on_all_nodes( app )
+                app['pulling'] = myOrchestrator.pullimage_on_all_nodes( app )
 
         # broadcast event to all pyos instance 
         # to sync applist object
         notity_pyos_buildapplist()
     else:
-        logger.error('add json_image to collection failed')
-            
+        raise ODError( status=400, message="failed to add json image format to collection")
+    # updated with app['pulling'] = status
     return json_put
 
 
