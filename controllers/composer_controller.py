@@ -403,6 +403,6 @@ class ComposerController(BaseController):
     def listsecrets(self):    
         (auth, user ) = self.validate_env()
         # list secrets
-        secrets = oc.od.composer.listAllSecretsByUser( auth, user)
+        secrets = oc.od.composer.listAllSecretsByUser(auth, user)
         list_secrets = list( secrets )
         return Results.success(result=list_secrets)
