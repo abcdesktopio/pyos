@@ -136,18 +136,18 @@ class ManagerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
-    def image( self, image=None ):
+    def image( self, image:str=None, node:str=None ):
         self.is_permit_request()
         if   cherrypy.request.method == 'GET':
-            return self.handle_image_GET( image )
+            return self.handle_image_GET( image=image )
         elif cherrypy.request.method == 'PUT':
-            return self.handle_image_PUT( cherrypy.request.json )
+            return self.handle_image_PUT( json_images=cherrypy.request.json, node=node )
         elif cherrypy.request.method == 'POST':
-            return self.handle_image_POST( cherrypy.request.json )
+            return self.handle_image_POST( json_images=cherrypy.request.json )
         elif cherrypy.request.method == 'DELETE':
-            return self.handle_image_DELETE( image )
+            return self.handle_image_DELETE( image=image )
         elif cherrypy.request.method == 'PATCH':
-            return self.handle_image_PATCH( image, cherrypy.request.json )
+            return self.handle_image_PATCH( image=image, json_images=cherrypy.request.json )
 
 
     
@@ -169,11 +169,16 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
 
-    def handle_image_PUT( self, json_images ):
+    def handle_image_PUT( self, json_images, node:str=None ):
         self.logger.debug('')
         json_put = None
-        if isinstance( json_images, list ) or isinstance( json_images, dict ) :
-            json_put = oc.od.composer.add_and_pull_application_image( json_images )
+        # node can be None or str
+        if isinstance( node, str ) or node is  None : 
+            # json_images can be list or dict
+            if isinstance( json_images, list ) or isinstance( json_images, dict ) :
+                json_put = oc.od.composer.pull_application_image( json_images, node=node )
+            else:
+                raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         else:
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         return json_put
@@ -181,6 +186,7 @@ class ManagerController(BaseController):
     def handle_image_POST( self, json_images ):
         self.logger.debug('')
         json_put = None
+        # json_images can be list or dict
         if isinstance( json_images, list ) or isinstance( json_images, dict ) :
             json_put = oc.od.composer.add_application_image( json_images )
         else:
@@ -189,7 +195,6 @@ class ManagerController(BaseController):
 
     def handle_image_DELETE( self, image ):
         self.logger.debug('')
-
 
         # image can be an sha_id or an repotag
         # it is always a str type
