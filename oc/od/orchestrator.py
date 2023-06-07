@@ -13,6 +13,7 @@
 #
 
 import logging
+from platform import node
 from typing_extensions import assert_type
 import oc.logging
 from oc.od.apps import ODApps
@@ -69,9 +70,11 @@ from kubernetes.client.models.v1_persistent_volume_claim import V1PersistentVolu
 # Secret
 from kubernetes.client.models.v1_secret import V1Secret
 #from kubernetes.client.models.v1_secret_list import V1SecretList
+from kubernetes.client.models.v1_event_source import V1EventSource
 
 from kubernetes.client.models.core_v1_event import CoreV1Event
 from kubernetes.client.models.v1_node_list import V1NodeList
+from kubernetes.client.models.v1_node import V1Node
 from kubernetes.client.models.v1_env_var import V1EnvVar 
 from kubernetes.client.models.v1_pod_list import V1PodList
 #from kubernetes.client.models.v1_config_map import V1ConfigMap
@@ -840,17 +843,28 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def listEndpointAddresses( self, endpoint_name:str )->tuple:
+        """listEndpointAddresses
+
+        Args:
+            endpoint_name (str): name of the endpoint
+
+        Returns:
+            tuple: (int, [ str ]) (port, list of address)
+            port: can be None or int
+            list of address: can be None or list of str 
+        """
         list_endpoint_addresses = None
         list_endpoint_port = None
         endpoint = self.kubeapi.read_namespaced_endpoints( name=endpoint_name, namespace=self.namespace )
         if isinstance( endpoint, V1Endpoints ):
             if not isinstance( endpoint.subsets, list) or len(endpoint.subsets) == 0:
-                return list_endpoint_addresses
+                return (list_endpoint_port, list_endpoint_addresses) # (None, None)
 
             endpoint_subset = endpoint.subsets[0]
             if isinstance( endpoint_subset, V1EndpointSubset ) :
                 list_endpoint_addresses = []
                 # read the uniqu port number
+                # pyos listen on only one tcp port
                 endpoint_port = endpoint_subset.ports[0]
                 if isinstance( endpoint_port, CoreV1EndpointPort ):
                     list_endpoint_port = endpoint_port.port
@@ -864,22 +878,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             list_endpoint_addresses.append( address.ip )
 
         return (list_endpoint_port, list_endpoint_addresses)
-
-
-    def findAllSecretsByUser( self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
-        """[findAllSecretsByUser]
-            list all user secret for all supported type
-        Args:
-            authinfo ([type]): [description]
-            userinfo ([type]): [description]
-
-        Returns:
-            [dict]: [dict of secret]
-            key is the secret type
-            value is the secret value
-        """
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
-        return mysecretdict
 
     def get_podname( self, authinfo:AuthInfo, userinfo:AuthUser, pod_sufix:str )->str:
         """[get_podname]
@@ -2244,45 +2242,55 @@ get_label_nodeselector        Returns:
                 listnode = self.kubeapi.list_node(label_selector=label_selector)
                 self.logger.info(f"pulling image on nodelist={listnode}")
             except Exception as e:
-                self.logger.error( f"Can not get list of nodes. V1NodeList Error in config file desktop.nodeselector={label_selector} is wrong" )
-                return False
+                self.logger.warning( f"Can not get list of nodes. {e}, service account can not get nodelist, check RoleBinding and ClusterRoleBinding" )
 
-            if isinstance( listnode, V1NodeList ):
-                if len(listnode.items) < 1:
-                    self.logger.error( f"nodeSelector={label_selector} return empty list" )
+            if isinstance( listnode, V1NodeList ) and len(listnode.items) > 0:
                 for node in listnode.items :
-                    self.logger.debug( f"pulling image on node={node}")
-                    pod = self.pullimage( app, node.metadata.name )
-                    if not isinstance( pod, V1Pod ):
-                        bReturn = False
+                    if isinstance( node, V1Node): 
+                        self.logger.debug( f"pulling image on node={node.metadata.name}")
+                        pull = self.pullimage( app, node.metadata.name )
+                        bReturn = pull and bReturn # return False if one error occurs
+                    else:
+                        self.logger.error( f"skipping bad entry in nodelist {node}")
             else:
-                self.logger.error( f"Can not get list of nodes. V1NodeList Error in config file desktop.nodeselector={label_selector} is wrong" )
-        
-        # node selector is a string, only one node name
-        if isinstance( nodeselector, str ):
-            pod = self.pullimage( app, node )
-            if not isinstance( pod, V1Pod ):
-                bReturn = False
+                # fallback if no list node 
+                self.logger.warning( f"pullimage on default nodeselector, no node list")
+                pull = self.pullimage( app )
+                bReturn = pull and bReturn # return False if one error occurs
+        else:
+            pull = self.pullimage( app )
+            bReturn = pull and bReturn # return False if one error occurs
 
-        # node selector is a list of node name
-        if isinstance( nodeselector, list ):
-            for node in nodeselector :
-                self.logger.debug( f"pulling image on node={node}")
-                pod = self.pullimage( app, node )
-                if not isinstance( pod, V1Pod ):
-                    bReturn = False
-                    
         return bReturn
 
 
-    def pullimage(self, app:dict, nodename:str )->V1Pod:
+    def pullimage(self, app:dict, nodename:str=None )->bool:
+        """pullimage
+            pull on image by creating a pod with 
+            'imagePullPolicy': 'Always'
+            on a specifici nodename
+            if nodename is None, use the default nodeSelector
+        Args:
+            app (dict): application dict
+            nodename (str, optional):node name to pull image. Defaults to None.
+
+        Returns:
+            bool: True if the pod has been created
+        """
+        assert_type( app, dict )
         self.logger.debug('')
         self.logger.info(f"pull by creating pod image={app['name']} on nodename={nodename}")
         self.logger.info(f"app unique id {app.get('_id')}")
+
+
+        bReturn = False
         h = hashlib.new('sha256')
         h.update( str(app).encode() )
         digest = h.hexdigest()
-        id = nodename + '_' + str( digest )
+        if isinstance( nodename, str):
+            id = nodename + '_' + str( digest )
+        else:
+            id = 'localhost_' + str( digest )
         _containername = 'pull_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + id )
         podname =  oc.auth.namedlib.normalize_name_dnsname( _containername )
         self.logger.debug( f"pullimage define podname={podname}" )
@@ -2316,7 +2324,6 @@ get_label_nodeselector        Returns:
                 'labels': labels
             },
             'spec': {
-                'nodeName': nodename,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'restartPolicy' : 'Never',
                 'containers':[ {   
@@ -2333,12 +2340,21 @@ get_label_nodeselector        Returns:
             }
         }
 
-        self.logger.debug( f"pulimage create pod {pod_manifest}")
+        # set nodeName or nodeSelector
+        if isinstance( nodename, str):
+            # use nodeName if set
+            pod_manifest['spec']['nodeName'] = nodename
+        else:
+            # use config nodeSelector
+            pod_manifest['spec']['nodeSelector'] = oc.od.settings.desktop.get('nodeselector')
+
+        self.logger.debug( f"pullimage create pod {pod_manifest}")
 
         pod = None
         try:
             pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
             if isinstance(pod, V1Pod ):
+                bReturn = True
                 self.logger.info( f"create_namespaced_pod pull image ask to run on {pod.spec.node_name}" )
             else:
                 self.logger.error( f"error in pulimage failed to create pod {podname}")
@@ -2347,7 +2363,7 @@ get_label_nodeselector        Returns:
         except Exception as e:
             self.logger.error( e )
 
-        return pod
+        return bReturn
 
     def alwaysgetPosixAccountUser(self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict :
         """alwaysgetPosixAccountUser
@@ -3000,7 +3016,7 @@ get_label_nodeselector        Returns:
         }
 
 
-         # Add graphical servives 
+        # Add graphical servives 
         currentcontainertype='graphical'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             graphical_container = self.addcontainertopod( 
@@ -3023,12 +3039,19 @@ get_label_nodeselector        Returns:
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
         containers = { 
+            # printer uses tmp volume
             'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts['tmp'] ] },
+            # sound uses tmp, home, log volumes
             'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'] ] },
+            # ssh uses default user volumes
             'ssh':      { 'list_volumeMounts':  list_volumeMounts },
+            # filter uses default user volumes
             'filer':    { 'list_volumeMounts':  list_volumeMounts },
+            # storage uses default user volumes
             'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts },
-            'rdp':      { 'list_volumeMounts':  list_volumeMounts } }
+            # rdp uses default user volumes
+            'rdp':      { 'list_volumeMounts':  list_volumeMounts } 
+        }
 
         for currentcontainertype in containers.keys():
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
@@ -3075,14 +3098,14 @@ get_label_nodeselector        Returns:
         number_of_container_started = 0
         number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
         self.on_desktoplaunchprogress(f"b.Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
-        object_type = None
-        message = 'read list_namespaced_event'
-        number_of_container_started = 0
 
         self.logger.debug('watch list_namespaced_event pod creating' )
         # watch list_namespaced_event
         w = watch.Watch()                 
         # read_namespaced_pod
+
+        # https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
+
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
                                 timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
@@ -3099,60 +3122,55 @@ get_label_nodeselector        Returns:
             # Valid values for event types (new types could be added in future)
             #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
-            object_type = event_object.type
-            self.logger.info( f"object_type={object_type} reason={event_object.reason}")
 
-            message = f"b.{event_object.reason} {event_object.message.lower()}" 
-                
-            self.on_desktoplaunchprogress( message )
+            msg = f"{event_object.type} reason={event_object.reason} message={event_object.message}"
+            self.logger.debug(msg)
+            self.on_desktoplaunchprogress( f"b. {event_object.message}" )
 
-            if object_type == 'Warning':
-                # These events are to warn that something might go wrong
-                msg = f"b. {object_type} reason={event_object.reason} message={event_object.message}"
+            if event_object.type == 'Warning':
                 self.logger.error(msg)
-                self.on_desktoplaunchprogress( msg )
                 w.stop()
                 return msg
-                # continue
 
-            if object_type == 'Normal' and event_object.reason == 'Started':
-                myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
-                # count number_of_container_started
-                number_of_container_started = 0
-                number_of_container_ready = 0
-                for c in myPod.status.container_statuses:
-                    if c.started is True:
-                        number_of_container_started = number_of_container_started + 1
-                    if c.ready is True:
-                        number_of_container_ready = number_of_container_ready + 1
+            if event_object.type == 'Normal':
+                if event_object.reason == 'Started':
+                    myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+                    # count number_of_container_started
+                    number_of_container_started = 0
+                    number_of_container_ready = 0
+                    for c in myPod.status.container_statuses:
+                        if c.started is True:
+                            number_of_container_started = number_of_container_started + 1
+                        if c.ready is True:
+                            number_of_container_ready = number_of_container_ready + 1
 
-                if number_of_container_started < number_of_container_to_start:
-                    # we need to wait for started containers
-                    startedmsg =  f"b.Waiting for started containers {number_of_container_started}/{number_of_container_to_start}" 
-                    self.logger.debug( startedmsg )
-                    self.on_desktoplaunchprogress( startedmsg )
-                    # continue
-
-                # startedmsg =  f"b.Ready containers {number_of_container_ready}/{number_of_container_to_start}" 
-                # self.logger.debug( startedmsg )
-                # self.on_desktoplaunchprogress( startedmsg )
-
-                # check if container_graphical_name is started and running
-                # if it is stop event
-                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod)
-                self.on_desktoplaunchprogress( startedmsg )
-
-                if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
-                    self.on_desktoplaunchprogress(f"Your pod gets ip address {myPod.status.pod_ip} from network plugin")
-                    w.stop()
-
-                c = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
-                if isinstance( c, V1ContainerStatus ):
-                    if c.ready is True and c.started is True :
+                    if number_of_container_started < number_of_container_to_start:
+                        # we need to wait for started containers
+                        startedmsg =  f"b.Waiting for started containers {number_of_container_started}/{number_of_container_to_start}" 
+                        self.logger.debug( startedmsg )
                         self.on_desktoplaunchprogress( startedmsg )
+                        # continue
+
+                    # startedmsg =  f"b.Ready containers {number_of_container_ready}/{number_of_container_to_start}" 
+                    # self.logger.debug( startedmsg )
+                    # self.on_desktoplaunchprogress( startedmsg )
+
+                    # check if container_graphical_name is started and running
+                    # if it is stop event
+                    startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod)
+                    self.on_desktoplaunchprogress( startedmsg )
+
+                    if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
+                        self.on_desktoplaunchprogress(f"Your pod gets ip address {myPod.status.pod_ip} from network plugin")
                         w.stop()
 
-        self.logger.debug( f"watch list_namespaced_event pod created object_type={object_type}")
+                    c = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
+                    if isinstance( c, V1ContainerStatus ):
+                        if c.ready is True and c.started is True :
+                            self.on_desktoplaunchprogress( startedmsg )
+                            w.stop()
+
+        self.logger.debug( f"watch list_namespaced_event pod created {event_object.type}")
 
         self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
         # watch list_namespaced_pod waiting for a valid ip addr
@@ -4139,6 +4157,40 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             message = f"b.{event_object.reason} {event_object.message.lower()}"
         """
 
+        pod_name = myDesktop.id
+        # watch list_namespaced_event
+        w = watch.Watch()                 
+        for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
+                                namespace=self.orchestrator.namespace, 
+                                timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
+                                field_selector=f'involvedObject.name={pod_name}' ):  
+            if not isinstance(event, dict ):
+                self.logger.error( f"event type is type(event), and should be a dict, skipping event" )
+                continue
+
+            event_object = event.get('object')
+            if not isinstance(event_object, CoreV1Event ):
+                self.logger.error( f"event_object type is {type(event_object)} skipping event waiting for CoreV1Event")
+                continue
+
+            # Valid values for event types (new types could be added in future)
+            #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
+            #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
+            msg = f"{event_object.type} reasion={event_object.reason} message={event_object.message}"
+            self.logger.debug(msg)
+
+            if event_object.type == 'Warning':
+                w.stop()
+
+            if event_object.type == 'Normal':
+                if event_object.reason == 'Pulling': 
+                    w.stop()
+                if event_object.reason == 'Started': 
+                    w.stop()
+                
+                continue
+
+
         appinstancestatus = None
         for wait_time in [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2 ]:
             self.logger.debug( f"pod.status.ephemeral_container_statuses={pod.status.ephemeral_container_statuses}")
@@ -4468,7 +4520,6 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         self.logger.debug('')
 
         rules = app.get('rules', {}) or {} # app['rules] can be set to None
-
 
         network_config = self.orchestrator.applyappinstancerules_network( authinfo, rules )
 

@@ -722,7 +722,7 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
         logger.error( e )
     return exitCode
 
-def notify_user( access_userid, access_type, method, data ):
+def notify_user(  authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )->None:
     """[notify_user]
         Send a notify message to a userid
     Args:
@@ -730,17 +730,15 @@ def notify_user( access_userid, access_type, method, data ):
         status ([str]): [one of 'oom']
         message ([str]): [message]
     """
-    # fake an authinfo object
-    authinfo = AuthInfo( provider=access_type )
-    # fake an userinfo object
-    userinfo = AuthUser( {  'userid': access_userid } )
 
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()  
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
     if isinstance( myDesktop, ODDesktop) :
-        cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
-        myOrchestrator.execininstance(myDesktop.id, cmd)
+        myOrchestrator.notify_user( myDesktop, method, json.dumps(data) )
+        if isinstance( myDesktop, ODDesktop) :
+            cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
+            myOrchestrator.execininstance(myDesktop.id, cmd)
     
 
 def getapp(authinfo:AuthInfo, name:str)->dict:
@@ -757,7 +755,7 @@ def launch_app_in_process(orchestrator, app, appinstance, userargs):
         raise ODError(status=500, message= 'execininstance error result is not a dict')
     return (cmd, result)
 
-def garbagecollector( expirein, force=False ):
+def garbagecollector( expirein:int, force:bool=False ):
     logger.debug('')
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
@@ -865,6 +863,7 @@ def notity_pyos_buildapplist():
     ## new Orchestrator Object
     myOrchestrator = selectOrchestrator()
     # list all pyos endpoints (port and address)
+    # listEndpointAddresses can return (None,None)
     (pyos_endpoint_port, pyos_endpoint_addresses) = myOrchestrator.listEndpointAddresses( 'pyos' )
     if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
         # create a thread for each pyos_endpoint_addresses and call buildapplist
@@ -873,8 +872,8 @@ def notity_pyos_buildapplist():
 
 
 
-def add_and_pull_application_image( json_images ):
-    """add_and_pull_application_image
+def pull_application_image( json_images:dict, node:str=None ):
+    """pull_application_image
 
     Args:
         json_images (str): list of json image
@@ -893,17 +892,23 @@ def add_and_pull_application_image( json_images ):
         logger.debug('add json_image to collection done')
         # new Orchestrator Object
         myOrchestrator = selectOrchestrator()
-        # there is only one image
-        if isinstance( json_put, dict ):
-            json_put['pulling'] = myOrchestrator.pullimage_on_all_nodes( json_put )
 
-        elif isinstance( json_put, list ) and len(json_put)>0:
-            pulling = True
-            for app in json_put:
-                app['pulling'] = myOrchestrator.pullimage_on_all_nodes( app )
+        if isinstance(node,str):
+            # if there is only one image
+            if isinstance( json_put, dict ):
+                json_put['pulling'] = myOrchestrator.pullimage( json_put, node )
+            elif isinstance( json_put, list ) and len(json_put)>0:
+                for app in json_put:
+                    app['pulling'] = myOrchestrator.pullimage( app, node )
+        else:
+            # if there is only one image
+            if isinstance( json_put, dict ):
+                json_put['pulling'] = myOrchestrator.pullimage_on_all_nodes( json_put )
+            elif isinstance( json_put, list ) and len(json_put)>0:
+                for app in json_put:
+                    app['pulling'] = myOrchestrator.pullimage_on_all_nodes( app )
 
-        # broadcast event to all pyos instance 
-        # to sync applist object
+        # broadcast event to all pyos instance to sync applist object
         notity_pyos_buildapplist()
     else:
         raise ODError( status=400, message="failed to add json image format to collection")
