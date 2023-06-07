@@ -736,9 +736,6 @@ def notify_user(  authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )-
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
     if isinstance( myDesktop, ODDesktop) :
         myOrchestrator.notify_user( myDesktop, method, json.dumps(data) )
-        if isinstance( myDesktop, ODDesktop) :
-            cmd = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
-            myOrchestrator.execininstance(myDesktop.id, cmd)
     
 
 def getapp(authinfo:AuthInfo, name:str)->dict:
@@ -747,13 +744,15 @@ def getapp(authinfo:AuthInfo, name:str)->dict:
     #    raise ODError(message=f"Fatal error - Cannot find image associated to application {name}")
     return app
 
-
+""" 
+Deprecated
 def launch_app_in_process(orchestrator, app, appinstance, userargs):
     cmd = [ app['path'],  app['args'], userargs ]
     result = orchestrator.execininstance(appinstance, cmd)
     if type(result) is not dict:
         raise ODError(status=500, message= 'execininstance error result is not a dict')
     return (cmd, result)
+"""
 
 def garbagecollector( expirein:int, force:bool=False ):
     logger.debug('')
