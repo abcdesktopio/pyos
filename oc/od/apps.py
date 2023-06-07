@@ -481,7 +481,6 @@ class ODApps:
                 'image_pull_secrets':   labels.get('image_pull_secrets'),
                 'containerengine':      labels.get('oc.containerengine', 'ephemeral_container'),
                 'securitycontext':      securitycontext
-
             }
         else:
             self.logger.warning(f"skip application missing data sha_id={sha_id} launch={launch} name={name} icon={icon} imageid={imageid}")
