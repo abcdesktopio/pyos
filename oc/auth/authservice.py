@@ -2223,6 +2223,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_realm = config.get('kerberos_realm') # must be str
         self.kerberos_krb5_conf = config.get('krb5_conf')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
+        # self.kerberos_servers = config.get('kerberos_servers', self.servers)
 
         # not used deprecated 
         # do not launch /usr/bin/kinit anyore 
@@ -3300,7 +3301,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         self.dcs_list_maxage = config.get('dcs_list_maxage', 3600)
         self.dcs_list_lastupdated = 0
         self.refreshdcs_lock = None
-        self.servers = config.get('servers') or []
         self.user_query.filter = config.get('filter', '(&(objectClass=user)(sAMAccountName=%s))')
         self.user_query.attrs = config.get('attrs', ODAdAuthProvider.DEFAULT_ATTRS)
         self.group_query.filter = config.get('group_filter', "(&(objectClass=group)(cn=%s))")
@@ -3556,10 +3556,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             return
         try:
             ldap_tcp_domain = '_ldap._tcp.' + self.domain_fqdn            
-            self.logger.info("Refreshing domain controllers list - %s", ldap_tcp_domain)
+            self.logger.info( f"Refreshing domain controllers list - {ldap_tcp_domain}")
             self.servers = oc.od.resolvdns.ODResolvDNS.resolv( fqdn_name=ldap_tcp_domain, query_type='SRV' )
             self.dcs_list_lastupdated = time.time()
-            self.logger.info("Domain controllers list: %s", str(self.servers) )            
+            self.logger.info( "Domain controllers list: {self.servers}" )            
         finally:
             self.refreshdcs_lock.release()
 
