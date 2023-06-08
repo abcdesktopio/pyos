@@ -3827,7 +3827,7 @@ class ODAppInstanceBase(object):
                             'matchExpressions': [
                                 {   'key': 'kubernetes.io/hostname',
                                     'operator': 'In',
-                                    'values': [ desktop.hostname ]
+                                    'values': [ desktop.nodehostname ]
                                 }
                             ]
                         }
