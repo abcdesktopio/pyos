@@ -3198,7 +3198,7 @@ get_label_nodeselector        Returns:
 
             # event dict must contain a type 
             event_type = event.get('type')
-            # event dict must contain a object 
+            # event dict must contain a pod object 
             pod_event = event.get('object')
             # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
             if not isinstance( pod_event, V1Pod ): continue
@@ -4653,7 +4653,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
                                 namespace=self.orchestrator.namespace, 
                                 timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
-                                field_selector=f'involvedObject.name={myDesktop.id}' ):  
+                                field_selector=f'involvedObject.name={app_pod_name}' ):  
             if not isinstance(event, dict ):
                 continue
 
@@ -4702,6 +4702,73 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 w.stop()
         
 
+        self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
+        w = watch.Watch()                 
+        for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
+                                namespace=self.orchestrator.namespace, 
+                                timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
+                                field_selector=f"metadata.name={app_pod_name}" ):   
+            # event must be a dict, else continue
+            if not isinstance(event,dict):
+                self.logger.error( f"event type is {type( event )}, and should be a dict, skipping event")
+                continue
+
+            self.logger.debug( f"event type is {event.get('type')}")
+            # event dict must contain a pod object 
+            pod_event = event.get('object')
+            # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
+            if not isinstance( pod_event, V1Pod ): continue
+            if not isinstance( pod_event.status, V1PodStatus ): continue
+           
+            self.logger.info( f"event_object.type={event_object.type} pod_event.status.phase={pod_event.status.phase} event_object.reason={event_object.reason}")
+            #
+            # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+            # possible values for phase
+            # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
+            # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
+            # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
+            # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
+            # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
+            if pod_event.status.phase == 'Running' :
+                w.stop()
+                continue
+
+            # pod data object is complete, stop reading event
+            # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
+            data = { 
+                'message':  app.get('name'), 
+                'name':     app.get('name'),
+                'icondata': app.get('icondata'),
+                'icon':     app.get('icon'),
+                'image':    app.get('id'),
+                'launch':   app.get('launch')
+            }
+
+            if event_object.type == 'Warning':
+                data['name'] = event_object.type
+                data['message'] = event_object.reason
+                self.orchestrator.notify_user( myDesktop, 'container', data )
+                w.stop()
+            if pod_event.status.phase == 'Pending':
+                if event_object.reason not in ['Created', 'Pulling', 'Pulled', 'Scheduled', 'Started' ]:
+                    data['name'] = event_object.type
+                    data['message'] = event_object.reason
+                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    w.stop()
+            elif pod_event.status.phase in [ 'Failed', 'Unknown'] :
+                # pod data object is complete, stop reading event
+                # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
+               
+                # an error occurs
+                data['name'] = event_object.type
+                data['message'] = event_object.reason
+                self.orchestrator.notify_user( myDesktop, 'container', data )
+                self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
+                w.stop()
+
+        pod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=app_pod_name)
+        assert_type( pod, V1Pod )
+                        
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
         fillednetworkconfig = self.orchestrator.filldictcontextvalue(   
@@ -4719,24 +4786,4 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             type=self.type
         )
         
-        return appinstancestatus
-        
-
-        # set desktop web hook
-        # webhook is None if network_config.get('context_network_webhook') is None
-        fillednetworkconfig = self.orchestrator.filldictcontextvalue(   
-            authinfo=authinfo,
-            userinfo=userinfo,
-            desktop=myDesktop,
-            network_config=network_config,
-            network_name = None,
-            appinstance_id = None )
-
-        appinstancestatus = oc.od.appinstancestatus.ODAppInstanceStatus(
-            id=pod.metadata.name,
-            message=pod.status.phase,
-            webhook = fillednetworkconfig.get('webhook'),
-            type=self.type
-        )
-
         return appinstancestatus
