@@ -3115,25 +3115,18 @@ get_label_nodeselector        Returns:
         if dry_run == 'All':
             return pod_manifest
 
-        number_of_container_started = 0
-        number_of_container_to_start = len( pod_manifest.get('spec').get('initContainers') ) + len( pod_manifest.get('spec').get('containers') )
-        self.on_desktoplaunchprogress(f"b.Watching for events from services {number_of_container_started}/{number_of_container_to_start}" )
-
+        self.on_desktoplaunchprogress(f"b.Watching for events" )
         self.logger.debug('watch list_namespaced_event pod creating' )
         # watch list_namespaced_event
         w = watch.Watch()                 
-        # read_namespaced_pod
-
-        # read 
-        # https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
-
+       
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
                                 timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
                                 field_selector=f'involvedObject.name={pod_name}' ):  
-
-            # safe type test
+            # safe type test event is a dict
             if not isinstance(event, dict ): continue
+            # safe type test event object is a CoreV1Event
             if not isinstance(event.get('object'), CoreV1Event ): continue
             event_object = event.get('object')
             self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
@@ -3152,15 +3145,19 @@ get_label_nodeselector        Returns:
                 return f"{event_object.type} {event_object.reason} {event_object.message}"
 
             elif event_object.type == 'Normal': # event Normal
-                # check reason 
+                
+                #
+                # check reason, read 
+                # https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
                 # reason should be a short, machine understandable string that gives the reason for the transition 
                 # into the object's current status.
+
                 if event_object.reason in [ 'Created', 'Pulling', 'Pulled', 'Scheduled' ]:
-                    pass # nothin to do
+                    pass # nothing to do
                 elif event_object.reason == 'Started':
                     # check if container_graphical_name is started and running if it is stop event
                     myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
-                    if not isinstance( myPod, V1Pod ): continue
+                    if not isinstance( myPod, V1Pod ): continue # skip this event
 
                     if isinstance( myPod.status, V1PodStatus ):
                         #  myPod.status.pod_ip : Empty if not yet allocated.
@@ -4204,17 +4201,13 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     send_previous_pulling_message = True
                     data['message'] =  f"Installing {app.get('name')}, please wait"
                     self.orchestrator.notify_user( myDesktop, 'container', data )
-                    continue
                 elif event_object.reason == 'Pulled':
                     if send_previous_pulling_message is True:
                         data['message'] =  f"{app.get('name')} is installed"
                         self.orchestrator.notify_user( myDesktop, 'container', data )
-                    continue
-                elif event_object.reason == 'Scheduled': 
+                elif event_object.reason in [ 'Created', 'Scheduled' ]:
                     pass # nothing to do
-                elif event_object.reason == 'Started': 
-                    # data['message'] =  f"{app.get('name')} is started"
-                    # self.orchestrator.notify_user( myDesktop, 'container', data )
+                elif event_object.reason == 'Started':
                     w.stop()
                 else:
                     data['message'] =  f"{app.get('name')} is {event_object.reason}"
@@ -4687,17 +4680,13 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     send_previous_pulling_message = True
                     data['message'] =  f"{event_object.reason} {app.get('name')}, please wait"
                     self.orchestrator.notify_user( myDesktop, 'container', data )
-                    continue
                 elif event_object.reason == 'Pulled':
                     if send_previous_pulling_message is True:
                         data['message'] =  f"{app.get('name')} is {event_object.reason.lower()}"
                         self.orchestrator.notify_user( myDesktop, 'container', data )
-                    continue
                 elif event_object.reason == 'Started': 
-                    # data['message'] =  f"{app.get('name')} is started"
-                    # self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
-                elif event_object.reason == 'Scheduled':
+                elif event_object.reason in [ 'Scheduled', 'Created' ]:
                     pass
                 else:
                     data['message'] =  f"{event_object.reason} {event_object.message}"
