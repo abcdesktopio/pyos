@@ -3131,32 +3131,37 @@ get_label_nodeselector        Returns:
                                 namespace=self.namespace, 
                                 timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
                                 field_selector=f'involvedObject.name={pod_name}' ):  
-            if not isinstance(event, dict ):
-                continue
 
+            # safe type test
+            if not isinstance(event, dict ): continue
+            if not isinstance(event.get('object'), CoreV1Event ): continue
             event_object = event.get('object')
-            if not isinstance(event_object, CoreV1Event ):
-                self.logger.error( f"event_object type is {type(event_object)} skipping event waiting for CoreV1Event")
-                continue
-
-            # Valid values for event types (new types could be added in future)
-            #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
-            #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
-
             self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
             self.on_desktoplaunchprogress( f"b.{event_object.message}" )
 
-            if event_object.type == 'Warning':
+            #
+            # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Event.md
+            # Type of this event (Normal, Warning), new types could be added in the future
+            # 'Normal':  Information only and will not cause any problems
+            # 'Warning': These events are to warn that something might go wrong
+
+            if event_object.type == 'Warning':  # event Warning
+                # something might go wrong
                 self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
                 w.stop()
                 return f"{event_object.type} {event_object.reason} {event_object.message}"
-            elif event_object.type == 'Normal':
-                if event_object.reason == 'Started':
+
+            elif event_object.type == 'Normal': # event Normal
+                # check reason 
+                # reason should be a short, machine understandable string that gives the reason for the transition 
+                # into the object's current status.
+                if event_object.reason in [ 'Created', 'Pulling', 'Pulled', 'Scheduled' ]:
+                    pass # nothin to do
+                elif event_object.reason == 'Started':
                     # check if container_graphical_name is started and running if it is stop event
                     myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
-                    if not isinstance(myPod, V1Pod ):
-                        continue
-                    
+                    if not isinstance( myPod, V1Pod ): continue
+
                     if isinstance( myPod.status, V1PodStatus ):
                         #  myPod.status.pod_ip : Empty if not yet allocated.
                         if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
@@ -3169,14 +3174,15 @@ get_label_nodeselector        Returns:
                             startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod)
                             self.on_desktoplaunchprogress( startedmsg )
                             w.stop()
-
-                elif event_object.reason in [ 'Created', 'Pulling', 'Pulled', 'Scheduled' ]:
-                    continue
                 else:
                     # an error occurs
                     self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
                     w.stop()
                     return  f"{event_object.reason} {event_object.message}"
+            else: 
+                # unknow event received
+                w.stop()
+
 
 
         self.logger.debug( f"watch list_namespaced_event pod created {event_object.type}")
@@ -3198,15 +3204,13 @@ get_label_nodeselector        Returns:
             # event dict must contain a object 
             pod_event = event.get('object')
             # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
-            if not isinstance( pod_event, V1Pod ) :  
-                w.stop()
-                continue
-
-            self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}" )    
+            if not isinstance( pod_event, V1Pod ): continue
+            if not isinstance( pod_event.status, V1PodStatus ): continue
+            self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}")
             self.logger.info( f"pod_event.status.phase={pod_event.status.phase}" )
             #
             # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
-            #
+            # possible values for phase
             # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
             # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
             # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
@@ -3228,23 +3232,23 @@ get_label_nodeselector        Returns:
 
         # read pod again
         self.logger.debug('watch read_namespaced_pod creating' )
-        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)    
+        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)   
+        assert isinstance(myPod, V1Pod),  f"read_namespaced_pod returns type {type(myPod)} V1Pod is expected"
+        assert isinstance(myPod.status, V1PodStatus), f"read_namespaced_pod returns pod.status type {type(myPod.status)} V1PodStatus is expected"
+
         self.logger.info( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
         # The pod is not in Pending
         # read the status.phase, if it's not Running 
         if myPod.status.phase != 'Running':
             # something wrong 
-            msg =  f"Your pod does not start, status is {myPod.status.phase} reason is {myPod.status.reason} message {myPod.status.message}" 
+            msg =  f"e.Your pod does not start, status is {myPod.status.phase} reason is {myPod.status.reason} message {myPod.status.message}" 
             self.on_desktoplaunchprogress( msg )
             return msg
         else:
             self.on_desktoplaunchprogress(f"b.Your pod is {myPod.status.phase}.")
 
         myDesktop = self.pod2desktop( pod=myPod, authinfo=authinfo, userinfo=userinfo)
-        self.logger.debug('watch read_namespaced_pod created')
-
         self.logger.debug(f"desktop phase:{myPod.status.phase} has interfaces properties {myDesktop.desktop_interfaces}")
-
         self.logger.debug('watch filldictcontextvalue creating' )
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
@@ -4206,6 +4210,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         data['message'] =  f"{app.get('name')} is installed"
                         self.orchestrator.notify_user( myDesktop, 'container', data )
                     continue
+                elif event_object.reason == 'Scheduled': 
+                    pass # nothing to do
                 elif event_object.reason == 'Started': 
                     # data['message'] =  f"{app.get('name')} is started"
                     # self.orchestrator.notify_user( myDesktop, 'container', data )
@@ -4679,18 +4685,20 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             if event_object.type == 'Normal':
                 if event_object.reason == 'Pulling':
                     send_previous_pulling_message = True
-                    data['message'] =  f"Installing {app.get('name')}, please wait"
+                    data['message'] =  f"{event_object.reason} {app.get('name')}, please wait"
                     self.orchestrator.notify_user( myDesktop, 'container', data )
                     continue
                 elif event_object.reason == 'Pulled':
                     if send_previous_pulling_message is True:
-                        data['message'] =  f"{app.get('name')} is installed"
+                        data['message'] =  f"{app.get('name')} is {event_object.reason.lower()}"
                         self.orchestrator.notify_user( myDesktop, 'container', data )
                     continue
                 elif event_object.reason == 'Started': 
                     # data['message'] =  f"{app.get('name')} is started"
                     # self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
+                elif event_object.reason == 'Scheduled':
+                    pass
                 else:
                     data['message'] =  f"{event_object.reason} {event_object.message}"
                     self.orchestrator.notify_user( myDesktop, 'container', data )
