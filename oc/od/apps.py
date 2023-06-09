@@ -467,7 +467,7 @@ class ODApps:
                 'args':         labels.get('oc.args'),
                 'execmode':     labels.get('oc.execmode'),
                 'showinview':   labels.get('oc.showinview'),
-                'displayname':  labels.get('oc.displayname'),
+                'displayname':  labels.get('oc.displayname', name),
                 'home':         labels.get('oc.home'),
                 'desktopfile':  labels.get('oc.desktopfile'),
                 'executeclassname':     labels.get('oc.executeclassname'),
