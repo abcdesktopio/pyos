@@ -97,7 +97,7 @@ import oc.od.persistentvolumeclaim
 import oc.od.secret         # manage secret for kubernetes
 import oc.od.configmap
 import oc.od.appinstancestatus
-from   oc.od.error          import ODAPIError   # import all error classes
+from   oc.od.error          import ODAPIError, ODError   # import all error classes
 from   oc.od.desktop        import ODDesktop
 from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 from   oc.od.vnc_password   import ODVncPassword
@@ -2334,6 +2334,7 @@ get_label_nodeselector        Returns:
             'spec': {
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'restartPolicy' : 'Never',
+                'terminationGracePeriodSeconds': 0,  # Time to wait before moving from a TERM signal to the pod's main process to a KILL signal.'
                 'containers':[ {   
                     'name': podname,
                     # When imagePullSecrets hasn’t been set, 
@@ -4621,6 +4622,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'annotations':  annotations
             },
             'spec': {
+                'terminationGracePeriodSeconds': 0,  # Time to wait before moving from a TERM signal to the pod's main process to a KILL signal.
                 'restartPolicy' : 'Never',
                 'securityContext': securitycontext,
                 'affinity': affinity,
@@ -4645,7 +4647,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         pod = self.orchestrator.kubeapi.create_namespaced_pod(namespace=self.orchestrator.namespace,body=pod_manifest )
 
         if not isinstance(pod, V1Pod ):
-            raise ValueError( 'Invalid create_namespaced_pod type')
+            raise ValueError( f"Invalid create_namespaced_pod type return {type(pod)} V1Pod is expecting")
         
         send_previous_pulling_message = False
         # watch list_namespaced_event
@@ -4654,26 +4656,25 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                                 namespace=self.orchestrator.namespace, 
                                 timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
                                 field_selector=f'involvedObject.name={app_pod_name}' ):  
-            if not isinstance(event, dict ):
-                continue
-
-            event_object = event.get('object')
-            if not isinstance(event_object, CoreV1Event ):
-                continue
+            # safe type check 
+            if not isinstance(event, dict ): continue
+            if not isinstance(event.get('object'), CoreV1Event ): continue
 
             # Valid values for event types (new types could be added in future)
             #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
 
-
+            event_object = event.get('object')
             self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
+
+            # data for notify_user
             data = { 
-                    'message':  app.get('name'), 
-                    'name':     app.get('name'),
-                    'icondata': app.get('icondata'),
-                    'icon':     app.get('icon'),
-                    'image':    app.get('id'),
-                    'launch':   app.get('launch')
+                'message':  app.get('name'), 
+                'name':     app.get('name'),
+                'icondata': app.get('icondata'),
+                'icon':     app.get('icon'),
+                'image':    app.get('id'),
+                'launch':   app.get('launch')
             }
             if event_object.type == 'Normal':
                 if event_object.reason == 'Pulling':
@@ -4744,21 +4745,23 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'launch':   app.get('launch')
             }
 
-            if event_object.type == 'Warning':
-                data['name'] = event_object.type
-                data['message'] = event_object.reason
-                self.orchestrator.notify_user( myDesktop, 'container', data )
-                w.stop()
+            '''
             if pod_event.status.phase == 'Pending':
                 if event_object.reason not in ['Created', 'Pulling', 'Pulled', 'Scheduled', 'Started' ]:
                     data['name'] = event_object.type
                     data['message'] = event_object.reason
                     self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
+            '''
+
+            if event_object.type == 'Warning':
+                data['name'] = event_object.type
+                data['message'] = event_object.reason
+                self.orchestrator.notify_user( myDesktop, 'container', data )
+                w.stop()
             elif pod_event.status.phase in [ 'Failed', 'Unknown'] :
                 # pod data object is complete, stop reading event
                 # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
-               
                 # an error occurs
                 data['name'] = event_object.type
                 data['message'] = event_object.reason
@@ -4767,7 +4770,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 w.stop()
 
         pod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=app_pod_name)
-        assert_type( pod, V1Pod )
+        if not isinstance( pod, V1Pod ):
+            raise ODError( status=500, message='Can not create pod')
                         
         # set desktop web hook
         # webhook is None if network_config.get('context_network_webhook') is None
