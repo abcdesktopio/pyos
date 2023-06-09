@@ -1,4 +1,3 @@
-from errno import ESTALE
 import logging
 import oc.od.settings as settings
 import oc.od.orchestrator
