@@ -534,7 +534,7 @@ class ODApps:
         array_image_id = image_id.split('/')
         if len(array_image_id)>2:
             image_id=f"{array_image_id[-2]}/{array_image_id[-1]}"
-        self.debug(f"filtered image_id={image_id}")
+        self.logger.debug(f"filtered image_id={image_id}")
         # try to find by key
         app = self.myglobal_list.get(image_id)
         if isinstance(app, dict):
