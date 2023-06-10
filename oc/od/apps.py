@@ -13,7 +13,6 @@
 # 
 
 import logging
-from typing_extensions import assert_type
 import oc.logging
 import base64
 import os
@@ -529,7 +528,7 @@ class ODApps:
         """
         self.logger.debug(locals())
         app = None
-        assert_type( image_id, str)
+        assert isinstance(image_id, str),f"image has invalid type {type(image_id)}"
         # apps [DEBUG  ] 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' 
         # convert 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' -> 'abcdesktopio/2048-alpine.d:3.0' 
         array_image_id = image_id.split('/')
