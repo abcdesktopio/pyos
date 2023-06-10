@@ -516,14 +516,30 @@ class ODApps:
                 _sha_id = ar_sha_id[1]
         return _sha_id
 
-    def find_app_by_id(self, image_id):
+    def find_app_by_id(self, image_id:str)->dict:
+        """find_app_by_id
+            return None if app is not found
+        Args:
+            image_id (str): image id
+
+        Returns:
+            dict: app dict
+        """
+        self.logger.debug(locals())
         app = None
+
+        # try to find by key
+        app = self.myglobal_list.get(image_id)
+        if isinstance(app, dict):
+            return app
+        
+        # not found use sha
         for k in self.myglobal_list.keys():
             sha_id = self.myglobal_list[k].get('sha_id')
             id_from_sha_id = ODApps.get_id_from_sha_id( sha_id )
-            if  id_from_sha_id == image_id or \
-                self.myglobal_list[k].get('sha_id') == image_id or \
-                self.myglobal_list[k].get('id') == image_id :
+            id = self.myglobal_list[k].get('id')
+            self.logger.debug( f"compare image_id={image_id} with id_from_sha_id={id_from_sha_id} sha_id={sha_id} id={id}" )
+            if image_id in [ id_from_sha_id, sha_id, id ]:
                 app = self.myglobal_list[k]
                 break
         return app
