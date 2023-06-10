@@ -687,7 +687,7 @@ def openapp( auth, user={}, kwargs={} ):
 
     appinstancestatus = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
     if not isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus ):
-        raise ODError( status=500, message=f"Failed to run application return {type(appinstancestatus)}")
+        raise ODError( status=500, message=f"Failed to run application createappinstance return {type(appinstancestatus)}")
     logger.info(f"app {appinstancestatus.id} is {appinstancestatus.message}")
     
     runwebhook( appinstancestatus )
