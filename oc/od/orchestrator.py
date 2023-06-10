@@ -2752,7 +2752,7 @@ get_label_nodeselector        Returns:
 
         self.logger.debug( f"pod container adding {currentcontainertype} to {myuuid}" )
         securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
-        image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo ) 
+        image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
         container = { 
             'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
             'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy', 'IfNotPresent' ),
@@ -4119,7 +4119,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             image=app['id'],
             command=app.get('cmd'),
             target_container_name=myDesktop.container_name,
-            image_pull_policy=app.get('image_pull_policy'),
+            image_pull_policy= oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
             volume_mounts = list_volumeMounts,
             working_dir = workingDir
         )
