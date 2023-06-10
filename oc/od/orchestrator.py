@@ -2188,7 +2188,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         containerengine = app.get('containerengine', 'ephemeral_container' )
         if containerengine not in self.appinstance_classes.keys():
             raise ValueError( f"unknow containerengine value {containerengine} must be defined in {list(self.appinstance_classes.keys())}")
+        self.logger.debug(f"createappinstance containerengine={containerengine}")
         appinstance_class = self.appinstance_classes.get(containerengine)
+        self.logger.debug(f"createappinstance appinstance_class={appinstance_class}")
         appinstance = appinstance_class(self)
         self.logger.debug(f"createappinstance containerengine={containerengine} type={appinstance.type}")
         appinstancestatus = appinstance.create(myDesktop, app, authinfo, userinfo, userargs, **kwargs )
@@ -4221,7 +4223,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             
 
         appinstancestatus = None
-        for wait_time in [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2 ]:
+        for wait_time in [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4 ]:
             # re read again
             pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
                     name=myDesktop.id, 
