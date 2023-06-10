@@ -532,7 +532,7 @@ class ODApps:
         # apps [DEBUG  ] 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' 
         # convert 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' -> 'abcdesktopio/2048-alpine.d:3.0' 
         array_image_id = image_id.split('/')
-        if len(array_image_id>2):
+        if len(array_image_id)>2:
             image_id=f"{array_image_id[-2]}/{array_image_id[-1]}"
         self.debug(f"filtered image_id={image_id}")
         # try to find by key
