@@ -4175,17 +4175,14 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                 namespace=self.orchestrator.namespace, 
                                 timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
                                 field_selector=f'involvedObject.name={pod_name}' ):  
-            if not isinstance(event, dict ):
-                continue
-
-            event_object = event.get('object')
-            if not isinstance(event_object, CoreV1Event ):
-                continue
+            if not isinstance(event, dict ): continue
+            if not isinstance(event.get('object'), CoreV1Event ): continue
 
             # Valid values for event types (new types could be added in future)
             #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
 
+            event_object = event.get('object')
 
             self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
             data = { 
