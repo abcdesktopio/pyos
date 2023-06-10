@@ -13,6 +13,7 @@
 # 
 
 import logging
+from typing_extensions import assert_type
 import oc.logging
 import base64
 import os
@@ -519,6 +520,7 @@ class ODApps:
     def find_app_by_id(self, image_id:str)->dict:
         """find_app_by_id
             return None if app is not found
+
         Args:
             image_id (str): image id
 
@@ -527,18 +529,24 @@ class ODApps:
         """
         self.logger.debug(locals())
         app = None
-
+        assert_type( image_id, str)
+        # apps [DEBUG  ] 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' 
+        # convert 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' -> 'abcdesktopio/2048-alpine.d:3.0' 
+        array_image_id = image_id.split('/')
+        if len(array_image_id>2):
+            image_id=f"{array_image_id[-2]}/{array_image_id[-1]}"
+        self.debug(f"filtered image_id={image_id}")
         # try to find by key
         app = self.myglobal_list.get(image_id)
         if isinstance(app, dict):
             return app
         
-        # not found use sha
+        # not found use sha 
         for k in self.myglobal_list.keys():
             sha_id = self.myglobal_list[k].get('sha_id')
             id_from_sha_id = ODApps.get_id_from_sha_id( sha_id )
             id = self.myglobal_list[k].get('id')
-            self.logger.debug( f"compare image_id={image_id} with id_from_sha_id={id_from_sha_id} sha_id={sha_id} id={id}" )
+            # self.logger.debug( f"compare image_id={image_id} with id_from_sha_id={id_from_sha_id} sha_id={sha_id} id={id}" )
             if image_id in [ id_from_sha_id, sha_id, id ]:
                 app = self.myglobal_list[k]
                 break
