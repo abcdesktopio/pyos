@@ -3098,7 +3098,7 @@ get_label_nodeselector        Returns:
 
         pod = None
         try:
-            pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest, dry_run=dry_run )
+            pod = self.kubeapi.create_namespaced_pod( namespace=self.namespace, body=pod_manifest, dry_run=dry_run)
         except ApiException as e:
             self.logger.error( e )
             msg=f"e.Create pod failed {e.reason} {e.body}"
@@ -4149,27 +4149,73 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
 
-        """
+        pod_name = myDesktop.id
         # watch list_namespaced_event
         w = watch.Watch()                 
         # read_namespaced_pod
-        for event in w.stream(  self.orchestrator.kubeapi.read_namespaced_pod, 
+
+        for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
                                 namespace=self.orchestrator.namespace, 
-                                name=pod.metadata.name ):  
-            event_object = event.get('object')
-            if not isinstance(event_object, CoreV1Event ):
-                self.logger.error( 'event_object type is %s skipping event waiting for CoreV1Event', type(event_object))
-                continue
-            
+                                field_selector=f"metadata.name={pod_name}" ):  
+
+            # event must be a dict, else continue
+            if not isinstance(event,dict):  continue
+            self.logger.debug( f"{event.get('type')} object={type(event.get('object'))}" )
+            pod = event.get('object')
+            # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
+            if not isinstance( pod, V1Pod ): continue
+            if not isinstance( pod.status, V1PodStatus ): continue
+            if not isinstance( pod.status.ephemeral_container_statuses, list): continue
+
+            for c in pod.status.ephemeral_container_statuses:
+                if isinstance( c, V1ContainerStatus ) and c.name == app_container_name:
+                    send_previous_pulling_message = False
+                    self.logger.debug( f"{app_container_name} is found in ephemeral_container_statuses {c}")
+                    appinstancestatus = oc.od.appinstancestatus.ODAppInstanceStatus( id=c.name, type=self.type )
+                    if isinstance( c.state, V1ContainerState ):
+                        if  isinstance(c.state.terminated, V1ContainerStateTerminated ):
+                            appinstancestatus.message = 'Terminated'
+                            w.stop()
+                        elif isinstance(c.state.running, V1ContainerStateRunning ):
+                            appinstancestatus.message = 'Running'
+                            w.stop()
+                        elif isinstance(c.state.waiting, V1ContainerStateWaiting):
+                            self.logger.debug( f"V1ContainerStateWaiting reason={c.state.waiting.reason}" )
+                            data = { 
+                                    'message':  app.get('name'), 
+                                    'name':     app.get('name'),
+                                    'icondata': app.get('icondata'),
+                                    'icon':     app.get('icon'),
+                                    'image':    app.get('id'),
+                                    'launch':   app.get('launch')
+                            }
+                            if c.state.waiting.reason in [ 'PodInitializing' ]:
+                                break 
+                            if  c.state.waiting.reason == 'Pulling':
+                                send_previous_pulling_message = True
+                                data['message'] = f"Installing {app.get('name')}, please wait"
+                                self.orchestrator.notify_user( myDesktop, 'container', data )
+                            elif c.state.waiting.reason == 'Pulled':
+                                if send_previous_pulling_message is True:
+                                    data['message'] = f"{app.get('name')} is installed"
+                                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                            else:
+                                data['message'] = c.state.waiting.message
+                                self.orchestrator.notify_user( myDesktop, 'container', data )
+
+            if event.get('type') == 'ERROR':
+                self.logger.error( f"{event.get('type')} object={type(event.get('object'))}")
+                w.stop()
+        
+        """
+
             # Valid values for event types (new types could be added in future)
             #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
             #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
-            object_type = event_object.type
-            self.logger.info( f"object_type={object_type} reason={event_object.reason}")
-            message = f"b.{event_object.reason} {event_object.message.lower()}"
-        """
+            # self.logger.info( f"object_type={event_object.type} reason={event_object.reason}")
+            # message = f"b.{event_object.reason} {event_object.message.lower()}"
 
-        pod_name = myDesktop.id
+        
         send_previous_pulling_message = False
         # watch list_namespaced_event
         w = watch.Watch()                 
@@ -4207,7 +4253,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 elif event_object.reason in [ 'Created', 'Scheduled' ]:
                     pass # nothing to do
                 elif event_object.reason == 'Started':
-                    w.stop()
+                    # w.stop()
+                    pass
                 else:
                     data['message'] =  f"{app.get('name')} is {event_object.reason}"
                     self.orchestrator.notify_user( myDesktop, 'container', data )
@@ -4221,35 +4268,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 self.orchestrator.notify_user( myDesktop, 'container', data )
                 w.stop()
             
-
-        appinstancestatus = None
-        for wait_time in [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4 ]:
-            # re read again
-            pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
-                    name=myDesktop.id, 
-                    namespace=self.orchestrator.namespace )
-            if not isinstance(pod, V1Pod ):
-                raise ValueError( f"Invalid type pod returns by read_namespaced_pod_ephemeralcontainers {type(pod)}")
-            if not isinstance( pod.status, V1PodStatus ):
-                raise ValueError( f"Invalid type od.status read_namespaced_pod_ephemeralcontainers return {type(pod.status)}")
-
-            self.logger.debug( f"pod.status.ephemeral_container_statuses={pod.status.ephemeral_container_statuses}")
-            appinstancestatus = None
-            if isinstance(pod.status.ephemeral_container_statuses, list):
-                for c in pod.status.ephemeral_container_statuses:
-                    if isinstance( c, V1ContainerStatus ) and c.name == app_container_name:
-                        appinstancestatus = oc.od.appinstancestatus.ODAppInstanceStatus( id=c.name, type=self.type )
-                        if isinstance( c.state, V1ContainerState ):
-                            appinstancestatus.message = self.get_phase(c)
-                            break
-
-            if isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus):
-                self.logger.info(f"read_namespaced_pod_ephemeralcontainers status.ephemeral_container_statuses {appinstancestatus} updated in {wait_time}s" )
-                break
-            else:
-                self.logger.debug( f"waiting for {wait_time}" )
-                time.sleep( wait_time )
-        
+        """
+  
         return appinstancestatus
 
     def findRunningAppInstanceforUserandImage( self, authinfo:AuthInfo, userinfo:AuthUser, app):
