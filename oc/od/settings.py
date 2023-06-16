@@ -1,4 +1,3 @@
-from distutils.util import execute
 import os
 import socket
 import sys
@@ -7,10 +6,7 @@ import logging
 
 from cherrypy.lib.reprconf import Config
 from urllib.parse import urlparse
-
-import oc.datastore
 import oc.pyutils as pyutils
-import oc.logging
 
 import base64
 
@@ -84,7 +80,7 @@ logmein = {}
 
 # desktop
 desktop_pod                = {}
-desktop                    = { 'secretsrootdirectory': '/var/secrets/' }
+desktop                    = {}
 
 kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
 
@@ -273,9 +269,10 @@ def init_fakedns():
 
 
 def init_desktop():
+    logger.debug('')
     global desktop
     global desktop_pod
- 
+
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
     # desktop authprovider can change on the fly 
@@ -295,6 +292,8 @@ def init_desktop():
         logger.error('this is a fatal error in configuration file')
         sys.exit(-1)
 
+    desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
+    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
     desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
@@ -402,7 +401,7 @@ def init_config_memcached():
     logger.debug( f"memcachedserver is read as {memcachedserver}" )
     memcachedipaddr = _resolv(memcachedserver)
     logger.info( f"host {memcachedserver} resolved as {memcachedipaddr}")
-    memcachedport = gconfig.get('memcachedport', 11211)
+    memcachedport = gconfig.get('memcacheport', 11211)
     memconnectionstring = f"{memcachedserver}:{memcachedport}"
     logger.info(f"memcachedserver is set to {memcachedserver}")
     logger.info( f"memcached connection string is set to {memconnectionstring}")
@@ -604,12 +603,21 @@ def make_b64data_from_iconfile(filename):
       
 
 def init_dock():
+    logger.debug('')
     global dock
     dock = gconfig.get('dock', {})
     for key in dock.keys():
-        filename = dock[key].get( 'icon' )
-        dock[key]['icondata'] = make_b64data_from_iconfile( filename )
-        # logger.info("default user dock %s ", str( dock ))
+        logger.debug( f"loading dock entry {key}")
+        if not isinstance( dock[key], dict ):
+            logger.error(f"bad dock type dock[{key}]={type(dock[key])} is must be a dict")
+            exit(-1)           
+
+        filename = dock[key].get('icon')
+        if isinstance(filename, str):
+            # load the icon file as base64 format
+            dock[key]['icondata'] = make_b64data_from_iconfile( filename )
+        else:
+            logger.error(f"bad dock entry dock[{key}]['icon']={type(filename)} is must be a str (filename)")
 
 
 def init_executeclass():
