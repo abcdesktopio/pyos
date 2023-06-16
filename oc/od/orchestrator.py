@@ -1236,7 +1236,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount = {}  # set empty volume_mount dict by default
 
         #
-        # mount secret in /var/secrets/abcdesktop
+        # mount secret in /etc/localaccount
         #
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
         #secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
@@ -1244,10 +1244,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         for secret_auth_name in mysecretdict.keys():
             # https://kubernetes.io/docs/concepts/configuration/secret
             # create an entry eq: 
-            # /var/secrets/abcdesktop/localaccount
-           
-            self.logger.debug( 'adding secret type %s to volume pod', mysecretdict[secret_auth_name]['type'] )
-            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
+            # /etc/localaccount
+            self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']}" )
+  
+            secretmountPath = oc.od.settings.desktop['secretslocalaccount']
             # mode is 644 -> rw-r--r--
             # Owing to JSON limitations, you must specify the mode in decimal notation.
             # 644 in decimal equal to 420
