@@ -1810,10 +1810,10 @@ class ODAuthProviderBase(ODRoleProviderBase):
                 'message': "userid consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character. regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')"
             }
         }
-        self.default_user_if_not_exist      = config.get('defaultuid', oc.od.settings.oc.od.settings.getballoon_loginname())
-        self.default_passwd_if_not_exist    = config.get('defaultpassword', oc.od.settings.getballoon_password()  )
-        self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', oc.od.settings.getballoon_uidNumber() )
-        self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', oc.od.settings.getballoon_gidNumber() )
+        self.default_user_if_not_exist = config.get('defaultuid', oc.od.settings.getballoon_loginname())
+        self.default_passwd_if_not_exist = config.get('defaultpassword', oc.od.settings.getballoon_password())
+        self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', oc.od.settings.getballoon_uidNumber())
+        self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', oc.od.settings.getballoon_gidNumber())
         self.auth_protocol = config.get('auth_protocol', {} )
 
     def getdisplaydescription( self ):
