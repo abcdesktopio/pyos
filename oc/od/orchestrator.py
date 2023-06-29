@@ -947,6 +947,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount = {}  # set empty dict of V1VolumeMount by default
         #
         # mount secret in /var/secrets/abcdesktop
+        # abcdesktop is the default namespace
+        # mount secret in /var/secrets/$NAMESPACE
         #
         self.logger.debug( "listing list_dict_secret_data access_type='auth'" )
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
@@ -1236,17 +1238,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount = {}  # set empty volume_mount dict by default
 
         #
-        # mount secret in /etc/localaccount
+        # mount secret in directory desktop['secretslocalaccount'] eq: /etc/localaccount
         #
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
         #secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
         #localaccountsecret = secret.read_alldata
         for secret_auth_name in mysecretdict.keys():
             # https://kubernetes.io/docs/concepts/configuration/secret
-            # create an entry eq: 
-            # /etc/localaccount
+            # create an entry in desktop['secretslocalaccount']
+            # do not use the namespace
             self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']}" )
-  
             secretmountPath = oc.od.settings.desktop['secretslocalaccount']
             # mode is 644 -> rw-r--r--
             # Owing to JSON limitations, you must specify the mode in decimal notation.
@@ -1318,13 +1319,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             volumes_mount['shm'] = self.default_volumes_mount['shm']
 
         #
-        # mount localaccount config map
+        # mount localaccount secrets in desktop['secretslocalaccount'] eq: /etc/localaccount
+        # desktop['secretslocalaccount'] SHOULD NOT use the namepace  
+        # do not hard code the abcdesktop because oc.user container image use a symbolic link to 
+        # - /etc/passwd -> desktop['secretslocalaccount']/passwd 
+        # - /etc/shadow -> desktop['secretslocalaccount']/shadow 
+        # - /etc/group  -> desktop['secretslocalaccount']/group 
+        # - /etc/gshadow -> desktop['secretslocalaccount']/gshadow 
+        # files are linked to desktop['secretslocalaccount']
         #
         if volume_type in [ 'pod_desktop', 'pod_application',  'ephemeral_container' ] :
-            (configmap_localaccount_volumes, configmap_localaccount_volumes_mount) = \
+            (localaccount_volumes, localaccount_volumes_mount) = \
                 self.build_volumes_localaccount(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
-            volumes.update( configmap_localaccount_volumes )
-            volumes_mount.update( configmap_localaccount_volumes_mount )
+            volumes.update( localaccount_volumes )
+            volumes_mount.update( localaccount_volumes_mount )
 
 
         if kwargs.get('dry_run') == 'All':
@@ -1668,6 +1676,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # - /etc/shadow 
         # - /etc/group 
         # - /etc/gshadow
+        # files will be set as link in build_volumes
         localaccount_data = authinfo.get_localaccount()
         localaccount_files = self.preparelocalaccount( localaccount_data )
         self.logger.debug('localaccount secret.create creating')
@@ -1683,7 +1692,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             secret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
             createdsecret = secret.create( authinfo, userinfo, data=userinfo.getPosixAccount())
             if not isinstance( createdsecret, V1Secret):
-                self.logger.error(f"cannot create secret {secret.get_name(authinfo, userinfo)}")
+                self.logger.error(f"cannot create posixaccount secret {secret.get_name(authinfo, userinfo)}")
             else:
                 self.logger.debug(f"posixaccount secret.create {secret.get_name(authinfo, userinfo)} created")
 
@@ -3774,7 +3783,7 @@ class ODAppInstanceBase(object):
         env['LC_IDENTIFICATION']=lang
         env['PARENT_ID']=myDesktop.id
         env['PARENT_HOSTNAME']=myDesktop.nodehostname
-               
+        env['APP'] = app.get('path')
 
         # Add specific vars
         if isinstance( kwargs, dict ):
@@ -3783,6 +3792,8 @@ class ODAppInstanceBase(object):
                 env['TZ'] = timezone
         if isinstance(userargs, str) and len(userargs) > 0:
             env['APPARGS'] = userargs
+        if isinstance( app.get('args'), str) and len(app.get('args')) > 0:
+            env['ARGS'] = app.get('args')
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
             env.update(authinfo.data.get('identity', {}))
 
