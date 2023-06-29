@@ -292,6 +292,7 @@ def init_desktop():
         logger.error('this is a fatal error in configuration file')
         sys.exit(-1)
 
+    # default secret path
     desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
     # in release 3.1
     # desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
