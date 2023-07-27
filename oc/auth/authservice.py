@@ -2182,7 +2182,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     # from https://ldapwiki.com/wiki/PosixGroup
     # PosixGroup ObjectClass Types 
     DEFAULT_POSIXGROUP_ATTRS   = { 'posixGroup' : [ 'cn', 'gidNumber', 'memberUid', 'description' ] }
-    
+    # from https://ldap3.readthedocs.io/en/latest/connection.html
+    # LDAP_AUTH_SUPPORTED_METHOD
+    LDAP_AUTH_SUPPORTED_METHOD = ['KERBEROS', 'NTLM', 'SIMPLE', 'ANONYMOUS']
+
+
     class Query(object):
         def __init__(self, basedn, scope=ldap3.SUBTREE, filter=None, attrs=None ):
             self.scope = scope
@@ -2434,8 +2438,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         userdn = None   # set default value
         conn   = None   # set default value
 
-        if self.auth_type not in ['KERBEROS', 'NTLM', 'SIMPLE']:
-             raise AuthenticationError('auth_type must be \'KERBEROS\', \'NTLM\', or \'SIMPLE\' ')
+        if self.auth_type not in ODLdapAuthProvider.LDAP_AUTH_SUPPORTED_METHOD:
+             raise AuthenticationError(f"auth_type must be in {ODLdapAuthProvider.LDAP_AUTH_SUPPORTED_METHOD}")
 
         if self.auth_type == 'KERBEROS':
             # can raise exception 
