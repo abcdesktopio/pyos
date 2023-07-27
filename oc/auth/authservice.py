@@ -2441,8 +2441,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if self.auth_type not in ODLdapAuthProvider.LDAP_AUTH_SUPPORTED_METHOD:
              raise AuthenticationError(f"auth_type must be in {ODLdapAuthProvider.LDAP_AUTH_SUPPORTED_METHOD}")
 
+        self.logger.debug( f"validate uses auth_type={self.auth_type}")
         if self.auth_type == 'KERBEROS':
             # can raise exception 
+            self.logger.debug( f"validate={userid}" )
             self.krb5_validate( userid, password )
             self.krb5_authenticate( userid, password )
             if not self.auth_only :
@@ -2452,9 +2454,28 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 userdn = self.getuserdn(conn, userid)
         elif self.auth_type == 'SIMPLE':
             # can raise exception 
-            self.simple_validate(userid, password)   
-            conn = self.getconnection(userid, password) 
+            self.simple_validate(userid, password)
+            # build the user dn string to bind the ldap server 
+            # take 'Hubert J. Farnsworth' and return from the config file
+            # 'cn=Hubert J. Farnsworth,ou=people,dc=planetexpress,dc=com'
+            userdn = self.getuserdnldapconnection(userid)
+            conn = self.getconnection(userdn, password) 
+            # query again overwrite userdn
+            userdn = self.getuserdn(conn, userid) 
+        elif self.auth_type == 'ANONYMOUS':
+            # the auth is anonymous, then the conn should always bind 
+            conn = self.getconnection(None, None)
+            # but we must find the user's dn
+            # how to check the password
             userdn = self.getuserdn(conn, userid)
+            # but we must find the user's dn
+            # how to check the password 
+            self.logger.debug( f"validate gets userdn={userdn}")
+            if not isinstance( userdn, str):
+                raise AuthenticationError( f"user {userid} is not found")
+            # check the user's credentials
+            self.logger.debug( f"validate starts new getconnection userdn={userdn} auth='SIMPLE' ")
+            conn = self.getconnection(userdn, password, 'SIMPLE')
         elif self.auth_type == 'NTLM':
             # can raise exception 
             self.ntlm_validate(userid, password)
@@ -2561,15 +2582,13 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # especially as LDAP doesn't really specify which attribute qualifies as the username.
         # The DN is similarly unencumbered.
         # set max value to 256
-        if not userid :
+        if len(userid) == 0 :
             raise AuthenticationError('user can not be an empty string')
         if len(userid) > LDAP_UID_MAX_LENGTH :
             raise AuthenticationError('user length must be less than 256 characters')
-
-        if not password :
-            raise AuthenticationError('password can not be an empty string')
-
         # LDAP BIND password length Limit.
+        if len(password) == 0:
+            raise AuthenticationError('password can not be an empty string')
         # Maximum number of characters supported for plain-text bind-password config is 63
         if len(password) > LDAP_PASSWORD_MAX_LENGTH:
             raise AuthenticationError('password length must be less than 64 characters')
@@ -2729,13 +2748,16 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return is_supported
 
 
-    def getconnection(self, userid, password ):
-        self.logger.info( f"ldap getconnection auth userid={userid}" )
+    def getconnection(self, userid:str, password:str, auth_type:str=None ):
         conn = None
         lastException = None
+        if auth_type is None :
+            auth_type = self.auth_type
+        self.logger.info( f"ldap getconnection auth userid={userid} auth={auth_type}" )
+
         for server_name in self.servers:
             try: 
-                self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={self.auth_type}")
+                self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={auth_type}")
                 server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, get_info='ALL')
                 
                 # create a Connection to get supported_sasl_mechanisms from server
@@ -2749,10 +2771,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 del c # remove the c Connection, only use to get supported_sasl_mechanisms 
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
-                    self.logger.warning( f"{self.auth_type} is not defined in {server_name}.info.supported_sasl_mechanisms supported_sasl_mechanisms={supported_sasl_mechanisms}" )
+                    self.logger.warning( f"{auth_type} is not defined in {server_name}.info.supported_sasl_mechanisms supported_sasl_mechanisms={supported_sasl_mechanisms}" )
                 
                 # do kerberos bind
-                if self.auth_type == 'KERBEROS': 
+                if auth_type == 'KERBEROS': 
                      # krb5ccname must already exist 
                     krb5ccname = self.get_krb5ccname( userid )
                     cred_store = {'ccache':  krb5ccname }
@@ -2763,7 +2785,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     conn = ldap3.Connection( server, user=kerberos_principal_name, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
 
                 # do ntlm bind
-                if self.auth_type == 'NTLM':
+                if auth_type == 'NTLM':
                     # https://ldap3.readthedocs.io/en/latest/connection.html
                     # NTLM uses NTLMv2 authentication. 
                     # Username must be in the form domain\user.
@@ -2773,14 +2795,14 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, read_only=True, raise_exceptions=True )
                     
                 # do textplain simple_bind_s 
-                if self.auth_type == 'SIMPLE':
-                    # get the dn to bind 
-                    userdn = self.getuserdnldapconnection(userid)
+                if auth_type == 'SIMPLE':
+                    # userid is a dn
+                    # need to get the dn to bind previously userdn = self.getuserdnldapconnection(userid)
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
-                    self.logger.info( f"ldap getconnection:Connection server={server_name} userdn={userdn} authentication=ldap3.SIMPLE" )
-                    conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
+                    self.logger.info( f"ldap getconnection:Connection server={server_name} userdn={userid} authentication=ldap3.SIMPLE" )
+                    conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
 
-                if self.auth_type == 'ANONYMOUS':
+                if auth_type == 'ANONYMOUS':
                     # authentication method, can be one of ANONYMOUS, SIMPLE, SASL or NTLM. Defaults to ANONYMOUS if user and password are both None
                     self.logger.info( f"ldap getconnection:Connection server={server_name} ANONYMOUS authentication=ldap3.ANONYMOUS" )
                     conn = ldap3.Connection( server, authentication=ldap3.ANONYMOUS, read_only=True, raise_exceptions=True )
