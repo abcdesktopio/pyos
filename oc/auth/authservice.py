@@ -2746,7 +2746,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
                     self.logger.warning( f"{self.auth_type} is not defined in {server_name}.info.supported_sasl_mechanisms supported_sasl_mechanisms={supported_sasl_mechanisms}" )
-                 
+                
                 # do kerberos bind
                 if self.auth_type == 'KERBEROS': 
                      # krb5ccname must already exist 
@@ -2760,6 +2760,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
                 # do ntlm bind
                 if self.auth_type == 'NTLM':
+                    # https://ldap3.readthedocs.io/en/latest/connection.html
+                    # NTLM uses NTLMv2 authentication. 
+                    # Username must be in the form domain\user.
                     # userid MUST be DOMAIN\\SAMAccountName format, call overwrited by bODAdAuthProvider:getconnection
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( f"ldap getconnection:Connection server={server_name} userid={userid} authentication=ldap3.NTLM" )
@@ -2772,6 +2775,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( f"ldap getconnection:Connection server={server_name} userdn={userdn} authentication=ldap3.SIMPLE" )
                     conn = ldap3.Connection( server, user=userdn, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
+
+                if self.auth_type == 'ANONYMOUS':
+                    # authentication method, can be one of ANONYMOUS, SIMPLE, SASL or NTLM. Defaults to ANONYMOUS if user and password are both None
+                    self.logger.info( f"ldap getconnection:Connection server={server_name} ANONYMOUS authentication=ldap3.ANONYMOUS" )
+                    conn = ldap3.Connection( server, authentication=ldap3.ANONYMOUS, read_only=True, raise_exceptions=True )
 
                 #
                 # let's bind to the ldap server conn.open()
