@@ -4664,6 +4664,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'volumes': list_volumeBinds,
                 'nodeSelector': nodeSelector,
+                'tolerations': oc.od.settings.desktop_pod[self.type].get('tolerations'),
                 'containers': [ {   
                     'imagePullSecrets': oc.od.settings.desktop_pod[self.type].get('imagePullSecrets'),
                     'imagePullPolicy':  oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
