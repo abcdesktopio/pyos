@@ -4625,7 +4625,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'uniquerunkey':     app.get('uniquerunkey')
         }
 
-        pod_sufix = 'app_' + app['name'] + '_' +  oc.lib.uuid_digits()
+        myuuid = oc.lib.uuid_digits()
+        pod_sufix = 'app_' + app['name'] + '_' +  myuuid
         app_pod_name = self.orchestrator.get_podname( authinfo, userinfo, pod_sufix)
 
         # default empty dict annotations
@@ -4641,6 +4642,25 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         workingDir = self.orchestrator.get_user_homedirectory( authinfo, userinfo )
         resources = self.get_resources( authinfo, userinfo, app )
         affinity = self.get_affinity( authinfo, userinfo, app, myDesktop )
+
+        # init container for the pod apps 
+        # to fix ownership of the homedir like desktop does
+        initContainers = []
+        currentcontainertype = 'init'
+        init_command = self.orchestrator.updateCommandWithUserInfo( currentcontainertype, authinfo, userinfo )
+        self.logger.debug(f"init command={init_command}")
+        init_container = self.orchestrator.addcontainertopod( 
+            authinfo=authinfo, 
+            userinfo=userinfo, 
+            currentcontainertype=currentcontainertype, 
+            command=init_command,
+            myuuid=myuuid,
+            envlist=envlist,
+            list_volumeMounts=list_volumeMounts
+        )
+        initContainers.append( init_container )
+        self.logger.debug( f"pod container added {currentcontainertype}" )
+
 
         # update envlist
         # add EXECUTION CONTEXT env var inside the container
@@ -4664,6 +4684,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'volumes': list_volumeBinds,
                 'nodeSelector': nodeSelector,
+                'initContainers': initContainers,
                 'tolerations': oc.od.settings.desktop_pod[self.type].get('tolerations'),
                 'containers': [ {   
                     'imagePullSecrets': oc.od.settings.desktop_pod[self.type].get('imagePullSecrets'),
