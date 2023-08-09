@@ -507,10 +507,10 @@ class ODAuthTool(cherrypy.Tool):
         return cls(name, config)
  
     def findmanager(self, providername, managername=None):
-        if managername: 
+        if isinstance( managername, str): 
             return self.getmanager(managername, True)
 
-        if providername:
+        if isinstance( providername, str):
             provider = self.findprovider(providername)
             if provider: 
                 return provider.manager
@@ -1729,6 +1729,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
     def getuserinfo(self, authinfo, **params):
         raise NotImplementedError()
 
+    def get_ntlm_hash( self ):
+        return None
+
     def regexp_validadation( self, data, key  ):
         regexp = self.regexp_validatation_dict.get(key)
         pat = re.compile( regexp.get('regexp') )
@@ -2009,6 +2012,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_realm = config.get('kerberos_realm') # must be str
         self.kerberos_krb5_conf = config.get('krb5_conf')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
+        self.ntlm_command = config.get('ntlm_command', '/var/pyos/oc/auth/ntlm/ntlm_auth')
 
         # not used deprecated 
         # do not launch /usr/bin/kinit anyore 
@@ -2062,6 +2066,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             config.get('group_filter', "(&(objectClass=Group)(cn=%s))"),
             config.get('group_attrs'))
 
+    def get_ntlm_hash( self ):
+        return self.ntlm_hash
 
     def getdisplaydescription( self ):
         displaydescription = super().getdisplaydescription()
@@ -2097,8 +2103,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         self.domain = provider.domain
         self.kerberos_realm = provider.kerberos_realm
-        self.kerberos_krb5_conf =  provider.kerberos_krb5_conf
-        self.kerberos_ktutil =  provider.kerberos_ktutil
+        self.kerberos_krb5_conf = provider.kerberos_krb5_conf
+        self.kerberos_ktutil = provider.kerberos_ktutil
 
 
     def loadserviceaccount( self, config ):
@@ -2823,43 +2829,43 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         "--use-cached-creds",
                         "--username", username,
         '''
-        hashes = {}
+        hashes = None
         if  not isinstance(password, str) :
             self.logger.error('Invalid password parameters')
             return hashes
+
         try:
             # Linux: Linux
             # Mac: Darwin
             # Windows: Windows
             #  export NTLM_PASSWORD=letmein 
-            # ./ntlm_auth.Linux 
+            # ./ntlm_auth
             #   NTLM_KEY=cymZ2Dmnb2SIZNcBLcftpxpXeN/R
-            #   NTLM_LM_HASH=Ln/q/IOboZwit2M0mNPpSRpXeN/R
-            #   NTLM_NT_HASH=zedCmtWbMxseNoIypiOomxpXeN/R
+            #   NTLM_PASSWORD=Ln/q/IOboZwit2M0mNPpSRpXeN/R
 
-            command = 'oc/auth/ntlm/ntlm_auth.' + platform.system()
-            ret,out = pyutils.execproc( command=command, 
+            ret,out = pyutils.execproc( command=self.ntlm_command, 
                                         environment= {'NTLM_PASSWORD': password}, 
                                         timeout=self.exec_timeout)
             if ret != 0:
-                raise RuntimeError('Command ntlm_auth returned error code: %s' % ret)
-            self.logger.info( 'Running %s', command )
+                raise RuntimeError( f"Command ntlm_auth returned error code: {ret}" )
+            self.logger.info( f"Running ntlm_command={self.ntlm_command}" )
+            hashes = {}
             for line in out:
                 if len( line ) < 1: # skipping empty line
                     continue
                 # parse string format
                 # NTLM_KEY=v8+pDkRc41i8weIufYRhVBPSv=dqM
-                self.logger.debug( 'Parsing %s', line )
+                self.logger.debug( f"Parsing {line}")
                 try:
                     nv = line.index('=') # read the first entry of 
                     hashes[ line[ 0 : nv ] ] = line[ nv+1 : ]
                 except Exception as e:
                     # Index if found otherwise raises an exception if str is not found
                     # by pass line 
-                    self.logger.error('Failed: %s', e)
-            self.logger.debug('NTLM hashes: %s', hashes)
+                    self.logger.error( f"Parsing ntlm_auth result failed: {e}")
+            self.logger.debug( f"NTLM hashes: {hashes}")
         except Exception as e:
-            self.logger.error('Failed: %s', e)
+            self.logger.error(f"Failed: {e}")
 
         return hashes
 
@@ -2889,7 +2895,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def generateCNTLMhash(self, user, password, domain ):
         self.logger.debug('Generating CNTLM hashes')
-        hashes = {}
+        hashes = None
 
         cntlm_command = '/usr/sbin/cntlm'
 
@@ -2908,7 +2914,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             ret,out = pyutils.execproc( [ cntlm_command, '-H', '-u', user, '-d', domain ], input=password, timeout=self.exec_timeout)
             if ret!=0:
                 raise RuntimeError('Command cntml returned error code: %s' % ret)
-
+            hashes = {}
             # Output of is cntlm_command is :
             # Password: 
             # PassLM          24996FE06B4235F061EEE95D1308178F
