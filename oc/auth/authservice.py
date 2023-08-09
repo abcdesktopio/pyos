@@ -2227,6 +2227,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_realm = config.get('kerberos_realm') # must be str
         self.kerberos_krb5_conf = config.get('krb5_conf')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
+        self.ntlm_command = config.get('ntlm_command', '/var/pyos/oc/auth/ntlm/ntlm_auth')
         # self.kerberos_servers = config.get('kerberos_servers', self.servers)
 
         # not used deprecated 
@@ -3114,7 +3115,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             try :
                 os.unlink( koutputfilename )
             except Exception as e:
-                self.logger.error('failed to delete tmp file: %s %s', koutputfilename, e)
+                self.logger.error( f"failed to delete tmp file: {koutputfilename} {e}" )
 
         ''' ktutil
 			addent -password -p username@MYDOMAIN.COM -k 1 -e RC4-HMAC
@@ -3167,7 +3168,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             return keytab
 
        
-        self.logger.info(str(self.kerberos_ktutil) + ' return code: ' + str(returncode))
+        self.logger.info( f"{self.kerberos_ktutil} return code: {returncode}" )
         if returncode == 0:
             try:
                 koutputfile = open( koutputfilename, mode='rb' )
@@ -3181,7 +3182,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             except Exception as e:
                 self.logger.error('read keytab file %s error: %s', koutputfilename, str(e))
         else:
-                self.logger.info('failed to run %s return code %s', self.kerberos_ktutil, str(returncode))
+            self.logger.info('failed to run %s return code %s', self.kerberos_ktutil, str(returncode))
     
         # clean tmp filename
         removekoutputfile( koutputfilename )
@@ -3198,7 +3199,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                         "--use-cached-creds",
                         "--username", username,
         '''
-        hashes = {}
+        hashes = None
         if  not isinstance(password, str) :
             self.logger.error('Invalid password parameters')
             return hashes
@@ -3212,29 +3213,29 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             #   NTLM_LM_HASH=Ln/q/IOboZwit2M0mNPpSRpXeN/R
             #   NTLM_NT_HASH=zedCmtWbMxseNoIypiOomxpXeN/R
 
-            command = 'oc/auth/ntlm/ntlm_auth.' + platform.system()
-            ret,out = pyutils.execproc( command=command, 
+            ret,out = pyutils.execproc( command=self.ntlm_command, 
                                         environment= {'NTLM_PASSWORD': password}, 
                                         timeout=self.exec_timeout)
             if ret != 0:
-                raise RuntimeError('Command ntlm_auth returned error code: %s' % ret)
-            self.logger.info( 'Running %s', command )
+                raise RuntimeError( f"Command ntlm_auth returned error code: {ret}" )
+            self.logger.info( f"Running ntlm_command={self.ntlm_command}" )
+            hashes = {}
             for line in out:
                 if len( line ) < 1: # skipping empty line
                     continue
                 # parse string format
                 # NTLM_KEY=v8+pDkRc41i8weIufYRhVBPSv=dqM
-                self.logger.debug( 'Parsing %s', line )
+                self.logger.debug( f"Parsing {line}")
                 try:
                     nv = line.index('=') # read the first entry of 
                     hashes[ line[ 0 : nv ] ] = line[ nv+1 : ]
                 except Exception as e:
                     # Index if found otherwise raises an exception if str is not found
                     # by pass line 
-                    self.logger.error('Failed: %s', e)
-            self.logger.debug('NTLM hashes: %s', hashes)
+                    self.logger.error( f"Parsing ntlm_auth result failed: {e}")
+            self.logger.debug( f"NTLM hashes: {hashes}" )
         except Exception as e:
-            self.logger.error('Failed: %s', e)
+            self.logger.error( f"Failed: {e}" )
 
         return hashes
 
@@ -3249,7 +3250,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         Returns:
             [dict]: [All_Regions.ini hash dict]
         """
-        hashes = {}
+        hashes = None
         # citrix_all_regions contains mustache template file data
         if isinstance(self.citrix_all_regions, str) :
             # read https://www.citrix.com/content/dam/citrix/en_us/documents/downloads/citrix-receiver/linux-oem-guide-13-1.pdf
@@ -3264,7 +3265,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
     def generateCNTLMhash(self, user, password, domain ):
         self.logger.debug('Generating CNTLM hashes')
-        hashes = {}
+        hashes = None
 
         cntlm_command = '/usr/sbin/cntlm'
 
@@ -3284,6 +3285,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             if ret!=0:
                 raise RuntimeError('Command cntml returned error code: %s' % ret)
 
+            hashes = {}
             # Output of is cntlm_command is :
             # Password: 
             # PassLM          24996FE06B4235F061EEE95D1308178F
