@@ -2838,8 +2838,9 @@ get_label_nodeselector        Returns:
         env[ 'PULSEAUDIO_COOKIE' ] = self.generate_pulseaudiocookie()   # generate PULSEAUDIO cookie
         env[ 'BROADCAST_COOKIE' ] = self.generate_broadcastcookie()     # generate BROADCAST cookie 
         env[ 'HOME'] = self.get_user_homedirectory(authinfo, userinfo)  # read HOME DIR 
-        env[ 'USER' ] = userinfo.userid         # add USER 
+        env[ 'USER' ] = userinfo.userid         # add USER
         env[ 'LOGNAME' ] = userinfo.userid      # add LOGNAME 
+        env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
         self.logger.debug( f"HOME={env[ 'HOME']}")
         self.logger.debug('env created')
 
@@ -3742,17 +3743,19 @@ class ODAppInstanceBase(object):
         raise NotImplementedError('get_CUPS_SERVER')
 
     def get_env_for_appinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
-        assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
+        assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
 
         posixuser = self.orchestrator.alwaysgetPosixAccountUser( authinfo, userinfo )
 
         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist
+        # read the desktop (oc.user) ip address
         desktop_ip_addr = myDesktop.get_default_ipaddr('eth0')
 
+        # clone env 
         env = oc.od.settings.desktop['environmentlocal'].copy()
-
+        # update env with desktop_ip_addr if need
         env['DISPLAY'] = self.get_DISPLAY(desktop_ip_addr)
         env['CONTAINER_IP_ADDR'] = desktop_ip_addr   # CONTAINER_IP_ADDR is used by ocrun node js command
         env['XAUTH_KEY'] = myDesktop.xauthkey
