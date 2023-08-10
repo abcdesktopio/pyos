@@ -940,7 +940,8 @@ class ODOrchestrator(ODOrchestratorBase):
         #     * XAUTH_KEY
         #     * PARENT_ID
         #     * PARENT_HOSTNAME
-        env.update ( {  'LANGUAGE'	    : language,
+        env.update ( {  'APP'           : app.get('path'),
+                        'LANGUAGE'	    : language,
                         'LANG'		    : lang,
                         'LC_ALL'        : lang,
                         'LC_PAPER'	    : lang,
@@ -955,7 +956,7 @@ class ODOrchestrator(ODOrchestratorBase):
                         'PARENT_HOSTNAME'   : self.nodehostname,
                         'XAUTH_KEY'         : myDesktop.xauthkey,
                         'BROADCAST_COOKIE'  : myDesktop.broadcast_cookie,
-                        'PULSEAUDIO_COOKIE' : myDesktop.pulseaudio_cookie
+                        'PULSEAUDIO_COOKIE' : myDesktop.pulseaudio_cookie,
         } )
 
         # Add specific vars      
