@@ -314,7 +314,7 @@ class ODApps:
       
         # release 2.X ONLY
         # read the CMD with fallback for compatibiliy with old version release
-        cmd = '/composer/appli-dockerentrypoint.sh'
+        cmd = '/composer/appli-docker-entrypoint.sh'
         # read WORKING with fallback for compatibiliy with old version release
         workingdir = oc.od.settings.getballoon_homedirectory()
         # read USER with fallback for compatibiliy with old version release
