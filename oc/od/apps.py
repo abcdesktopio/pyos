@@ -312,20 +312,14 @@ class ODApps:
         # Read all data came from Labels images value
         imageid = repoTags[0]
       
-        # inspect the docker image
-        inspect_dict = ODInfra().inspectimage( imageid )
+        # release 2.X ONLY
         # read the CMD with fallback for compatibiliy with old version release
-        cmd = inspect_dict.get('Config').get('Cmd', '/composer/appli-dockerentrypoint.sh' )
-        if isinstance( cmd, list ):
-            # fix error in deprecated image format in release 2.0
-            if cmd[0] == 'bash' and len(cmd) == 1:
-                cmd.append('/composer/appli-docker-entrypoint.sh')
-                self.logger.warning( f"fixing cmd entry for image {imageid} update to {cmd}")
-
+        cmd = '/composer/appli-dockerentrypoint.sh'
         # read WORKING with fallback for compatibiliy with old version release
-        workingdir = inspect_dict.get('Config').get('WorkingDir', oc.od.settings.getballoon_homedirectory() ) 
+        workingdir = oc.od.settings.getballoon_homedirectory()
         # read USER with fallback for compatibiliy with old version release
-        user = inspect_dict.get('Config').get('User', oc.od.settings.getballoon_name() ) 
+        user = oc.od.settings.getballoon_name()
+
         # read oc specific value
         image_supported_release = labels.get('oc.release')
         if isinstance( image_supported_release, int ):
