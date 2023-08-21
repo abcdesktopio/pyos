@@ -701,8 +701,9 @@ def init():
     # load auth provider
     init_config_auth()
 
-    # init default overlay netork
-    # desktop node list
+    # init internal domain 
+    # namespace.svc.cluster.local
+    # by default abcdesktop.svc.cluster.local
     init_config_stack()
 
     # mongodb server 
