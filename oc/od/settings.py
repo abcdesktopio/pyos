@@ -170,8 +170,12 @@ def init_config_stack():
     global namespace
     global desktopdescription
  
-    kubernetes_default_domain = gconfig.get('stack.kubernetesdefaultdomain', 'abcdesktop.svc.cluster.local')
-    namespace = gconfig.get('namespace', 'abcdesktop')  
+    namespace = gconfig.get('namespace', 'abcdesktop')
+    kubernetesdefaultsvcclusterlocal = gconfig.get('kubernetesdefaultsvcclusterlocal', 'svc.cluster.local')
+    logger.debug( f"kubernetes default domain svc.cluster.local={kubernetesdefaultsvcclusterlocal}" )
+    # kubernetes_default_domain should be by default abcdesktop.svc.cluster.local
+    kubernetes_default_domain = f"{namespace}.{kubernetesdefaultsvcclusterlocal}"
+    logger.debug( f"abcdesktop domain={kubernetes_default_domain}" )
     desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
 
 def init_jira():
