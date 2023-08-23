@@ -3219,26 +3219,32 @@ get_label_nodeselector        Returns:
             # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
             if not isinstance( pod_event, V1Pod ): continue
             if not isinstance( pod_event.status, V1PodStatus ): continue
+            #
             self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}")
             self.logger.info( f"pod_event.status.phase={pod_event.status.phase}" )
             #
             # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+            #
             # possible values for phase
             # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
             # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
             # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
             # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
             # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
-            if pod_event.status.phase == 'Running' :
+            if pod_event.status.phase == 'Pending' :
+                continue
+            elif pod_event.status.phase == 'Running' :
                 startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event)
                 self.on_desktoplaunchprogress( startedmsg )
                 w.stop()
-                continue
-
-            if pod_event.status.phase != 'Pending' :
+            elif pod_event.status.phase == 'Succeeded' or pod_event.status.phase == 'Failed' :
                 # pod data object is complete, stop reading event
                 # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
                 self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
+                w.stop()
+            else:
+                # pod_event.status.phase should be 'Unknow'
+                self.logger.error(f"The pod is in phase={pod_event.status.phase} stop watching" )
                 w.stop()
 
         self.logger.debug('watch list_namespaced_pod created, the pod is no more in Pending phase' )
