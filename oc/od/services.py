@@ -254,13 +254,11 @@ def init():
     # init all services 
     services.init()
     
-    # init kubernetes infra
-    # check if kubernetes is configured
+    # init kubernetes 
     init_infra()
 
-    # now list images application
+    # list images application
     services.init_applist()
 
-    # watch image pull rm event
-    # watch network create destroy event
+    # delete pods applications
     services.init_kuberneteswatcher()
