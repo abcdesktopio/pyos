@@ -1666,7 +1666,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secret = oc.od.secret.ODSecretLDIF( namespace=self.namespace, kubeapi=self.kubeapi )
         createdsecret = secret.create( authinfo, userinfo, data=userinfo )
         if not isinstance( createdsecret, V1Secret):
-            self.logger.error(f"cannot create secret {secret.get_name(authinfo, userinfo)}")
+            self.logger.error(f"can not create secret {secret.get_name(authinfo, userinfo)}")
         else:
             self.logger.debug(f"LDIF secret.create {secret.get_name(authinfo, userinfo)} created")
         self.logger.debug('create oc.od.secret.ODSecretLDIF created')
@@ -1683,7 +1683,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
         createdsecret = secret.create( authinfo, userinfo, data=localaccount_files )
         if not isinstance( createdsecret, V1Secret):
-            self.logger.error(f"cannot create secret {secret.get_name(authinfo, userinfo)}")
+            self.logger.error(f"can not create secret {secret.get_name(authinfo, userinfo)}")
         else:
             self.logger.debug(f"localaccount secret.create {secret.get_name(authinfo, userinfo)} created")
 
@@ -1692,7 +1692,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             secret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
             createdsecret = secret.create( authinfo, userinfo, data=userinfo.getPosixAccount())
             if not isinstance( createdsecret, V1Secret):
-                self.logger.error(f"cannot create posixaccount secret {secret.get_name(authinfo, userinfo)}")
+                self.logger.error(f"can not create posixaccount secret {secret.get_name(authinfo, userinfo)}")
             else:
                 self.logger.debug(f"posixaccount secret.create {secret.get_name(authinfo, userinfo)} created")
 
@@ -1708,7 +1708,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     identity_data=identities.get(identity_key)
                     createdsecret = secret.create( authinfo, userinfo, data=identity_data )
                     if not isinstance( createdsecret, V1Secret):
-                        self.logger.error(f"cannot create secret {secret.get_name(authinfo, userinfo)}")
+                        self.logger.error(f"can not create secret {secret.get_name(authinfo, userinfo)}")
                     else:
                         self.logger.debug(f"secret.create {secret.get_name(authinfo, userinfo)} created")
     
@@ -3185,10 +3185,13 @@ get_label_nodeselector        Returns:
                             self.on_desktoplaunchprogress( startedmsg )
                             w.stop()
                 else:
-                    # an error occurs
-                    self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                    w.stop()
-                    return  f"{event_object.reason} {event_object.message}"
+                    # log the events
+                    self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
+                    self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.reason} {event_object.message}")
+                    # fix for https://github.com/abcdesktopio/oc.user/issues/52
+                    # this is not an error
+                    # w.stop()
+                    # return  f"{event_object.reason} {event_object.message}"
             else: 
                 # unknow event received
                 w.stop()
@@ -4110,11 +4113,11 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # remove subPath
         # Pod volumes to mount into the container's filesystem.
         # Subpath mounts are not allowed for ephemeral containers.
-        # Cannot be updated.
+        # Can not be updated.
         #
-        # Forbidden: cannot be set for an Ephemeral Container",
+        # Forbidden: can not be set for an Ephemeral Container",
         # "reason":"FieldValueForbidden",
-        # "message":"Forbidden: cannot be set for an Ephemeral Container",
+        # "message":"Forbidden: can not be set for an Ephemeral Container",
         # "field":"spec.ephemeralContainers[8].volumeMounts[0].subPath"}]},
         # "code":422}
         securitycontext = self.get_securitycontext( authinfo, userinfo, app )
