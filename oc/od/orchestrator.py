@@ -969,8 +969,9 @@ class ODOrchestrator(ODOrchestratorBase):
         # DO NOT USE TOO LONG NAME for container name  
         # filter can failed or retrieve invalid value in case userid + app.name + uuid
         # limit length is not defined but take care 
-        _containername = self.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] + '_' + str(uuid.uuid4().hex) )
+        _containername = self.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( app['name'] ) + '_' + uuid.uuid4().hex[1:5]
         containername =  oc.auth.namedlib.normalize_name( _containername )
+        self.logger.info('containername=%s', containername )
 
         # build the host config
         # first load the default hostconfig from od.config for all containers
@@ -1043,10 +1044,13 @@ class ODOrchestrator(ODOrchestratorBase):
 
 
          # dump host config berfore create   
+        self.logger.info('application containername=%s', containername )
         self.logger.info('application hostconfig=%s', host_config )
 
         appinfo = infra.createcontainer(
             image = app['id'],
+            network_name = network_name,
+            host_config = host_config,
             name  =  containername,
             working_dir = app['workingdir'],
             command = app['cmd'],
@@ -1060,9 +1064,7 @@ class ODOrchestrator(ODOrchestratorBase):
                 'access_parent_id'      : desktop.id,
                 'access_parent_hostname': self.nodehostname
             },
-            volumes = volumes,
-            host_config = host_config,
-            network_name = network_name,
+            volumes = volumes
         )
 
         if not isinstance( appinfo, dict) :
