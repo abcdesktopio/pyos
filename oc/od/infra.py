@@ -739,6 +739,7 @@ class ODInfra(object):
         if isinstance(host_config, dict):
             args['host_config'] = client.create_host_config(**host_config)
 
+        self.logger.info('create container %s', args)
         return client.create_container(**args)
 
     def startcontainer(self,id):
