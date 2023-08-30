@@ -730,6 +730,8 @@ class ODInfra(object):
 
     def createcontainer(self,image,network_name=None,host_config=None,**args):
         client = self.getdockerClientAPI()
+
+        args['image'] = image
         
         if isinstance(network_name, str):
             args['networking_config'] = client.create_networking_config({ network_name: client.create_endpoint_config()})
@@ -737,7 +739,7 @@ class ODInfra(object):
         if isinstance(host_config, dict):
             args['host_config'] = client.create_host_config(**host_config)
 
-        return client.create_container(image,**args)
+        return client.create_container(**args)
 
     def startcontainer(self,id):
         ''' start a container from container id '''
