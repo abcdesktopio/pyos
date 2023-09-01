@@ -735,11 +735,13 @@ def notify_user_from_pod_application( pod_application, message:str )->None:
         # get image from the pod image
         image = pod_application.status.container_statuses[0].image
         # read the icon from 
-        app = services.apps.find_app_by_image(image)
+        app = services.apps.find_app_by_id(image)
         if isinstance(app, dict):
             # add more info the data
             data['icon'] = app.get('icon')
             data['icondata'] = app.get('icondata')
+        else:
+            logger.error( f"image {image} is not found by find_app_by_id")
         myOrchestrator.notify_user( myDesktop, 'container', data )
 
 def notify_user(  authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )->None:
