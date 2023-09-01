@@ -986,7 +986,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             }        
         return (volumes, volumes_mount)
 
-    def build_volumes_flexvolumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
+    def build_volumes_additional_by_rules( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1000,6 +1000,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 fstype = mountvol.fstype
                 volume_name = self.get_volumename( mountvol.name, userinfo )
                 self.logger.debug( f"selected volume fstype:{fstype} volumes name:{volume_name}")
+
+                # if fstype='csi-driver'
+
                 if fstype=='nfs':
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
@@ -1358,12 +1361,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
         #
-        # mount flexvolume
+        # mount voulumes from rules
         #
-        (flex_volumes, flex_volumes_mount) = \
-            self.build_volumes_flexvolumes(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
-        volumes.update(flex_volumes)
-        volumes_mount.update(flex_volumes_mount)
+        (rules_volumes, rules_volumes_mount) = \
+            self.build_volumes_additional_by_rules(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
+        volumes.update(rules_volumes)
+        volumes_mount.update(rules_volumes_mount)
         self.logger.debug('volumes end')        
         return (volumes, volumes_mount)
 
@@ -1725,7 +1728,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if isinstance( secret, oc.od.secret.ODSecret):
                     # Flex volume use kubernetes secret, add mouting path
                     arguments = { 'mountPath': mountvol.containertarget, 'networkPath': mountvol.networkPath, 'mountOptions': mountvol.mountOptions }
-                    # Build the kubernetes secret 
+                    # Build the kubernetes secret
                     auth_secret = secret.create( authinfo, userinfo, arguments )
                     if not isinstance( auth_secret, V1Secret):
                         self.logger.error( f"Failed to build auth secret {secret.get_name(authinfo, userinfo)} fstype={fstype}" )
@@ -2573,19 +2576,27 @@ get_label_nodeselector        Returns:
         envlist.append( { 'name': 'POD_NAMESPACE',  'valueFrom': { 'fieldRef': { 'fieldPath':'metadata.namespace' } } } )
         envlist.append( { 'name': 'POD_IP',         'valueFrom': { 'fieldRef': { 'fieldPath':'status.podIP' } } } )
 
-    def getPodStartedMessage(self, containernameprefix:str, myPod:V1Pod )->str:
+    def getPodStartedMessage(self, containernameprefix:str, myPod:V1Pod, myEvent:CoreV1Event )->str:
         """getPodStartedMessage
 
         Args:
-            containernameprefix (str): _description_
-            myPod (V1Pod): _description_
+            containernameprefix (str): containername
+            myPod (V1Pod): pod
+            myEvent (CoreV1Event): event
 
         Returns:
             str: started message
+
         """
+
         assert isinstance(containernameprefix, str),  f"env has invalid type {type(containernameprefix)}, str is expected"
         assert isinstance(myPod, V1Pod),  f"myPod has invalid type {type(myPod)}, V1Pod is expected"
+
         startedmsg = f"b.{myPod.status.phase.lower()}"
+        if isinstance( myEvent, CoreV1Event):
+            if myEvent.count > 1 :
+                startedmsg = f"b.{myPod.status.phase.lower()} {myEvent.count}"
+
         c = self.getcontainerfromPod( containernameprefix, myPod )
         if isinstance( c, V1ContainerStatus):
             startedmsg += f": {c.name} "
@@ -2742,6 +2753,26 @@ get_label_nodeselector        Returns:
         return resources
 
     def notify_user( self, myDesktop:ODDesktop, method:str, data:dict )->bool:
+        """notify_user
+
+        Args:
+            myDesktop (ODDesktop): ODDesktop
+            method (str): string value can be [ 'ocrun', 'logout', 'container', 'download' ] 
+            user pod: 
+            from abcdesktopio/oc.user container image 
+            source code /composer/node/broadcast-service/broadcast-service.js  
+            web front:
+            call containerNotificationInfo in webModules files js/launcher.js   
+            data (dict): data description
+            data = {    'type':  'error' 'warning' 'info' 'deny' 'place'
+                        'message':  app.get('name'), 
+                        'name':     app.get('name'),
+                        'icondata': app.get('icondata'),
+                        'icon':     app.get('icon'),
+                        'image':    app.get('id'),
+                        'launch':   app.get('launch')
+            }
+        """
         bReturn = False
         if not isinstance( myDesktop, ODDesktop):
             return bReturn
@@ -3172,18 +3203,23 @@ get_label_nodeselector        Returns:
                     myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
                     if not isinstance( myPod, V1Pod ): continue # skip this event
 
+                    getIPAddress = False
                     if isinstance( myPod.status, V1PodStatus ):
                         #  myPod.status.pod_ip : Empty if not yet allocated.
                         if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
                             self.on_desktoplaunchprogress(f"b.Your pod gets ip address {myPod.status.pod_ip} from network plugin")
+                            getIPAddress = True
                             w.stop()
 
+                    self.logger.debug( f"does {myPod.metadata.name} have an ip address: {getIPAddress}")
                     c = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
                     if isinstance( c, V1ContainerStatus ):
+                        startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod, event_object)
+                        self.on_desktoplaunchprogress( startedmsg )
                         if c.ready is True and c.started is True :
-                            startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod)
-                            self.on_desktoplaunchprogress( startedmsg )
                             w.stop()
+                    else:
+                        self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.reason} {event_object.message}")
                 else:
                     # log the events
                     self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
@@ -3193,7 +3229,8 @@ get_label_nodeselector        Returns:
                     # w.stop()
                     # return  f"{event_object.reason} {event_object.message}"
             else: 
-                # unknow event received
+                # this event is not 'Normal' or 'Warning', unknow event received
+                self.logger.error(f"UNMANAGED EVENT pod type {event_object.type}")
                 w.stop()
 
 
@@ -3221,7 +3258,7 @@ get_label_nodeselector        Returns:
             if not isinstance( pod_event.status, V1PodStatus ): continue
             #
             self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}")
-            self.logger.info( f"pod_event.status.phase={pod_event.status.phase}" )
+            self.logger.debug(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase}" )
             #
             # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
             #
@@ -3232,30 +3269,33 @@ get_label_nodeselector        Returns:
             # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
             # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
             if pod_event.status.phase == 'Pending' :
+                self.on_desktoplaunchprogress( f"b.Your pod {pod_event.metadata.name} is {pod_event.status.phase}"  )
                 continue
             elif pod_event.status.phase == 'Running' :
-                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event)
+                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event, event_object)
                 self.on_desktoplaunchprogress( startedmsg )
                 w.stop()
-            elif pod_event.status.phase == 'Succeeded' or pod_event.status.phase == 'Failed' :
+            elif pod_event.status.phase == 'Succeeded' or \
+                 pod_event.status.phase == 'Failed' :
                 # pod data object is complete, stop reading event
                 # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
-                self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
+                self.logger.debug(f"The pod {pod_event.metadata.name} is not in Pending phase, phase={pod_event.status.phase} stop watching" )
                 w.stop()
             else:
                 # pod_event.status.phase should be 'Unknow'
-                self.logger.error(f"The pod is in phase={pod_event.status.phase} stop watching" )
+                self.logger.error(f"UNMANAGED CASE pod {pod_event.metadata.name} is in unmanaged phase {pod_event.status.phase}")
+                self.logger.error(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase} stop watching" )
                 w.stop()
 
         self.logger.debug('watch list_namespaced_pod created, the pod is no more in Pending phase' )
 
         # read pod again
-        self.logger.debug('watch read_namespaced_pod creating' )
+        self.logger.debug(f"read_namespaced_pod {pod_name} again" )
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)   
         assert isinstance(myPod, V1Pod),  f"read_namespaced_pod returns type {type(myPod)} V1Pod is expected"
         assert isinstance(myPod.status, V1PodStatus), f"read_namespaced_pod returns pod.status type {type(myPod.status)} V1PodStatus is expected"
-
         self.logger.info( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
+
         # The pod is not in Pending
         # read the status.phase, if it's not Running 
         if myPod.status.phase != 'Running':
@@ -3646,7 +3686,10 @@ get_label_nodeselector        Returns:
         assert isinstance(pod,      V1Pod),    f"pod has invalid type {type(pod)}"
 
         # fake an authinfo object
-        authinfo = AuthInfo( provider=pod.metadata.labels.get('access_provider') )
+        authinfo = AuthInfo( 
+            provider=pod.metadata.labels.get('access_provider'), 
+            providertype=pod.metadata.labels.get('access_providertype') 
+        )
         # fake an userinfo object
         userinfo = AuthUser( {
             'userid':pod.metadata.labels.get('access_userid'),
