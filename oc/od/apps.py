@@ -551,6 +551,9 @@ class ODApps:
                 break
         return app
 
+    def find_app_by_image(self, image:str)->dict:
+        return self.myglobal_list.get(image)
+
     def find_app_by_key(self, key_value:str, key='name')->dict:
         app=None
         assert isinstance(key, str),f"key has invalid type {type(key)}"
