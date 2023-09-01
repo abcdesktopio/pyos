@@ -722,6 +722,26 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
         logger.error( e )
     return exitCode
 
+def notify_user_from_pod_application( pod_application, message:str )->None:
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator() 
+    (authinfo,userinfo) = myOrchestrator.extract_userinfo_authinfo_from_pod( pod_application )
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo=authinfo, userinfo=userinfo )
+    if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
+        # default message data 
+        data = {    'message': pod_application.metadata.name, 
+                    'name': message
+        }
+        # get image from the pod image
+        image = pod_application.status.container_statuses[0].image
+        # read the icon from 
+        app = services.apps.find_app_by_image(image)
+        if isinstance(app, dict):
+            # add more info the data
+            data['icon'] = app.get('icon')
+            data['icondata'] = app.get('icondata')
+        myOrchestrator.notify_user( myDesktop, 'container', data )
+
 def notify_user(  authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )->None:
     """[notify_user]
         Send a notify message to a userid
