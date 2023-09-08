@@ -448,27 +448,50 @@ class ODOrchestratorBase(object):
         return False
 
     @staticmethod
+    def generate_cookie( cookie_len:int):
+        assert_type( cookie_len, int )
+        key = binascii.b2a_hex(os.urandom(cookie_len))
+        return key.decode( 'utf-8' )
+
+    @staticmethod
     def generate_xauthkey():
+        """generate_xauthkey
+            create a xauth cookie
+        Returns:
+            str: xauth cookie
+        """
         # generate key, xauth requires 128 bit hex encoding
         # xauth add ${HOST}:0 . $(xxd -l 16 -p /dev/urandom)
-        key = binascii.b2a_hex(os.urandom(15))
-        return key.decode( 'utf-8' )
+        return ODOrchestratorBase.generate_cookie(cookie_len=15)
 
     @staticmethod
     def generate_pulseaudiocookie():
-        # generate key, PULSEAUDIO requires PA_NATIVE_COOKIE_LENGTH 256
-        # use cat /etc/pulse/cookie | openssl rc4 -K "$PULSEAUDIO_COOKIE" -nopad -nosalt > ~/.config/pulse/cookie
-        # use os.urandom(24) as key -> hex string is too long, ignoring excess
-        key = binascii.b2a_hex(os.urandom(16))
-        return key.decode( 'utf-8' )
+        """generate_pulseaudiocookie
+            create a pulse audio cookie of 32 Bytes
+        Returns:
+            str: pulseaudiocookie
+        """
+        # generate key, PULSEAUDIO requires PA_NATIVE_COOKIE_LENGTH 256 Bytes
+        # but kubernetes labels must be no more than 63 characters
+        # len( binascii.b2a_hex(os.urandom(16)).decode( 'utf-8' )) = 32 < 64
+        # use this fix in entrypoint
+        # for i in {1..8} 
+        # do 
+        #   echo "$PULSEAUDIO_COOKIE" >> cookie 
+        # done
+        return ODOrchestratorBase.generate_cookie(cookie_len=16)
 
     @staticmethod
     def generate_broadcastcookie():
+        """generate_broadcastcookie
+             create a pulse broadcast cookie
+
+        Returns:
+            str: broadcastcookie value
+        """
         # generate key, SPAWNER and BROADCAT service
         # use os.urandom(24) as key 
-        key = binascii.b2a_hex(os.urandom(24))
-        return key.decode( 'utf-8' )
-
+        return ODOrchestratorBase.generate_cookie(cookie_len=24)
 
 @oc.logging.with_logger()
 class ODOrchestrator(ODOrchestratorBase):
