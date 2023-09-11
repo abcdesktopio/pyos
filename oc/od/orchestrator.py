@@ -1256,6 +1256,27 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         } 
         return (volumes, volumes_mount)
 
+
+    def get_volumes_localaccount_name( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
+        """_summary_
+
+        Args:
+            authinfo (AuthInfo): _description_
+            userinfo (AuthUser): _description_
+
+        Returns:
+            str: return the name of the localaccount volume same as secret 
+        """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+        localaccount_name = None
+        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
+        if isinstance(mysecretdict, dict ) and len(mysecretdict)>0:
+            localaccount_name = list( mysecretdict.keys() )[0] # should be only one
+        return localaccount_name
+
+
     def build_volumes_localaccount( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -2895,6 +2916,7 @@ get_label_nodeselector        Returns:
         env[ 'USER' ] = userinfo.userid         # add USER
         env[ 'LOGNAME' ] = userinfo.userid      # add LOGNAME 
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
+        env[ 'LOCALACCOUNT'] = oc.od.settings.desktop['secretslocalaccount']
         self.logger.debug( f"HOME={env[ 'HOME']}")
         self.logger.debug('env created')
 
@@ -3125,11 +3147,13 @@ get_label_nodeselector        Returns:
             pod_manifest['spec']['containers'].append( graphical_container )
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
+
+        localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo)
         containers = { 
             # printer uses tmp volume
             'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts['tmp'] ] },
             # sound uses tmp, home, log volumes
-            'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'] ] },
+            'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts[localaccount_volume_name], pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'] ] },
             # ssh uses default user volumes
             'ssh':      { 'list_volumeMounts':  list_volumeMounts },
             # filter uses default user volumes
