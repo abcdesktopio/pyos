@@ -147,7 +147,9 @@ class ODOrchestratorBase(object):
         # webshell name is w-UUID
         self.webshellcontainernameprefix    = 'w'   # webshell container letter prefix w
         # name separtor only for human read 
-        self.rdpcontainernameprefix         = 'r'   # file container letter prefix r for xrdp
+        self.rdpcontainernameprefix         = 'r'   # rdp container letter prefix r for xrdp
+        # 
+        self.x11overlaycontainernameprefix  = 'v'   # x11 overlay container letter prefix v for overlay
         # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
 
@@ -160,7 +162,8 @@ class ODOrchestratorBase(object):
                                 'init'      : self.initcontainernameprefix,
                                 'storage'   : self.storagecontainernameprefix,
                                 'ssh'       : self.sshcontainernameprefix,
-                                'rdp'       : self.rdpcontainernameprefix 
+                                'rdp'       : self.rdpcontainernameprefix,
+                                'x11overlay' : self.x11overlaycontainernameprefix
         }
         self.name                   = 'base'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
@@ -792,9 +795,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
         self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
 
-        self.default_volumes['cache']          = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
-        # self.default_volumes_mount['cache'] = { 'name': 'cache',  'mountPath': '/cache' }
-
         self.default_volumes['run']       = { 'name': 'run',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1M' } }
         self.default_volumes_mount['run'] = { 'name': 'run',  'mountPath': '/var/run/desktop' }
 
@@ -815,21 +815,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.default_volumes['cupsdsocket'] = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
         self.default_volumes_mount['cupsdsocket'] = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
-
-        self.default_volumes['passwd']      = { 'name': 'passwd',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
-        self.default_volumes_mount['passwd']= { 'name': 'passwd',  'mountPath': '/etc/passwd' }
-
-        self.default_volumes['shadow']       = { 'name': 'shadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
-        self.default_volumes_mount['shadow'] = { 'name': 'shadow',  'mountPath': '/etc/shadow' }
-
-        self.default_volumes['group']       = { 'name': 'group',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
-        self.default_volumes_mount['group'] = { 'name': 'group',  'mountPath': '/etc/group' }
-
-        self.default_volumes['gshadow']       = { 'name': 'gshadow',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '16Ki' } }
-        self.default_volumes_mount['gshadow'] = { 'name': 'gshadow',  'mountPath': '/etc/gshadow' }
-
-        self.default_volumes['local']       = { 'name': 'local',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
-        self.default_volumes_mount['local'] = { 'name': 'local',  'mountPath': '/home/balloon/.local' }
 
         # self.logger.debug( f"ODOrchestratorKubernetes done configure={self.bConfigure}" )
 
@@ -1148,9 +1133,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount['home']   = { 'name': volume_home_name, 'mountPath': user_homedirectory }
 
         # 'cache' volume
-        # dotcache_user_homedirectory = user_homedirectory + '/.cache'
-        # volumes['cache']       = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
-        # volumes_mount['cache'] = { 'name': 'cache',  'mountPath': dotcache_user_homedirectory }
+        # Take care if this is a pod application the .cache is empty
+        self.logger.debug( f"map ~/.cache to emptyDir Memory is {oc.od.settings.desktop.get('homedirdotcachetoemptydir')}" )
+        if oc.od.settings.desktop.get('homedirdotcachetoemptydir') is True :
+            dotcache_user_homedirectory = user_homedirectory + '/.cache'
+            self.logger.debug( f"map {dotcache_user_homedirectory} to emptyDir medium Memory" )
+            volumes['cache']       = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
+            volumes_mount['cache'] = { 'name': 'cache',  'mountPath': dotcache_user_homedirectory }
+            if volume_type in ['pod_application']:
+                self.logger.debug( f"warning {volume_type} maps {dotcache_user_homedirectory} to emptyDir medium Memory" )
+                self.logger.debug( f"warning {dotcache_user_homedirectory} does not share data" )
+                self.logger.debug( f"warning to disable this features set desktop.homedirdotcachetoemptydir to False" )
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
@@ -1330,39 +1323,33 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Set localtime to server time
         #
         if oc.od.settings.desktop['uselocaltime'] is True:
-            volumes['localtime']       = { 'name': 'localtime', 'hostPath': { 'path': '/etc/localtime' } }
+            volumes['localtime'] = { 'name': 'localtime', 'hostPath': { 'path': '/etc/localtime' } }
             volumes_mount['localtime'] = { 'name': 'localtime', 'mountPath' : '/etc/localtime' }
 
         #
         # volume shared between all container inside the desktop pod
         #
         if volume_type in [ 'pod_desktop', 'ephemeral_container' ]:
-            
-            # # add local account
-            # for vol_name in [ 'passwd', 'group', 'shadow', 'gshadow']:
-            #    volumes[vol_name]       = self.default_volumes[vol_name]
-            #    volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
-
             # add socket service 
             for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket' ]:
-                volumes[vol_name]       = self.default_volumes[vol_name]
+                volumes[vol_name] = self.default_volumes[vol_name]
                 volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
 
             # add tmp run log to support readonly filesystem
             for vol_name in [ 'tmp', 'run', 'log' ]:
-                volumes[vol_name]       = self.default_volumes[vol_name]
+                volumes[vol_name] = self.default_volumes[vol_name]
                 volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
 
             # add dbus
             for vol_name in [ 'rundbus', 'runuser' ]:
-                volumes[vol_name]       = self.default_volumes[vol_name]
+                volumes[vol_name] = self.default_volumes[vol_name]
                 volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
 
         #
         # shm volume is shared between all container inside the desktop pod
         #
         if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ]:
-            volumes['shm']       = self.default_volumes['shm']
+            volumes['shm'] = self.default_volumes['shm']
             volumes_mount['shm'] = self.default_volumes_mount['shm']
 
         #
@@ -1392,8 +1379,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if volume_type in [ 'pod_desktop'  ] :
             (vnc_volumes, vnc_volumes_mount) = \
                 self.build_volumes_vnc(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
-            volumes.update(vnc_volumes )
-            volumes_mount.update( vnc_volumes_mount )
+            volumes.update(vnc_volumes)
+            volumes_mount.update(vnc_volumes_mount)
 
         #
         # mount secret in /var/secrets/abcdesktop
@@ -2916,7 +2903,7 @@ get_label_nodeselector        Returns:
         env[ 'USER' ] = userinfo.userid         # add USER
         env[ 'LOGNAME' ] = userinfo.userid      # add LOGNAME 
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
-        env[ 'LOCALACCOUNT'] = oc.od.settings.desktop['secretslocalaccount']
+        env[ 'LOCALACCOUNT_PATH'] = oc.od.settings.desktop['secretslocalaccount']
         self.logger.debug( f"HOME={env[ 'HOME']}")
         self.logger.debug('env created')
 
@@ -3161,7 +3148,9 @@ get_label_nodeselector        Returns:
             # storage uses default user volumes
             'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts },
             # rdp uses default user volumes
-            'rdp':      { 'list_volumeMounts':  list_volumeMounts } 
+            'rdp':      { 'list_volumeMounts':  [ pod_allvolumeMounts['x11socket']]  } ,
+            # x11overlay uses default user volumes
+            'x11overlay' :  { 'list_volumeMounts':  [ pod_allvolumeMounts[localaccount_volume_name], pod_allvolumeMounts['x11socket']] }
         }
 
         for currentcontainertype in containers.keys():

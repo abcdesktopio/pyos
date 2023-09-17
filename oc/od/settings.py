@@ -319,6 +319,7 @@ def init_desktop():
     desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
     desktop['persistentvolumeclaimspec']= gconfig.get('desktop.persistentvolumeclaimspec')
     desktop['persistentvolumespec']     = gconfig.get('desktop.persistentvolumespec')
+    desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', True)
 
     if desktop['nodeselector'] is not None:
         if not isinstance(desktop['nodeselector'], dict):
