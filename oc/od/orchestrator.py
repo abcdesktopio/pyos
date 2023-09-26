@@ -1170,14 +1170,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if isinstance( pvc, V1PersistentVolumeClaim ):
                     claimName = pvc.metadata.name
                     (status,msg) = odvol.waitforBoundPVC( name=claimName, callback_notify=self.on_desktoplaunchprogress )
+                    self.logger.debug( f"create PersistentVolumeClaim {claimName} return {status} {msg}" )
                     if status is False:
                         self.logger.error( f"PersistentVolumeClaim {claimName} can NOT Bound, {msg}")
                         # we continue but this can be a fatal error
-                    else:
-                        self.logger.debug( msg )
                     self.on_desktoplaunchprogress( msg )
-
-
+                else:
+                    self.logger.error( "can not create PersistentVolumeClaim" )
+                    self.on_desktoplaunchprogress( "can not create PersistentVolumeClaim read log file" )
+                    # we continue but this can be a fatal error
+                    
             if volume_type in [ 'ephemeral_container']:
                 pvc = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim(self.namespace, self.kubeapi).find_pvc(authinfo, userinfo)
                 assert isinstance(pvc, V1PersistentVolumeClaim ),  f"persistentvolumeclaim for {volume_type} is not found"
