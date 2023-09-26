@@ -110,6 +110,10 @@ class ODPersistentVolumeClaim():
             self.logger.debug( f"create a persistentvolume suffix={suffix}" )
             persistentvolume  = self.create_pv( authinfo=authinfo, userinfo=userinfo, persistentvolumespec=persistentvolumespec, suffix=suffix )
         
+        # a PersistentVolume is optional but recommanded
+        if not isinstance( persistentvolume, V1PersistentVolume ):
+            self.logger.debug( f"V1PersistentVolume is not created, continue to create a V1PersistentVolumeClaim without name mapping" )
+
         # create a V1PersistentVolumeClaim
         self.logger.debug( f"create a persistentvolumeclaim suffix={suffix}" )
         pvc = self.create_pvc( authinfo=authinfo, userinfo=userinfo, persistentvolume=persistentvolume, persistentvolumeclaimspec=persistentvolumeclaimspec,  suffix=suffix  )
