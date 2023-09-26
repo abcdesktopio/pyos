@@ -176,7 +176,15 @@ def init_config_stack():
     # kubernetes_default_domain should be by default abcdesktop.svc.cluster.local
     kubernetes_default_domain = f"{namespace}.{kubernetesdefaultsvcclusterlocal}"
     logger.debug( f"abcdesktop domain={kubernetes_default_domain}" )
-    desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
+    desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )  
+
+    # OAUTHLIB params
+    if gconfig.get('OAUTHLIB_INSECURE_TRANSPORT') is True:
+        # This allows us to use oauthlib plain HTTP callback
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+    if gconfig.get('OAUTHLIB_RELAX_TOKEN_SCOPE') is True:
+        os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1' 
 
 def init_jira():
     global jira 
@@ -216,6 +224,7 @@ def init_defaulthostfqdn():
             logger.warning('correct default_server_ipaddr to localhost' )
             default_server_ipaddr = '127.0.0.1' # dummy value localhost
     logger.info('default_server_ipaddr: %s', default_server_ipaddr)
+
 
     # if not set autologin is denied 
     services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True} )
@@ -298,10 +307,15 @@ def init_desktop():
 
     # default secret path
     desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
+
+    desktop['release']                  = gconfig.get('desktop.release', '3.1')  
+    #  
     # in release 3.1
     # desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
     # in release 3.0
-    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/secrets/abcdesktop/localaccount')
+    # desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/secrets/abcdesktop/localaccount')
+    #
+    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
     desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
