@@ -106,10 +106,10 @@ class AuthController(BaseController):
         if services.auth.isidentified:
             # nothing to do
             # keep dekstop running
-            services.auth.logout()
+            services.auth.logout(provider=services.auth.auth.provider, authinfo=services.auth.auth )
             result = Results.success( result = {'url': url} )
         else:
-            self.logger.error('user try to logout, but is not identified')
+            self.logger.error('user try to logout, but user is not identified')
             result = Results.error( message='invalid user credentials', result = {'url': url}  )  
         return result
 
@@ -140,7 +140,7 @@ class AuthController(BaseController):
 
             # Always call logout auth services 
             # nothing to do
-            services.auth.logout() 
+            services.auth.logout( provider=services.auth.auth.provider, authinfo=services.auth.auth ) 
 
         else:
             response = Results.error( message='invalid user credentials' )

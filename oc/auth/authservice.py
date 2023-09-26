@@ -1564,10 +1564,10 @@ class ODAuthTool(cherrypy.Tool):
         if not allow_authentified:
             raise cherrypy.HTTPError(401, 'Unauthorized')    
 
-    def logout(self):
+    def logout(self, provider, authinfo, manager=None, **arguments):
         """[logout]
         """
-        pass
+        return self.findmanager(provider, manager).logout(provider, authinfo, **arguments)
         
           
 @oc.logging.with_logger()
@@ -1624,10 +1624,13 @@ class ODAuthManagerBase(object):
     
     def createprovider(self, name, config):
         return ODAuthProviderBase(self, name, config)
+    
+    def logout(self, provider, authinfo, **arguments):
+        return self.getprovider(provider, True).logout(authinfo, **arguments)
 
     def getrules(self):
         return self.rules
-
+    
     def getprovider(self, name, raise_error=False):
         """[getprovider]
             return a provider from name 
@@ -1662,6 +1665,7 @@ class ODAuthManagerBase(object):
         providersmaplist = list( filter( lambda p: p.showclientdata is True, self.providers.values() ) )
         providers = list( map(lambda p: p.getclientdata(), providersmaplist )) 
         return { 'name': self.name, 'providers': providers }
+
 
 
 @oc.logging.with_logger()
@@ -1824,6 +1828,10 @@ class ODAuthProviderBase(ODRoleProviderBase):
 
     def getuserinfo(self, authinfo, **params):
         raise NotImplementedError()
+    
+    def logout(self, authinfo, **arguments):
+        # default provider pass logout
+        pass
 
     def regexp_validadation( self, data, key  ):
         regexp = self.regexp_validatation_dict.get(key)
@@ -2011,6 +2019,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         self.redirect_uri_querystring = config.get('redirect_uri_querystring')
         self.redirect_uri = self.redirect_uri_prefix + '?' + self.redirect_uri_querystring
         self.userinfo_url = config.get('userinfo_url')
+        self.revoke_url = config.get('revoke_url')
         # relation ship to allow an external provider to resign as an explicitprovider
         # after login process and pod create
         self.explicitproviderapproval = config.get('explicitproviderapproval') 
@@ -2082,6 +2091,35 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         # Check if type is OAuth2Session
         if isinstance(oauthsession,OAuth2Session) :
             authinfo.token = oauthsession.token
+
+    def getroles(self, authinfo, **params):
+        self.logger.debug('') 
+        roles = []
+
+        # auth_only do not use ldap query
+        if self.auth_only : 
+            # return empty list
+            self.logger.debug(f"provider {self.name} is a auth_only={self.auth_only}, no roles can be read return {roles}") 
+            return roles
+
+        try:
+            # OAuth2Session.
+            token = authinfo.token            
+           
+            if not isinstance(roles, list):
+                roles = [ roles ] # always a list
+        except Exception as e:
+            self.logger.error( e )
+            # return empty list if an exception occurs
+
+        self.logger.debug(f"roles on provider {self.name}, read {roles}" ) 
+        return roles
+
+    def logout(self, authinfo, **arguments):
+        # requests-oauthlib does not provide a way to use tokens revocations
+        #
+        pass
+        
 
 # ODImplicitAuthProvider is an Anonymous AuthProvider
 class ODImplicitAuthProvider(ODAuthProviderBase):
