@@ -36,7 +36,6 @@ import ldap3
 
 import gssapi       # kerberos import
 import haversine    # haversine import for geolocalization
-import platform     # platform import to run ntlmauth binary macos, linux  
 import chevron      # for citrix All_Regions.ini
 
 # OAuth lib
@@ -828,7 +827,7 @@ class ODAuthTool(cherrypy.Tool):
 
             return value
 
-        def isMemberOf(roles, groups ) :
+        def isMemberOf(roles, groups )->bool:
             if not isinstance(roles,list):  
                 roles = [roles]
             if not isinstance(groups,list): 
@@ -844,7 +843,7 @@ class ODAuthTool(cherrypy.Tool):
                         return True
             return False
 
-        def __isinNetwork( ipsource, network ):
+        def __isinNetwork( ipsource, network )->bool:
             try:
                 if IPAddress(ipsource) in IPNetwork( network ):
                     return True
@@ -853,7 +852,7 @@ class ODAuthTool(cherrypy.Tool):
                 return False
             return False
 
-        def _isinNetwork( ipsource, network ):
+        def _isinNetwork( ipsource, network )->bool:
             if isinstance( network, list ):
                 for n in network:
                     if __isinNetwork( ipsource, n ):
@@ -862,7 +861,7 @@ class ODAuthTool(cherrypy.Tool):
                 return __isinNetwork( ipsource, network )
             return False
 
-        def isinNetwork( ipsource, network ): 
+        def isinNetwork( ipsource, network )->bool: 
             if isinstance( ipsource, list ):
                 for ip in ipsource:
                     if _isinNetwork( ip, network ):
@@ -873,14 +872,9 @@ class ODAuthTool(cherrypy.Tool):
 
         def isAttribut(user, attribut, start_with=None, equal=None ):
             # if user is not a dict return False
-            if not isinstance(user, dict):
-                return False
-
-            if not isinstance( attribut, str ):
-                return False
-            
-            if not isinstance( start_with, str ) or not isinstance( equal, str ):
-                return False
+            if not isinstance(user, dict): return False
+            if not isinstance( attribut, str ): return False
+            if not isinstance( start_with, str ) or not isinstance( equal, str ): return False
                 
             try:
                 attribut_user_value = str( user.get( attribut ) )
@@ -893,42 +887,43 @@ class ODAuthTool(cherrypy.Tool):
                 return False
             return False
 
-        self.logger.info('condition %s ', condition )
+        self.logger.info( f"condition {condition}" )
 
         compiled_result = False  # default compiled_result is False
 
-        if type(condition) is not dict :
+        # a condition is always a dict else return false
+        if not isinstance(condition,dict) :
             return False
 
         # just a type sanity check
         expected = condition.get('expected')
-        if type(expected) is not bool:
-            self.logger.warning('invalid value type %s bool is expected in rule', type(expected) )
+        if not isinstance(expected,bool):
+            self.logger.warning( f"invalid value type {type(expected)}, bool is expected in rule" )
    
         # DO not change with lambda 
         # this is not a dummy code
         # this is readable code for human
         #
         always = condition.get('boolean')
-        if type(always) is bool:
+        if isinstance(always,bool):
             result     = isBoolean( always )
             if result == condition.get( 'expected'):
                 compiled_result = True
 
         httpheader = condition.get('httpheader')
-        if type(httpheader) is dict:
+        if isinstance(httpheader,dict):
             result     = isHttpHeader( getclienthttp_headers(), httpheader )
             if result == condition.get( 'expected'):
                 compiled_result = True
 
         httpheader = condition.get('existhttpheader')
-        if type(httpheader) is list:
+        if isinstance(httpheader,list):
             result     = existHttpHeader( getclienthttp_headers(), httpheader )
             if result == condition.get( 'expected'):
                 compiled_result = True
 
         memberOf = condition.get('memberOf') or condition.get('memberof')
-        if type(memberOf) is str:
+        if isinstance(memberOf,str):
             self.logger.debug('memberOf checking for ODAdAuthMetaProvider')
             # read the member LDAP attribut with objectClass=group
             # check if the provider object is an ODAdAuthMetaProvider
@@ -951,12 +946,12 @@ class ODAuthTool(cherrypy.Tool):
                 # read the memberOf LDAP attribut of objectClass=user
                 # use string compare to test if is MemberOf
                 self.logger.debug('not a ODAdAuthMetaProvider')
-                result     = isMemberOf( roles, memberOf )
+                result = isMemberOf( roles, memberOf )
                 if result == condition.get('expected'):
                     compiled_result = True
 
         geolocation = condition.get('geolocation')
-        if type(geolocation) is dict:
+        if isinstance(geolocation,dict):
             result = isGeoLocation( user, geolocation  )
             if result == condition.get( 'expected'):
                 compiled_result = True
@@ -1222,13 +1217,14 @@ class ODAuthTool(cherrypy.Tool):
 
         #
         # find user in metadirectory entries if exists
+        # if an error occurs rollback to default login
         #
         metauser = None
         try:
             metauser = provider_meta.getuserinfo( auth, **arguments ) 
         except Exception as e:
             # no user provider has been found
-            self.logger.error( 'skipping metalogin, no metauser getuserinfo  %s', str(e))
+            self.logger.error( f"skipping metalogin, no metauser getuserinfo error {e}" )
             return self.login(provider, manager, **arguments)
         if not isinstance( metauser, dict):
             # no user provider has been found
@@ -1238,10 +1234,10 @@ class ODAuthTool(cherrypy.Tool):
 
         # 
         # postpone with user domain sid 
-        roles = provider_meta.getroles( auth, **arguments)
+        roles = provider_meta.getroles( auth, metauser, **arguments)
         if not isinstance(roles, list):
-           raise AuthenticationFailureError( 'mgr.getroles provider=%s error' %  provider )
-        self.logger.debug( 'mgr.getroles provider=%s success', provider) 
+           raise AuthenticationFailureError( f"mgr.getroles provider={provider} error" )
+        self.logger.debug( f"mgr.getroles provider={provider} success") 
 
         # check if acl matches with tag
         if not oc.od.acl.ODAcl().isAllowed( auth, provider_meta.acls ):
@@ -1458,7 +1454,7 @@ class ODAuthTool(cherrypy.Tool):
                 raise AuthenticationFailureError('No authentication provided')
             
             # uncomment this line only to dump password in clear text format
-            # self.logger.debug( 'mgr.getuserinfo arguments=%s', arguments)   
+            # self.logger.debug( f"mgr.getuserinfo arguments={arguments}")   
             self.logger.debug( f"mgr.getuserinfo provider={provider} start")          
             userinfo = mgr.getuserinfo(provider, auth, **arguments)
             self.logger.debug( f"mgr.getuserinfo provider={provider} done")  
@@ -1474,12 +1470,12 @@ class ODAuthTool(cherrypy.Tool):
             #
             # get roles 
             self.logger.debug( f"mgr.getroles provider={provider} start")             
-            roles = mgr.getroles(provider, auth, **arguments)
+            roles = mgr.getroles(provider, auth, userinfo, **arguments)
             self.logger.debug( f"mgr.getroles provider={provider} done") 
             if not isinstance(roles, list):
                 raise AuthenticationFailureError( f"mgr.getroles provider={provider} error" )
 
-            # get the provider object
+            # get the provider object from the provider name
             pdr = mgr.getprovider(provider)
 
             # check if acl matches with tag
@@ -1490,7 +1486,7 @@ class ODAuthTool(cherrypy.Tool):
             # compile data using rules
             # runs the rules to get associated labels tag
             if pdr.rules:
-                self.logger.debug( "compiledrules start")      
+                self.logger.debug( f"provider {provider} has rules, compile rules start" )      
                 auth.data['labels'] = self.compiledrules( pdr.rules, userinfo, roles )
                 self.logger.debug( "compiledrules done")      
                 self.logger.info( f"compiled rules get labels {auth.data['labels']}")
@@ -1550,8 +1546,8 @@ class ODAuthTool(cherrypy.Tool):
     def createclaims(self, provider, authinfo, userinfo, manager=None, **arguments):
         return self.findmanager(provider, manager).createclaims(provider, authinfo, userinfo, **arguments)
 
-    def getroles(self, provider, authinfo, manager=None, **arguments):
-        return self.findmanager(provider, manager).getroles(provider, authinfo, **arguments)
+    def getroles(self, provider, authinfo, userinfo, manager=None, **arguments):
+        return self.findmanager(provider, manager).getroles(provider, authinfo, userinfo, **arguments)
 
     def finalize(self, provider, authinfo, manager=None, **arguments):
         return self.findmanager(provider, manager).finalize(provider, authinfo, **arguments)
@@ -1616,8 +1612,8 @@ class ODAuthManagerBase(object):
                 userinfo[addionnalinfo]=arguments.get(addionnalinfo)
         return userinfo
 
-    def getroles(self, provider, authinfo, **arguments):
-        return self.getprovider(provider, True).getroles(authinfo, **arguments)
+    def getroles(self, provider, authinfo, userinfo, **arguments):
+        return self.getprovider(provider, True).getroles(authinfo, userinfo, **arguments)
 
     def finalize(self, provider, authinfo, **arguments):
         return self.getprovider(provider, True).finalize(authinfo, **arguments)
@@ -1781,11 +1777,8 @@ class ODImplicitAuthManager(ODAuthManagerBase):
 
 @oc.logging.with_logger()
 class ODRoleProviderBase(object):
-    def getroles(self, authinfo, **params):
+    def getroles(self, authinfo, userinfo, **params):
         return []
-
-    def isinrole(self, token, role, **params):
-        return role.casefold() in (n.casefold() for n in self.getroles(token))
 
 @oc.logging.with_logger()
 class ODAuthProviderBase(ODRoleProviderBase):
@@ -1819,6 +1812,10 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.default_uidNumber_if_not_exist = config.get('defaultuidNumber', oc.od.settings.getballoon_uidNumber())
         self.default_gidNumber_if_not_exist = config.get('defaultgidNumber', oc.od.settings.getballoon_gidNumber())
         self.auth_protocol = config.get('auth_protocol', {} )
+        # default memberof attribut name
+        # for expliicc this should be memberOf
+        # for external provider 
+        self.memberof_attribut_name = config.get('memberof_attribut_name', '' )
 
     def getdisplaydescription( self ):
         return self.displayname
@@ -2022,7 +2019,9 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         self.revoke_url = config.get('revoke_url')
         # relation ship to allow an external provider to resign as an explicitprovider
         # after login process and pod create
-        self.explicitproviderapproval = config.get('explicitproviderapproval') 
+        self.explicitproviderapproval = config.get('explicitproviderapproval')
+        # the defautl attribut name for memberof is groups
+        self.memberof_attribut_name = config.get('memberof_attribut_name', 'groups')
 
     def getclientdata(self):
         data = super().getclientdata()
@@ -2053,12 +2052,11 @@ class ODExternalAuthProvider(ODAuthProviderBase):
 
         userinfo = None
         if self.userinfo_auth is True and oauthsession.authorized is True:
-            userinfo = oauthsession.get(self.userinfo_url)
-
-        if isinstance(userinfo, requests.models.Response) and userinfo.ok is True :
-            jsondata = userinfo.content.decode(userinfo.encoding or self.encoding ) 
-            data = json.loads(jsondata)
-            userinfo = self.parseuserinfo( data )
+            response_userinfo = oauthsession.get(self.userinfo_url)
+            if isinstance(response_userinfo, requests.models.Response) and response_userinfo.ok is True :
+                jsondata = response_userinfo.content.decode(response_userinfo.encoding or self.encoding ) 
+                data = json.loads(jsondata)
+                userinfo = self.parseuserinfo( data )
         return userinfo
         
   
@@ -2092,7 +2090,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         if isinstance(oauthsession,OAuth2Session) :
             authinfo.token = oauthsession.token
 
-    def getroles(self, authinfo, **params):
+    def getroles(self, authinfo, userinfo, **params):
         self.logger.debug('') 
         roles = []
 
@@ -2102,17 +2100,9 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             self.logger.debug(f"provider {self.name} is a auth_only={self.auth_only}, no roles can be read return {roles}") 
             return roles
 
-        try:
-            # OAuth2Session.
-            token = authinfo.token            
-           
-            if not isinstance(roles, list):
-                roles = [ roles ] # always a list
-        except Exception as e:
-            self.logger.error( e )
-            # return empty list if an exception occurs
+        if isinstance( userinfo.get('groups'), list ):
+            roles = userinfo.get('groups')
 
-        self.logger.debug(f"roles on provider {self.name}, read {roles}" ) 
         return roles
 
     def logout(self, authinfo, **arguments):
@@ -2220,9 +2210,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
     # from https://ldapwiki.com/wiki/PosixGroup
     # PosixGroup ObjectClass Types 
     DEFAULT_POSIXGROUP_ATTRS   = { 'posixGroup' : [ 'cn', 'gidNumber', 'memberUid', 'description' ] }
+    # DEFAULT_MEMBEROF_ATTRIBUT_NAME
+    DEFAULT_MEMBEROF_ATTRIBUT_NAME = 'memberOf'
     # from https://ldap3.readthedocs.io/en/latest/connection.html
     # LDAP_AUTH_SUPPORTED_METHOD
     LDAP_AUTH_SUPPORTED_METHOD = ['KERBEROS', 'NTLM', 'SIMPLE', 'ANONYMOUS']
+
 
 
     class Query(object):
@@ -2301,6 +2294,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.posixAccountobjectClass = 'posixAccount'
         self.posixGroupobjectClass = 'posixGroup'
         self.InetOrgPersonobjectClass = 'InetOrgPerson'
+        self.memberof_attribut_name = config.get('memberof_attribut_name', ODLdapAuthProvider.DEFAULT_MEMBEROF_ATTRIBUT_NAME )
 
         # query user Person
         self.user_query = self.Query(
@@ -2707,21 +2701,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                             
         return userinfo
 
-    def isinrole(self, token, role, **params):
-        ldap_bind_userid     = params.get( 'userid', self.userid )
-        ldap_bind_password   = params.get( 'password', self.password )    
-        conn = self.getconnection(ldap_bind_userid, ldap_bind_password)
-        try:
-            groupdn = self.getgroupdn(conn, role)
-            if not groupdn: 
-                return False
-            group_ldap_filter = ldap_filter.filter_format('(&'+self.user_query.filter+'(memberOf=%s))', [token,groupdn])
-            return self.search(conn, self.user_query.basedn, self.user_query.scope, group_ldap_filter, ['cn'], True) is not None
-        finally:
-            if ldap_bind_userid: 
-                conn.unbind()
-
-    def getroles(self, authinfo, **params):  
+    
+    def getroles(self, authinfo, userinfo, **params):  
         self.logger.debug('') 
         roles = []
 
@@ -2734,9 +2715,15 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         try:
             token = authinfo.token            
             q = self.user_query
-            result = self.search_one( authinfo.conn, q.basedn, q.scope, ldap_filter.filter_format(q.filter, [token]), ['memberOf'], **params)
+            result = self.search_one( 
+                conn=authinfo.conn,
+                basedn=q.basedn,
+                scope=q.scope,
+                filter=ldap_filter.filter_format(q.filter, [token]),
+                attrs=['memberOf'],
+                **params )
             # return [dn.split(',',2)[0].split('=',2)[1] for dn in result['memberOf']] if result else []
-            roles = result.get('memberOf', [])
+            roles = result.get( self.memberof_attribut_name, [])
             if not isinstance(roles, list):
                 roles = [ roles ] # always a list
         except Exception as e:
@@ -3533,28 +3520,13 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         return userinfo
 
     
-    def isinrole(self, token, role, **params):
-        if not self.recursive_search:
-            return super().isinrole(token, role, **params)
+   
 
-        ldap_bind_userid     = params.get( 'userid', self.userid )
-        ldap_bind_password   = params.get( 'password',self.password )                
-        conn = self.getconnection(ldap_bind_userid, ldap_bind_password)
-        try:
-            groupdn = self.getgroupdn(conn, role)
-            if not groupdn: 
-                return False
-            filter = ldap_filter.filter_format('(&'+self.user_query.filter+'(memberOf:1.2.840.113556.1.4.1941:=%s))', [token,groupdn])
-            return self.search(conn, self.user_query.basedn, self.user_query.scope, filter, ['cn'], True) is not None
-        finally:
-            if self.userid: 
-                conn.unbind()
-
-    def getroles(self, authinfo, **params):
+    def getroles(self, authinfo, userinfo, **params):
         self.logger.debug('')
         token = authinfo.token 
         if not self.recursive_search:
-            return super().getroles(authinfo, **params)
+            return super().getroles(authinfo, userinfo, **params)
 
         # ldap_bind_userid   = None 
         # ldap_bind_password = None 
@@ -3811,7 +3783,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         foreingdistinguished_name = self.getForeignDistinguishedName( authinfo, user.get( 'objectSid' ) )
         return foreingdistinguished_name
 
-    def getroles(self, authinfo, **arguments): 
+    def getroles(self, authinfo, userinfo, **params): 
         self.logger.debug('') 
         roles = []
         
@@ -3821,7 +3793,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             return roles
 
         # memberOf must always exists in Active Directory
-        userid = arguments.get( 'userid' )
+        userid = params.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
         self.logger.info( 'ODAdAuthMetaProvider:ldap.filter %s', filter)
         userinfo = self.search_one( conn=authinfo.conn, 
