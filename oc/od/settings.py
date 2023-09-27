@@ -176,15 +176,7 @@ def init_config_stack():
     # kubernetes_default_domain should be by default abcdesktop.svc.cluster.local
     kubernetes_default_domain = f"{namespace}.{kubernetesdefaultsvcclusterlocal}"
     logger.debug( f"abcdesktop domain={kubernetes_default_domain}" )
-    desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )  
-
-    # OAUTHLIB params
-    if gconfig.get('OAUTHLIB_INSECURE_TRANSPORT') is True:
-        # This allows us to use oauthlib plain HTTP callback
-        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-
-    if gconfig.get('OAUTHLIB_RELAX_TOKEN_SCOPE') is True:
-        os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1' 
+    desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
 
 def init_jira():
     global jira 
@@ -199,6 +191,15 @@ def init_defaulthostfqdn():
     global default_host_url_is_securised    # default_host_url_is_securised
     global default_server_ipaddr            # default ip addr to fake real ip source in geoip
     global services_http_request_denied     # denied http request uri
+
+
+    # OAUTHLIB params
+    if gconfig.get('OAUTHLIB_INSECURE_TRANSPORT') is True:
+        # This allows us to use oauthlib plain HTTP callback
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+    if gconfig.get('OAUTHLIB_RELAX_TOKEN_SCOPE') is True:
+        os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1' 
 
 
     # Use for reserve proxy
