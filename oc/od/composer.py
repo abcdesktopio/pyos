@@ -872,8 +872,10 @@ def notify_endpoint( url ):
 
 
 def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addresses):
+    # if pyos is not running inside kubernetes pod  
     if oc.od.settings.developer_instance is True:
-            pyos_endpoint_addresses = [ 'localhost' ]
+        # overwrite pyos_endpoint_addresses value  
+        pyos_endpoint_addresses = [ 'localhost' ]
     for pyos_endpoint_address in pyos_endpoint_addresses:
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
         notify_thread = threading.Thread(target=notify_endpoint, kwargs={'url': url } )
