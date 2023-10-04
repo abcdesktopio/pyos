@@ -107,20 +107,38 @@ def opendesktop(authinfo, userinfo, args ):
     # start a message info 
     services.messageinfo.start(userinfo.userid, 'b.Looking for your desktop')
     # look for a desktop
+    logger.debug('finddesktop')
     desktop = finddesktop( authinfo, userinfo )
    
     if isinstance(desktop, oc.od.desktop.ODDesktop) :
         # ok we find a desktop
         # let's check if security policies match the desktop
+        logger.debug('a desktop has been found')
         services.messageinfo.push(userinfo.userid, 'b.Applying labels security policy')
         # the list of uniq_labels_filter must be the same as the user label
+        logger.debug('checking if securitypoliciesmatchlabelvalue')
         if securitypoliciesmatchlabelvalue( desktop, authinfo, oc.od.settings.desktop.get('policies').get('user_uniq_labels')) :
             logger.debug('Warm start, reconnecting to running desktop') 
             services.messageinfo.push(userinfo.userid, 'c.Warm start, reconnecting to your running desktop') 
             # if the desktop exists resume the connection
             services.accounting.accountex( desktoptype, 'resumed')
-            resumedesktop( authinfo, userinfo ) # update last connection datetime
-            return desktop
+            desktop = resumedesktop( authinfo, userinfo ) # update last connection datetime
+            if isinstance( desktop, str):
+                # something goes wrong with this pod
+                # delete the current desktop
+                services.messageinfo.push(userinfo.userid, f"b. {desktop}")  
+                # only remove the pod, do not delete secret configmap and everythings else
+                removed_desktop = removepodindesktop( authinfo, userinfo )
+                if removed_desktop is True:
+                    services.messageinfo.push(userinfo.userid, 'b.Your desktop is deleted. creating a new one')
+                    services.accounting.accountex( desktoptype, 'deletesuccess')
+                else:
+                    logger.error(f"Cannot delete desktop") 
+                    services.accounting.accountex( desktoptype, 'deletefailed')
+                    services.messageinfo.push(userinfo.userid, 'e.Your desktop can not be deleted')
+                    return 'Your desktop can not be deleted' 
+            else:
+                return desktop
         else:
             # security polcies does not match
             # delete the current desktop
@@ -128,7 +146,7 @@ def opendesktop(authinfo, userinfo, args ):
             # only remove the pod, do not delete secret configmap and everythings else
             removed_desktop = removepodindesktop( authinfo, userinfo )
             if removed_desktop is True:
-                services.messageinfo.push(userinfo.userid, 'b.Your desktop is deleted. creating a new on with new security polcies')
+                services.messageinfo.push(userinfo.userid, 'b.Your desktop is deleted. creating a new one with new security policies')
                 services.accounting.accountex( desktoptype, 'deletesuccess')
             else:
                 logger.error(f"Cannot delete desktop {desktop}") 
@@ -551,13 +569,13 @@ def createDesktopArguments( authinfo, userinfo, args ):
     myCreateDesktopArguments = { 'env' : env }
     return myCreateDesktopArguments
  
-def resumedesktop( authinfo, userinfo ):
+def resumedesktop( authinfo:AuthInfo, userinfo:AuthUser ) -> ODDesktop:
     myOrchestrator = selectOrchestrator()
-    myDesktop = myOrchestrator.resumedesktop(authinfo, userinfo)  
+    myDesktop = myOrchestrator.resumedesktop(authinfo, userinfo)
     return myDesktop
         
 
-def createdesktop( authinfo, userinfo, args  ):
+def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
     """create a new desktop 
 
     Args:
@@ -833,12 +851,13 @@ def detach_container_from_network( id:str ):
 
 
 
-def listAllSecretsByUser(authinfo, userinfo ):
+def listAllSecretsByUser(authinfo:AuthInfo, userinfo:AuthUser )->list:
     """[listAllSecretsByUser]
+        list all kubernetes secrets type for a user
 
     Args:
-        authinfo ([type]): [description]
-        userinfo ([type]): [description]
+        authinfo ([AuthInfo]): [AuthInfo]
+        userinfo ([AuthUser]): [AuthUser]
 
     Returns:
         [list]: [list of secret type]
@@ -857,7 +876,17 @@ def listAllSecretsByUser(authinfo, userinfo ):
     return secrets_type_list
 
 
-def notify_endpoint( url ):
+def notify_endpoint( url:str )->bool:
+    """notify_endpoint
+        call url endpoint 
+        if apikey is set add as http header
+
+    Args:
+        url (str): url
+
+    Returns:
+        bool: http response.ok
+    """
     try:
         headers = None
         apikey = oc.od.settings.controllers.get('ManagerController').get('apikey', [ None ])[0]
@@ -871,7 +900,18 @@ def notify_endpoint( url ):
     return False
 
 
-def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addresses):
+def notify_endpoints(pyos_endpoint_uri:str, pyos_endpoint_port:int, pyos_endpoint_addresses:str)->None:
+    """notify_endpoints
+        query endpoint '/API/manager/buildapplist' on a pyos instance
+        url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
+        if pyos is running in developer mode, only call localhost as pyos_endpoint_addresses
+        all call run as thread
+    Args:
+        pyos_endpoint_uri (str): uri endpoint
+        pyos_endpoint_port (int): tcp port 
+        pyos_endpoint_addresses (str): endpoint address
+        
+    """
     # if pyos is not running inside kubernetes pod  
     if oc.od.settings.developer_instance is True:
         # overwrite pyos_endpoint_addresses value  
@@ -882,7 +922,12 @@ def notify_endpoints(pyos_endpoint_uri, pyos_endpoint_port, pyos_endpoint_addres
         notify_thread.start()
 
 
-def notity_pyos_buildapplist():
+def notity_pyos_buildapplist()->None:
+    """notity_pyos_buildapplist
+        query endpoint '/API/manager/buildapplist'
+        for all pyos pods instance 
+
+    """
     ## new Orchestrator Object
     myOrchestrator = selectOrchestrator()
     # list all pyos endpoints (port and address)
