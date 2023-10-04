@@ -1489,7 +1489,7 @@ class ODAuthTool(cherrypy.Tool):
                 self.logger.debug( f"provider {provider} has rules, compile rules start" )      
                 auth.data['labels'] = self.compiledrules( pdr.rules, userinfo, roles )
                 self.logger.debug( "compiledrules done")      
-                self.logger.info( f"compiled rules get labels {auth.data['labels']}")
+                self.logger.info( f"compiled rules get labels {auth.data.get('labels')}")
 
             auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
             # build a AuthCache as response result 
