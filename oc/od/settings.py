@@ -330,16 +330,18 @@ def init_desktop():
     desktop['uselocaltime']             = gconfig.get('desktop.uselocaltime', False ) 
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
-    desktop['nodeselector']             = gconfig.get('desktop.nodeselector', )
+    desktop['nodeselector']             = gconfig.get('desktop.nodeselector', {} )
     desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
-    desktop['persistentvolumeclaimspec']= gconfig.get('desktop.persistentvolumeclaimspec')
-    desktop['persistentvolumespec']     = gconfig.get('desktop.persistentvolumespec')
+    desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim') or gconfig.get('desktop.persistentvolumeclaimspec')
+    desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
     desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', True)
 
-    if desktop['nodeselector'] is not None:
-        if not isinstance(desktop['nodeselector'], dict):
-            logger.error( 'nodeselector must be a dict or None' )
-            sys.exit(-1)
+    desktop['DEFAULT_K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('desktop.DEFAULT_K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
+    desktop['DEFAULT_K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('desktop.DEFAULT_K8S_BOUND_PVC_MAX_EVENT', 5 )
+
+    if not isinstance(desktop['nodeselector'], dict):
+        logger.error( f"nodeselector must be a dict or None, get {type(desktop['nodeselector'])}" )
+        sys.exit(-1)
 
     # add default env local vars if not set 
     desktop['environmentlocal'] = gconfig.get(  
