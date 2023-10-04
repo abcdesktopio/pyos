@@ -298,7 +298,7 @@ class ODOrchestratorBase(object):
             try:
                 nReturn = int(result.get('stdout'))
             except ApiException as e:
-                self.logger.error(str(e))
+                self.logger.error(e)
         return nReturn
 
     def list_dict_secret_data( self, authinfo, userinfo, access_type=None, hidden_empty=False ):
@@ -1109,6 +1109,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         mixedata.update( authinfo.get_labels())
         mixedata.update( userinfo )
         mixedata['provider']=authinfo.provider.lower()
+        mixedata['uuid']=oc.lib.uuid_digits()
         return mixedata
 
     def build_volumes_home( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement, rules={}, **kwargs):
@@ -1147,30 +1148,30 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
-            assert isinstance( oc.od.settings.desktop['persistentvolumeclaimspec'], dict),  f"desktop.persistentvolumeclaimspec has invalid type {type(oc.od.settings.desktop['persistentvolumespec'])}"
+            assert isinstance( oc.od.settings.desktop['persistentvolumeclaim'], dict),  f"desktop.persistentvolumeclaim has invalid type {type(oc.od.settings.desktop['persistentvolumeclaim'])}"
             claimName = None
             if volume_type in [ 'pod_desktop', 'pod_application' ] :
                 # create a pvc to store desktop volume
-                persistentvolumespec = copy.deepcopy( oc.od.settings.desktop['persistentvolumespec'] )
-                persistentvolumeclaimspec = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaimspec'] )
-                # use chevron mustache to replace template value in persistentvolumespec and persistentvolumeclaimspec
+                persistentvolume = copy.deepcopy( oc.od.settings.desktop['persistentvolume'] )
+                persistentvolumeclaim = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaim'] )
+                # use chevron mustache to replace template value in persistentvolume and persistentvolumeclaim
                 mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
-                self.updateChevronDictWithmixedData( persistentvolumespec, mixeddata=mixeddata)
-                self.updateChevronDictWithmixedData( persistentvolumeclaimspec, mixeddata=mixeddata)
-                self.logger.debug( f"persistentvolumespec={persistentvolumespec}" )
-                self.logger.debug( f"persistentvolumeclaimspec={persistentvolumeclaimspec}" )
+                self.updateChevronDictWithmixedData( persistentvolume, mixeddata=mixeddata)
+                self.updateChevronDictWithmixedData( persistentvolumeclaim, mixeddata=mixeddata)
+                self.logger.debug( f"persistentvolume={persistentvolume}" )
+                self.logger.debug( f"persistentvolumeclaim={persistentvolumeclaim}" )
                 self.on_desktoplaunchprogress( f"b.Creating your own volume to store files" )
                 # create the user's persistentVolumeClaim if not exist
                 odvol = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim( self.namespace, self.kubeapi )
                 pvc = odvol.create( authinfo=authinfo,
                                     userinfo=userinfo, 
-                                    persistentvolumespec=persistentvolumespec,
-                                    persistentvolumeclaimspec=persistentvolumeclaimspec )
+                                    persistentvolume_request=persistentvolume,
+                                    persistentvolumeclaim_request=persistentvolumeclaim )
                 # wait for user's persistentVolumeClaim to bound 
                 if isinstance( pvc, V1PersistentVolumeClaim ):
                     claimName = pvc.metadata.name
                     (status,msg) = odvol.waitforBoundPVC( name=claimName, callback_notify=self.on_desktoplaunchprogress )
-                    self.logger.debug( f"create PersistentVolumeClaim {claimName} return {status} {msg}" )
+                    self.logger.debug( f"bound PersistentVolumeClaim {claimName} return {status} {msg}" )
                     if status is False:
                         self.logger.error( f"PersistentVolumeClaim {claimName} can NOT Bound, {msg}")
                         # we continue but this can be a fatal error
@@ -1181,7 +1182,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # we continue but this can be a fatal error
                     
             if volume_type in [ 'ephemeral_container']:
-                pvc = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim(self.namespace, self.kubeapi).find_pvc(authinfo, userinfo)
+                persistentvolumeclaim = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaim'] )
+                # use chevron mustache to replace template value in persistentvolumeclaim
+                mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
+                self.updateChevronDictWithmixedData( persistentvolumeclaim, mixeddata=mixeddata)
+                self.logger.debug( f"persistentvolumeclaim={persistentvolumeclaim}" )
+                odpvc = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim(self.namespace, self.kubeapi)
+                pvc = odpvc.find_pvc(authinfo, userinfo, persistentvolumeclaim )
                 assert isinstance(pvc, V1PersistentVolumeClaim ),  f"persistentvolumeclaim for {volume_type} is not found"
                 claimName = pvc.metadata.name
                
@@ -1635,10 +1642,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myappinstance = ODAppInstanceKubernetesPod( self )
 
             removethreads =  [  
-                { 'fct':self.removePod,   'args': [ myPod ] },
+                { 'fct':self.removePod, 'args': [ myPod ] },
                 { 'fct':myappinstance.removeAppInstanceKubernetesPod, 'args': [ authinfo, userinfo ] },
-                { 'fct':self.removesecrets,   'args': [ authinfo, userinfo ] },
-                { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ] } 
+                { 'fct':self.removesecrets, 'args': [ authinfo, userinfo ] },
+                { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ] },
+                { 'fct':self.removepvc, 'args': [ authinfo, userinfo ] } 
             ]
    
             for removethread in removethreads:
@@ -1654,6 +1662,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
         return deletedpod
+
+    def removepvc(self, authinfo:AuthInfo, userinfo:AuthUser)->V1PersistentVolumeClaim:
+        self.logger.debug('')
+        bReturn = False
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+        odvol = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim( self.namespace, self.kubeapi )
+        # list all pvc for the user and delete pvc
+        deleted_pvc = odvol.delete_pvc( authinfo=authinfo, userinfo=userinfo )
+        return deleted_pvc
+
 
     def preparelocalaccount( self, localaccount:dict )->dict:
         assert isinstance(localaccount, dict),f"invalid localaccount type {type(localaccount)}"    
@@ -1811,6 +1830,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None
         myPod =  self.findPodByUser(authinfo, userinfo)
         if isinstance(myPod, V1Pod ):
+            # check the pod status
+            if isinstance(myPod.status, V1PodStatus):
+                if myPod.status.phase != 'Running':
+                    # someting goes wrong
+                    return f"Your pod is in phase {myPod.status.phase}, resume pod failed" 
+            else:
+                return 'Your pod has no status entry, fatal error' 
             # update the metadata.annotations ['lastlogin_datetime'] in pod
             annotations = myPod.metadata.annotations
             new_lastlogin_datetime = self.get_annotations_lastlogin_datetime()
@@ -1976,11 +2002,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def filldictcontextvalue( self, authinfo:AuthInfo, userinfo:AuthUser, desktop:ODDesktop, network_config:str, network_name=None, appinstance_id=None ):
-        self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         fillvalue = network_config
-        self.logger.debug( f"type(network_config) is {type(network_config)}" )
+        # self.logger.debug( f"type(network_config) is {type(network_config)}" )
         # check if network_config is str, dict or list
         if isinstance( network_config, str) :
             fillvalue = self.fillwebhook(   mustachecmd=network_config, 
@@ -2000,7 +2025,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             for i, item in enumerate(network_config):
                 fillvalue[ i ] = self.filldictcontextvalue( authinfo, userinfo, desktop, item, network_name, appinstance_id )
     
-        self.logger.debug(f"filldictcontextvalue return fillvalue={fillvalue}")
+        # self.logger.debug(f"filldictcontextvalue return fillvalue={fillvalue}")
         return fillvalue
 
 
@@ -2867,7 +2892,7 @@ get_label_nodeselector        Returns:
                 raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
 
-    def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)->ODDesktop:
+    def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)-> ODDesktop :
         """createdesktop
             create the user pod 
 
@@ -2879,7 +2904,7 @@ get_label_nodeselector        Returns:
             ValueError: _description_
 
         Returns:
-            ODDesktop: desktop object or str  
+            ODDesktop: ( ODDesktop | str ) desktop object or str  
         """
         self.logger.debug('createdesktop start' )
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -2894,8 +2919,7 @@ get_label_nodeselector        Returns:
         # add a new VNC Password 
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo, kwargs=kwargs )
 
-
-        # create ENV for pod 
+        # create ENV var for pod 
         # XAUTH key
         self.logger.debug('env creating')
         env[ 'XAUTH_KEY' ] = self.generate_xauthkey() # generate XAUTH_KEY
@@ -2913,16 +2937,16 @@ get_label_nodeselector        Returns:
         self.logger.debug('labels creating')
         # build label dictionnary
         labels = { 
-            'abcdesktop/role':      self.abcdesktop_role_desktop,
-            'access_provider':      authinfo.provider,
-            'access_providertype':  authinfo.providertype,
-            'access_userid':        userinfo.userid,
-            'access_username':      self.get_labelvalue(userinfo.name),
-            'domain':               self.endpoint_domain,
-            'netpol/ocuser' :       'true',
-            'xauthkey':             env[ 'XAUTH_KEY' ], 
-            'pulseaudio_cookie':    env[ 'PULSEAUDIO_COOKIE' ],
-            'broadcast_cookie':     env[ 'BROADCAST_COOKIE' ]
+            'abcdesktop/role': self.abcdesktop_role_desktop,
+            'access_provider': authinfo.provider,
+            'access_providertype': authinfo.providertype,
+            'access_userid': userinfo.userid,
+            'access_username': self.get_labelvalue(userinfo.name),
+            'domain': self.endpoint_domain,
+            'netpol/ocuser': 'true',
+            'xauthkey': env[ 'XAUTH_KEY' ], 
+            'pulseaudio_cookie': env[ 'PULSEAUDIO_COOKIE' ],
+            'broadcast_cookie': env[ 'BROADCAST_COOKIE' ]
         }
 
         # add authinfo labels and env 
@@ -2947,7 +2971,7 @@ get_label_nodeselector        Returns:
         # pod uuid suffix
         myuuid = oc.lib.uuid_digits()
         pod_name = self.get_podname( authinfo, userinfo, myuuid ) 
-        self.logger.debug('pod name is %s', pod_name )
+        self.logger.debug( f"pod name is {pod_name}" )
 
         self.logger.debug('envlist creating')
         posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
