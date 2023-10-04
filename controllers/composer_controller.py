@@ -208,15 +208,19 @@ class ComposerController(BaseController):
     def refreshdesktoptoken(self):
         self.logger.debug('')
         (auth, user ) = self.validate_env()
-        desktop = oc.od.composer.finddesktop(authinfo=auth, userinfo=user) 
+        desktop = oc.od.composer.finddesktop(authinfo=auth, userinfo=user)
+
+        # check desktop object
+        if not isinstance(desktop, oc.od.desktop.ODDesktop):
+            raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')  
+
+        if not oc.od.desktop.isdesktopreachabled( desktop ) :
         # check desktop object
         if not isinstance(desktop, oc.od.desktop.ODDesktop):
             raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')          
-        if not hasattr(desktop, 'internaluri'):
-            raise cherrypy.HTTPError( status=400, message='finddesktop does not return a valid desktop object')  
-        if desktop.internaluri is None:
-            raise cherrypy.HTTPError( status=400, message='finddesktop returns a desktop object with desktop.internaluri as None, unreachable')
-        
+        if not oc.od.desktop.isdesktopreachabled( desktop ):
+            raise cherrypy.HTTPError( status=400, message='Your desktop is unreachable')
+   
         # build new jwtdesktop
         jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
         self.logger.info(f"jwttoken is {desktop.internaluri} -> {jwtdesktoptoken}" )
@@ -285,21 +289,24 @@ class ComposerController(BaseController):
             desktop = oc.od.composer.opendesktop( auth, user, args ) 
 
             # safe check for desktop type
-            if not isinstance(desktop, oc.od.desktop.ODDesktop):   
+            if not isinstance(desktop, oc.od.desktop.ODDesktop):  
+                # an error occurs  
                 if isinstance(desktop, str):     
                     return Results.error(message=desktop)
                 else:
-                    return Results.error('Desktop creation failed')
+                    return Results.error(message='Desktop creation failed')
 
-            # safe check for futur desktop.internaluri usage 
-            if not hasattr( desktop, 'internaluri') or desktop.internaluri is None:   
+            # safe desktop reachable check 
+            if not oc.od.desktop.isdesktopreachabled( desktop ) :   
                 # a desktop exists but is unreachable
                 # decide to trash it
-                services.messageinfo.push(user.userid, 'e.Your desktop is crashing. Delete desktop process is starting') 
-                oc.od.composer.removedesktop( auth, user )            
-                services.messageinfo.push(user.userid, 'e.Delete desktop done.')   
-                return Results.error('Desktop URI is None, creation failed')
-            
+                services.messageinfo.push(user.userid, 'e.Your desktop is unreachabled. Delete desktop process is starting') 
+                if oc.od.composer.removedesktop( auth, user ) is True:        
+                    services.messageinfo.push(user.userid, 'e.Delete desktop done.')
+                error_msg = oc.od.desktop.getunreachablemessage( desktop )
+                return Results.error( message=f"Your desktop previous was unreachable. {error_msg}. Please reload try again.")
+                                     
+
             # build a jwt token with desktop.internaluri
             jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
             # self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
