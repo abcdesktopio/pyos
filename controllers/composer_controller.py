@@ -214,7 +214,6 @@ class ComposerController(BaseController):
         if not isinstance(desktop, oc.od.desktop.ODDesktop):
             raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')  
 
-        if not oc.od.desktop.isdesktopreachabled( desktop ) :
         # check desktop object
         if not isinstance(desktop, oc.od.desktop.ODDesktop):
             raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')          
