@@ -18,6 +18,10 @@ import json
 logger = logging.getLogger(__name__)
 
 
+
+
+
+
 @oc.logging.with_logger()
 class ODDesktop(object):
 
@@ -219,4 +223,20 @@ class ODDesktop(object):
         my_dict = self.to_dict()
         return json.dumps(my_dict, sort_keys=True, indent=4)
 
-    
+def isdesktopreachabled( desktop:ODDesktop )->bool:
+    if not isinstance( desktop, ODDesktop):
+        return False
+    reachaable = isinstance(desktop.internaluri,str) and isinstance(desktop.vncPassword,str)
+    return reachaable
+
+def getunreachablemessage( desktop:ODDesktop )->str:
+    error_msg = ''
+    if not isinstance( desktop, ODDesktop):
+        return 'invalid desktop instance'
+    if not isinstance(desktop.internaluri,str): 
+        error_msg += 'internaluri is unreachable'
+    if not isinstance(desktop.vncPassword, str):
+        if len(error_msg)>0: 
+            error_msg += ' ' 
+        error_msg += 'vncpasswod is not defined'
+    return error_msg
