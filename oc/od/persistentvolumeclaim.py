@@ -83,6 +83,21 @@ class ODPersistentVolumeClaim():
             access_userid={labels['access_userid']}"
         
         return label_selector
+    
+    def delete_pv( self, name:str):
+        """delete_pv
+            delete persistent volume in async 
+        Args:
+            name (str): name of the persistent volume
+        """
+        self.logger.debug('')        
+        assert_type( name, str)
+        try:
+            # todo should better use the uid of the pvc than the name (volume_name)
+            self.kubeapi.delete_persistent_volume( name=name, async_req=True )
+        except ApiException as e:
+            self.logger.error( e )
+        
 
     def delete_pvc( self, authinfo:AuthInfo, userinfo:AuthUser )->V1PersistentVolumeClaim:
         self.logger.debug('')
@@ -90,22 +105,33 @@ class ODPersistentVolumeClaim():
         assert_type( userinfo, AuthUser)
 
         deleted_pvc = None
-        # look for pvc
-        pvc = self.find_pvc( authinfo=authinfo, userinfo=userinfo )
-        if not isinstance( pvc, V1PersistentVolumeClaim ):
-            self.logger.debug(f"delete_pvc can not found pvc for user authinfo={authinfo} userinfo={userinfo}")
-            return None
-        try:
-            deleted_pvc = self.kubeapi.delete_namespaced_persistent_volume_claim( 
-                namespace=self.namespace, 
-                name=pvc.metadata.name, 
-                grace_period_seconds=0,
-                propagation_policy='Foreground'
-            )
-            if isinstance( deleted_pvc , V1PersistentVolumeClaim):
-                self.logger.debug(f"pvc {deleted_pvc.metadata.name} has beed deleted")
-        except ApiException as e:
-            self.logger.error( e )
+
+        if oc.od.settings.desktop['removepersistentvolumeclaim'] is True: 
+            # look for pvc
+            pvc = self.find_pvc( authinfo=authinfo, userinfo=userinfo )
+            if not isinstance( pvc, V1PersistentVolumeClaim ):
+                self.logger.debug(f"delete_pvc can not found pvc for user authinfo={authinfo} userinfo={userinfo}")
+                return None
+            try:
+                volume_name = None
+                if isinstance( pvc.spec, V1PersistentVolumeClaimSpec ):
+                    volume_name = pvc.spec.volume_name
+                self.logger.debug(f"deleting pvc {pvc.metadata.name}")
+                deleted_pvc = self.kubeapi.delete_namespaced_persistent_volume_claim( 
+                    namespace=self.namespace, 
+                    name=pvc.metadata.name, 
+                    grace_period_seconds=0,
+                    propagation_policy='Foreground'
+                )
+                if isinstance( deleted_pvc , V1PersistentVolumeClaim):
+                    self.logger.debug(f"pvc {deleted_pvc.metadata.name} has beed deleted")
+                    if isinstance( volume_name, str ):
+                        if oc.od.settings.desktop['removepersistentvolume'] is True:
+                            # delete the pc in async mod
+                            self.logger.debug(f"deleting pv {volume_name} in async")
+                            self.delete_pv( volume_name )
+            except ApiException as e:
+                self.logger.error( e )
         
         return deleted_pvc
 
@@ -349,7 +375,7 @@ class ODPersistentVolumeClaim():
         metadata    = V1ObjectMeta( **pv_metadata )
         body        = V1PersistentVolume( metadata=metadata, spec=pv_spec )
 
-        pv = self.find_pv( authinfo, userinfo, persistentvolume_request=body )
+        pv = self.find_pv( authinfo, userinfo, persistentvolume=body )
         if isinstance( pv, V1PersistentVolume ):
             self.logger.debug( f"pv has been found name={pv.metadata.name}" )
             # check if pv status phase is released
@@ -425,8 +451,8 @@ class ODPersistentVolumeClaim():
         # a new pvc can not bound 
         # volume "planet-fry" already bound to a different claim.
         # 
-        # if isinstance( persistentvolume, V1PersistentVolume) and pvc_spec.get('volumeName') is None:
-        #     pvc_metadata.get('spec')['volumeName'] = persistentvolume.metadata.name
+        if isinstance( persistentvolume, V1PersistentVolume) and pvc_spec.get('volumeName') is None:
+            pvc_metadata.get('spec')['volumeName'] = persistentvolume.metadata.name
         # add https://kubernetes.io/docs/concepts/storage/persistent-volumes/
         metadata=V1ObjectMeta( **pvc_metadata )
         body = V1PersistentVolumeClaim( metadata=metadata, spec=pvc_spec)
