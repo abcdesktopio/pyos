@@ -338,8 +338,10 @@ def init_desktop():
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', True)
 
-    desktop['DEFAULT_K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('desktop.DEFAULT_K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
-    desktop['DEFAULT_K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('desktop.DEFAULT_K8S_BOUND_PVC_MAX_EVENT', 5 )
+    desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
+    desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
+    desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 30 )
+    
 
     if not isinstance(desktop['nodeselector'], dict):
         logger.error( f"nodeselector must be a dict or None, get {type(desktop['nodeselector'])}" )
