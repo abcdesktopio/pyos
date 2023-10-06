@@ -185,10 +185,10 @@ class ODPersistentVolumeClaim():
         event_counter = 0
         for event in w.stream(  self.kubeapi.list_namespaced_persistent_volume_claim, 
                                 namespace=self.namespace, 
-                                timeout_seconds=oc.od.settings.desktop['DEFAULT_K8S_BOUND_PVC_TIMEOUT_SECONDS'],
+                                timeout_seconds=oc.od.settings.desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'],
                                 field_selector=f'metadata.name={name}' ):  
-            if event_counter > oc.od.settings.desktop['DEFAULT_K8S_BOUND_PVC_MAX_EVENT']:
-                return (False, f"e.Volume {name} has failed {event_counter}/{oc.od.settings.desktop['DEFAULT_K8S_BOUND_PVC_MAX_EVENT']}")
+            if event_counter > oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']:
+                return (False, f"e.Volume {name} has failed {event_counter}/{oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']}")
             
             self.logger.debug( f"read event {event_counter} {event}")
             # safe type test event is a dict
