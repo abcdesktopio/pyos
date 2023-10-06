@@ -716,10 +716,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     def __init__(self):
         super().__init__()
 
-        self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS = 30
-
-        self.appinstance_classes = {    'ephemeral_container': ODAppInstanceKubernetesEphemeralContainer,
-                                        'pod_application': ODAppInstanceKubernetesPod }
+        # define two king of application:
+        # - ephemeral container
+        # - pod
+        self.appinstance_classes = {    
+            'ephemeral_container': ODAppInstanceKubernetesEphemeralContainer,
+            'pod_application': ODAppInstanceKubernetesPod 
+        }
         self.all_phases_status = [ 'Running', 'Terminated', 'Waiting', 'Completed', 'Succeeded']
         self.all_running_phases_status = [ 'Running', 'Waiting' ]
 
@@ -2317,6 +2320,7 @@ get_label_nodeselector        Returns:
 
             # Check if we can call list_node
             # if the pyos_service account has ClusterRole
+            listnode = None
             try:
                 # query nodes
                 listnode = self.kubeapi.list_node(label_selector=label_selector)
@@ -3226,10 +3230,11 @@ get_label_nodeselector        Returns:
         # watch list_namespaced_event
         w = watch.Watch()                 
        
-        for event in w.stream(  self.kubeapi.list_namespaced_event, 
-                                namespace=self.namespace, 
-                                timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
-                                field_selector=f'involvedObject.name={pod_name}' ):  
+        for event in w.stream(  
+                self.kubeapi.list_namespaced_event, 
+                namespace=self.namespace, 
+                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
+                field_selector=f'involvedObject.name={pod_name}'):
             # safe type test event is a dict
             if not isinstance(event, dict ): continue
             # safe type test event object is a CoreV1Event
@@ -3304,7 +3309,7 @@ get_label_nodeselector        Returns:
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                 namespace=self.namespace, 
-                                timeout_seconds=self.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
+                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                 field_selector=f"metadata.name={pod_name}" ):   
             # event must be a dict, else continue
             if not isinstance(event,dict):
@@ -4828,7 +4833,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         w = watch.Watch()                 
         for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
                                 namespace=self.orchestrator.namespace, 
-                                timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
+                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                 field_selector=f'involvedObject.name={app_pod_name}' ):  
             # safe type check 
             if not isinstance(event, dict ): continue
@@ -4881,7 +4886,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         w = watch.Watch()                 
         for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
                                 namespace=self.orchestrator.namespace, 
-                                timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
+                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                 field_selector=f"metadata.name={app_pod_name}" ):   
             # event must be a dict, else continue
             if not isinstance(event,dict):
