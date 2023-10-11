@@ -1224,6 +1224,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'mountPath':user_homedirectory
             }
 
+
         self.logger.debug( f"volumes_mount['home']: {volumes_mount.get('home')}" )
         self.logger.debug( f"volumes['home']: {volumes.get('home')}")
         self.logger.debug( f"volumes_mount['cache']: {volumes_mount.get('cache')}" )
@@ -1275,6 +1276,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+        
         localaccount_name = None
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
         if isinstance(mysecretdict, dict ) and len(mysecretdict)>0:
@@ -1379,11 +1381,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.build_volumes_localaccount(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
             volumes.update( localaccount_volumes )
             volumes_mount.update( localaccount_volumes_mount )
-
-
-        if kwargs.get('dry_run') == 'All':
-            # do not add volume secrets or external resources
-            return (volumes, volumes_mount)
 
         #
         # mount vnc secret in /var/secrets/abcdesktop
@@ -2889,11 +2886,10 @@ get_label_nodeselector        Returns:
         """
         self.logger.debug('vnc kubernetes secret checking')
         plaintext_vnc_password = ODVncPassword().getplain()
-        if kwargs.get('dry_run') != 'All':
-            vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
-            vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
-            if not isinstance( vnc_secret_password, V1Secret ):
-                raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
+        vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
+        vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
+        if not isinstance( vnc_secret_password, V1Secret ):
+            raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
 
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)-> ODDesktop :
@@ -2915,7 +2911,8 @@ get_label_nodeselector        Returns:
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
 
         myDesktop = None # default return object
-        env      = kwargs.get('env', {} )
+        env = kwargs.get('env', {} )
+        dry_run = kwargs.get('dry_run')
 
         # get the execute class if user has a executeclassname tag
         executeclasse = self.get_executeclasse( authinfo, userinfo )
@@ -3164,13 +3161,17 @@ get_label_nodeselector        Returns:
             pod_manifest['spec']['containers'].append( graphical_container )
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
-
-        localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo)
-        containers = { 
+     
+        localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
+        assert isinstance(localaccount_volume_name, str),  f"localaccount_volume_name has invalid type {type(localaccount_volume_name)}"
+        containers = {
             # printer uses tmp volume
-            'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts['tmp'] ] },
+            'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts.get('tmp') ] },
             # sound uses tmp, home, log volumes
-            'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts[localaccount_volume_name], pod_allvolumeMounts['tmp'], pod_allvolumeMounts['home'], pod_allvolumeMounts['log'] ] },
+            'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts.get(localaccount_volume_name), 
+                                                  pod_allvolumeMounts.get('tmp'), 
+                                                  pod_allvolumeMounts.get('home'), 
+                                                  pod_allvolumeMounts.get('log') ] },
             # ssh uses default user volumes
             'ssh':      { 'list_volumeMounts':  list_volumeMounts },
             # filter uses default user volumes
@@ -3178,9 +3179,11 @@ get_label_nodeselector        Returns:
             # storage uses default user volumes
             'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts },
             # rdp uses default user volumes
-            'rdp':      { 'list_volumeMounts':  [ pod_allvolumeMounts['x11socket']]  } ,
+            'rdp':      { 'list_volumeMounts':  [ pod_allvolumeMounts.get('x11socket') ]  } ,
             # x11overlay uses default user volumes
-            'x11overlay' :  { 'list_volumeMounts':  [ pod_allvolumeMounts[localaccount_volume_name], pod_allvolumeMounts['x11socket']] }
+            'x11overlay' :  { 'list_volumeMounts':  [ 
+                pod_allvolumeMounts.get(localaccount_volume_name), 
+                pod_allvolumeMounts.get('x11socket') ] }
         }
 
         for currentcontainertype in containers.keys():
@@ -3201,7 +3204,6 @@ get_label_nodeselector        Returns:
         self.on_desktoplaunchprogress('b.Creating your desktop')
         jsonpod_manifest = json.dumps( pod_manifest, indent=2 )
         self.logger.info( 'dump yaml %s', jsonpod_manifest )
-        dry_run = kwargs.get('dry_run')
 
         pod = None
         try:
