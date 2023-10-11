@@ -621,24 +621,18 @@ def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
     return myDesktop
 
 
-def sampledesktop(userid:str='dry_run123'):
+def sampledesktop(authinfo:AuthInfo, userinfo:AuthUser):
 
-    assert_type( userid, str )
-    # fake an authinfo object
-    authinfo = AuthInfo( provider='anonymous')
-    # fake an userinfo object
-    userinfo = AuthUser( { 'userid':userid, 'name': 'anonymous' } )
-    
     kwargs   = {}
     myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, kwargs  )
 
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()
     myOrchestrator.desktoplaunchprogress = None
-
+    # dry_run
     myCreateDesktopArguments['dry_run'] = 'All'
     # Create the desktop                
-    jsonDesktop = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo, **myCreateDesktopArguments )
+    jsonDesktop = myOrchestrator.createdesktop( authinfo, userinfo, **myCreateDesktopArguments )
     return jsonDesktop
     
 
