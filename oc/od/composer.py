@@ -529,19 +529,19 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     lang = locale + '.UTF-8'
 
     # update env with user local values read from the http request
-    env.update (    {   'LANGUAGE' : language,                
-                        'LANG'	   : lang,                
-                        'LC_ALL'   : lang,                  
-                        'LC_PAPER' : lang,
-                        'LC_ADDRESS' : lang,                
-                        'LC_MONETARY': lang,                
-                        'LC_TIME': lang,                 
-                        'LC_MEASUREMENT': lang,
-                        'LC_IDENTIFICATION': lang,             
-                        'LC_TELEPHONE': lang,               
-                        'LC_NUMERIC': lang }
-    )
-                    
+    # LC_ALL is the environment variable that overrides all the other localisation settings 
+    # (except $LANGUAGE under some circumstances).
+    # no need to set 
+    # 'LC_PAPER' : lang,
+    # 'LC_ADDRESS' : lang,                
+    # 'LC_MONETARY': lang,                
+    # 'LC_TIME': lang,                 
+    # 'LC_MEASUREMENT': lang,
+    # 'LC_IDENTIFICATION': lang,             
+    # 'LC_TELEPHONE': lang,               
+    # 'LC_NUMERIC': lang }
+    env.update ( { 'LANGUAGE': language, 'LANG': lang, 'LC_ALL': lang } )
+
     # # add dbussession is set in config file
     # if oc.od.settings.desktop['usedbussession']  :
     #     env.update( {'OD_DBUS_SESSION_BUS': str(oc.od.settings.desktop['usedbussession']) })

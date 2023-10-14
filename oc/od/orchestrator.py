@@ -3894,21 +3894,18 @@ class ODAppInstanceBase(object):
         # read locale language from USER AGENT
         language = userinfo.get('locale', 'en_US')
         lang     = language + '.UTF-8'
+        # LC_ALL is the environment variable that overrides all the other localisation settings 
+        # (except $LANGUAGE under some circumstances).
         env['LANGUAGE']=language
         env['LANG']=lang
         env['LC_ALL']=lang
-        env['LC_PAPER']=lang
-        env['LC_ADDRESS']=lang
-        env['LC_MONETARY']=lang
-        env['LC_TIME']=lang
-        env['LC_MEASUREMENT']=lang
-        env['LC_TELEPHONE']=lang
-        env['LC_NUMERIC']=lang
-        env['LC_IDENTIFICATION']=lang
+
+        # add PARENT_ID PARENT_HOSTNAME for ocrun nodejs script 
         env['PARENT_ID']=myDesktop.id
         env['PARENT_HOSTNAME']=myDesktop.nodehostname
-        env['APP'] = app.get('path')
 
+        # update env APP to run command in /composer/apply-docker-entrypoint.sh
+        env['APP'] = app.get('path')
         # Add specific vars
         if isinstance( kwargs, dict ):
             timezone = kwargs.get('timezone')
@@ -3920,7 +3917,6 @@ class ODAppInstanceBase(object):
             env['ARGS'] = app.get('args')
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
             env.update(authinfo.data.get('identity', {}))
-
 
         # convert env dictionnary to env list format for kubernetes
         envlist = ODOrchestratorKubernetes.envdict_to_kuberneteslist( env )
