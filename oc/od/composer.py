@@ -539,13 +539,13 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     # 'LC_MEASUREMENT': lang,
     # 'LC_IDENTIFICATION': lang,             
     # 'LC_TELEPHONE': lang,               
-    # 'LC_NUMERIC': lang }
+    # 'LC_NUMERIC': lang,
+    # 'LC_COLLATE': lang }
     env.update ( { 'LANGUAGE': language, 'LANG': lang, 'LC_ALL': lang } )
 
     # # add dbussession is set in config file
     # if oc.od.settings.desktop['usedbussession']  :
     #     env.update( {'OD_DBUS_SESSION_BUS': str(oc.od.settings.desktop['usedbussession']) })
-
     # # add dbussystem is set in config file
     # if oc.od.settings.desktop.get('usedbussystem') :
     #     env.update( {'OD_DBUS_SYSTEM_BUS': str(oc.od.settings.desktop['usedbussystem']) } )

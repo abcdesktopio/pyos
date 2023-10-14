@@ -3893,12 +3893,11 @@ class ODAppInstanceBase(object):
         # update env with cuurent http request user LANG values
         # read locale language from USER AGENT
         language = userinfo.get('locale', 'en_US')
-        lang     = language + '.UTF-8'
         # LC_ALL is the environment variable that overrides all the other localisation settings 
         # (except $LANGUAGE under some circumstances).
-        env['LANGUAGE']=language
-        env['LANG']=lang
-        env['LC_ALL']=lang
+        env['LANGUAGE'] = language
+        env['LANG'] = language + '.UTF-8'
+        env['LC_ALL']= language + '.UTF-8'
 
         # add PARENT_ID PARENT_HOSTNAME for ocrun nodejs script 
         env['PARENT_ID']=myDesktop.id
