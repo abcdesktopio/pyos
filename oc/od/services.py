@@ -34,7 +34,7 @@ class ODServices(object):
         self.init_accounting()
 
         if not self.init_datastore():
-            logger.error( 'Connection refused to database or error')
+            self.logger.error( 'Connection refused to database or error')
             exit(-2)
 
         self.init_datacache()
