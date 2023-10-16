@@ -13,6 +13,8 @@
 #
 
 import logging
+import oc.logging
+import geoip2.database
 from netaddr import IPNetwork, IPAddress
 
 
@@ -69,10 +71,10 @@ def resolvlocation( ipAddr, locatorPublicInternet, locatorPrivateActiveDirectory
 
 
     
-
+@oc.logging.with_logger()
 class ODLocation():
     def __init__( self, site=None, subnet=None, country=None, country_code=None, ipAddr=None, location=[], 
-                        timezone=None, datasource=None, resolved=False, siteObject=None):
+                        timezone=None, datasource=None, resolved=False, siteObject=None, asn=None, asorganisation=None):
         self._site = site
         self._location = location
         self._ipAddr = ipAddr
@@ -83,6 +85,16 @@ class ODLocation():
         self._datasource = datasource
         self._subnet = subnet
         self._siteObject = siteObject
+        self._asn = asn
+        self._asorganisation = asorganisation
+
+    @property
+    def asn(self):
+        return self._asn
+    
+    @property
+    def asorganisation(self):
+        return self._asorganisation
 
     @property
     def site(self): 
@@ -133,8 +145,11 @@ class ODLocation():
                     'location': self.location, 
                     'timezone':self.timezone,
                     'siteObject': self.siteObject,
+                    'autonomous_system_number': self.asn,
+                    'autonomous_system_organization' : self.asorganisation,
                     'datasource': self.datasource }
-
+    
+@oc.logging.with_logger()
 class ODLocatorBase():
     def __init__(self):
         self._datasource = None
@@ -154,9 +169,9 @@ class ODLocatorBase():
         return myIpAddr.is_unicast() and not myIpAddr.is_private()
 
     def locate(self, ipAddr):
-        raise NotImplementedError('%s.desktop' % type(self))
+        raise NotImplementedError( f"{type(self)}.desktop")
 
-
+@oc.logging.with_logger()
 class ODLocatorActiveDirectory(ODLocatorBase):
 
     def __init__(self, site, domain=None):
@@ -187,31 +202,53 @@ class ODLocatorActiveDirectory(ODLocatorBase):
                                     ipAddr=ipAddr,
                                     resolved=True )
         else:            
-            logger.warning( 'IpAddr %s not found in Active Directory site/subnet', ipAddr )
+            self.logger.warning( f"IpAddr {ipAddr} not found in Active Directory site/subnet" )
 
         return location
     
 
+@oc.logging.with_logger()
 class ODLocatorPublicInternet( ODLocatorBase ):
     def __init__(self):
         super().__init__()
-        self._datasource = 'geoip'
+        self._datasource = 'GeoLite2'
+        self.reader_city = None
+        self.reader_asn = None
         try:
-            import GeoIP
-            self.geoIP = GeoIP.open("/usr/share/GeoIP/GeoIPCity.dat", GeoIP.GEOIP_STANDARD)
+            self.reader_city = geoip2.database.Reader('/usr/share/geolite2/GeoLite2-City.mmdb')
+            self.reader_asn = geoip2.database.Reader('/usr/share/geolite2/GeoLite2-ASN.mmdb')
         except Exception as e:
-            logger.error( 'GeoIP error in open file /usr/share/GeoIP/GeoIPCity.dat')
-            logger.error( e )
+            self.logger.error( 'geoip2.database.Reader error in open file /usr/share/geolite2/GeoLite2-Country.mmdb')
+            self.logger.error( e )
 
     def locate( self, ipAddr ):        
-        logger.debug('Looking for ipAddr location %s', ipAddr)
+        self.logger.debug('Looking for ipAddr location %s', ipAddr)
         location = None
-        gir = self.geoIP.record_by_addr( ipAddr )            
-        location = ODLocation(  country=gir.get('country_name'), 
-                                country_code=gir.get('country_code'), 
-                                ipAddr=ipAddr, 
-                                location=[ gir.get('latitude'), gir.get('longitude') ],
-                                timezone=gir.get('time_zone'),
-                                datasource = self.datasource,
-                                resolved=True )
+
+        # read 
+        try:
+            read_city = self.reader_city.city(ipAddr)
+            if isinstance( read_city, geoip2.models.City ):   
+                try:      
+                    location = ODLocation(  country=read_city.country.name, 
+                                            country_code=read_city.country.iso_code, 
+                                            ipAddr=ipAddr, 
+                                            location=[ read_city.location.latitude, read_city.location.longitude ],
+                                            timezone=read_city.location.time_zone,
+                                            datasource = self.datasource,
+                                            resolved=True )
+                except: 
+                    self.logger.error( e )
+        except Exception as e:
+            self.logger.error( e )
+
+        # read ASN
+        try:
+            read_asn = self.reader_asn.asn(ipAddr)
+            if isinstance( location, ODLocation) and isinstance( read_asn, geoip2.models.ASN):
+                location._asn = read_asn.autonomous_system_number
+                location._asorganisation = read_asn.autonomous_system_organization
+        except Exception as e:
+            self.logger.error( e )
+
         return location
