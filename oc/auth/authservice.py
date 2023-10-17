@@ -2036,7 +2036,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
         authorization_response = self.redirect_uri_prefix + '?' + cherrypy.request.query_string
         token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, authorization_response=authorization_response )
-        self.logger.debug( 'provider %s type %s return token %s', self.name,  self.type, str(token) )
+        self.logger.debug( f"provider {self.name} type {self.type} return token {token}" )
         authinfo = AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth')
         return authinfo
 
@@ -2056,6 +2056,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             if isinstance(response_userinfo, requests.models.Response) and response_userinfo.ok is True :
                 jsondata = response_userinfo.content.decode(response_userinfo.encoding or self.encoding ) 
                 data = json.loads(jsondata)
+                self.logger.debug( f"dump userinfo data={data}" )
                 userinfo = self.parseuserinfo( data )
         return userinfo
         
