@@ -753,11 +753,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # self.logger.debug( f"KUBERNETES_SERVICE_PORT={os.getenv('KUBERNETES_SERVICE_PORT')}" ) 
             # self.logger.debug( f"KUBERNETES_SERVICE_PORT_HTTPS={os.getenv('KUBERNETES_SERVICE_PORT_HTTPS')}" )
             config.load_incluster_config() # set up the client from within a k8s pod
-            self.logger.info( f"load_incluster_config done" )
+            self.logger.info( "load_incluster_config done" )
         except Exception as e_in:
             # self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
             # use KUBE_CONFIG_DEFAULT_LOCATION = os.environ.get('KUBECONFIG', '~/.kube/config')
-            self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
+            self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
             try:
                 config.load_kube_config()
                 self.logger.info( f"load_kube_config done" )
