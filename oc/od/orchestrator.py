@@ -738,16 +738,34 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #   KUBERNETES_SERVICE_PORT=443
         #   KUBERNETES_SERVICE_PORT_HTTPS=443
         #
-        if os.getenv('KUBERNETES_SERVICE_HOST') and os.getenv('KUBERNETES_SERVICE_PORT') :
-            # self.logger.debug( 'env has detected $KUBERNETES_SERVICE_HOST and $KUBERNETES_SERVICE_PORT' )
-            # self.logger.debug( 'config.load_incluster_config start')
-            config.load_incluster_config() # set up the client from within a k8s pod
-            # self.logger.debug( 'config.load_incluster_config kubernetes mode done')
-        else:
-            # self.logger.debug( 'config.load_kube_config not in cluster mode')
-            config.load_kube_config()
-            # self.logger.debug( 'config.load_kube_config done')
+        # if os.getenv('KUBERNETES_SERVICE_HOST') and os.getenv('KUBERNETES_SERVICE_PORT') :
+        #     # self.logger.debug( 'env has detected $KUBERNETES_SERVICE_HOST and $KUBERNETES_SERVICE_PORT' )
+        #    # self.logger.debug( 'config.load_incluster_config start')
+        #    config.load_incluster_config() # set up the client from within a k8s pod
+        #    # self.logger.debug( 'config.load_incluster_config kubernetes mode done')
+        #else:
+        #    # self.logger.debug( 'config.load_kube_config not in cluster mode')
+        #    config.load_kube_config()
+        #    # self.logger.debug( 'config.load_kube_config done')
         
+        try:   
+            # self.logger.debug( f"KUBERNETES_SERVICE_HOST={os.getenv('KUBERNETES_SERVICE_HOST')}" )
+            # self.logger.debug( f"KUBERNETES_SERVICE_PORT={os.getenv('KUBERNETES_SERVICE_PORT')}" ) 
+            # self.logger.debug( f"KUBERNETES_SERVICE_PORT_HTTPS={os.getenv('KUBERNETES_SERVICE_PORT_HTTPS')}" )
+            config.load_incluster_config() # set up the client from within a k8s pod
+            self.logger.info( f"load_incluster_config done" )
+        except Exception as e_in:
+            # self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
+            # use KUBE_CONFIG_DEFAULT_LOCATION = os.environ.get('KUBECONFIG', '~/.kube/config')
+            self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
+            try:
+                config.load_kube_config()
+                self.logger.info( f"load_kube_config done" )
+            except Exception as e_out:
+                self.logger.error( f"This is a fatal error" )
+                self.logger.error( f"load_incluster_config failed {e_in}" )
+                self.logger.error( f"load_kube_config failed {e_out}" )
+
         # 
         # previous line is 
         #   from kubernetes.client import configuration 
