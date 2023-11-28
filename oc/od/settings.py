@@ -101,9 +101,10 @@ internaldns = { 'subdomain': None, 'domain': None, 'secret': None }
 jwt_config_user = None
 jwt_config_desktop = None
 
-# webrtc janus config
-webrtc_server = None
+# webrtc config
 webrtc_enable = False
+webrtc_server = None
+webrtc_configuration = {}
 
 def getballoon_loginname()->str:     
     return balloon_loginname
@@ -152,9 +153,11 @@ def init_localaccount():
 def init_webrtc():
     """Read webrtc configuration file
     """
-    global webrtc_server
     global webrtc_enable
+    global webrtc_server
+    global webrtc_configuration
     webrtc_enable = gconfig.get('webrtc.enable', False )
+    webrtc_configuration = gconfig.get('webrtc.configuration', {})
     webrtc_server = gconfig.get('webrtc.server', None )
    
 def init_tipsinfo():
@@ -170,7 +173,12 @@ def init_config_stack():
     global namespace
     global desktopdescription
  
-    namespace = gconfig.get('namespace', 'abcdesktop')
+    # read the namespace in config file first, else use os.environ.get('POD_NAMESPACE')
+    # the default value is abcdesktop
+    logger.debug( f"reading the current namespace defined" )
+    namespace = gconfig.get( 'namespace', os.environ.get('POD_NAMESPACE', namespace ) )
+    logger.debug( f"use namespace={namespace}" )
+    logger.debug( f"reading kubernetesdefaultsvcclusterlocal option in config file" )
     kubernetesdefaultsvcclusterlocal = gconfig.get('kubernetesdefaultsvcclusterlocal', 'svc.cluster.local')
     logger.debug( f"kubernetes default domain svc.cluster.local={kubernetesdefaultsvcclusterlocal}" )
     # kubernetes_default_domain should be by default abcdesktop.svc.cluster.local
