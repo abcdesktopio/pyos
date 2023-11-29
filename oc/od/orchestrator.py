@@ -1142,11 +1142,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.on_desktoplaunchprogress('Building home dir data storage')
         volume_home_name = self.get_volumename( 'home', userinfo )
 
-        # by default hostpath
+        # homedirectorytype is by default None 
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']
+        self.logger.debug(f"homedirectorytype is {homedirectorytype}")
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
+        self.logger.debug(f"subpath_name is {subpath_name}")
         user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
-
+        self.logger.debug(f"user_homedirectory is {user_homedirectory}")
         
         # set default value 
         # home is emptyDir
@@ -1534,7 +1536,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # access_type is None will list all secret type
         dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type=None)
         for secret_name in dict_secret.keys():
-            try:            
+            try:
                 v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
                 if not isinstance(v1status,V1Status) :
                     self.logger.error( 'invalid V1Status type return by delete_namespaced_secret')
