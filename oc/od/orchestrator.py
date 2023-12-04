@@ -1171,55 +1171,68 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
-            assert isinstance( oc.od.settings.desktop['persistentvolumeclaim'], dict),  f"desktop.persistentvolumeclaim has invalid type {type(oc.od.settings.desktop['persistentvolumeclaim'])}"
-            claimName = None
-            if volume_type in [ 'pod_desktop', 'pod_application' ] :
-                # create a pvc to store desktop volume
-                persistentvolume = copy.deepcopy( oc.od.settings.desktop['persistentvolume'] )
-                persistentvolumeclaim = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaim'] )
-                # use chevron mustache to replace template value in persistentvolume and persistentvolumeclaim
-                mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
-                self.updateChevronDictWithmixedData( persistentvolume, mixeddata=mixeddata)
-                self.updateChevronDictWithmixedData( persistentvolumeclaim, mixeddata=mixeddata)
-                self.logger.debug( f"persistentvolume={persistentvolume}" )
-                self.logger.debug( f"persistentvolumeclaim={persistentvolumeclaim}" )
-                self.on_desktoplaunchprogress( f"b.Creating your own volume to store files" )
-                # create the user's persistentVolumeClaim if not exist
-                odvol = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim( self.namespace, self.kubeapi )
-                pvc = odvol.create( authinfo=authinfo,
-                                    userinfo=userinfo, 
-                                    persistentvolume_request=persistentvolume,
-                                    persistentvolumeclaim_request=persistentvolumeclaim )
-                # wait for user's persistentVolumeClaim to bound 
-                if isinstance( pvc, V1PersistentVolumeClaim ):
-                    claimName = pvc.metadata.name
-                    (status,msg) = odvol.waitforBoundPVC( name=claimName, callback_notify=self.on_desktoplaunchprogress )
-                    self.logger.debug( f"bound PersistentVolumeClaim {claimName} return {status} {msg}" )
-                    if status is False:
-                        self.logger.error( f"PersistentVolumeClaim {claimName} can NOT Bound, {msg}")
+            
+            claimName = None # None is the default value, nothing to do
+
+            if isinstance( oc.od.settings.desktop['persistentvolumeclaim'], str):
+                # oc.od.settings.desktop['persistentvolumeclaim'] is the name of the PVC
+                # it must exists 
+                # there is only one PVC for all users
+                if volume_type in [ 'pod_desktop', 'pod_application' ] :
+                    claimName = oc.od.settings.desktop['persistentvolumeclaim']
+
+            if isinstance( oc.od.settings.desktop['persistentvolumeclaim'], dict):
+                 # oc.od.settings.desktop['persistentvolumeclaim'] must be created by pyos
+                if volume_type in [ 'pod_desktop', 'pod_application' ] :
+                    # create a pvc to store desktop volume
+                    persistentvolume = copy.deepcopy( oc.od.settings.desktop['persistentvolume'] )
+                    persistentvolumeclaim = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaim'] )
+                    # use chevron mustache to replace template value in persistentvolume and persistentvolumeclaim
+                    mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
+                    self.updateChevronDictWithmixedData( persistentvolume, mixeddata=mixeddata)
+                    self.updateChevronDictWithmixedData( persistentvolumeclaim, mixeddata=mixeddata)
+                    self.logger.debug( f"persistentvolume={persistentvolume}" )
+                    self.logger.debug( f"persistentvolumeclaim={persistentvolumeclaim}" )
+                    self.on_desktoplaunchprogress( f"b.Creating your own volume to store files" )
+                    # create the user's persistentVolumeClaim if not exist
+                    odvol = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim( self.namespace, self.kubeapi )
+                    pvc = odvol.create( authinfo=authinfo,
+                                        userinfo=userinfo, 
+                                        persistentvolume_request=persistentvolume,
+                                        persistentvolumeclaim_request=persistentvolumeclaim )
+                    # wait for user's persistentVolumeClaim to bound 
+                    if isinstance( pvc, V1PersistentVolumeClaim ):
+                        claimName = pvc.metadata.name
+                        (status,msg) = odvol.waitforBoundPVC( name=claimName, callback_notify=self.on_desktoplaunchprogress )
+                        self.logger.debug( f"bound PersistentVolumeClaim {claimName} return {status} {msg}" )
+                        if status is False:
+                            self.logger.error( f"PersistentVolumeClaim {claimName} can NOT Bound, {msg}")
+                            # we continue but this can be a fatal error
+                        self.on_desktoplaunchprogress( msg )
+                    else:
+                        self.logger.error( "can not create PersistentVolumeClaim" )
+                        self.on_desktoplaunchprogress( "can not create PersistentVolumeClaim read log file" )
                         # we continue but this can be a fatal error
-                    self.on_desktoplaunchprogress( msg )
-                else:
-                    self.logger.error( "can not create PersistentVolumeClaim" )
-                    self.on_desktoplaunchprogress( "can not create PersistentVolumeClaim read log file" )
-                    # we continue but this can be a fatal error
-                    
-            if volume_type in [ 'ephemeral_container']:
-                persistentvolumeclaim = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaim'] )
-                # use chevron mustache to replace template value in persistentvolumeclaim
-                mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
-                self.updateChevronDictWithmixedData( persistentvolumeclaim, mixeddata=mixeddata)
-                self.logger.debug( f"persistentvolumeclaim={persistentvolumeclaim}" )
-                odpvc = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim(self.namespace, self.kubeapi)
-                pvc = odpvc.find_pvc(authinfo, userinfo, persistentvolumeclaim )
-                assert isinstance(pvc, V1PersistentVolumeClaim ),  f"persistentvolumeclaim for {volume_type} is not found"
-                claimName = pvc.metadata.name
+                        
+                if volume_type in [ 'ephemeral_container']:
+                    persistentvolumeclaim = copy.deepcopy( oc.od.settings.desktop['persistentvolumeclaim'] )
+                    # use chevron mustache to replace template value in persistentvolumeclaim
+                    mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
+                    self.updateChevronDictWithmixedData( persistentvolumeclaim, mixeddata=mixeddata)
+                    self.logger.debug( f"persistentvolumeclaim={persistentvolumeclaim}" )
+                    odpvc = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim(self.namespace, self.kubeapi)
+                    pvc = odpvc.find_pvc(authinfo, userinfo, persistentvolumeclaim )
+                    assert isinstance(pvc, V1PersistentVolumeClaim ),  f"persistentvolumeclaim for {volume_type} is not found"
+                    claimName = pvc.metadata.name
                
             # Map the home directory
             # volume_type is in [ 'ephemeral_container', 'pod_desktop', 'pod_application' ] :
-            self.logger.debug( f"claimName={claimName}" )
-            volumes['home']         = { 'name': volume_home_name,  'persistentVolumeClaim': { 'claimName': claimName } }
-            volumes_mount['home']   = { 'name': volume_home_name,  'mountPath': user_homedirectory }
+            self.logger.debug( f"persistentVolumeClaim claimName={claimName}" )
+            if isinstance(claimName, str):
+                volumes['home'] = { 'name': volume_home_name, 'persistentVolumeClaim': { 'claimName': claimName } }
+                volumes_mount['home'] = { 'name': volume_home_name, 'mountPath': user_homedirectory }
+                if oc.od.settings.desktop['persistentvolumeclaimforcesubpath'] is True:
+                    volumes_mount['home']['subPath'] = subpath_name
            
         elif homedirectorytype == 'hostPath' :
             # Map the home directory
@@ -1244,6 +1257,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'mountPath':user_homedirectory
             }
 
+        elif homedirectorytype == 'nfs' :
+            nfs = copy.deepcopy( oc.od.settings.desktop['nfs'] )
+            # use chevron mustache to replace template value in persistentvolumeclaim
+            mixeddata = self.get_mixedataforchevron( authinfo, userinfo )
+            self.updateChevronDictWithmixedData( nfs, mixeddata=mixeddata)
+            self.logger.debug( f"nfs={nfs}" )
+            volumes['home'] = {
+                'name':volume_home_name, 
+                'nfs': nfs
+            }
+            volumes_mount['home'] = {
+                'name':volume_home_name, 
+                'mountPath':user_homedirectory
+            }
 
         self.logger.debug( f"volumes_mount['home']: {volumes_mount.get('home')}" )
         self.logger.debug( f"volumes['home']: {volumes.get('home')}")
@@ -1685,7 +1712,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def removepvc(self, authinfo:AuthInfo, userinfo:AuthUser)->V1PersistentVolumeClaim:
         self.logger.debug('')
+        
         bReturn = False
+        if isinstance( oc.od.settings.desktop['persistentvolumeclaim'], str):
+            # there is only one PVC for all users
+            # by pass this call
+            return bReturn 
+        
+        if oc.od.settings.desktop['removepersistentvolumeclaim'] is False:
+            # removepersistentvolumeclaim is False, do not delete 
+            # by pass this call
+            return bReturn 
+
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         odvol = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim( self.namespace, self.kubeapi )
@@ -4253,6 +4291,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # "message":"Forbidden: can not be set for an Ephemeral Container",
         # "field":"spec.ephemeralContainers[8].volumeMounts[0].subPath"}]},
         # "code":422}
+        # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1EphemeralContainer.md
+        # Pod volumes to mount into the container's filesystem. Subpath mounts are not allowed for ephemeral containers
+        assert oc.od.settings.desktop['persistentvolumeclaimforcesubpath'] is False, \
+            f"desktop.persistentvolumeclaimforcesubpath is {oc.od.settings.desktop['persistentvolumeclaimforcesubpath']} \
+            Subpath mounts are not allowed for ephemeral containers"
+
         securitycontext = self.get_securitycontext( authinfo, userinfo, app )
 
         # apply network rules
