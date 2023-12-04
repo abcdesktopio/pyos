@@ -355,7 +355,7 @@ class ODPersistentVolumeClaim():
         pv_metadata = persistentvolume_request.get('metadata')
         assert_type( pv_metadata, dict)
 
-               # if no name has been defined
+        # if no name has been defined
         if not isinstance(pv_metadata.get('name'), str):
             pv_metadata['name'] = self.get_pv_name(  authinfo, userinfo, suffix )
 
