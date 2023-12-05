@@ -20,7 +20,7 @@ import oc.od.tracker
 import oc.logging
 import oc.lib
 
-from oc.od.settings import tipsinfoconfig, desktop, menuconfig
+from oc.od.settings import tipsinfoconfig, desktop, menuconfig, welcomeinfoconfig
 from oc.od.janus import ODJanusCluster
 from oc.cherrypy import Results
 from oc.od.services import services 
@@ -74,6 +74,12 @@ class CoreController(BaseController):
             id = isinstance( services.webrtc, ODJanusCluster )
         elif provider == 'tipsinfo':
             id = tipsinfoconfig
+        elif provider == 'welcomeinfo':
+            id = welcomeinfoconfig
+        elif provider == 'webrtc.configuration':
+            id = oc.od.settings.webrtc_configuration
+        elif provider == 'webrtc.enable':
+            id = oc.od.settings.webrtc_enable
 
         return { 'id': id, 'callbackurl': callbackurl }
 
