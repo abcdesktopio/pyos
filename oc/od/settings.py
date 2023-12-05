@@ -62,6 +62,7 @@ jira = None             # Jira tracker configuration
 
 routehostcookiename = 'abcdesktop_host' # cookie with the hostname value for an efficient LoadBalacing
 tipsinfoconfig = {}
+welcomeinfoconfig = {}
 desktopdescription = {} # define a network interface name mapping 
 # like { 'internalip': 'eth1', 'externalip': 'net2'}
 
@@ -226,6 +227,10 @@ def init_webrtc():
 def init_tipsinfo():
     global tipsinfoconfig
     tipsinfoconfig = gconfig.get('tipsinfo', {})
+
+def init_welcomeinfo():
+    global welcomeinfoconfig
+    welcomeinfoconfig = gconfig.get('welcomeinfo', {})
 
 def init_config_stack():
     """init_config_stack
@@ -842,6 +847,9 @@ def init():
 
     # init tipsinfo config
     init_tipsinfo()
+
+    # init welcomeinfo config
+    init_welcomeinfo()
 
     # load geolocation config
     init_geolocation()

@@ -20,7 +20,7 @@ import oc.od.tracker
 import oc.logging
 import oc.lib
 
-from oc.od.settings import tipsinfoconfig, desktop, menuconfig
+from oc.od.settings import tipsinfoconfig, desktop, menuconfig, welcomeinfoconfig
 from oc.od.janus import ODJanusCluster
 from oc.cherrypy import Results
 from oc.od.services import services 
@@ -68,6 +68,8 @@ class CoreController(BaseController):
             id = oc.od.settings.geolocation
         elif provider == 'tracker' :
             id = oc.od.tracker.jiraclient().isenable()
+        elif provider == 'welcomeinfo':
+            id = welcomeinfoconfig
         elif provider == 'webrtc':
             id = isinstance( services.webrtc, ODJanusCluster )
         elif provider == 'tipsinfo':
