@@ -68,6 +68,12 @@ def selectODVolumebyRules( authinfo, userinfo, rules ):
                 mountPath     = rule.get('mountPath')
                 vol           = ODVolumeNFS( name, server=server, path=path, mountPath=mountPath, readOnly=readOnly)
 
+            if rule.get('type') == 'pvc'  :
+                name          = rule.get('name')
+                claimName     = rule.get('claimName')
+                mountPath     = rule.get('mountPath')
+                vol           = ODVolumePersistentVolumeClaim( name=name, mountPath=mountPath, claimName=claimName)
+
             if vol :        
                 volumes.append( vol ) 
 
@@ -111,6 +117,20 @@ class ODVolumeHostPath(ODVolumeBase):
           
     def is_mountable(self):
         raise NotImplementedError('%s.is_mountable' % type(self))
+
+
+@oc.logging.with_logger()
+class ODVolumePersistentVolumeClaim(ODVolumeBase):    
+    def __init__(self, name:str, mountPath:str, claimName:str ):        
+        super().__init__()      
+        self._fstype = 'pvc'                 
+        self._type = 'pvc'    
+        self._name = 'pvc-' + name
+        self.mountPath = mountPath 
+        self.claimName = claimName
+
+    def is_mountable(self):
+         return all( [self.claimName] )
 
 
 @oc.logging.with_logger()
