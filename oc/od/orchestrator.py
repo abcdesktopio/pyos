@@ -4790,7 +4790,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         rules = app.get('rules', {}) or {} # app['rules] can be set to None
         desktop_rules = oc.od.settings.desktop['policies'].get('rules')
-        rules.update( desktop_rules )
+        if isinstance( desktop_rules, dict ):
+            rules.update( desktop_rules )
         network_config = self.orchestrator.applyappinstancerules_network( authinfo, rules )
 
         (volumeBinds, volumeMounts) = self.orchestrator.build_volumes(   
