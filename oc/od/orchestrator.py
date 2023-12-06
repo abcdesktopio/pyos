@@ -1046,6 +1046,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         }
                     }
 
+                if fstype=='pvc':
+                    claimName = mountvol.claimName
+                    if isinstance(claimName, str):
+                        volumes_mount[mountvol.name] = {
+                            'name': volume_name, 
+                            'mountPath': mountvol.mountPath 
+                        }
+                        volumes[mountvol.name] = { 
+                            'name': volume_name, 
+                            'persistentVolumeClaim': { 'claimName': mountvol.claimName } 
+                        }
+                        
+                   
 
                 # mount the remote home dir as a flexvol
                 # WARNING ! if the flexvol mount failed, the pod must start
@@ -4776,7 +4789,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         self.logger.debug('')
 
         rules = app.get('rules', {}) or {} # app['rules] can be set to None
-
+        desktop_rules = oc.od.settings.desktop['policies'].get('rules')
+        rules.update( desktop_rules )
         network_config = self.orchestrator.applyappinstancerules_network( authinfo, rules )
 
         (volumeBinds, volumeMounts) = self.orchestrator.build_volumes(   
