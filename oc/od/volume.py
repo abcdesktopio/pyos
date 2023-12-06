@@ -130,7 +130,7 @@ class ODVolumePersistentVolumeClaim(ODVolumeBase):
         self.claimName = claimName
 
     def is_mountable(self):
-         return all( [self.claimName] )
+         return all( [self.claimName, self.mountPath] )
 
 
 @oc.logging.with_logger()
