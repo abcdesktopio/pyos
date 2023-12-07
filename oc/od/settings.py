@@ -330,6 +330,7 @@ def init_desktop():
     # in release 3.0
     # desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/secrets/abcdesktop/localaccount')
     #
+    desktop['zoom']                     = gconfig.get('desktop.zoom', 1)
     desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
     desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
