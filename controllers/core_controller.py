@@ -70,6 +70,8 @@ class CoreController(BaseController):
             id = oc.od.settings.executeclasses.items()
         elif provider == 'tracker' :
             id = oc.od.tracker.jiraclient().isenable()
+        elif provider == 'zoom':
+            id = oc.od.settings.desktop.get('zoom')
         elif provider == 'webrtc':
             id = isinstance( services.webrtc, ODJanusCluster )
         elif provider == 'tipsinfo':
