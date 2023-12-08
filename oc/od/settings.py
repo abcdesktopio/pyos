@@ -179,8 +179,10 @@ def init_config_stack():
     global namespace
     global desktopdescription
  
-    # read the namespace in config file first, else use os.environ.get('POD_NAMESPACE')
-    # the default value is abcdesktop
+    #
+    # read the namespace in config file first, 
+    #   else use os.environ.get('POD_NAMESPACE')
+    #   else use the default value 'abcdesktop'
     logger.debug( f"reading the current namespace defined" )
     namespace = gconfig.get( 'namespace', os.environ.get('POD_NAMESPACE', namespace ) )
     logger.debug( f"use namespace={namespace}" )
@@ -190,6 +192,8 @@ def init_config_stack():
     # kubernetes_default_domain should be by default abcdesktop.svc.cluster.local
     kubernetes_default_domain = f"{namespace}.{kubernetesdefaultsvcclusterlocal}"
     logger.debug( f"abcdesktop domain={kubernetes_default_domain}" )
+    # desktopdescription is used to display network page
+    # by default desktopdescription is a dict of None values
     desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
 
 def init_jira():
