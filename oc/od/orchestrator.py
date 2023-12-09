@@ -2344,9 +2344,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             convert a dict filter to str
 
         Args:
-            labelfilter (dict or str): labelfilter
-
-get_label_nodeselector        Returns:
+            labelfilter (dict or str): labelfilter     
+    
+        Returns:
             str: labelfilter string formated
         """
         label_selector = ''
@@ -2564,10 +2564,8 @@ get_label_nodeselector        Returns:
         else:
             return d
 
-
-
-    def updateCommandWithUserInfo( self, currentcontainertype:str, authinfo: AuthInfo, userinfo:AuthUser ) -> list:
-        """updateCommandWithUserInfo
+    def chevronWithUserInfo( self, list_data:list, authinfo: AuthInfo, userinfo:AuthUser ) -> list:
+        """chevronWithUserInfo
 
             replace uidNumber and gidNumber by posix account values
             chevron update command 
@@ -2582,7 +2580,7 @@ get_label_nodeselector        Returns:
         Returns:
             list: command line updated
         """
-        list_command = oc.od.settings.desktop_pod[currentcontainertype].get( 'command' )
+        list_command = list_data
         if isinstance( list_command, list ):
             new_list_command = []
             posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
@@ -2591,7 +2589,7 @@ get_label_nodeselector        Returns:
                 new_list_command.append( new_command )
             list_command = new_list_command
         return list_command
-            
+
 
     def updateSecurityContextWithUserInfo( self, currentcontainertype:str, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
         """updateSecurityContextWithUserInfo
@@ -2944,24 +2942,65 @@ get_label_nodeselector        Returns:
 
         return container
 
-    def create_vnc_secret( self, authinfo:AuthInfo, userinfo:AuthUser, kwargs:dict ):
+    def create_vnc_secret( self, authinfo:AuthInfo, userinfo:AuthUser ):
         """create_vnc_secret
+            create a random vnc password for a new desktop
+            add the vnc password as kubernetes secret
 
         Args:
-            authinfo (AuthInfo): authinfo
-            userinfo (AuthUser): userinfo
-            kwargs (dict): kwargs
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
 
         Raises:
             ODAPIError: vnc kubernetes secret create failed 
         """
-        self.logger.debug('vnc kubernetes secret checking')
+        self.logger.debug('create vnc password as kubernetes secret')
         plaintext_vnc_password = ODVncPassword().getplain()
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
         vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
         if not isinstance( vnc_secret_password, V1Secret ):
             raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
+
+
+    def buildinitcommand(self, authinfo:AuthInfo, userinfo:AuthUser, list_pod_allvolumes:list, list_pod_allvolumeMounts:list )-> list :
+        """buildinitcommand
+            buildinitcommand to fix volume ownership
+            chevronWithUserInfo to replace {} values
+
+        Args:
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
+            list_pod_allvolumes (list): list of volumes
+            list_pod_allvolumeMounts (list): list of volumeMounts
+
+        Returns:
+            list: init command list of str
+        """
+        self.logger.debug('buildinitcommand to fix volume ownership')
+        assert_type( list_pod_allvolumes, list)
+        assert_type( list_pod_allvolumeMounts, list)
+        default_command_list = [ 'sh', '-c',  'chown {{ uidNumber }}:{{ gidNumber }} ~ || true' ] 
+        command_list = oc.od.settings.desktop_pod.get('init', {} ).get('command', default_command_list )
+        assert_type( command_list, list )
+        chown_command = 'chown {{ uidNumber }}:{{ gidNumber }}'
+        # the command to update is the last_element in the list
+        command = command_list[-1] + ' '
+        for volume in list_pod_allvolumes:
+            assert_type( volume, dict )
+            if volume.get('persistentVolumeClaim'):
+                volume_name = volume.get('name')
+                assert_type( volume_name, str )
+                for volumemount in list_pod_allvolumeMounts:
+                    assert_type( volumemount, dict )
+                    if volumemount.get('name') == volume_name:
+                        mountPath = volumemount.get('mountPath')
+                        volume_chown_command = f" && {chown_command} {mountPath} || true"
+                        command = command + volume_chown_command
+        command_list[-1] = command
+        chevron_command_list = self.chevronWithUserInfo( command_list, authinfo, userinfo )
+        return chevron_command_list
+        
 
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)-> ODDesktop :
         """createdesktop
@@ -2988,8 +3027,8 @@ get_label_nodeselector        Returns:
         # get the execute class if user has a executeclassname tag
         executeclasse = self.get_executeclasse( authinfo, userinfo )
 
-        # add a new VNC Password 
-        self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo, kwargs=kwargs )
+        # add a new VNC Password as kubernetes secret
+        self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
 
         # create ENV var for pod 
         # XAUTH key
@@ -3139,7 +3178,8 @@ get_label_nodeselector        Returns:
         initContainers = []
         currentcontainertype = 'init'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            command = self.updateCommandWithUserInfo( currentcontainertype, authinfo, userinfo )
+            # build the init command 
+            command = self.buildinitcommand( authinfo, userinfo, list_pod_allvolumes, list_pod_allvolumeMounts )
             self.logger.debug(f"init command={command}")
             init_container = self.addcontainertopod( 
                 authinfo=authinfo, 
@@ -4845,7 +4885,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         # to fix ownership of the homedir like desktop does
         initContainers = []
         currentcontainertype = 'init'
-        init_command = self.orchestrator.updateCommandWithUserInfo( currentcontainertype, authinfo, userinfo )
+        init_command = self.orchestrator.buildinitcommand( authinfo, userinfo, list_volumeBinds, list_volumeMounts )
         self.logger.debug(f"init command={init_command}")
         init_container = self.orchestrator.addcontainertopod( 
             authinfo=authinfo, 
