@@ -104,8 +104,8 @@ jwt_config_desktop = None
 
 # webrtc config
 webrtc_enable = False
-webrtc_server = None
-webrtc_configuration = {}
+webrtc_rtc_configuration = {}
+webrtc_coturn = {}
 
 def getballoon_loginname()->str:     
     return balloon_loginname
@@ -151,15 +151,16 @@ def init_localaccount():
     DEFAULT_GSHADOW_FILE = loadfile('gshadow')
 
 
-def init_webrtc():
+def init_coturn_webrtc():
     """Read webrtc configuration file
     """
     global webrtc_enable
-    global webrtc_server
-    global webrtc_configuration
+    global webrtc_rtc_configuration
+    global webrtc_coturn
     webrtc_enable = gconfig.get('webrtc.enable', False )
-    webrtc_configuration = gconfig.get('webrtc.configuration', {})
-    webrtc_server = gconfig.get('webrtc.server', None )
+    webrtc_rtc_configuration = gconfig.get('webrtc.rtc_configuration', { 'iceServers': [] } )
+    webrtc_coturn = gconfig.get('webrtc.coturn', {} )
+
    
 def init_tipsinfo():
     global tipsinfoconfig
@@ -773,8 +774,8 @@ def init():
     # init locales vars
     init_locales()
 
-    # init janus cluster
-    init_webrtc()
+    # init coturn webrtc
+    init_coturn_webrtc()
 
     # init jira bugtracker
     init_jira()

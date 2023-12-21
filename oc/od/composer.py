@@ -319,25 +319,8 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
         [bool]: True if the desktop is removed 
     """
     myOrchestrator = selectOrchestrator()    
-
-    # webrtc look for the desktop
-    # read the desktop object before removing
-    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
-
     # remove the desktop
     removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
-    
-    # remove the janus stream
-    if  removed_desktop is True and \
-        isinstance( myDesktop, oc.od.desktop.ODDesktop) and \
-        isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
-        # if myDesktop exists AND webrtc is a ODJanusCluster then 
-        # remove the entry stream to 
-        # - free the listening port on the janus gateway
-        # - free the janus auth token 
-        services.webrtc.destroy_stream( myDesktop.name )
-    
-    # remove the desktop
     return removed_desktop
 
 
@@ -352,24 +335,8 @@ def removepodindesktop( authinfo:AuthInfo, userinfo:AuthUser ):
         [bool]: True if the desktop is removed 
     """
     myOrchestrator = selectOrchestrator()    
-
-    # webrtc look for the desktop
-    # read the desktop object before removing
-    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo )
-
     # remove the desktop
     removed_desktop = myOrchestrator.removepodindesktop( authinfo, userinfo )
-    
-    # remove the janus stream
-    if  removed_desktop is True and \
-        isinstance( myDesktop, oc.od.desktop.ODDesktop) and \
-        isinstance( services.webrtc, oc.od.janus.ODJanusCluster ):
-        # if myDesktop exists AND webrtc is a ODJanusCluster then 
-        # remove the entry stream to 
-        # - free the listening port on the janus gateway
-        # - free the janus auth token 
-        services.webrtc.destroy_stream( myDesktop.name )
-    
     # remove the desktop
     return removed_desktop
 
@@ -557,6 +524,11 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     # add provider name and userid 
     env.update( { 'ABCDESKTOP_PROVIDERNAME':  authinfo.get('provider')} )
     env.update( { 'ABCDESKTOP_PROVIDERTYPE':  authinfo.get('providertype')} )
+
+    # 
+    # if oc.od.webrtc.is_coturn_enable() is True:
+    #    ice_server = oc.od.webrtc.coturn_iceserver( userinfo.userid + '_abcdesktop', format='env' )
+    #    env.update( { 'TURN_SERVER': ice_server } )
 
     return env
 

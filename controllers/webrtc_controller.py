@@ -14,12 +14,9 @@
 
 import logging
 import cherrypy
-from oc.od.desktop import ODDesktop
-import oc.od.settings as settings
-
-import oc.od.composer 
-
-from oc.od.services import services
+import oc.od.settings
+import oc.od.composer
+import oc.od.webrtc 
 
 from oc.cherrypy import Results
 from oc.od.base_controller import BaseController
@@ -33,26 +30,34 @@ class WebRTCController(BaseController):
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
 
+    @cherrypy.expose
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out()
+    def coturn_rtcconfiguration( self ):
+        self.logger.debug('')
+        self.validate_env() # make sure thah the user is authenticated
+        rtc_configuration = oc.od.webrtc.coturn_rtcconfiguration()
+        return Results.success( result=rtc_configuration )
+
+'''
+# Previous code with janus 
+
+from oc.od.desktop import ODDesktop
+from oc.od.services import services
+
     def rtp_stream( self, action=lambda x: x):
         self.logger.debug('')
-        
         (auth, user ) = self.validate_env()
-        
-        if not settings.webrtc_enable :
+        if not oc.od.settings.webrtc_enable :
             raise cherrypy.HTTPError( 400, message='WebRTC is disabled in configuration file')
-        
         if services.webrtc is None:
             raise cherrypy.HTTPError( 400, message='no WebRTC configuration found')
-
         desktop = oc.od.composer.finddesktop( authinfo=auth, userinfo=user ) 
         if not isinstance( desktop, ODDesktop):               
             self.logger.error( "desktop is not found")
             raise cherrypy.HTTPError( 400, message='desktop not found')
-        
         stream = action( desktop.name )
         return Results.success(result=stream)
-
-
 
     @cherrypy.expose
     @cherrypy.tools.json_in()
@@ -66,7 +71,6 @@ class WebRTCController(BaseController):
             stream = self.rtp_stream( services.webrtc.get_stream )
             return stream
             
-
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
@@ -76,3 +80,4 @@ class WebRTCController(BaseController):
             raise cherrypy.HTTPError( 400, message='WebRTC is disabled in configuration file')
         else:
             return self.rtp_stream( services.webrtc.destroy_stream )
+'''

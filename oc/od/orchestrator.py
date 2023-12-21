@@ -3041,6 +3041,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'LOGNAME' ] = userinfo.userid      # add LOGNAME 
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
         env[ 'LOCALACCOUNT_PATH'] = oc.od.settings.desktop['secretslocalaccount']
+        env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
         self.logger.debug( f"HOME={env[ 'HOME']}")
         self.logger.debug('env created')
 
@@ -4106,10 +4107,10 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return ':0.0'
 
     def get_PULSE_SERVER(  self, desktop_ip_addr:str='' ):
-        return  '/tmp/.pulse.sock'
+        return  'unix:/tmp/.pulse.sock'
 
     def get_CUPS_SERVER(  self, desktop_ip_addr:str='' ):
-        return '/tmp/.cups.sock'
+        return 'unix:/tmp/.cups.sock'
 
     def envContainerApp(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
         """get_env
