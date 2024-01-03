@@ -79,6 +79,8 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def launchdesktop(self):
+        # increase timeout when creating the first user pod
+        cherrypy.response.timeout = 300
         self.logger.debug('launchdesktop:validate_env')
         (auth, user ) = self.validate_env()
         # add lang to user dict   
