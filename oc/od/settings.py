@@ -103,9 +103,11 @@ jwt_config_user = None
 jwt_config_desktop = None
 
 # webrtc config
-webrtc_enable = False
-webrtc_rtc_configuration = {}
-webrtc_coturn = {}
+webrtc = { 
+    'enable': False, 
+    'rtc_configuration': {},
+    'rtc_constraints': {},
+    'coturn': {}     }
 
 def getballoon_loginname()->str:     
     return balloon_loginname
@@ -154,12 +156,11 @@ def init_localaccount():
 def init_coturn_webrtc():
     """Read webrtc configuration file
     """
-    global webrtc_enable
-    global webrtc_rtc_configuration
-    global webrtc_coturn
-    webrtc_enable = gconfig.get('webrtc.enable', False )
-    webrtc_rtc_configuration = gconfig.get('webrtc.rtc_configuration', { 'iceServers': [] } )
-    webrtc_coturn = gconfig.get('webrtc.coturn', {} )
+    global webrtc
+    webrtc['enable'] = gconfig.get('webrtc.enable', False )
+    webrtc['coturn'] = gconfig.get('webrtc.coturn', {} )
+    webrtc['rtc_configuration'] = gconfig.get('webrtc.rtc_configuration', { 'iceServers': [] } )
+    webrtc['rtc_constraints'] = gconfig.get('webrtc.rtc_constraints', { 'video': False, 'audio': False } )
 
    
 def init_tipsinfo():

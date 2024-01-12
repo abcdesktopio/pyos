@@ -48,7 +48,7 @@ from oc.od.services import services
     def rtp_stream( self, action=lambda x: x):
         self.logger.debug('')
         (auth, user ) = self.validate_env()
-        if not oc.od.settings.webrtc_enable :
+        if not oc.od.settings.webrtc.get('enable') :
             raise cherrypy.HTTPError( 400, message='WebRTC is disabled in configuration file')
         if services.webrtc is None:
             raise cherrypy.HTTPError( 400, message='no WebRTC configuration found')

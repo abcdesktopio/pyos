@@ -77,9 +77,11 @@ class CoreController(BaseController):
         elif provider == 'welcomeinfo':
             id = welcomeinfoconfig
         elif provider == 'webrtc.configuration':
-            id = oc.od.settings.webrtc_configuration
+            id = oc.od.settings.webrtc.get('rtc_configuration')
+        elif provider == 'webrtc.rtc_constraints':
+            id = oc.od.settings.webrtc.get('rtc_constraints')
         elif provider == 'webrtc.enable':
-            id = oc.od.settings.webrtc_enable
+            id = oc.od.settings.webrtc.get('enable')
 
         return { 'id': id, 'callbackurl': callbackurl }
 
