@@ -902,6 +902,11 @@ def notity_pyos_buildapplist()->None:
     if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
         # create a thread for each pyos_endpoint_addresses and call buildapplist
         notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
+    else:
+        # pyos account can't list listEndpointAddresses
+        # call buildapplist only for this pyos pod's instance
+        services.apps.cached_applist( bRefresh=True)
+
     return myOrchestrator
 
 
