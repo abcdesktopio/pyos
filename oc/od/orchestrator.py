@@ -2901,6 +2901,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         'launch':   app.get('launch')
             }
         """
+        self.logger.debug(locals())
         bReturn = False
         if not isinstance( myDesktop, ODDesktop):
             return bReturn
@@ -3127,7 +3128,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             for secretdictkey in mysecretdict.keys():
                 if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
                     secrets_requirement.append( secretdictkey )
-        self.logger.debug('secrets_requirement created for graphcial')
+        self.logger.debug('secrets_requirement created for graphical')
 
         # ownerReferences = self.get_ownerReferences(mysecretdict)
 
@@ -4294,10 +4295,13 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
 
-        self.logger.debug("create {self.type} getting shareProcessNamespace and shareProcessMemory options from desktop config")
-        shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
-        shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
-        self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
+        #
+        # shareProcessNamespace and shareProcessMemory do not exist for EphemeralContainer
+        #
+        # self.logger.debug("create {self.type} getting shareProcessNamespace and shareProcessMemory options from desktop config")
+        # shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
+        # shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
+        # self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
 
         _app_container_name = app['name'] + '_' +  oc.lib.uuid_digits()
         _app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( _app_container_name )
