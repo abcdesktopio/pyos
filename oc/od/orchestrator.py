@@ -3001,6 +3001,28 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         command_list[-1] = command
         chevron_command_list = self.chevronWithUserInfo( command_list, authinfo, userinfo )
         return chevron_command_list
+
+    def getPodIPAddress( self, pod_name:str )->str:
+        """getPodIPAddress
+            return the IP Address of the pod name or None
+        Args:
+            pod_name (str): name of pod
+
+        Returns:
+            str: IP Address of the pod, 
+            None if Failed or empty value
+        """
+        IPAddress = None
+        try:
+            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+            if isinstance( myPod, V1Pod ):
+                if isinstance( myPod.status, V1PodStatus ):
+                    #  myPod.status.pod_ip : Empty if not yet allocated.
+                    if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
+                        IPAddress = myPod.status.pod_ip
+        except Exception as e:
+            self.logger.error( e )
+        return IPAddress
         
 
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)-> ODDesktop :
@@ -3274,29 +3296,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['containers'].append( graphical_container )
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
-     
         localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
         assert isinstance(localaccount_volume_name, str),  f"localaccount_volume_name has invalid type {type(localaccount_volume_name)}"
         containers = {
-            # printer uses tmp volume
-            'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts.get('tmp') ] },
-            # sound uses tmp, home, log volumes
+            'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts.get('tmp') ] }, # printer uses tmp volume
             'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts.get(localaccount_volume_name), 
                                                   pod_allvolumeMounts.get('tmp'), 
                                                   pod_allvolumeMounts.get('home'), 
                                                   pod_allvolumeMounts.get('log') ] },
-            # ssh uses default user volumes
-            'ssh':      { 'list_volumeMounts':  list_volumeMounts },
-            # filter uses default user volumes
-            'filer':    { 'list_volumeMounts':  list_volumeMounts },
-            # storage uses default user volumes
-            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts },
-            # rdp uses default user volumes
-            'rdp':      { 'list_volumeMounts':  [ pod_allvolumeMounts.get('x11socket') ]  } ,
-            # x11overlay uses default user volumes
-            'x11overlay' :  { 'list_volumeMounts':  [ 
-                pod_allvolumeMounts.get(localaccount_volume_name), 
-                pod_allvolumeMounts.get('x11socket') ] }
+                                                  # sound uses tmp, home, log volumes
+            'ssh':      { 'list_volumeMounts':  list_volumeMounts },        # ssh uses default user volumes
+            'filer':    { 'list_volumeMounts':  list_volumeMounts },        # filter uses default user volumes
+            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts }, # storage uses default user volumes
+            'rdp':      { 'list_volumeMounts':  [ pod_allvolumeMounts.get('x11socket') ]  } , # rdp uses default user volumes
+            'x11overlay':  { 'list_volumeMounts': [ pod_allvolumeMounts.get(localaccount_volume_name), 
+                                                    pod_allvolumeMounts.get('x11socket') ] } # x11overlay uses default user volumes
         }
 
         for currentcontainertype in containers.keys():
@@ -3342,18 +3356,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.on_desktoplaunchprogress(f"b.Watching for events" )
         self.logger.debug('watch list_namespaced_event pod creating' )
+        pulled_counter = 0 
+        containers_len = len( pod.spec.containers )
         # watch list_namespaced_event
         w = watch.Watch()                 
        
-        for event in w.stream(  
-                self.kubeapi.list_namespaced_event, 
-                namespace=self.namespace, 
-                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
-                field_selector=f'involvedObject.name={pod_name}'):
+        for event in w.stream(  self.kubeapi.list_namespaced_event, 
+                                namespace=self.namespace, 
+                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
+                                field_selector=f'involvedObject.name={pod_name}'):
+            
             # safe type test event is a dict
             if not isinstance(event, dict ): continue
+
             # safe type test event object is a CoreV1Event
             if not isinstance(event.get('object'), CoreV1Event ): continue
+
             event_object = event.get('object')
             self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
             self.on_desktoplaunchprogress( f"b.{event_object.message}" )
@@ -3365,62 +3383,69 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # 'Warning': These events are to warn that something might go wrong
 
             if event_object.type == 'Warning':  # event Warning
-                # something might go wrong
+                # something might goes wrong
                 self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
                 w.stop()
                 return f"{event_object.type} {event_object.reason} {event_object.message}"
 
             elif event_object.type == 'Normal': # event Normal
-                
+
+                if event_object.reason in [ 'Created', 'Pulling', 'Scheduled' ]:
+                    pass # nothing to do
+
                 #
                 # check reason, read 
                 # https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
                 # reason should be a short, machine understandable string that gives the reason for the transition 
                 # into the object's current status.
-
-                if event_object.reason in [ 'Created', 'Pulling', 'Pulled', 'Scheduled' ]:
-                    pass # nothing to do
-                elif event_object.reason == 'Started':
-                    # check if container_graphical_name is started and running if it is stop event
-                    myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
-                    if not isinstance( myPod, V1Pod ): continue # skip this event
-
-                    getIPAddress = False
-                    if isinstance( myPod.status, V1PodStatus ):
-                        #  myPod.status.pod_ip : Empty if not yet allocated.
-                        if isinstance( myPod.status.pod_ip, str) and len(myPod.status.pod_ip) > 0:     
-                            self.on_desktoplaunchprogress(f"b.Your pod gets ip address {myPod.status.pod_ip} from network plugin")
-                            getIPAddress = True
+                if event_object.reason == 'Pulled':
+                    pulled_counter = pulled_counter + 1 
+                    # if all image are pulled pass
+                    if pulled_counter >= containers_len :
+                        pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
+                        if isinstance( pod_IPAddress, str ):
+                            self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
+                            self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
+                            self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
                             w.stop()
-
-                    self.logger.debug( f"does {myPod.metadata.name} have an ip address: {getIPAddress}")
+                    
+                elif event_object.reason == 'Started':
+                    pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
+                    if isinstance( pod_IPAddress, str ):
+                        self.logger.debug( f"does {pod.metadata.name} have an ip address: {pod_IPAddress}")
+                        self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
+                        if pulled_counter >= containers_len :
+                            self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
+                            w.stop()
+                    
+                    """
                     c = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
                     if isinstance( c, V1ContainerStatus ):
                         startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod, event_object)
                         self.on_desktoplaunchprogress( startedmsg )
                         if c.ready is True and c.started is True :
                             w.stop()
-                    else:
-                        self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.reason} {event_object.message}")
+                    """
+                    self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
                 else:
                     # log the events
                     self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                    self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.reason} {event_object.message}")
+                    self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
                     # fix for https://github.com/abcdesktopio/oc.user/issues/52
                     # this is not an error
                     # w.stop()
                     # return  f"{event_object.reason} {event_object.message}"
+                
             else: 
                 # this event is not 'Normal' or 'Warning', unknow event received
                 self.logger.error(f"UNMANAGED EVENT pod type {event_object.type}")
                 w.stop()
-
-
+        #
+        # list_namespaced_event done
+        #
 
         self.logger.debug( f"watch list_namespaced_event pod created {event_object.type}")
-
         self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
-        # watch list_namespaced_pod waiting for a valid ip addr
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                 namespace=self.namespace, 
