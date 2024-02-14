@@ -3357,18 +3357,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.on_desktoplaunchprogress(f"b.Watching for events" )
         self.logger.debug('watch list_namespaced_event pod creating' )
         pulled_counter = 0 
-        containers_len = len( pod.spec.containers )
+        expected_containers_len = len( pod.spec.containers )
+        self.logger.debug( f"expected_containers_len={expected_containers_len}")
+        
         # watch list_namespaced_event
-        w = watch.Watch()                 
-       
+        w = watch.Watch()
+        #   timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
         for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                 namespace=self.namespace, 
-                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                 field_selector=f'involvedObject.name={pod_name}'):
             
             # safe type test event is a dict
             if not isinstance(event, dict ): continue
-
             # safe type test event object is a CoreV1Event
             if not isinstance(event.get('object'), CoreV1Event ): continue
 
@@ -3399,9 +3399,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # reason should be a short, machine understandable string that gives the reason for the transition 
                 # into the object's current status.
                 if event_object.reason == 'Pulled':
-                    pulled_counter = pulled_counter + 1 
+                    pulled_counter = pulled_counter + 1
+                    self.logger.debug( f"Event Pulled received pulled_counter={pulled_counter}")
                     # if all image are pulled pass
-                    if pulled_counter >= containers_len :
+                    self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
+                    if pulled_counter >= expected_containers_len :
+                        self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
                         pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
                         if isinstance( pod_IPAddress, str ):
                             self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
@@ -3412,9 +3415,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 elif event_object.reason == 'Started':
                     pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
                     if isinstance( pod_IPAddress, str ):
-                        self.logger.debug( f"does {pod.metadata.name} have an ip address: {pod_IPAddress}")
+                        self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
                         self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
-                        if pulled_counter >= containers_len :
+                        self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
+                        if pulled_counter >= expected_containers_len :
+                            self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
                             self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
                             w.stop()
                     
@@ -3494,7 +3499,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.error(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase} stop watching" )
                 w.stop()
 
-        self.logger.debug('watch list_namespaced_pod created, the pod is no more in Pending phase' )
+        self.logger.debug(f"watch list_namespaced_pod created, the pod is no more in Pending phase phase={pod_event.status.phase}" )
 
         # read pod again
         self.logger.debug(f"read_namespaced_pod {pod_name} again" )
