@@ -1639,7 +1639,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if isinstance(deletedpod,V1Pod) :
                 return True
         return False
-
+    
+    """removePodSync
     def removePodSync(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:V1Pod=None )->bool:
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -1669,7 +1670,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     time.sleep(1) 
                     nTry = nTry + 1
         return False
-            
+    """
+
     def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:V1Pod=None)->bool:
         """removedesktop
             remove kubernetes pod for a give user
@@ -1686,7 +1688,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         deletedpod = False # default value 
-        self.logger.debug('')
         self.logger.info( f"removedesktop for {authinfo.provider} {userinfo.userid}" )
 
         # get the user's pod
@@ -2823,6 +2824,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('')
         executeclass = None
         
+        # if executeclassname is set, read it
         if isinstance( executeclassname, str ):
             executeclass = oc.od.settings.executeclasses.get(executeclassname)
 
@@ -3156,6 +3158,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         self.logger.debug('volumes creating')
         shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
+        tolerations = oc.od.settings.desktop_pod.get('spec',{}).get('tolerations')
         kwargs['shareProcessNamespace'] = shareProcessNamespace
         shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
         kwargs['shareProcessMemory'] = shareProcessMemory
@@ -3269,6 +3272,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'nodeSelector': executeclasse.get('nodeSelector'), 
                 'initContainers': initContainers,
                 'securityContext': specssecurityContext,
+                'tolerations': tolerations,
                 'containers': []
             }
         }
