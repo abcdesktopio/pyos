@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.8
 #
 # Software Name : abcdesktop.io
 # Version: 0.2
@@ -70,7 +70,7 @@ def api_handle_error():
     # return error dict json 
     result = { 'status': status, 'message':message, 'exception':str(ex) }
     build_error = json.dumps( result ) + '\n'
-    cherrypy.response.headers['Content-Type'] = 'application/json'
+    cherrypy.response.headers['Content-Type'] = 'application/json;charset=utf-8'
     cherrypy.response.status = status 
     cherrypy.response.body = build_error.encode('utf-8')
 
