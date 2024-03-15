@@ -101,7 +101,7 @@ def bytesTostr( b ):
 '''
 
 
-def try_to_read_json_entry( entry:str, str_json:object ):
+def try_to_read_json_entry( key:str, myjson:str ):
     """try_to_read_json_entry
 
     Args:
@@ -111,12 +111,12 @@ def try_to_read_json_entry( entry:str, str_json:object ):
     Returns:
         str: entry value if exists, str_json else
     """
-    str_return = str_json
+    str_return = myjson
     try:
         if isinstance( myjson, str ):
-            myjson = json.loads( str_json )
+            myjson = json.loads( myjson )
         if isinstance( myjson, dict ):
-            str_return = myjson.get(entry)
-    except:
+            str_return = myjson.get(key)
+    except Exception as e:
         pass
     return str_return
