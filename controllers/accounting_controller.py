@@ -44,7 +44,7 @@ class AccountingController(BaseController):
 
     def dump_toebnf(self):
         ''' convert accounting dict to ebnf format '''
-        cherrypy.response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        cherrypy.response.headers['Content-Type'] = 'text/plain;charset=utf-8'
         output = ""
         #
         # read the doc at https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form
@@ -79,6 +79,6 @@ class AccountingController(BaseController):
 
     def dump_tojson(self):
         ''' convert accounting dict to json format '''
-        cherrypy.response.headers['Content-Type'] = 'application/json'
+        cherrypy.response.headers['Content-Type'] = 'application/json;charset=utf-8'
         message = oc.od.services.services.accounting.todict()
         return json.dumps(message).encode('utf8')
