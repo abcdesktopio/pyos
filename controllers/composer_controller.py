@@ -226,6 +226,13 @@ class ComposerController(BaseController):
         jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
         self.logger.info(f"jwttoken is {desktop.internaluri} -> {jwtdesktoptoken}" )
 
+        # add no-cache nosniff HTTP headers
+        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache'
+        # disable content or MIME sniffing which is used to override response Content-Type headers 
+        # to guess and process the data using an implicit content type
+        # is this case the content-type is json 
+        cherrypy.response.headers[ 'X-Content-Type-Options'] = 'nosniff'
+
         return Results.success(result={
                 'authorization' : jwtdesktoptoken,  # the desktop.ipAddr encrypted
                 'expire_in'     : services.jwtdesktop.exp() # jwt TTL
