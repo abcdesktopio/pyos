@@ -4985,10 +4985,13 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 namespace=self.orchestrator.namespace,
                 body=pod_manifest )
         except ApiException as e:
+            self.logger.error('== ApiException ==')
             self.logger.error(e)
             message = oc.lib.try_to_read_json_entry( 'message', e.body )
+            self.logger.debug(f"message={message}")
             raise ODError( status=500, message=message )
         except Exception as e:
+            self.logger.error('== Exception ==')
             self.logger.error(e)
             raise ODError( status=500, message=str(e) )
         
