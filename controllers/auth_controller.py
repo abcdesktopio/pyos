@@ -632,6 +632,11 @@ class AuthController(BaseController):
         (auth, user) = self.validate_env()
         # update token
         jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None )
+        # add no-cache nosniff HTTP headers
+        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache'
+        # disable content or MIME sniffing which is used to override response Content-Type headers 
+        # to guess and process the data using an implicit content type
+        cherrypy.response.headers[ 'X-Content-Type-Options'] = 'nosniff'
         # return new token
         return Results.success( 
             "Refresh token success", 
