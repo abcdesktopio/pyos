@@ -15,13 +15,8 @@
 import random           # for randomStringwithDigitsAndSymbols
 import string           # for randomStringwithDigitsAndSymbols
 import unicodedata      # for remove accent
-import logging
-import cherrypy
-import oc.od.settings   # settings lib
 import uuid
-
-# logger instance
-logger = logging.getLogger(__name__)
+import json             # for try_to_read_json_entry
 
 # lib shared tools
 
@@ -104,3 +99,24 @@ def bytesTostr( b ):
         b =  _bytesTostr( b )
     return b
 '''
+
+
+def try_to_read_json_entry( entry:str, str_json:object ):
+    """try_to_read_json_entry
+
+    Args:
+        entry (str): name of the dict entry
+        str_json (str): json str format
+
+    Returns:
+        str: entry value if exists, str_json else
+    """
+    str_return = str_json
+    try:
+        if isinstance( myjson, str ):
+            myjson = json.loads( str_json )
+        if isinstance( myjson, dict ):
+            str_return = myjson.get(entry)
+    except:
+        pass
+    return str_return
