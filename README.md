@@ -1,8 +1,12 @@
 # pyos
 
-## Default branch
+## `default` branch
 
-The default development branch is `dev`. 
+The latest branch is the default branch. 
+
+## `dev` branch
+
+The development branch is `dev`. 
 
 
 ## To get more informations
