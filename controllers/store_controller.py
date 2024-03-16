@@ -37,7 +37,7 @@ class StoreController(BaseController):
         # Check auth 
         (auth, user ) = self.validate_env()
         arguments = cherrypy.request.json
-        if type(arguments) is not dict :
+        if not isinstance(arguments,dict) :
             return Results.error( message='invalid parameters' )
         userid  =  user.userid
         key     = arguments.get('key')
@@ -58,12 +58,10 @@ class StoreController(BaseController):
 
         # Check auth 
         (auth, user ) = self.validate_env()
-       
         arguments = cherrypy.request.json
 
-        if type(arguments) is not dict :
+        if not isinstance(arguments,dict) :
             raise cherrypy.HTTPError( status=400, message='invalid parameters' )
-
         userid = user.userid
         value = None
         key = arguments.get('key')
@@ -72,7 +70,11 @@ class StoreController(BaseController):
             value = self.wrapped_get(userid, key)
         if value is None:
             raise cherrypy.HTTPError( status=404, message=f"value not found: userid={userid} key={key}")
-        
+        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache'
+        # disable content or MIME sniffing which is used to override response Content-Type headers 
+        # to guess and process the data using an implicit content type
+        # is this case the content-type is json 
+        cherrypy.response.headers[ 'X-Content-Type-Options'] = 'nosniff'
         return Results.success(result=value)
 
     def wrapped_get( self, userid, key ):
@@ -93,10 +95,11 @@ class StoreController(BaseController):
         (auth, user ) = self.validate_env()
         userid = user.userid
         arguments = cherrypy.request.json
-        if type(arguments) is not dict:
+        if not isinstance(arguments,dict) :
             raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
         key = arguments.get('key')
-        # only 'loginHistory' or 'callHistory' is allowed
+
+        # only key 'loginHistory' or 'callHistory' is allowed
         if key not in ['loginHistory', 'callHistory']:
             raise cherrypy.HTTPError( status=400, message='denied key value')
         return self._getcollection( databasename=key, collectionname=userid )

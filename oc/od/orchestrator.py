@@ -4080,6 +4080,7 @@ class ODAppInstanceBase(object):
         app_securitycontext = app.get('securitycontext',{}) or {} 
         securitycontext.update( user_securitycontext )
         securitycontext.update( app_securitycontext )
+        self.logger.debug( f"securitycontext={securitycontext}")
         return securitycontext
 
     def get_resources( self, authinfo:AuthInfo, userinfo:AuthUser, app:dict ):
@@ -4979,8 +4980,21 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         }
 
         self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
-        pod = self.orchestrator.kubeapi.create_namespaced_pod(namespace=self.orchestrator.namespace,body=pod_manifest )
-
+        try:
+            pod = self.orchestrator.kubeapi.create_namespaced_pod(
+                namespace=self.orchestrator.namespace,
+                body=pod_manifest )
+        except ApiException as e:
+            self.logger.error('== ApiException ==')
+            self.logger.error(e)
+            message = oc.lib.try_to_read_json_entry( 'message', e.body )
+            self.logger.debug(f"message={message}")
+            raise ODError( status=500, message=message )
+        except Exception as e:
+            self.logger.error('== Exception ==')
+            self.logger.error(e)
+            raise ODError( status=500, message=str(e) )
+        
         if not isinstance(pod, V1Pod ):
             raise ValueError( f"Invalid create_namespaced_pod type return {type(pod)} V1Pod is expecting")
         
