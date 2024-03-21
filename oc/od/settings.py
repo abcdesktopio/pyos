@@ -17,8 +17,6 @@ ABCDESKTOP_PYOS_CURRENT_RELEASE = '3.0'
 # supported image format
 ABCDESKTOP_IMAGE_FORMAT_RELEASE = '3.0'
 
-defaultConfigurationFilename = 'od.config'
-
 config  = {}	    # use for application config and global config
 gconfig = {}	    # use for global config
 
@@ -329,7 +327,7 @@ def init_desktop():
     # default secret path
     desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
 
-    desktop['release']                  = gconfig.get('desktop.release', '3.1')  
+    desktop['release']                  = gconfig.get('desktop.release', '3.2')  
     #  
     # in release 3.1
     # desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
@@ -355,10 +353,13 @@ def init_desktop():
     desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim') or gconfig.get('desktop.persistentvolumeclaimspec')
     desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
-    desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
+    desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', False)
     desktop['removepersistentvolume']   = gconfig.get('desktop.removepersistentvolume', False)
+    desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
-    desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', True)
+    desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
+
+   
 
     desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
     desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
@@ -685,15 +686,31 @@ def init_executeclass():
 def get_default_appdict():
     return dock
 
+
+def get_configuration_file_name():
+    """get_configuration_file_name
+
+    Returns:
+        str: name of the config file 'od.config' by default or read 'OD_CONFIG_PATH' os.environ
+    """
+    configuration_file_name = os.environ.get('OD_CONFIG_PATH', 'od.config')
+    return configuration_file_name
+
 def load_config():    
     global config
     global gconfig
 
-    configpath = os.environ.get('OD_CONFIG_PATH', defaultConfigurationFilename)
+    configpath = get_configuration_file_name()
     logger.info(f"Loading configuration file {configpath}")
     try:
         config = Config(configpath)
-        gconfig = config.get('global', {}) # = cherrypy.gconfig 
+        if isinstance( config.get('global'), dict ):
+            logger.info(f"config file contains [global] entry (ini file format)")
+            gconfig = config.get('global', {}) # = cherrypy.gconfig 
+        else:
+            logger.info(f"config file does not set [global] entry")
+            logger.info(f"config file is not a ini file format, use json")
+            
     except Exception as e:
         logger.error(f"Failed to load configuration file {configpath} {e}")
         exit(-1)           

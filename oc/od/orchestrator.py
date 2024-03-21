@@ -1160,9 +1160,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"homedirectorytype is {homedirectorytype}")
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
         self.logger.debug(f"subpath_name is {subpath_name}")
-        user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
-        self.logger.debug(f"user_homedirectory is {user_homedirectory}")
-        
+        user_homedirectory = os.path.join(  self.get_user_homedirectory(authinfo, userinfo), 
+                                            oc.od.settings.desktop.get('appendpathtomounthomevolume','') )
+        user_homedirectory = os.path.normpath( user_homedirectory )
+        self.logger.debug( f"user_homedirectory mounts home volume to {user_homedirectory}" )
+            
         # set default value 
         # home is emptyDir
         # cache is emptyDir Memory
@@ -1173,7 +1175,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Take care if this is a pod application the .cache is empty
         self.logger.debug( f"map ~/.cache to emptyDir Memory is {oc.od.settings.desktop.get('homedirdotcachetoemptydir')}" )
         if oc.od.settings.desktop.get('homedirdotcachetoemptydir') is True :
-            dotcache_user_homedirectory = user_homedirectory + '/.cache'
+            dotcache_user_homedirectory = self.get_user_homedirectory(authinfo, userinfo) + '/.cache'
             self.logger.debug( f"map {dotcache_user_homedirectory} to emptyDir medium Memory" )
             volumes['cache']       = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
             volumes_mount['cache'] = { 'name': 'cache',  'mountPath': dotcache_user_homedirectory }
@@ -1184,18 +1186,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
-            
             claimName = None # None is the default value, nothing to do
-
             if isinstance( oc.od.settings.desktop['persistentvolumeclaim'], str):
                 # oc.od.settings.desktop['persistentvolumeclaim'] is the name of the PVC
-                # it must exists 
-                # there is only one PVC for all users
+                # in this case, there is only one shared PVC for all users
+                # and it must already exists 
                 if volume_type in [ 'pod_desktop', 'pod_application' ] :
                     claimName = oc.od.settings.desktop['persistentvolumeclaim']
 
-            if isinstance( oc.od.settings.desktop['persistentvolumeclaim'], dict):
-                 # oc.od.settings.desktop['persistentvolumeclaim'] must be created by pyos
+            elif isinstance( oc.od.settings.desktop['persistentvolumeclaim'], dict):
+                # oc.od.settings.desktop['persistentvolumeclaim'] must be created by pyos
                 if volume_type in [ 'pod_desktop', 'pod_application' ] :
                     # create a pvc to store desktop volume
                     persistentvolume = copy.deepcopy( oc.od.settings.desktop['persistentvolume'] )
@@ -3024,6 +3024,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         IPAddress = myPod.status.pod_ip
         except Exception as e:
             self.logger.error( e )
+        self.logger.debug( f"pod_IPAddress is {IPAddress}" ) 
         return IPAddress
         
 
@@ -3372,11 +3373,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                 timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                 field_selector=f'involvedObject.name={pod_name}'):
             
-            # safe type test event is a dict
-            if not isinstance(event, dict ): continue
-            # safe type test event object is a CoreV1Event
-            if not isinstance(event.get('object'), CoreV1Event ): continue
-
+            if not isinstance(event, dict ): continue # safe type test event is a dict
+            if not isinstance(event.get('object'), CoreV1Event ): continue # safe type test event object is a CoreV1Event
             event_object = event.get('object')
             self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
             self.on_desktoplaunchprogress( f"b.{event_object.message}" )
@@ -3406,7 +3404,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if event_object.reason == 'Pulled':
                     pulled_counter = pulled_counter + 1
                     self.logger.debug( f"Event Pulled received pulled_counter={pulled_counter}")
-                    # if all image are pulled pass
+                    # if all images are pulled 
                     self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
                     if pulled_counter >= expected_containers_len :
                         self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
@@ -3416,20 +3414,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
                             self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
                             w.stop()
-                    
                 elif event_object.reason == 'Started':
                     pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
                     if isinstance( pod_IPAddress, str ):
                         self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
-                        self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
+                        self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
                         self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
                         if pulled_counter >= expected_containers_len :
                             self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
                             self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
                             w.stop()
-                    
+         
                     """
-                    c = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
+                    c = self.getcontainerfromPod( self.graphicalcontainernameprefix, pod )
                     if isinstance( c, V1ContainerStatus ):
                         startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod, event_object)
                         self.on_desktoplaunchprogress( startedmsg )
@@ -3443,7 +3440,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
                     # fix for https://github.com/abcdesktopio/oc.user/issues/52
                     # this is not an error
-                    # w.stop()
+                    w.stop()
                     # return  f"{event_object.reason} {event_object.message}"
                 
             else: 
@@ -3466,12 +3463,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.error( f"event type is {type( event )}, and should be a dict, skipping event")
                 continue
 
-            # event dict must contain a type 
-            event_type = event.get('type')
-            # event dict must contain a pod object 
-            pod_event = event.get('object')
-            # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
-            if not isinstance( pod_event, V1Pod ): continue
+            event_type = event.get('type')  # event dict must contain a type 
+            pod_event = event.get('object') # event dict must contain a pod object 
+            if not isinstance( pod_event, V1Pod ): continue  # if podevent type must be a V1Pod
             if not isinstance( pod_event.status, V1PodStatus ): continue
             #
             self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}")
@@ -3504,7 +3498,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.error(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase} stop watching" )
                 w.stop()
 
-        self.logger.debug(f"watch list_namespaced_pod created, the pod is no more in Pending phase phase={pod_event.status.phase}" )
+        self.logger.debug(f"watch list_namespaced_pod created, the pod is no more in Pending phase" )
 
         # read pod again
         self.logger.debug(f"read_namespaced_pod {pod_name} again" )
@@ -4481,15 +4475,16 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                 break 
                             if  c.state.waiting.reason == 'Pulling':
                                 send_previous_pulling_message = True
-                                data['message'] = f"Installing {app.get('name')}, please wait"
+                                data['message'] = f"{c.state.waiting.reason} {app.get('name')}, please wait"
                                 self.orchestrator.notify_user( myDesktop, 'container', data )
                             elif c.state.waiting.reason == 'Pulled':
                                 if send_previous_pulling_message is True:
-                                    data['message'] = f"{app.get('name')} is installed"
+                                    data['message'] = f"{app.get('name')} is {c.state.waiting.reason}"
                                     self.orchestrator.notify_user( myDesktop, 'container', data )
                             else:
-                                data['message'] = c.state.waiting.message
-                                self.orchestrator.notify_user( myDesktop, 'container', data )
+                                if send_previous_pulling_message is True:
+                                    data['message'] = c.state.waiting.reason
+                                    self.orchestrator.notify_user( myDesktop, 'container', data )
 
             if event.get('type') == 'ERROR':
                 self.logger.error( f"{event.get('type')} object={type(event.get('object'))}")

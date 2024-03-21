@@ -27,18 +27,12 @@ import oc.od.settings as settings
 import oc.od.services as services
 
 # Load logging config ASAP !
-oc.logging.configure( config_or_path=oc.od.settings.defaultConfigurationFilename, is_cp_file=True)
+oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
 logger = logging.getLogger(__name__)
 
-# define virtual path used 
-# app_virtual_path is for application
-# img_virtual_path is for icon static file
-app_virtual_path = '/API' 
-img_virtual_path = '/img'
-
 # define each configration for API
-# app_config is the core servive
-# img_config is a dummy app used to serve icon static file 
+# app_config is the core service
+# img_config is file service to send icon static file 
 
 # Allow (partial) case-insensivity in URLs
 class APIDispatcher(Dispatcher):
@@ -112,12 +106,6 @@ def img_handle_404_application(status, message, traceback, version):
 #
 # img class to serve static files 
 # for example icon files for applications
-@cherrypy.config(**{ 
-    'tools.staticdir.on' : True, 
-    'tools.staticdir.dir': '/var/pyos/img', # relative path not allowed
-    'tools.allow.methods': [ 'GET' ],  # HTTP GET only for images 
-    'error_page.404'    : img_handle_404_application
-})
 class IMG(object):
     def __init__(self):
         """ init IMG static files
@@ -232,14 +220,21 @@ class ODCherryWatcher(plugins.SimplePlugin):
 def run_server():   
     logger.info("Starting cherrypy service...")
     # update config for cherrypy
-    cherrypy.config.update(settings.defaultConfigurationFilename)    
-    settings.config['/']['request.dispatch'] = APIDispatcher() # can't be set with @cherrypy.config decorator
+    cherrypy.config.update(settings.get_configuration_file_name())  
+    # cherrypy.config['/']
+    # APIConfig = { '/': { 'request.dispatch': APIDispatcher() } }
+    # settings.config['/']['request.dispatch'] = APIDispatcher() # can't be set with @cherrypy.config decorator
     # set auth tools
     cherrypy.tools.auth = services.services.auth
     # set /API
-    cherrypy.tree.mount( API(settings.controllers), app_virtual_path, settings.config )
+    cherrypy.tree.mount( API(settings.controllers), '/API', settings.config )
     # set /IMG
-    cherrypy.tree.mount(IMG(), img_virtual_path, config={} ) # no config for img, use class config
+    cherrypy.tree.mount( IMG(), '/img', config=
+                        { '/img': { 'tools.staticdir.on' : True, 
+                                    'tools.staticdir.dir': '/var/pyos/img', # relative path not allowed
+                                    'tools.allow.methods': [ 'GET' ],  # HTTP GET only for images 
+                                    'error_page.404'     : img_handle_404_application # overwrite 404 to default icon
+                                    } } )
 
     odthread_watcher = ODCherryWatcher(cherrypy.engine)
     odthread_watcher.subscribe()

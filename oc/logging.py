@@ -59,18 +59,22 @@ def load_config(path, is_cp_file=False):
     """ 
         load the config file from default configuration file 'od.config' if is_cp_file is True 
         load the config file PATH if is_cp_file is False """
-    cfg = None
+    cfg_logging = None
 
     if is_cp_file is True:
-        logger.info("Reading cherrypy configuration section 'global/logging': path = %s", path)        
-        cfg = Config(path)['global']['logging']
+        logger.info(f"Reading cherrypy configuration section 'global/logging': path = {path}")
+        config = Config(path)
+        if isinstance( config.get('global'), dict ):
+            cfg_logging = config.get('global').get('logging')
+        else:
+            cfg_logging = config.get('logging')
     else:
-        logger.info("Reading json file: path = %s", path)
+        logger.info(f"Reading json file: path = {path}")
         with open(path, encoding='UTF-8') as f: 
-            cfg = json.decode(f.read())
+            cfg_logging = json.decode(f.read())
 
-    logger.debug("config = %s", repr(cfg))
-    return cfg
+    logger.debug(f"logging configuration : {cfg_logging}")
+    return cfg_logging
 
 
 def init_logging(config_or_path, is_cp_file=True):   
