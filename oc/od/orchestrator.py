@@ -1175,7 +1175,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Take care if this is a pod application the .cache is empty
         self.logger.debug( f"map ~/.cache to emptyDir Memory is {oc.od.settings.desktop.get('homedirdotcachetoemptydir')}" )
         if oc.od.settings.desktop.get('homedirdotcachetoemptydir') is True :
-            dotcache_user_homedirectory = user_homedirectory + '/.cache'
+            dotcache_user_homedirectory = self.get_user_homedirectory(authinfo, userinfo) + '/.cache'
             self.logger.debug( f"map {dotcache_user_homedirectory} to emptyDir medium Memory" )
             volumes['cache']       = { 'name': 'cache',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
             volumes_mount['cache'] = { 'name': 'cache',  'mountPath': dotcache_user_homedirectory }
