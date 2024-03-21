@@ -1160,9 +1160,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"homedirectorytype is {homedirectorytype}")
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
         self.logger.debug(f"subpath_name is {subpath_name}")
-        user_homedirectory = self.get_user_homedirectory(authinfo, userinfo)
-        if isinstance( oc.od.settings.desktop.get('appendpathtomounthomevolume'), str ) :
-            user_homedirectory = os.path.normpath( os.path.join( user_homedirectory, oc.od.settings.desktop.get('appendpathtomounthomevolume') ) )
+        user_homedirectory = os.path.join(  self.get_user_homedirectory(authinfo, userinfo), 
+                                            oc.od.settings.desktop.get('appendpathtomounthomevolume','') )
+        user_homedirectory = os.path.normpath( user_homedirectory )
         self.logger.debug( f"user_homedirectory mounts home volume to {user_homedirectory}" )
             
         # set default value 
