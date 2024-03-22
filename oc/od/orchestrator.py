@@ -368,8 +368,7 @@ class ODOrchestratorBase(object):
         # Note the same timeout value is used twice
         # for the wait_port command and for the exec command         
         
-        if type(desktop) is not ODDesktop:
-            raise ValueError('invalid desktop object type' )
+        assert_type( desktop, ODDesktop)
 
         # healtz binary command is optional 
         # return True if not define
@@ -410,12 +409,11 @@ class ODOrchestratorBase(object):
             bool: True the the service is up
         """
 
-        self.logger.debug(locals())
+        self.logger.debug(locals())       
+        assert_type( desktop, ODDesktop)
+
         # Note the same timeout value is used twice
-        # for the wait_port command and for the exec command         
-        
-        if type(desktop) is not ODDesktop:
-            raise ValueError('invalid desktop object type' )
+        # for the wait_port command and for the exec command  
 
         waitportbincommand = oc.od.settings.desktop_pod[service].get('waitportbin')
         # check if waitportbincommand is a string
@@ -2723,7 +2721,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         startedmsg = f"b.{myPod.status.phase.lower()}"
         if isinstance( myEvent, CoreV1Event):
-            if myEvent.count > 1 :
+            # myEvent.count can be None if something goes wrong
+            if isinstance(myEvent.count, int) and myEvent.count > 1 :
                 startedmsg = f"b.{myPod.status.phase.lower()} {myEvent.count}"
 
         c = self.getcontainerfromPod( containernameprefix, myPod )
@@ -3362,6 +3361,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.on_desktoplaunchprogress(f"b.Watching for events" )
         self.logger.debug('watch list_namespaced_event pod creating' )
         pulled_counter = 0 
+        started_counter = 0 
         expected_containers_len = len( pod.spec.containers )
         self.logger.debug( f"expected_containers_len={expected_containers_len}")
 
@@ -3394,53 +3394,42 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             elif event_object.type == 'Normal': # event Normal
 
                 if event_object.reason in [ 'Created', 'Pulling', 'Scheduled' ]:
-                    pass # nothing to do
+                    continue # nothing to do
 
-                #
                 # check reason, read 
                 # https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
                 # reason should be a short, machine understandable string that gives the reason for the transition 
                 # into the object's current status.
                 if event_object.reason == 'Pulled':
-                    pulled_counter = pulled_counter + 1
                     self.logger.debug( f"Event Pulled received pulled_counter={pulled_counter}")
+                    pulled_counter = pulled_counter + 1
                     # if all images are pulled 
                     self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
                     if pulled_counter >= expected_containers_len :
                         self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
-                        pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
-                        if isinstance( pod_IPAddress, str ):
-                            self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
-                            self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
-                            self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
-                            w.stop()
-                elif event_object.reason == 'Started':
-                    pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
-                    if isinstance( pod_IPAddress, str ):
-                        self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
-                        self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
-                        self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
-                        if pulled_counter >= expected_containers_len :
-                            self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
-                            self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
-                            w.stop()
-         
-                    """
-                    c = self.getcontainerfromPod( self.graphicalcontainernameprefix, pod )
-                    if isinstance( c, V1ContainerStatus ):
-                        startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, myPod, event_object)
-                        self.on_desktoplaunchprogress( startedmsg )
-                        if c.ready is True and c.started is True :
-                            w.stop()
-                    """
-                    self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
+                        # pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
+                        # if isinstance( pod_IPAddress, str ):
+                        #    self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
+                        #    self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
+                        #    self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
+                        w.stop()
+
+                elif event_object.reason == 'Started':  
+                    self.logger.debug( f"Event Started received started_counter={started_counter}")
+                    started_counter = started_counter + 1    
+                    self.logger.debug( f"counter started_counter={started_counter} expected_containers_len={expected_containers_len}")
+                    #pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
+                    #if isinstance( pod_IPAddress, str ):
+                    #    self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
+                    if started_counter >= expected_containers_len :
+                        w.stop()
                 else:
                     # log the events
                     self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
                     self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
                     # fix for https://github.com/abcdesktopio/oc.user/issues/52
                     # this is not an error
-                    # w.stop()
+                    w.stop()
                     # return  f"{event_object.reason} {event_object.message}"
                 
             else: 
@@ -3660,7 +3649,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( pod.status, V1PodStatus):
             if isinstance( pod.status.container_statuses, list):
                 for c in pod.status.container_statuses:
-                    if hasattr( c, 'name') and c.name[0] == prefix:
+                    if hasattr( c, 'name') and isinstance(c.name, str ) and c.name[0] == prefix:
                         return c
         return None
 
@@ -3677,10 +3666,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         assert isinstance(prefix,str), f"prefix invalid type {type(prefix)}"
         assert isinstance(pod,V1Pod) , f"pod invalid type {type(pod)}"
+
         # get the container id for the desktop object
         if isinstance( pod.spec.containers, list):
             for c in pod.spec.containers:
-                if hasattr( c, 'name') and c.name[0] == prefix:
+                if hasattr( c, 'name') and isinstance(c.name, str ) and c.name[0] == prefix:
                     return c
         return None
 
