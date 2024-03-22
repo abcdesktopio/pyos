@@ -355,7 +355,7 @@ def init_desktop():
     desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
     desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', False)
     desktop['removepersistentvolume']   = gconfig.get('desktop.removepersistentvolume', False)
-    desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume')
+    desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
 
