@@ -3440,7 +3440,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
                     # fix for https://github.com/abcdesktopio/oc.user/issues/52
                     # this is not an error
-                    w.stop()
+                    # w.stop()
                     # return  f"{event_object.reason} {event_object.message}"
                 
             else: 
