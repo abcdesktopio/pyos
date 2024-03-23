@@ -3146,20 +3146,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # new step
         self.on_desktoplaunchprogress('b.Building data storage for your desktop')
 
-        self.logger.debug('secrets_requirement creating for graphical')
+        # get secrets_requirement for 'graphical'
         currentcontainertype = 'graphical'
-        secrets_requirement = None # default value add all secret if no filter 
-        # get all secrets
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo )
-        # by default give the abcdesktop/kerberos and abcdesktop/cntlm secrets inside the pod, if exist
-        secrets_type_requirement = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('secrets_requirement')
-        if isinstance( secrets_type_requirement, list ):
-            # list the secret entry by requirement type 
-            secrets_requirement = ['abcdesktop/vnc'] # always add the vnc password in the secret list 
-            for secretdictkey in mysecretdict.keys():
-                if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
-                    secrets_requirement.append( secretdictkey )
-        self.logger.debug('secrets_requirement created for graphical')
+        secrets_requirement = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('secrets_requirement')
+        self.logger.debug(f"secrets_requirement={secrets_requirement} for currentcontainertype={currentcontainertype}")
 
         # ownerReferences = self.get_ownerReferences(mysecretdict)
 
