@@ -4330,16 +4330,18 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
         # self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
 
-        _app_container_name = app['name'] + '_' +  oc.lib.uuid_digits()
-        _app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( _app_container_name )
-        app_container_name =  oc.auth.namedlib.normalize_name_dnsname( _app_container_name )
+        app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + \
+                            '-' + app['name'] + '-' + oc.lib.uuid_digits()
+        self.logger.debug( f"app_container_name={app_container_name}" )
+        app_container_name = oc.auth.namedlib.normalize_name_dnsname( app_container_name )
+        self.logger.debug( f"normalized app_container_name={app_container_name}" )
 
         desktoprules = oc.od.settings.desktop['policies'].get('rules', {})
         rules = copy.deepcopy( desktoprules )
         apprules = app.get('rules', {} ) or {} # app['rules] can be set to None
         rules.update( apprules )
 
-        self.logger.debug( f"reading pod desktop desktop={myDesktop.id} app_container_name={app_container_name}")
+        self.logger.debug( f"reading pod desktop desktop.id={myDesktop.id} myDesktop.container_name={myDesktop.container_name} app_container_name={app_container_name}")
 
         # resources = self.get_resources( authinfo, userinfo, app )
         envlist = self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
@@ -4400,7 +4402,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             image=app['id'],
             command=app.get('cmd'),
             target_container_name=myDesktop.container_name,
-            image_pull_policy= oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
+            image_pull_policy=oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
             volume_mounts = list_volumeMounts,
             working_dir = workingDir
         )
@@ -4460,13 +4462,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                             w.stop()
                         elif isinstance(c.state.waiting, V1ContainerStateWaiting):
                             self.logger.debug( f"V1ContainerStateWaiting reason={c.state.waiting.reason}" )
-                            data = { 
-                                    'message':  app.get('name'), 
-                                    'name':     app.get('name'),
-                                    'icondata': app.get('icondata'),
-                                    'icon':     app.get('icon'),
-                                    'image':    app.get('id'),
-                                    'launch':   app.get('launch')
+                            data = {    'message':  app.get('name'), 
+                                        'name':     app.get('name'),
+                                        'icondata': app.get('icondata'),
+                                        'icon':     app.get('icon'),
+                                        'image':    app.get('id'),
+                                        'launch':   app.get('launch')
                             }
                             if c.state.waiting.reason in [ 'PodInitializing' ]:
                                 break 
