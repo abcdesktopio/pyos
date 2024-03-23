@@ -96,7 +96,7 @@ class CoreController(BaseController):
 
     def handler_messageinfo_text(self, messageinfo):
         cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=utf-8'
-        cherrypy.response.headers[ 'Cache-Control'] = 'No-Store'
+        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache, private'
         result_str = messageinfo + '\n'
         return result_str.encode('utf-8')
 
