@@ -227,7 +227,7 @@ class ComposerController(BaseController):
         self.logger.info(f"jwttoken is {desktop.internaluri} -> {jwtdesktoptoken}" )
 
         # add no-cache nosniff HTTP headers
-        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache'
+        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache, private'
         # disable content or MIME sniffing which is used to override response Content-Type headers 
         # to guess and process the data using an implicit content type
         # is this case the content-type is json 
