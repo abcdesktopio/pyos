@@ -70,7 +70,7 @@ class StoreController(BaseController):
             value = self.wrapped_get(userid, key)
         if value is None:
             raise cherrypy.HTTPError( status=404, message=f"value not found: userid={userid} key={key}")
-        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache'
+        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache, private'
         # disable content or MIME sniffing which is used to override response Content-Type headers 
         # to guess and process the data using an implicit content type
         # is this case the content-type is json 
