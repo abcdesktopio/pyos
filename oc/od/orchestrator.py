@@ -977,40 +977,47 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # abcdesktop is the default namespace
         # mount secret in /var/secrets/$NAMESPACE
         #
-        self.logger.debug( "listing list_dict_secret_data access_type='auth'" )
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
-        for secret_auth_name in mysecretdict.keys():
-            # https://kubernetes.io/docs/concepts/configuration/secret
-            # create an entry eq: 
-            # /var/secrets/abcdesktop/ntlm
-            # /var/secrets/abcdesktop/cntlm
-            # /var/secrets/abcdesktop/kerberos
-            # 
-            
-            self.logger.debug( f"checking {secret_auth_name} access_type='auth' " )
-            # only mount secrets_requirement
-            if isinstance( secrets_requirement, list ):
-                if secret_auth_name not in secrets_requirement:
-                    self.logger.debug( f"{secret_auth_name} is not in {secrets_requirement}" )
-                    self.logger.debug( f"{secret_auth_name} is skipped" )
-                    continue
+        self.logger.debug( f"secrets_requirement is {secrets_requirement}" ) 
+        if not isinstance( secrets_requirement, list ):
+            self.logger.debug( f"skipping secrets_requirement type={type(secrets_requirement)}, no secret to mount" ) 
+        else:
+            self.logger.debug( "listing list_dict_secret_data access_type='auth'" )
+            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
+            if isinstance( mysecretdict, dict):
+                # read all entries in dict
+                # {'auth-ntlm-fry': {'type': 'abcdesktop/ntlm', 'data': {...}}}
+                self.logger.debug(f"list of secret is {mysecretdict.keys()}")
+                for secret_auth_name in mysecretdict.keys():
+                    # https://kubernetes.io/docs/concepts/configuration/secret
+                    # create an entry eq: 
+                    #
+                    # /var/secrets/abcdesktop/ntlm
+                    # /var/secrets/abcdesktop/kerberos
+                    #  
+                    self.logger.debug(f"checking {secret_auth_name} access_type='auth'")
 
-            self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']} to volume pod" )
-            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
-            # mode is 644 -> rw-r--r--
-            # Owing to JSON limitations, you must specify the mode in decimal notation.
-            # 644 in decimal equal to 420
-            volumes[secret_auth_name] = {
-                'name':secret_auth_name, 
-                'secret': { 
-                    'secretName': secret_auth_name, 
-                    'defaultMode': 420
-                }
-            }
-            volumes_mount[secret_auth_name] = {
-                'name':secret_auth_name, 
-                'mountPath':secretmountPath 
-            }        
+                    # only mount secrets_requirement
+                    if 'all' not in secrets_requirement:
+                        if mysecretdict[secret_auth_name]['type'] not in secrets_requirement:
+                            self.logger.debug(f"skipping {mysecretdict[secret_auth_name]['type']} not in {secrets_requirement}")
+                            continue
+
+                    self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']} to volume pod" )
+                    secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
+                    # mode is 644 -> rw-r--r--
+                    # Owing to JSON limitations, you must specify the mode in decimal notation.
+                    # 644 in decimal equal to 420
+                    volumes[secret_auth_name] = {
+                        'name':secret_auth_name, 
+                        'secret': { 
+                            'secretName': secret_auth_name, 
+                            'defaultMode': 420
+                        }
+                    }
+                    volumes_mount[secret_auth_name] = {
+                        'name':secret_auth_name, 
+                        'mountPath':secretmountPath 
+                    }   
         return (volumes, volumes_mount)
 
     def build_volumes_additional_by_rules( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
@@ -3164,7 +3171,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         kwargs['shareProcessMemory'] = shareProcessMemory
 
         # all volumes and secrets
-        (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=None, rules=rules,  **kwargs)
+        (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=['all'], rules=rules,  **kwargs)
         list_pod_allvolumes = list( pod_allvolumes.values() )
         list_pod_allvolumeMounts = list( pod_allvolumeMounts.values() )
 
