@@ -3986,10 +3986,10 @@ class ODAppInstanceBase(object):
     def get_DISPLAY( self, desktop_ip_addr:str='' ):
         raise NotImplementedError('get_DISPLAY')
 
-    def get_PULSE_SERVER(  self, desktop_ip_addr:str='' ):
+    def get_PULSE_SERVER( self, desktop_ip_addr:str=None ):
         raise NotImplementedError('get_PULSE_SERVER')
 
-    def get_CUPS_SERVER(  self, desktop_ip_addr:str='' ):
+    def get_CUPS_SERVER( self, desktop_ip_addr:str=None ):
         raise NotImplementedError('get_CUPS_SERVER')
 
     def get_env_for_appinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
@@ -4002,7 +4002,7 @@ class ODAppInstanceBase(object):
         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist
         # read the desktop (oc.user) ip address
         desktop_ip_addr = myDesktop.get_default_ipaddr('eth0')
-
+        self.logger.debug( f"desktop_ip_addr={desktop_ip_addr}" )
         # clone env 
         env = oc.od.settings.desktop['environmentlocal'].copy()
         # update env with desktop_ip_addr if need
@@ -4121,14 +4121,14 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     isinstance( ephemeralcontainer, V1ContainerStatus )
         return bReturn
 
-    def get_DISPLAY(  self, desktop_ip_addr:str='' ):
+    def get_DISPLAY(  self, desktop_ip_addr:str=None ):
         return ':0.0'
 
     def get_PULSE_SERVER(  self, desktop_ip_addr:str='' ):
         return  'unix:/tmp/.pulse.sock'
 
-    def get_CUPS_SERVER(  self, desktop_ip_addr:str='' ):
-        return 'unix:/tmp/.cups.sock'
+    def get_CUPS_SERVER( self, desktop_ip_addr:str ):
+        return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
 
     def envContainerApp(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
         """get_env
@@ -4585,7 +4585,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 @oc.logging.with_logger()
 class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def __init__(self, orchestrator):
-        super().__init__( orchestrator)
+        super().__init__(orchestrator)
         self.type = self.orchestrator.pod_application
 
     @staticmethod
@@ -4593,13 +4593,13 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         bReturn =  isinstance( pod, V1Pod )
         return bReturn
 
-    def get_DISPLAY( self, desktop_ip_addr:str=None ):
+    def get_DISPLAY( self, desktop_ip_addr:str ):
         return desktop_ip_addr + ':0'
+    
+    def get_PULSE_SERVER( self, desktop_ip_addr:str ):
+        return desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT)
 
-    def get_PULSE_SERVER( self, desktop_ip_addr:str=None ):
-        return  desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT)
-
-    def get_CUPS_SERVER( self, desktop_ip_addr=None ):
+    def get_CUPS_SERVER( self, desktop_ip_addr:str ):
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
 
     def get_nodeSelector( self ):
