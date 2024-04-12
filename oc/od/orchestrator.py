@@ -996,6 +996,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     #  
                     self.logger.debug(f"checking {secret_auth_name} access_type='auth'")
 
+                    if not isinstance(mysecretdict[secret_auth_name], dict):
+                        self.logger.error(f"skipping secret {secret_auth_name} is not a dict")
+                        continue
+
                     # only mount secrets_requirement
                     if 'all' not in secrets_requirement:
                         if mysecretdict[secret_auth_name]['type'] not in secrets_requirement:
@@ -1329,11 +1333,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def get_volumes_localaccount_name( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
-        """_summary_
+        """get_volumes_localaccount_name
 
         Args:
-            authinfo (AuthInfo): _description_
-            userinfo (AuthUser): _description_
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
 
         Returns:
             str: return the name of the localaccount volume same as secret 
@@ -1345,7 +1349,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         localaccount_name = None
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
         if isinstance(mysecretdict, dict ) and len(mysecretdict)>0:
-            localaccount_name = list( mysecretdict.keys() )[0] # should be only one
+            localaccount_name = list( mysecretdict.keys() )[0] # should be only one, get the first one
         return localaccount_name
 
 
