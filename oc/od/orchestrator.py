@@ -977,40 +977,51 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # abcdesktop is the default namespace
         # mount secret in /var/secrets/$NAMESPACE
         #
-        self.logger.debug( "listing list_dict_secret_data access_type='auth'" )
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
-        for secret_auth_name in mysecretdict.keys():
-            # https://kubernetes.io/docs/concepts/configuration/secret
-            # create an entry eq: 
-            # /var/secrets/abcdesktop/ntlm
-            # /var/secrets/abcdesktop/cntlm
-            # /var/secrets/abcdesktop/kerberos
-            # 
-            
-            self.logger.debug( f"checking {secret_auth_name} access_type='auth' " )
-            # only mount secrets_requirement
-            if isinstance( secrets_requirement, list ):
-                if secret_auth_name not in secrets_requirement:
-                    self.logger.debug( f"{secret_auth_name} is not in {secrets_requirement}" )
-                    self.logger.debug( f"{secret_auth_name} is skipped" )
-                    continue
+        self.logger.debug( f"secrets_requirement is {secrets_requirement}" ) 
+        if not isinstance( secrets_requirement, list ):
+            self.logger.debug( f"skipping secrets_requirement type={type(secrets_requirement)}, no secret to mount" ) 
+        else:
+            self.logger.debug( "listing list_dict_secret_data access_type='auth'" )
+            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
+            if isinstance( mysecretdict, dict):
+                # read all entries in dict
+                # {'auth-ntlm-fry': {'type': 'abcdesktop/ntlm', 'data': {...}}}
+                self.logger.debug(f"list of secret is {mysecretdict.keys()}")
+                for secret_auth_name in mysecretdict.keys():
+                    # https://kubernetes.io/docs/concepts/configuration/secret
+                    # create an entry eq: 
+                    #
+                    # /var/secrets/abcdesktop/ntlm
+                    # /var/secrets/abcdesktop/kerberos
+                    #  
+                    self.logger.debug(f"checking {secret_auth_name} access_type='auth'")
 
-            self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']} to volume pod" )
-            secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
-            # mode is 644 -> rw-r--r--
-            # Owing to JSON limitations, you must specify the mode in decimal notation.
-            # 644 in decimal equal to 420
-            volumes[secret_auth_name] = {
-                'name':secret_auth_name, 
-                'secret': { 
-                    'secretName': secret_auth_name, 
-                    'defaultMode': 420
-                }
-            }
-            volumes_mount[secret_auth_name] = {
-                'name':secret_auth_name, 
-                'mountPath':secretmountPath 
-            }        
+                    if not isinstance(mysecretdict[secret_auth_name], dict):
+                        self.logger.error(f"skipping secret {secret_auth_name} is not a dict")
+                        continue
+
+                    # only mount secrets_requirement
+                    if 'all' not in secrets_requirement:
+                        if mysecretdict[secret_auth_name]['type'] not in secrets_requirement:
+                            self.logger.debug(f"skipping {mysecretdict[secret_auth_name]['type']} not in {secrets_requirement}")
+                            continue
+
+                    self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']} to volume pod" )
+                    secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
+                    # mode is 644 -> rw-r--r--
+                    # Owing to JSON limitations, you must specify the mode in decimal notation.
+                    # 644 in decimal equal to 420
+                    volumes[secret_auth_name] = {
+                        'name':secret_auth_name, 
+                        'secret': { 
+                            'secretName': secret_auth_name, 
+                            'defaultMode': 420
+                        }
+                    }
+                    volumes_mount[secret_auth_name] = {
+                        'name':secret_auth_name, 
+                        'mountPath':secretmountPath 
+                    }   
         return (volumes, volumes_mount)
 
     def build_volumes_additional_by_rules( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
@@ -1322,11 +1333,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def get_volumes_localaccount_name( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
-        """_summary_
+        """get_volumes_localaccount_name
 
         Args:
-            authinfo (AuthInfo): _description_
-            userinfo (AuthUser): _description_
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
 
         Returns:
             str: return the name of the localaccount volume same as secret 
@@ -1338,7 +1349,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         localaccount_name = None
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
         if isinstance(mysecretdict, dict ) and len(mysecretdict)>0:
-            localaccount_name = list( mysecretdict.keys() )[0] # should be only one
+            localaccount_name = list( mysecretdict.keys() )[0] # should be only one, get the first one
         return localaccount_name
 
 
@@ -3139,20 +3150,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # new step
         self.on_desktoplaunchprogress('b.Building data storage for your desktop')
 
-        self.logger.debug('secrets_requirement creating for graphical')
+        # get secrets_requirement for 'graphical'
         currentcontainertype = 'graphical'
-        secrets_requirement = None # default value add all secret if no filter 
-        # get all secrets
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo )
-        # by default give the abcdesktop/kerberos and abcdesktop/cntlm secrets inside the pod, if exist
-        secrets_type_requirement = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('secrets_requirement')
-        if isinstance( secrets_type_requirement, list ):
-            # list the secret entry by requirement type 
-            secrets_requirement = ['abcdesktop/vnc'] # always add the vnc password in the secret list 
-            for secretdictkey in mysecretdict.keys():
-                if mysecretdict.get(secretdictkey,{}).get('type') in secrets_type_requirement:
-                    secrets_requirement.append( secretdictkey )
-        self.logger.debug('secrets_requirement created for graphical')
+        secrets_requirement = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('secrets_requirement')
+        self.logger.debug(f"secrets_requirement={secrets_requirement} for currentcontainertype={currentcontainertype}")
 
         # ownerReferences = self.get_ownerReferences(mysecretdict)
 
@@ -3164,7 +3165,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         kwargs['shareProcessMemory'] = shareProcessMemory
 
         # all volumes and secrets
-        (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=None, rules=rules,  **kwargs)
+        (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=['all'], rules=rules,  **kwargs)
         list_pod_allvolumes = list( pod_allvolumes.values() )
         list_pod_allvolumeMounts = list( pod_allvolumeMounts.values() )
 
@@ -3989,10 +3990,10 @@ class ODAppInstanceBase(object):
     def get_DISPLAY( self, desktop_ip_addr:str='' ):
         raise NotImplementedError('get_DISPLAY')
 
-    def get_PULSE_SERVER(  self, desktop_ip_addr:str='' ):
+    def get_PULSE_SERVER( self, desktop_ip_addr:str=None ):
         raise NotImplementedError('get_PULSE_SERVER')
 
-    def get_CUPS_SERVER(  self, desktop_ip_addr:str='' ):
+    def get_CUPS_SERVER( self, desktop_ip_addr:str=None ):
         raise NotImplementedError('get_CUPS_SERVER')
 
     def get_env_for_appinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
@@ -4005,7 +4006,7 @@ class ODAppInstanceBase(object):
         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist
         # read the desktop (oc.user) ip address
         desktop_ip_addr = myDesktop.get_default_ipaddr('eth0')
-
+        self.logger.debug( f"desktop_ip_addr={desktop_ip_addr}" )
         # clone env 
         env = oc.od.settings.desktop['environmentlocal'].copy()
         # update env with desktop_ip_addr if need
@@ -4124,14 +4125,14 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     isinstance( ephemeralcontainer, V1ContainerStatus )
         return bReturn
 
-    def get_DISPLAY(  self, desktop_ip_addr:str='' ):
+    def get_DISPLAY(  self, desktop_ip_addr:str=None ):
         return ':0.0'
 
     def get_PULSE_SERVER(  self, desktop_ip_addr:str='' ):
         return  'unix:/tmp/.pulse.sock'
 
-    def get_CUPS_SERVER(  self, desktop_ip_addr:str='' ):
-        return 'unix:/tmp/.cups.sock'
+    def get_CUPS_SERVER( self, desktop_ip_addr:str ):
+        return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
 
     def envContainerApp(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
         """get_env
@@ -4323,16 +4324,18 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
         # self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
 
-        _app_container_name = app['name'] + '_' +  oc.lib.uuid_digits()
-        _app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + '_' + oc.auth.namedlib.normalize_imagename( _app_container_name )
-        app_container_name =  oc.auth.namedlib.normalize_name_dnsname( _app_container_name )
+        app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + \
+                            '-' + app['name'] + '-' + oc.lib.uuid_digits()
+        self.logger.debug( f"app_container_name={app_container_name}" )
+        app_container_name = oc.auth.namedlib.normalize_name_dnsname( app_container_name )
+        self.logger.debug( f"normalized app_container_name={app_container_name}" )
 
         desktoprules = oc.od.settings.desktop['policies'].get('rules', {})
         rules = copy.deepcopy( desktoprules )
         apprules = app.get('rules', {} ) or {} # app['rules] can be set to None
         rules.update( apprules )
 
-        self.logger.debug( f"reading pod desktop desktop={myDesktop.id} app_container_name={app_container_name}")
+        self.logger.debug( f"reading pod desktop desktop.id={myDesktop.id} myDesktop.container_name={myDesktop.container_name} app_container_name={app_container_name}")
 
         # resources = self.get_resources( authinfo, userinfo, app )
         envlist = self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
@@ -4393,7 +4396,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             image=app['id'],
             command=app.get('cmd'),
             target_container_name=myDesktop.container_name,
-            image_pull_policy= oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
+            image_pull_policy=oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
             volume_mounts = list_volumeMounts,
             working_dir = workingDir
         )
@@ -4453,13 +4456,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                             w.stop()
                         elif isinstance(c.state.waiting, V1ContainerStateWaiting):
                             self.logger.debug( f"V1ContainerStateWaiting reason={c.state.waiting.reason}" )
-                            data = { 
-                                    'message':  app.get('name'), 
-                                    'name':     app.get('name'),
-                                    'icondata': app.get('icondata'),
-                                    'icon':     app.get('icon'),
-                                    'image':    app.get('id'),
-                                    'launch':   app.get('launch')
+                            data = {    'message':  app.get('name'), 
+                                        'name':     app.get('name'),
+                                        'icondata': app.get('icondata'),
+                                        'icon':     app.get('icon'),
+                                        'image':    app.get('id'),
+                                        'launch':   app.get('launch')
                             }
                             if c.state.waiting.reason in [ 'PodInitializing' ]:
                                 break 
@@ -4587,7 +4589,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 @oc.logging.with_logger()
 class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def __init__(self, orchestrator):
-        super().__init__( orchestrator)
+        super().__init__(orchestrator)
         self.type = self.orchestrator.pod_application
 
     @staticmethod
@@ -4595,13 +4597,13 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         bReturn =  isinstance( pod, V1Pod )
         return bReturn
 
-    def get_DISPLAY( self, desktop_ip_addr:str=None ):
+    def get_DISPLAY( self, desktop_ip_addr:str ):
         return desktop_ip_addr + ':0'
+    
+    def get_PULSE_SERVER( self, desktop_ip_addr:str ):
+        return desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT)
 
-    def get_PULSE_SERVER( self, desktop_ip_addr:str=None ):
-        return  desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT)
-
-    def get_CUPS_SERVER( self, desktop_ip_addr=None ):
+    def get_CUPS_SERVER( self, desktop_ip_addr:str ):
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
 
     def get_nodeSelector( self ):
