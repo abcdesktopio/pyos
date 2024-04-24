@@ -274,14 +274,14 @@ class ManagerController(BaseController):
         if len(args)==1:
             # get information for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
-            describedesktop = oc.od.composer.describe_desktop_byname(name=desktop_name)
+            describedesktop = oc.od.composer.describe_desktop_byname(desktop_name)
             return describedesktop
 
         # use a specify desktop
         if len(args)==2 and args[1]=="container":
             # list container for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
-            container = oc.od.composer.list_container_byname(name=desktop_name)
+            container = oc.od.composer.list_container_byname(desktop_name)
             return container
 
         container_id = args[2]
@@ -292,7 +292,7 @@ class ManagerController(BaseController):
         if len(args)==3 and args[1]=="container":
             # list container for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
-            container = oc.od.composer.describe_container( name=desktop_name, container=container_id )
+            container = oc.od.composer.describe_container( desktop_name, container=container_id )
             return container
 
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
@@ -310,7 +310,7 @@ class ManagerController(BaseController):
         if len(args)==1:
             # delete a desktop
             # DELETE /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
-            delete_desktop = oc.od.composer.remove_desktop_byname(name=desktop_name)
+            delete_desktop = oc.od.composer.remove_desktop_byname(desktop_name)
             return delete_desktop
 
         # use a specify desktop
