@@ -3803,7 +3803,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         list_of_desktop = self.list_desktop()
         return len(list_of_desktop)
 
-    def list_desktop(self)->list:
+    def list_desktop(self, phase_filter:list=[ 'Running', 'Pending' ])->list:
         """list_desktop
 
         Returns:
@@ -3815,9 +3815,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=list_label_selector)
             if isinstance( myPodList, V1PodList):
                 for myPod in myPodList.items:
-                    mydesktop = self.pod2desktop( myPod )
-                    if isinstance( mydesktop, ODDesktop):
-                        myDesktopList.append( mydesktop.to_dict() )              
+                    if isinstance( myPod.status, V1PodStatus ):
+                        myPhase = myPod.status.phase
+                        # keep only Running pod
+                        if myPod.metadata.deletion_timestamp is None: 
+                            if myPhase in phase_filter :
+                                mydesktop = self.pod2desktop( myPod )
+                                if isinstance( mydesktop, ODDesktop):
+                                    myDesktopList.append( mydesktop.to_dict() )              
         except ApiException as e:
             self.logger.error(e)
 
