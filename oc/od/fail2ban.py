@@ -109,11 +109,32 @@ class ODFail2ban:
         
         return self.fail( value, collection_name = self.ip_collection_name )
 
-    def fail_login( self, value ):
+    def fail_login( self, value:str ):
         # if ban is not enable nothing to do
         if not self.enable: 
             return
         return self.fail( value, collection_name = self.login_collection_name )
+
+    def find_ban( self, value:str, collection_name:str ):
+        myban = {  'banexpireAfterSeconds':  self.banexpireAfterSeconds }
+        collection = self.get_collection( collection_name )
+        bfind = collection.find_one({ self.index_name: value})
+        if isinstance(bfind, dict):
+            myban['id'] = bfind.get('id')
+            myban['date'] = None
+            mydate = bfind.get('date')
+            if isinstance(mydate, datetime.datetime ):
+                myban['date'] = mydate.isoformat()
+            myban[self.counter] = bfind.get(self.counter,0)
+            myban['isban'] = myban[self.counter] >= self.failmaxvaluebeforeban
+
+        else:
+            myban['id'] = value
+            myban['date'] = None
+            myban[self.counter] = 0
+            myban['isban'] = False
+        return myban
+
 
     def isban( self, value, collection_name ):
         """isban
@@ -152,13 +173,15 @@ class ODFail2ban:
         return q
 
     def ban( self, value,  collection_name ):
-        myban = None
+        myban = {'n': 0, 'ok': 0}
         if not self.sanity( value, self.sanity_filter.get(collection_name)):
             self.logger.error("bad parameter sanity check")
-            return False
+            return myban
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
         myban = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=self.failmaxvaluebeforeban )
+        if isinstance( myban, pymongo.results.UpdateResult ):
+            myban = myban.raw_result
         return myban
 
     def drop( self, collection_name ):
@@ -167,14 +190,14 @@ class ODFail2ban:
         self.init_collection(collection_name=collection_name)
 
     def unban( self, value,  collection_name ):
-        myban = False
+        myban = {'n': 0, 'ok': 0}
         if not self.sanity( value, self.sanity_filter.get(collection_name)):
             self.logger.error("bad parameter sanity check")
-            return False
+            return myban
         collection = self.get_collection( collection_name )
         delete_one = collection.delete_one({ self.index_name: value})
         if isinstance( delete_one, pymongo.results.DeleteResult ):
-            myban = True
+            myban = delete_one.raw_result
         return myban
 
     def listban( self, collection_name ):
