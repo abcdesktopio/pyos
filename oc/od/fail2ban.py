@@ -115,7 +115,7 @@ class ODFail2ban:
             return
         return self.fail( value, collection_name = self.login_collection_name )
 
-    def find_ban( self, value:str, collection_name:str ):
+    def find_ban( self, value:str, collection_name:str )->dict:
         myban = {  'banexpireAfterSeconds':  self.banexpireAfterSeconds }
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
@@ -173,10 +173,11 @@ class ODFail2ban:
         return q
 
     def ban( self, value,  collection_name ):
-        myban = {'n': 0, 'ok': 0}
+        myban = None
         if not self.sanity( value, self.sanity_filter.get(collection_name)):
-            self.logger.error("bad parameter sanity check")
-            return myban
+            error_message = f"bad value sanity check {value} for {collection_name}"
+            self.logger.error(error_message)
+            return error_message
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
         myban = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=self.failmaxvaluebeforeban )
