@@ -1530,6 +1530,30 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return result
 
+    def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
+        resources_usage = {}
+        myPod = self.findPodByUser(authinfo, userinfo )
+
+        cgroup_map = { 
+            'memory': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
+            'cpu':    '/sys/fs/cgroup/cpu/cpuacct.usage'
+        }
+        
+        if isinstance(myPod, V1Pod ):
+            # delete this pod immediatly
+            myDesktop = self.pod2desktop( myPod, authinfo, userinfo )
+            for r in cgroup_map.keys():
+                command = [ 'cat',  cgroup_map.get(r)  ]
+                result = self.execwaitincontainer( desktop=myDesktop, command=command)
+                if isinstance(result, dict):
+                    stdout = result.get('stdout')
+                    if isinstance( stdout, str):
+                        usage = stdout.strip()
+                        resources_usage[r] = usage
+
+        return resources_usage
+
+
     def removePod( self, myPod:V1Pod, propagation_policy:str='Foreground', grace_period_seconds:int=None) -> V1Pod:
         """_summary_
             Remove a pod

@@ -280,18 +280,34 @@ class ManagerController(BaseController):
             describedesktop = oc.od.composer.describe_desktop_byname(desktop_name)
             return describedesktop
 
-        # use a specify desktop
-        if len(args)==2 and args[1]=="container":
-            # list container for a desktop
-            # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
-            container = oc.od.composer.list_container_byname(desktop_name)
-            return container
+        if len(args) > 1:
 
-        container_id = args[2]
-        if not isinstance( container_id, str):
-            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+            if args[1]=="resources_usage":
+                # specify desktop
+                if len(args)==2 :
+                    # list container for a desktop
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/mem
+                    resource = oc.od.composer.get_desktop_resources_usage(desktop_name)
+                    return resource
 
-        # use a specify desktop
+            if args[1]=="container":
+                # specify desktop
+                if len(args)==2 :
+                    # list container for a desktop
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
+                    container = oc.od.composer.list_container_byname(desktop_name)
+                    return container
+
+                if len(args)==3:
+                    container_id = args[2]
+                    if not isinstance( container_id, str):
+                        raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+                    # list container for a desktop
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
+                    container = oc.od.composer.describe_container( desktop_name, container=container_id )
+                    return container
+
+        # specify desktop and specify container
         if len(args)==3 and args[1]=="container":
             # list container for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
@@ -360,6 +376,10 @@ class ManagerController(BaseController):
         if len(args)!=1:
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         ban = services.fail2ban.ban( args[0], collection_name=collection)
+        if ban is None:
+            raise cherrypy.HTTPError(status=500, message='Invalid type parameters bad request')
+        if isinstance( ban, str ):
+            raise cherrypy.HTTPError(status=400, message=ban)
         return ban
 
 
