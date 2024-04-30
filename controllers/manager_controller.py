@@ -16,12 +16,15 @@
 import logging
 import cherrypy
 
+import distutils.util
+from typing_extensions import assert_type
+
 from oc.od.base_controller import BaseController
 import oc.od.composer
 import oc.od.services
 import oc.cherrypy
 import oc.logging
-import distutils.util
+
 from oc.od.services import services
 
 
@@ -250,8 +253,8 @@ class ManagerController(BaseController):
         self.is_permit_request()
         if cherrypy.request.method == 'GET':
             return self.handle_ban_GET( collection, args )
-        elif cherrypy.request.method == 'PUT':
-            return self.handle_ban_PUT( collection, args )  
+        elif cherrypy.request.method == 'POST':
+            return self.handle_ban_POST( collection, args )  
         elif cherrypy.request.method == 'DELETE':
             return self.handle_ban_DELETE( collection, args )              
 
@@ -325,25 +328,31 @@ class ManagerController(BaseController):
 
  
 
-    def handle_ban_GET( self, collection, args ):
+    def handle_ban_GET( self, collection:str, args:tuple ):
         self.logger.debug('')
+        assert_type( collection, str )
 
         # handle GET request to ban 
         if not services.fail2ban.iscollection( collection ):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
-        if len(args)!=0:
-           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
-        # /API/ban/ipaddr 
-        # /API/ban/login 
-        # list all desktops
-        listban = services.fail2ban.listban( collection_name=collection )
-        return listban
+        if len(args)==0:
+            # /API/ban/ipaddr : list all ban
+            # /API/ban/login  : list all ban
+            listban = services.fail2ban.listban( collection_name=collection )
+            return listban
+        elif len(args)==1:
+            name = args[0]
+            ban_result = services.fail2ban.find_ban( name, collection_name=collection)
+            return ban_result
+        else:
+            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
+     
 
-    def handle_ban_PUT( self, collection, args ):
+    def handle_ban_POST( self, collection:str, args:tuple ):
         self.logger.debug('')
-        # handle GET request to ban 
+        # handle POST request to ban 
         if not services.fail2ban.iscollection( collection ):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
@@ -356,7 +365,7 @@ class ManagerController(BaseController):
 
     def handle_ban_DELETE( self, collection, args ):
         self.logger.debug('')
-        # handle GET request to ban 
+        # handle DELETE request to ban 
         if not services.fail2ban.iscollection( collection ):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
