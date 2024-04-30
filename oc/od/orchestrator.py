@@ -19,7 +19,7 @@ import oc.logging
 from oc.od.apps import ODApps
 import oc.od.error
 import oc.od.settings
-import oc.lib 
+import oc.lib
 import oc.auth.namedlib
 import os
 import time
@@ -1557,7 +1557,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 namespace=self.namespace, 
                 grace_period_seconds=grace_period_seconds, 
                 propagation_policy=propagation_policy 
-            ) 
+            )
+
         except ApiException as e:
             self.logger.error( str(e) )
 
@@ -1586,11 +1587,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type=None)
         for secret_name in dict_secret.keys():
             try:
+                self.logger.debug( f"deleting secret name {secret_name}")
                 v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
                 if not isinstance(v1status,V1Status) :
                     self.logger.error( 'invalid V1Status type return by delete_namespaced_secret')
                     continue
-                self.logger.debug(f"secret={secret_name} status={v1status.status}") 
+                self.logger.debug(f"deleted secret={secret_name} status={v1status.status}") 
                 if v1status.status != 'Success':
                     self.logger.error(f"secret {secret_name} can not be deleted {v1status}" ) 
                     bReturn = bReturn and False
@@ -1634,7 +1636,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 bReturn = bReturn and False
         return bReturn 
 
-    def removepodindesktop(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:V1Pod=None )->bool:
+    def removepodindesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None )->bool:
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1644,8 +1646,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if isinstance(myPod, V1Pod ):
             # delete this pod immediatly
-            deletedpod = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
-            if isinstance(deletedpod,V1Pod) :
+            deletedpod = self.removePod( authinfo=authinfo, userinfo=userinfo, myPod=myPod, propagation_policy='Foreground', grace_period_seconds=0 )
+            if isinstance(deletedpod,V1Pod):
                 return True
         return False
     
@@ -1681,7 +1683,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return False
     """
 
-    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:V1Pod=None)->bool:
+    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None )->ODDesktop:
         """removedesktop
             remove kubernetes pod for a give user
             then remove kubernetes user's secrets and configmap
@@ -1691,12 +1693,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPod (V1Pod, optional): _description_. Defaults to None.
 
         Returns:
-            bool: _description_
+            myDesktop: ODDesktop
         """
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        deletedpod = False # default value 
+
         self.logger.info( f"removedesktop for {authinfo.provider} {userinfo.userid}" )
 
         # get the user's pod
@@ -1704,6 +1706,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPod = self.findPodByUser(authinfo, userinfo )
 
         if isinstance(myPod, V1Pod ):
+            # convert pod to ODDesktop as return value
+            myDesktop = self.pod2desktop( myPod, authinfo, userinfo)
+
             # create an array of threads to remove user objects  
             # removePod: remove the user pod 
             # removeAppInstanceKubernetesPod: remove all applications pod
@@ -1719,19 +1724,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 { 'fct':self.removepvc, 'args': [ authinfo, userinfo ] } 
             ]
    
+            self.logger.debug( 'starting removethreads')
             for removethread in removethreads:
                 self.logger.debug( f"calling thread {removethread['fct'].__name__}" )
                 removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
                 removethread['thread'].start()
 
-            deletedpod = True
+            self.logger.debug( 'waiting for removethreads.join()')
             # need to wait for removethread['thread'].join()
-            # for removethread in removethreads:
-            #    removethread['thread'].join()
+            for removethread in removethreads:
+                removethread['thread'].join()
 
+            self.logger.debug( 'removethreads done')
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
-        return deletedpod
+        return myDesktop
 
     def removepvc(self, authinfo:AuthInfo, userinfo:AuthUser)->V1PersistentVolumeClaim:
         self.logger.debug('')
@@ -3521,7 +3528,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         myDesktop.webhook = fillednetworkconfig.get('webhook')
         self.logger.debug('watch filldictcontextvalue created' )
-
         self.logger.debug('createdesktop end' )
         return myDesktop
 
@@ -3853,19 +3859,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if force is False:
             nCount = self.user_connect_count( myDesktop )
+            self.logger.debug( f"user_connect_count returns {nCount}")
             if nCount < 0: 
                 # if something wrong nCount is equal to -1 
                 # do not garbage this pod
                 # this is an error, return False
+                self.logger.debug( f"isgarbagable returns {bReturn}")
                 return bReturn 
             if nCount > 0 : 
                 # if a user is connected do not garbage this pod
                 # user is connected, return False
+                self.logger.debug( f"isgarbagable returns {bReturn}")
                 return bReturn 
             #
             # now nCount == 0 continue 
             # the garbage process
             # to test if we can delete this pod
+        else:
+            self.logger.debug( f"do not call user_connect_count because force={force}")
 
         # read the lastlogin datetime from metadata annotations
         lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
@@ -3874,10 +3885,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             now_datetime = datetime.datetime.now()
             delta_datetime = now_datetime - lastlogin_datetime
             delta_second = delta_datetime.total_seconds()
+
+            self.logger.debug( f"compare time is {delta_second} > {expirein}")
             # if delta_second is more than expirein in second
             if ( delta_second > expirein  ):
                 # this pod is gabagable
                 bReturn = True
+        else:
+            self.logger.error( f"unknow type for lastlogin_datetime {type(lastlogin_datetime)}, datetime.datetime is expected")
+
+        self.logger.debug( f"isgarbagable returns {bReturn}")
         return bReturn
 
 
