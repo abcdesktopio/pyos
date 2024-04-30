@@ -1535,8 +1535,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myPod = self.findPodByUser(authinfo, userinfo )
 
         cgroup_map = { 
-            'memory': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
-            'cpu':    '/sys/fs/cgroup/cpu/cpuacct.usage'
+            'memory.usage_in_bytes': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
+            'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage'
         }
         
         if isinstance(myPod, V1Pod ):
@@ -1548,8 +1548,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if isinstance(result, dict):
                     stdout = result.get('stdout')
                     if isinstance( stdout, str):
-                        usage = stdout.strip()
-                        resources_usage[r] = usage
+                        resources_usage[r] = stdout.strip()
 
         return resources_usage
 
