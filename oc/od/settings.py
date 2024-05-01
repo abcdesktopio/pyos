@@ -358,7 +358,13 @@ def init_desktop():
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
-
+    desktop['resources_usage_cgroup_map'] = gconfig.get('desktop.resources_usage_cgroup_map', 
+            {
+            'memory.usage_in_bytes': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
+            'memory.limit_in_bytes': '/sys/fs/cgroup/memory/memory.limit_in_bytes',
+            'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage',
+            'cpu.cfs_quota_us': '/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us'
+        } )
    
 
     desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )

@@ -1531,14 +1531,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return result
 
     def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
-        resources_usage = {}
+   
+        resources_usage = { 'timestamp': time.time() }
+        cgroup_map = oc.od.settings.desktop['resources_usage_cgroup_map']
         myPod = self.findPodByUser(authinfo, userinfo )
 
-        cgroup_map = { 
-            'memory.usage_in_bytes': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
-            'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage'
-        }
-        
         if isinstance(myPod, V1Pod ):
             # delete this pod immediatly
             myDesktop = self.pod2desktop( myPod, authinfo, userinfo )
