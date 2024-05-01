@@ -1666,7 +1666,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if isinstance(myPod, V1Pod ):
             # delete this pod immediatly
-            deletedpod = self.removePod( authinfo=authinfo, userinfo=userinfo, myPod=myPod, propagation_policy='Foreground', grace_period_seconds=0 )
+            deletedpod = self.removePod( myPod=myPod, propagation_policy='Foreground', grace_period_seconds=0 )
             if isinstance(deletedpod,V1Pod):
                 return True
         return False
