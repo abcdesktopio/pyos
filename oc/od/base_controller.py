@@ -196,23 +196,27 @@ class BaseController(object):
                if bReturn is True:
                     break 
           return bReturn
+     
+     def raise_http_error_message( self, error_message:str, status=403 ):
+          self.logger.error( error_message )
+          raise cherrypy.HTTPError( status, error_message)
 
      def is_permit_request(self):
           
           if not self.enable :
-               raise cherrypy.HTTPError( 400, "The controller is disabled in configuration file")
+               self.raise_http_error_message( '403.10 - Invalid configuration' )
 
           # Check if the controller has an apikey filter 
           # if set it must match to the apikey list entries
           if not self.apifilter():
                # 403 -  rejected.
-               raise cherrypy.HTTPError(status=403, message='X-API-Key http header is denied')
+               self.raise_http_error_message( '403.1 - Execute access forbidden' )
 
           # Check if the controller has an ip filter 
           # if set it must match to the ip network entries
           if not self.ipfilter():
                # 403.6 - IP address rejected.
-               raise cherrypy.HTTPError(status=403, message='ip address is denied')
+               self.raise_http_error_message( '403.6 - IP address rejected' )
 
           if isinstance( self.requestsallowed, dict ):
                # read the request path
@@ -220,19 +224,18 @@ class BaseController(object):
                arg = path.split('/')
                if len( arg ) < 3 : 
                     # the min value is 3
-                    self.logger.error( 'request is denied' )
-                    raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
+                    self.raise_http_error_message( '403.12 - Mapper denied access. Invalid request' )
 
                # read example
                # 'getdesktopdescription' from str '/composer/getdesktopdescription'
                request_info = arg[2]
+
                # check if method is allowed in config file
                is_allowed = self.requestsallowed.get( request_info )
 
                # if is_allowed is None, do not raise Error
                if is_allowed is False :
-                    self.logger.error( 'request is denied' )
-                    raise cherrypy.HTTPError(400, 'Request is denied by configuration file')
+                    self.raise_http_error_message( '403.8 - Site access denied' )
 
      def apifilter(self):
           self.logger.debug('')
