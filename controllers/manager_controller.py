@@ -40,6 +40,15 @@ class ManagerController(BaseController):
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
 
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def healtz(self):
+        # check if request is allowed, raise an exception if deny
+        self.is_permit_request()
+        cherrypy.response.notrace = True
+        return { 'controler': self.__class__.__name__, 'status': 'ok' }
+
+
     # buildapplist request is protected by is_permit_request()
     @cherrypy.expose
     @cherrypy.tools.json_out()
