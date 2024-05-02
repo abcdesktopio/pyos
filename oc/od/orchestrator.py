@@ -1906,6 +1906,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         annotations = { 'lastlogin_datetime': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") } 
         return annotations
 
+
     def read_pod_annotations_lastlogin_datetime(self, pod:V1Pod )->datetime.datetime:
         """read_pod_annotations_lastlogin_datetime
             read pod annotations data lastlogin_datetime value
@@ -1917,10 +1918,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             datetime: a datetime from pod.metadata.annotations.get('lastlogin_datetime') None if not set
         """
         resumed_datetime = None
-        str_lastlogin_datetime = pod.metadata.annotations.get('lastlogin_datetime')
-        if isinstance(str_lastlogin_datetime,str):
-            resumed_datetime = datetime.datetime.strptime(str_lastlogin_datetime, "%Y-%m-%dT%H:%M:%S")
+        try:
+            str_lastlogin_datetime = pod.metadata.annotations.get('lastlogin_datetime')
+            if isinstance(str_lastlogin_datetime,str):
+                resumed_datetime = datetime.datetime.strptime(str_lastlogin_datetime, "%Y-%m-%dT%H:%M:%S")
+        except Exception as e:
+            self.logger.error( e ) 
         return resumed_datetime
+
+    def read_pod_creation_timestamp(self, pod:V1Pod )->str:
+        """read_pod_annotations_lastlogin_datetime
+            read pod annotations data lastlogin_datetime value
+
+        Args:
+            pod (V1Pod): kubernetes pod
+
+        Returns:
+            str: string datetime iso formated else None if error
+        """
+        isoformat_creation_timestamp = None
+        try:
+            isoformat_creation_timestamp = datetime.datetime.isoformat(pod.metadata.creation_timestamp)
+        except Exception as e:
+            self.logger.error( e ) 
+        return isoformat_creation_timestamp
+
 
     def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser)->ODDesktop:
         """resume desktop update the lastconnectdatetime annotations data
@@ -3796,6 +3818,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance(storage_container, V1ContainerStatus):
            storage_container_id = storage_container.container_id
 
+        
+        isoformat_creation_timestamp = self.read_pod_creation_timestamp( pod )
+        
         # Build the ODDesktop Object 
         myDesktop = oc.od.desktop.ODDesktop(
             nodehostname=pod.spec.node_name, 
@@ -3816,7 +3841,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             websocketroute = pod.metadata.labels.get('websocketroute'),
             storage_container_id = storage_container_id,
             labels = pod.metadata.labels,
-            uid = pod.metadata.uid
+            uid = pod.metadata.uid,
+            creation_timestamp = isoformat_creation_timestamp
         )
         return myDesktop
 
