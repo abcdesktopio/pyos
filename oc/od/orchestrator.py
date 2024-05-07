@@ -4146,9 +4146,13 @@ class ODAppInstanceBase(object):
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
             env.update(authinfo.data.get('identity', {}))
 
-        custome_env = self.overwrite_environment_variable_for_application( myDesktop )
-        if isinstance( custome_env, dict ):
-            env.update( custome_env )
+        overwrite_environment_env = self.overwrite_environment_variable_for_application( myDesktop )
+        if isinstance( overwrite_environment_env, list ):
+            for new_env in overwrite_environment_env :
+                if isinstance( new_env, dict ):
+                    env.update( new_env )
+        if isinstance( overwrite_environment_env, dict ):
+            env.update( overwrite_environment_env )
 
         # convert env dictionnary to env list format for kubernetes
         envlist = ODOrchestratorKubernetes.envdict_to_kuberneteslist( env )
