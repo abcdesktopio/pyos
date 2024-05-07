@@ -4075,7 +4075,9 @@ class ODAppInstanceBase(object):
         if not isinstance( command_overwrite_environment_variable_for_application, str ):
             return dictenv
         # add type as parameter
-        command = [ command_overwrite_environment_variable_for_application, self.type ]
+        # ./overwrite_environment_variable_for_application.sh --type ephemeral_container
+        # ./overwrite_environment_variable_for_application.sh --type pod_application
+        command = [ command_overwrite_environment_variable_for_application, "--type", {self.type} ]
         # run the command and wait for stdout
         result = self.orchestrator.execwaitincontainer( myDesktop, command )
         if not isinstance(result,dict):
