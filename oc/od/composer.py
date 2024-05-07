@@ -17,9 +17,9 @@
 import logging
 from typing_extensions import assert_type
 import requests
+
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
-
 import oc.od.settings as settings # Desktop settings lib
 import oc.pyutils
 import oc.logging
@@ -85,7 +85,7 @@ def securitypoliciesmatchlabelvalue( desktop:ODDesktop, authinfo:AuthInfo, label
     return result
 
 
-def opendesktop(authinfo, userinfo, args ):
+def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, args ):
     """open a new or return a desktop
     Args:
         authinfo (AuthInfo): authentification data
@@ -198,7 +198,7 @@ def runwebhook( c, messageinfo=None ):
 def remove_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.removedesktop( authinfo, userinfo )
+    return removedesktop( authinfo, userinfo )
 
 def stop_container_byname( desktop_name:str, container ):
     myOrchestrator = selectOrchestrator()  
@@ -224,6 +224,11 @@ def remove_container_byname(desktop_name: str, container_id:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
     return myOrchestrator.removeContainerApp(authinfo,userinfo,container_id=container_id)
+
+def get_desktop_resources_usage(desktop_name:str):
+    myOrchestrator = selectOrchestrator()    
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo )
 
 
 def fakednsquery( userid ):
@@ -320,7 +325,8 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     """
     myOrchestrator = selectOrchestrator()    
     # remove the desktop
-    removed_desktop = myOrchestrator.removedesktop( authinfo, userinfo )
+    myDesktop = myOrchestrator.removedesktop( authinfo, userinfo )
+    removed_desktop = isinstance( myDesktop, ODDesktop)
     return removed_desktop
 
 

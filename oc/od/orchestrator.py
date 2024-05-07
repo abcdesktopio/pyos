@@ -19,7 +19,7 @@ import oc.logging
 from oc.od.apps import ODApps
 import oc.od.error
 import oc.od.settings
-import oc.lib 
+import oc.lib
 import oc.auth.namedlib
 import os
 import time
@@ -1530,6 +1530,26 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return result
 
+    def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
+   
+        resources_usage = { 'timestamp': time.time() }
+        cgroup_map = oc.od.settings.desktop['resources_usage_cgroup_map']
+        myPod = self.findPodByUser(authinfo, userinfo )
+
+        if isinstance(myPod, V1Pod ):
+            # delete this pod immediatly
+            myDesktop = self.pod2desktop( myPod, authinfo, userinfo )
+            for r in cgroup_map.keys():
+                command = [ 'cat',  cgroup_map.get(r)  ]
+                result = self.execwaitincontainer( desktop=myDesktop, command=command)
+                if isinstance(result, dict):
+                    stdout = result.get('stdout')
+                    if isinstance( stdout, str):
+                        resources_usage[r] = stdout.strip()
+
+        return resources_usage
+
+
     def removePod( self, myPod:V1Pod, propagation_policy:str='Foreground', grace_period_seconds:int=None) -> V1Pod:
         """_summary_
             Remove a pod
@@ -1557,7 +1577,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 namespace=self.namespace, 
                 grace_period_seconds=grace_period_seconds, 
                 propagation_policy=propagation_policy 
-            ) 
+            )
+
         except ApiException as e:
             self.logger.error( str(e) )
 
@@ -1586,11 +1607,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type=None)
         for secret_name in dict_secret.keys():
             try:
+                self.logger.debug( f"deleting secret name {secret_name}")
                 v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
                 if not isinstance(v1status,V1Status) :
                     self.logger.error( 'invalid V1Status type return by delete_namespaced_secret')
                     continue
-                self.logger.debug(f"secret={secret_name} status={v1status.status}") 
+                self.logger.debug(f"deleted secret={secret_name} status={v1status.status}") 
                 if v1status.status != 'Success':
                     self.logger.error(f"secret {secret_name} can not be deleted {v1status}" ) 
                     bReturn = bReturn and False
@@ -1634,7 +1656,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 bReturn = bReturn and False
         return bReturn 
 
-    def removepodindesktop(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:V1Pod=None )->bool:
+    def removepodindesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None )->bool:
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1644,8 +1666,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if isinstance(myPod, V1Pod ):
             # delete this pod immediatly
-            deletedpod = self.removePod( myPod, propagation_policy='Foreground', grace_period_seconds=0 )
-            if isinstance(deletedpod,V1Pod) :
+            deletedpod = self.removePod( myPod=myPod, propagation_policy='Foreground', grace_period_seconds=0 )
+            if isinstance(deletedpod,V1Pod):
                 return True
         return False
     
@@ -1681,7 +1703,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return False
     """
 
-    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser , myPod:V1Pod=None)->bool:
+    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None )->ODDesktop:
         """removedesktop
             remove kubernetes pod for a give user
             then remove kubernetes user's secrets and configmap
@@ -1691,12 +1713,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPod (V1Pod, optional): _description_. Defaults to None.
 
         Returns:
-            bool: _description_
+            myDesktop: ODDesktop
         """
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        deletedpod = False # default value 
+
         self.logger.info( f"removedesktop for {authinfo.provider} {userinfo.userid}" )
 
         # get the user's pod
@@ -1704,6 +1726,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             myPod = self.findPodByUser(authinfo, userinfo )
 
         if isinstance(myPod, V1Pod ):
+            # convert pod to ODDesktop as return value
+            myDesktop = self.pod2desktop( myPod, authinfo, userinfo)
+
             # create an array of threads to remove user objects  
             # removePod: remove the user pod 
             # removeAppInstanceKubernetesPod: remove all applications pod
@@ -1719,19 +1744,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 { 'fct':self.removepvc, 'args': [ authinfo, userinfo ] } 
             ]
    
+            self.logger.debug( 'starting removethreads')
             for removethread in removethreads:
                 self.logger.debug( f"calling thread {removethread['fct'].__name__}" )
                 removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
                 removethread['thread'].start()
 
-            deletedpod = True
+            self.logger.debug( 'waiting for removethreads.join()')
             # need to wait for removethread['thread'].join()
-            # for removethread in removethreads:
-            #    removethread['thread'].join()
+            for removethread in removethreads:
+                removethread['thread'].join()
 
+            self.logger.debug( 'removethreads done')
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
-        return deletedpod
+        return myDesktop
 
     def removepvc(self, authinfo:AuthInfo, userinfo:AuthUser)->V1PersistentVolumeClaim:
         self.logger.debug('')
@@ -1879,6 +1906,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         annotations = { 'lastlogin_datetime': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") } 
         return annotations
 
+
     def read_pod_annotations_lastlogin_datetime(self, pod:V1Pod )->datetime.datetime:
         """read_pod_annotations_lastlogin_datetime
             read pod annotations data lastlogin_datetime value
@@ -1890,10 +1918,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             datetime: a datetime from pod.metadata.annotations.get('lastlogin_datetime') None if not set
         """
         resumed_datetime = None
-        str_lastlogin_datetime = pod.metadata.annotations.get('lastlogin_datetime')
-        if isinstance(str_lastlogin_datetime,str):
-            resumed_datetime = datetime.datetime.strptime(str_lastlogin_datetime, "%Y-%m-%dT%H:%M:%S")
+        try:
+            str_lastlogin_datetime = pod.metadata.annotations.get('lastlogin_datetime')
+            if isinstance(str_lastlogin_datetime,str):
+                resumed_datetime = datetime.datetime.strptime(str_lastlogin_datetime, "%Y-%m-%dT%H:%M:%S")
+        except Exception as e:
+            self.logger.error( e ) 
         return resumed_datetime
+
+    def read_pod_creation_timestamp(self, pod:V1Pod )->str:
+        """read_pod_annotations_lastlogin_datetime
+            read pod annotations data lastlogin_datetime value
+
+        Args:
+            pod (V1Pod): kubernetes pod
+
+        Returns:
+            str: string datetime iso formated else None if error
+        """
+        isoformat_creation_timestamp = None
+        try:
+            isoformat_creation_timestamp = datetime.datetime.isoformat(pod.metadata.creation_timestamp)
+        except Exception as e:
+            self.logger.error( e ) 
+        return isoformat_creation_timestamp
+
 
     def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser)->ODDesktop:
         """resume desktop update the lastconnectdatetime annotations data
@@ -3521,7 +3570,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         myDesktop.webhook = fillednetworkconfig.get('webhook')
         self.logger.debug('watch filldictcontextvalue created' )
-
         self.logger.debug('createdesktop end' )
         return myDesktop
 
@@ -3770,6 +3818,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance(storage_container, V1ContainerStatus):
            storage_container_id = storage_container.container_id
 
+        
+        isoformat_creation_timestamp = self.read_pod_creation_timestamp( pod )
+        
         # Build the ODDesktop Object 
         myDesktop = oc.od.desktop.ODDesktop(
             nodehostname=pod.spec.node_name, 
@@ -3790,7 +3841,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             websocketroute = pod.metadata.labels.get('websocketroute'),
             storage_container_id = storage_container_id,
             labels = pod.metadata.labels,
-            uid = pod.metadata.uid
+            uid = pod.metadata.uid,
+            creation_timestamp = isoformat_creation_timestamp
         )
         return myDesktop
 
@@ -3853,19 +3905,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         if force is False:
             nCount = self.user_connect_count( myDesktop )
+            self.logger.debug( f"user_connect_count returns {nCount}")
             if nCount < 0: 
                 # if something wrong nCount is equal to -1 
                 # do not garbage this pod
                 # this is an error, return False
+                self.logger.debug( f"isgarbagable returns {bReturn}")
                 return bReturn 
             if nCount > 0 : 
                 # if a user is connected do not garbage this pod
                 # user is connected, return False
+                self.logger.debug( f"isgarbagable returns {bReturn}")
                 return bReturn 
             #
             # now nCount == 0 continue 
             # the garbage process
             # to test if we can delete this pod
+        else:
+            self.logger.debug( f"do not call user_connect_count because force={force}")
 
         # read the lastlogin datetime from metadata annotations
         lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
@@ -3874,10 +3931,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             now_datetime = datetime.datetime.now()
             delta_datetime = now_datetime - lastlogin_datetime
             delta_second = delta_datetime.total_seconds()
+
+            self.logger.debug( f"compare time is {delta_second} > {expirein}")
             # if delta_second is more than expirein in second
             if ( delta_second > expirein  ):
                 # this pod is gabagable
                 bReturn = True
+        else:
+            self.logger.error( f"unknow type for lastlogin_datetime {type(lastlogin_datetime)}, datetime.datetime is expected")
+
+        self.logger.debug( f"isgarbagable returns {bReturn}")
         return bReturn
 
 
@@ -4000,6 +4063,34 @@ class ODAppInstanceBase(object):
 
     def get_CUPS_SERVER( self, desktop_ip_addr:str=None ):
         raise NotImplementedError('get_CUPS_SERVER')
+    
+    def overwrite_environment_variable_for_application( self, myDesktop:ODDesktop )->dict:
+        self.logger.debug('')
+        dictenv = None
+        assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
+    
+        # get overwrite_environment_variable_for_application from config file 
+        command_overwrite_environment_variable_for_application = oc.od.settings.desktop.get('overwrite_environment_variable_for_application')
+        # if overwrite_environment_variable_for_application is set in config file and is str
+        if not isinstance( command_overwrite_environment_variable_for_application, str ):
+            return dictenv
+        # add type as parameter
+        # ./overwrite_environment_variable_for_application.sh --type ephemeral_container
+        # ./overwrite_environment_variable_for_application.sh --type pod_application
+        command = [ command_overwrite_environment_variable_for_application, "--type", self.type ]
+        # run the command and wait for stdout
+        result = self.orchestrator.execwaitincontainer( myDesktop, command )
+        if not isinstance(result,dict):
+            return dictenv
+
+        self.logger.info( f"command={command} returns exitcode={result.get('ExitCode')} output={result.get('stdout')}" )
+        if result.get('ExitCode') == 0 and result.get('stdout'):
+            try:
+                dictenv = json.loads( result.get('stdout') )
+            except ApiException as e:
+                self.logger.error(e)
+
+        return dictenv
 
     def get_env_for_appinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
@@ -4054,6 +4145,14 @@ class ODAppInstanceBase(object):
             env['ARGS'] = app.get('args')
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
             env.update(authinfo.data.get('identity', {}))
+
+        overwrite_environment_env = self.overwrite_environment_variable_for_application( myDesktop )
+        if isinstance( overwrite_environment_env, list ):
+            for new_env in overwrite_environment_env :
+                if isinstance( new_env, dict ):
+                    env.update( new_env )
+        if isinstance( overwrite_environment_env, dict ):
+            env.update( overwrite_environment_env )
 
         # convert env dictionnary to env list format for kubernetes
         envlist = ODOrchestratorKubernetes.envdict_to_kuberneteslist( env )
@@ -4313,7 +4412,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         result.append( mycontainer )
 
         return result
-
 
 
     def create(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):

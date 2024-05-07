@@ -358,9 +358,16 @@ def init_desktop():
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
-
+    desktop['resources_usage_cgroup_map'] = gconfig.get('desktop.resources_usage_cgroup_map', 
+            {
+            'memory.usage_in_bytes': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
+            'memory.limit_in_bytes': '/sys/fs/cgroup/memory/memory.limit_in_bytes',
+            'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage',
+            'cpu.cfs_quota_us': '/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us'
+        } )
+    desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
    
-
+    # Kubernetes timeout 
     desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
     desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
     desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 30 )
@@ -383,7 +390,7 @@ def init_desktop():
     desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
     # environmentlocalrules must be a dict 
     if not isinstance( desktop['environmentlocalrules'], dict ):
-        desktop['environmentlocalrules'] = {}   
+        desktop['environmentlocalrules'] = {}  
 
     init_balloon()
 

@@ -18,14 +18,10 @@ import json
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
 @oc.logging.with_logger()
 class ODDesktop(object):
 
-    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None, storage_container_id=None, labels=None, websockettcpport=None, uid=None  ):
+    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None, storage_container_id=None, labels=None, websockettcpport=None, uid=None, creation_timestamp=None  ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
@@ -53,6 +49,7 @@ class ODDesktop(object):
         self._storage_container_id  = storage_container_id
         self._labels                = labels
         self._uid                   = uid
+        self._creation_timestamp    = creation_timestamp
 
     # id is the container id in docker mode
     # id is the pod id in kubernetes node
@@ -95,6 +92,10 @@ class ODDesktop(object):
     @property
     def hostname(self):
         return self._hostname
+    
+    @property
+    def creation_timestamp(self):
+        return self._creation_timestamp
 
     @property
     def fqdn(self):
@@ -208,6 +209,7 @@ class ODDesktop(object):
             'ipAddr':   self._ipAddr,
             'status':   self._status,
             'container_id' : self._container_id,
+            'creation_timestamp': self._creation_timestamp,
             'nodehostname' : self._nodehostname,
             'vncPassword' : self._vncPassword,
             'hostname' : self._hostname,

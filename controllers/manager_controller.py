@@ -16,12 +16,15 @@
 import logging
 import cherrypy
 
+import distutils.util
+from typing_extensions import assert_type
+
 from oc.od.base_controller import BaseController
 import oc.od.composer
 import oc.od.services
 import oc.cherrypy
 import oc.logging
-import distutils.util
+
 from oc.od.services import services
 
 
@@ -36,6 +39,15 @@ class ManagerController(BaseController):
     '''
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def healtz(self):
+        # check if request is allowed, raise an exception if deny
+        self.is_permit_request()
+        cherrypy.response.notrace = True
+        return { 'controler': self.__class__.__name__, 'status': 'ok' }
+
 
     # buildapplist request is protected by is_permit_request()
     @cherrypy.expose
@@ -250,8 +262,8 @@ class ManagerController(BaseController):
         self.is_permit_request()
         if cherrypy.request.method == 'GET':
             return self.handle_ban_GET( collection, args )
-        elif cherrypy.request.method == 'PUT':
-            return self.handle_ban_PUT( collection, args )  
+        elif cherrypy.request.method == 'POST':
+            return self.handle_ban_POST( collection, args )  
         elif cherrypy.request.method == 'DELETE':
             return self.handle_ban_DELETE( collection, args )              
 
@@ -277,18 +289,34 @@ class ManagerController(BaseController):
             describedesktop = oc.od.composer.describe_desktop_byname(desktop_name)
             return describedesktop
 
-        # use a specify desktop
-        if len(args)==2 and args[1]=="container":
-            # list container for a desktop
-            # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
-            container = oc.od.composer.list_container_byname(desktop_name)
-            return container
+        if len(args) > 1:
 
-        container_id = args[2]
-        if not isinstance( container_id, str):
-            raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+            if args[1]=="resources_usage":
+                # specify desktop
+                if len(args)==2 :
+                    # list container for a desktop
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/mem
+                    resource = oc.od.composer.get_desktop_resources_usage(desktop_name)
+                    return resource
 
-        # use a specify desktop
+            if args[1]=="container":
+                # specify desktop
+                if len(args)==2 :
+                    # list container for a desktop
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
+                    container = oc.od.composer.list_container_byname(desktop_name)
+                    return container
+
+                if len(args)==3:
+                    container_id = args[2]
+                    if not isinstance( container_id, str):
+                        raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+                    # list container for a desktop
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
+                    container = oc.od.composer.describe_container( desktop_name, container=container_id )
+                    return container
+
+        # specify desktop and specify container
         if len(args)==3 and args[1]=="container":
             # list container for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
@@ -325,25 +353,31 @@ class ManagerController(BaseController):
 
  
 
-    def handle_ban_GET( self, collection, args ):
+    def handle_ban_GET( self, collection:str, args:tuple ):
         self.logger.debug('')
+        assert_type( collection, str )
 
         # handle GET request to ban 
         if not services.fail2ban.iscollection( collection ):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
-        if len(args)!=0:
-           raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
-        # /API/ban/ipaddr 
-        # /API/ban/login 
-        # list all desktops
-        listban = services.fail2ban.listban( collection_name=collection )
-        return listban
+        if len(args)==0:
+            # /API/ban/ipaddr : list all ban
+            # /API/ban/login  : list all ban
+            listban = services.fail2ban.listban( collection_name=collection )
+            return listban
+        elif len(args)==1:
+            name = args[0]
+            ban_result = services.fail2ban.find_ban( name, collection_name=collection)
+            return ban_result
+        else:
+            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
+     
 
-    def handle_ban_PUT( self, collection, args ):
+    def handle_ban_POST( self, collection:str, args:tuple ):
         self.logger.debug('')
-        # handle GET request to ban 
+        # handle POST request to ban 
         if not services.fail2ban.iscollection( collection ):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
@@ -351,12 +385,16 @@ class ManagerController(BaseController):
         if len(args)!=1:
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         ban = services.fail2ban.ban( args[0], collection_name=collection)
+        if ban is None:
+            raise cherrypy.HTTPError(status=500, message='Invalid type parameters bad request')
+        if isinstance( ban, str ):
+            raise cherrypy.HTTPError(status=400, message=ban)
         return ban
 
 
     def handle_ban_DELETE( self, collection, args ):
         self.logger.debug('')
-        # handle GET request to ban 
+        # handle DELETE request to ban 
         if not services.fail2ban.iscollection( collection ):
            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
         if not isinstance( args, tuple):
