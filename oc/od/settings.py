@@ -365,8 +365,9 @@ def init_desktop():
             'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage',
             'cpu.cfs_quota_us': '/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us'
         } )
+    desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
    
-
+    # Kubernetes timeout 
     desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
     desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
     desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 30 )
@@ -389,7 +390,7 @@ def init_desktop():
     desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
     # environmentlocalrules must be a dict 
     if not isinstance( desktop['environmentlocalrules'], dict ):
-        desktop['environmentlocalrules'] = {}   
+        desktop['environmentlocalrules'] = {}  
 
     init_balloon()
 

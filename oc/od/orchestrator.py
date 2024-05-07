@@ -4063,6 +4063,32 @@ class ODAppInstanceBase(object):
 
     def get_CUPS_SERVER( self, desktop_ip_addr:str=None ):
         raise NotImplementedError('get_CUPS_SERVER')
+    
+    def overwrite_environment_variable_for_application( self, myDesktop:ODDesktop )->dict:
+        self.logger.debug('')
+        dictenv = None
+        assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
+    
+        # get overwrite_environment_variable_for_application from config file 
+        command_overwrite_environment_variable_for_application = oc.od.settings.desktop.get('overwrite_environment_variable_for_application')
+        # if overwrite_environment_variable_for_application is set in config file and is str
+        if not isinstance( command_overwrite_environment_variable_for_application, str ):
+            return dictenv
+        # add type as parameter
+        command = [ command_overwrite_environment_variable_for_application, self.type ]
+        # run the command and wait for stdout
+        result = self.orchestrator.execwaitincontainer( myDesktop, command )
+        if not isinstance(result,dict):
+            return dictenv
+
+        self.logger.info( f"command={command} returns exitcode={result.get('ExitCode')} output={result.get('stdout')}" )
+        if result.get('ExitCode') == 0 and result.get('stdout'):
+            try:
+                dictenv = json.loads( result.get('stdout') )
+            except ApiException as e:
+                self.logger.error(e)
+
+        return dictenv
 
     def get_env_for_appinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
@@ -4117,6 +4143,10 @@ class ODAppInstanceBase(object):
             env['ARGS'] = app.get('args')
         if hasattr(authinfo, 'data') and isinstance( authinfo.data, dict ):
             env.update(authinfo.data.get('identity', {}))
+
+        custome_env = self.overwrite_environment_variable_for_application( myDesktop )
+        if isinstance( custome_env, dict ):
+            env.update( custome_env )
 
         # convert env dictionnary to env list format for kubernetes
         envlist = ODOrchestratorKubernetes.envdict_to_kuberneteslist( env )
@@ -4376,7 +4406,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         result.append( mycontainer )
 
         return result
-
 
 
     def create(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
