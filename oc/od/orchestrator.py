@@ -1341,6 +1341,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         Returns:
             str: return the name of the localaccount volume same as secret 
+            None if not found
         """
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -3351,7 +3352,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
         localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
-        assert isinstance(localaccount_volume_name, str),  f"localaccount_volume_name has invalid type {type(localaccount_volume_name)}"
+        assert isinstance(localaccount_volume_name, str),  f"localaccount secret volume is not found, invalid type {type(localaccount_volume_name)} "
+        
         containers = {
             'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts.get('tmp') ] }, # printer uses tmp volume
             'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts.get(localaccount_volume_name), 
@@ -3621,8 +3623,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 for myPod in myPodList.items:
                     myPhase = myPod.status.phase
                     # keep only Running pod
-                    if myPod.metadata.deletion_timestamp is not None:
-                       myPhase = 'Terminating'
+                    if isinstance( myPod.metadata.deletion_timestamp, datetime.datetime ):
+                       continue
                     if myPhase in [ 'Running', 'Pending', 'Succeeded' ] :  # 'Init:0/1'
                         return myPod                    
                     
@@ -3892,29 +3894,44 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             bool: True if pod is garbageable
         """
         self.logger.debug('')
-        bReturn = False
-        assert isinstance(pod, V1Pod),    f"pod has invalid type {type(pod)}"
         assert isinstance(expirein, int), f"expirein has invalid type {type(expirein)}"
-        if pod.status.phase == 'Failed':
+        bReturn = False
+        if not isinstance( pod, V1Pod ):
+            self.logger.error(f"pod type error, V1Pod is expected, get type {type(pod)}")
+            self.logger.debug( f"isgarbagable returns {bReturn}")
+            return False
+        
+        if pod.status.phase == 'Failed' :
+            bReturn = True
             self.logger.warning(f"pod {pod.metadata.name} is in phase {pod.status.phase} reason {pod.status.reason}" )
-            return True
+            self.logger.debug( f"isgarbagable returns {bReturn}")
+            return bReturn
+        
+        if isinstance( pod.metadata.deletion_timestamp, datetime.datetime ):
+            self.logger.warning(f"pod {pod.metadata.name} has deletion_timestamp {pod.metadata.deletion_timestamp}" )
+            self.logger.debug( f"isgarbagable returns {bReturn}")
+            return bReturn
 
         myDesktop = self.pod2desktop( pod=pod )
         if not isinstance(myDesktop, ODDesktop):
-            return False
+            self.logger.debug( f"myDesktop has bad type, ODDesktop is expected, get {type(myDesktop)}")
+            self.logger.debug( f"isgarbagable returns {bReturn}")
+            return bReturn
 
         if force is False:
             nCount = self.user_connect_count( myDesktop )
-            self.logger.debug( f"user_connect_count returns {nCount}")
+            self.logger.debug( f"ask if the user is connected, user_connect_count returns {nCount}")
             if nCount < 0: 
                 # if something wrong nCount is equal to -1 
                 # do not garbage this pod
                 # this is an error, return False
+                self.logger.debug( f"nCount={nCount} this is an error")
                 self.logger.debug( f"isgarbagable returns {bReturn}")
                 return bReturn 
             if nCount > 0 : 
                 # if a user is connected do not garbage this pod
                 # user is connected, return False
+                self.logger.debug( f"the user is connected, nCount={nCount} nothing to do")
                 self.logger.debug( f"isgarbagable returns {bReturn}")
                 return bReturn 
             #
@@ -3929,6 +3946,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( lastlogin_datetime, datetime.datetime):
             # get the current time
             now_datetime = datetime.datetime.now()
+            self.logger.debug( f"lastlogin_datetime={lastlogin_datetime}" )
+            self.logger.debug( f"now_datetime={now_datetime}" )
             delta_datetime = now_datetime - lastlogin_datetime
             delta_second = delta_datetime.total_seconds()
 
@@ -4001,44 +4020,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( myPod, urllib3.response.HTTPResponse ) :  
             myPod = json.loads( myPod.data )
         return myPod
-
-    def garbagecollector( self, expirein:int, force=False )-> list :
-        """garbagecollector
-
-        Args:
-            expirein (int): garbage expired in millisecond 
-            force (bool, optional): force event if user is connected. Defaults to False.
-
-        Returns:
-            list: list of str, list of pod name garbaged
-        """
-        self.logger.debug('')
-        assert isinstance(expirein, int), f"expirein has invalid type {type(expirein)}"
-
-        garbaged = [] # list of garbaged pod
-        list_label_selector = [ 'type=' + self.x11servertype ]
-        for label_selector in list_label_selector:
-            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
-            if isinstance( myPodList, V1PodList):
-                for pod in myPodList.items:
-                    try: 
-                        if self.isgarbagable( pod, expirein, force ) is True:
-                            # pod is garbageable, remove it
-                            self.logger.info( f"{pod.metadata.name} is garbageable, remove it" )
-                            # fake an authinfo object
-                            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(pod)
-                            # remove desktop
-                            self.removedesktop( authinfo, userinfo, pod )
-                            # log remove desktop
-                            self.logger.info( f"{pod.metadata.name} is removed" )
-                            # add the name of the pod to the list of garbaged pod
-                            garbaged.append( pod.metadata.name )
-                        else:
-                            self.logger.info( f"{pod.metadata.name} isgarbagable return False, keep it running" )
-
-                    except ApiException as e:
-                        self.logger.error(e)
-        return garbaged
 
 
 @oc.logging.with_logger()
@@ -4761,7 +4742,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 for myPod in myPodList.items:
                     phase = myPod.status.phase
                     # keep only Running pod
-                    if myPod.metadata.deletion_timestamp is not None:
+                    if isinstance( myPod.metadata.deletion_timestamp, datetime.datetime ):
                         phase = 'Terminating'
 
                     app = {}
@@ -4936,13 +4917,10 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
             if len(myPodList.items)> 0:
                 for myPod in myPodList.items:
-                    myPhase = myPod.status.phase
                     # keep only Running pod
-                    if myPod.metadata.deletion_timestamp is not None:
-                       myPhase = 'Terminating'
-                    if myPhase != 'Running':
-                       continue # This pod is Terminating or not Running, skip it
-                    myrunningPodList.append(myPod)
+                    if myPod.metadata.deletion_timestamp is None and myPod.status.phase == 'Running':
+                        myrunningPodList.append(myPod)
+
         except ApiException as e:
             self.logger.info(f"Exception when calling list_namespaced_pod: {e}")
         return myrunningPodList
