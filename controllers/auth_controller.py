@@ -14,7 +14,7 @@
 import logging
 import cherrypy
 import chevron
-
+import oc.od.tracking
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
@@ -191,6 +191,9 @@ class AuthController(BaseController):
         # create auth token
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
         
+        # add entry in loginHistory database
+        oc.od.tracking.addnewentryinloginhistory( auth=response.result.auth, user=response.result.user )
+
         # redirect user html page
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
         cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
@@ -296,6 +299,7 @@ class AuthController(BaseController):
 
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
+        oc.od.tracking.addnewentryinloginhistory( auth=response.result.auth, user=response.result.user )
 
         return Results.success( message=response.reason, 
                                 result={'userid': response.result.user.userid,
