@@ -89,21 +89,21 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         mycollection = []
         try:            
             client = self.createclient(databasename)        
-            collection = client[databasename][collectionname]                        
-            if collection is not None:
+            collection = client[databasename][collectionname]    
+            if isinstance( collection, pymongo.collection.Collection ):
                 findcollection = collection.find() if myfilter is None else collection.find(filter=myfilter, limit=limit)
-                for obj in findcollection:
-                    id = obj.get('_id', None)  # should never be None
-                    if id is not None: 
-                        id = str(id) # translate type to string
-                    obj['_id'] = id
-                    mycollection.append(obj)
+                if isinstance( findcollection, pymongo.cursor.Cursor):
+                    for obj in findcollection:
+                        id = obj.get('_id', None)  # should never be None
+                        if id is not None: 
+                            id = str(id) # translate type to string
+                        obj['_id'] = id
+                        mycollection.append(obj)
             client.close()
         except pymongo.errors.ConnectionFailure  as e  :
-            self.logger.error( 'getcollection ' + str(e) ) 
+            self.logger.error( f"getcollection {e}" )
         except Exception  as e  :            
-            self.logger.error( 'getcollection ' + str(e) ) 
-
+            self.logger.error( f"getcollection {e}" )
         return mycollection
 
 
