@@ -317,23 +317,7 @@ class ComposerController(BaseController):
 
             # build a jwt token with desktop.internaluri
             jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-            # self.logger.info('jwttoken is %s -> %s ', desktop.internaluri, jwtdesktoptoken )
-            # self.logger.info('Service is running on node %s', str(desktop.nodehostname) )
             
-            # build an accounting data
-            datadict={  **user,
-                        'provider':     auth.providertype,
-                        'date':         datetime.datetime.utcnow().isoformat(),
-                        'useragent':    cherrypy.request.headers.get('User-Agent', None),
-                        'ipaddr':       webclient_sourceipaddr,
-                        'node':         desktop.nodehostname,
-                        'type':         'desktop'
-            }
-            # store the accouting data in collectionname 'loginHistory'
-            services.datastore.addtocollection( databasename='loginHistory', 
-                                                collectionname=user.userid, 
-                                                datadict=datadict)
-
             target = desktop.ipAddr
 
             if desktop.websocketrouting == 'bridge':
