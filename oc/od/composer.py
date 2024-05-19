@@ -20,7 +20,6 @@ import requests
 
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
-import oc.od.settings as settings # Desktop settings lib
 import oc.pyutils
 import oc.logging
 import oc.od.orchestrator
@@ -30,6 +29,9 @@ from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthU
 from oc.od.error import ODError
 import oc.od.appinstancestatus
 import oc.od.desktop
+import oc.od.tracking
+from kubernetes.client.models.v1_pod_list import V1PodList
+from kubernetes.client.rest import ApiException
 
 import subprocess
 import threading
@@ -110,7 +112,7 @@ def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, args ):
     logger.debug('finddesktop')
     desktop = finddesktop( authinfo, userinfo )
    
-    if isinstance(desktop, oc.od.desktop.ODDesktop) :
+    if isinstance(desktop, ODDesktop) :
         # ok we find a desktop
         # let's check if security policies match the desktop
         logger.debug('a desktop has been found')
@@ -138,6 +140,8 @@ def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, args ):
                     services.messageinfo.push(userinfo.userid, 'e.Your desktop can not be deleted')
                     return 'Your desktop can not be deleted' 
             else:
+                if isinstance( desktop, ODDesktop):
+                    oc.od.tracking.addresumenewentryindesktophistory(authinfo, userinfo, desktop )
                 return desktop
         else:
             # security polcies does not match
@@ -161,8 +165,9 @@ def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, args ):
     # create a new desktop
     #
     logger.debug( 'Cold start, creating your new desktop' )
-    desktop = createdesktop( authinfo, userinfo, args) 
-    if isinstance( desktop, oc.od.desktop.ODDesktop) :
+    desktop = createdesktop( authinfo, userinfo, args)
+    if isinstance( desktop, ODDesktop) :
+        oc.od.tracking.addstartnewentryindesktophistory(authinfo, userinfo, desktop )
         services.accounting.accountex( desktoptype, 'createsuccess')
     else:
         services.accounting.accountex( desktoptype, 'createfailed')
@@ -319,14 +324,18 @@ def removedesktop( authinfo:AuthInfo, userinfo:AuthUser ):
     Args:
         authinfo (AuthInfo): authentification data
         userinfo (AuthUser): user data 
-
+        
     Returns:
         [bool]: True if the desktop is removed 
     """
-    myOrchestrator = selectOrchestrator()    
+    
+    myOrchestrator = selectOrchestrator()
+
     # remove the desktop
     myDesktop = myOrchestrator.removedesktop( authinfo, userinfo )
     removed_desktop = isinstance( myDesktop, ODDesktop)
+    if removed_desktop is True:
+        oc.od.tracking.addstopnewentryindesktophistory(authinfo, userinfo, myDesktop )
     return removed_desktop
 
 
@@ -767,10 +776,50 @@ def launch_app_in_process(orchestrator, app, appinstance, userargs):
 """
 
 def garbagecollector( expirein:int, force:bool=False ):
-    logger.debug('')
+
+    """garbagecollector
+
+    Args:
+        expirein (int): garbage expired in millisecond 
+        force (bool, optional): force event if user is connected. Defaults to False.
+
+    Returns:
+        list: list of str, list of pod name garbaged
+    """
+    assert isinstance(expirein, int), f"expirein has invalid type {type(expirein)}"
     # new Orchestrator Object
-    myOrchestrator = selectOrchestrator()   
-    return myOrchestrator.garbagecollector( expirein=expirein, force=force )
+    myOrchestrator = selectOrchestrator() 
+    # list of garbaged pod 
+    garbaged = [] 
+    list_label_selector = [ 'type=' + myOrchestrator.x11servertype ]
+    for label_selector in list_label_selector:
+        # list all graphical pods 
+        myPodList = myOrchestrator.kubeapi.list_namespaced_pod(myOrchestrator.namespace, label_selector=label_selector)
+        if isinstance( myPodList, V1PodList):
+            for pod in myPodList.items:
+                try: 
+                    isgarbagable = myOrchestrator.isgarbagable( pod, expirein, force )
+                    myOrchestrator.logger.info( f"{pod.metadata.name} isgarbagable return {isgarbagable}" )
+                    if isgarbagable is True:
+                        # pod is garbageable, remove it
+                        # fake an authinfo object
+                        (authinfo,userinfo) = myOrchestrator.extract_userinfo_authinfo_from_pod(pod)
+                        # remove desktop
+                        myDesktop = myOrchestrator.removedesktop( authinfo, userinfo, pod )
+                        removed_desktop = isinstance( myDesktop, ODDesktop)
+                        if removed_desktop is True:
+                            oc.od.tracking.addstopnewentryindesktophistory(authinfo, userinfo, myDesktop, isgarbaged=True )
+                            # log remove desktop
+                            myOrchestrator.logger.info( f"{pod.metadata.name} is removed" )
+                            # add the name of the pod to the list of garbaged pod
+                            garbaged.append( pod.metadata.name )
+                except ApiException as e:
+                    myOrchestrator.logger.error(e)
+    return garbaged
+
+
+
+
 
 # call info messages service
 def on_desktoplaunchprogress_info(source, key, *args):
