@@ -15,8 +15,9 @@
 
 import logging
 import cherrypy
-
+import datetime 
 import distutils.util
+import json
 from typing_extensions import assert_type
 
 from oc.od.base_controller import BaseController
@@ -111,6 +112,101 @@ class ManagerController(BaseController):
 
         return garbaged
 
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def collection(self, *args):   
+        # /API/manager/collection/ 
+        self.is_permit_request()
+        if cherrypy.request.method == 'GET':
+            return self.handle_collection_GET( args )
+        elif cherrypy.request.method == 'DELETE':
+            return self.handle_collection_DELETE( args )
+    
+    def handle_collection_GET( self, args ):
+        self.logger.debug('')
+        if 'read' not in self.database_acl :
+            raise cherrypy.HTTPError( status=400, message="read is denied, add 'read' in ManagerController properties 'ManagerController': { 'database_acl': [ 'read' ] } ")
+   
+        if not isinstance( args, tuple):
+            raise cherrypy.HTTPError( status=400, message='invalid request')
+        if len(args)<2:
+            raise cherrypy.HTTPError( status=400, message='invalid request')
+
+        value = None
+
+        # this is a list request
+        if len(args)==2:
+            # /API/manager/collection/desktop/history
+            databasename = args[0]
+            collectionname = args[1]
+            value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname)
+        
+        # /API/manager/collection/desktop/history/[after|before]/date
+        elif len(args)==4:
+            databasename = args[0]
+            collectionname = args[1]
+            filter = args[2]
+
+            if filter not in ['after', 'before']:
+                raise cherrypy.HTTPError( status=400, message="invalid request filter must be 'after' or 'before'")
+            
+            # default format is "%Y-%m-%d %H:%M:%S" 
+            try:
+                iso_date = datetime.datetime.strptime(args[3],"%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                raise cherrypy.HTTPError( status=400, message='invalid date format, default date format is "%Y-%m-%d %H:%M:%S"')
+            collection_filter = {}
+            if filter == 'after':
+                collection_filter = {"date":{ "$gte":iso_date } }
+            elif filter == 'before':
+                collection_filter = {"date":{ "$lt":iso_date  } }
+            value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname, myfilter=collection_filter)
+
+        elif len(args)==6:
+            # /API/manager/collection/desktop/history/after/dateafter/before/datebefore
+            databasename = args[0]
+            collectionname = args[1]
+            if args[2] != 'after' :
+                raise cherrypy.HTTPError( status=400, message="invalid request first filter must equal to 'after' ")
+            if args[4] != 'before' :
+                raise cherrypy.HTTPError( status=400, message="invalid request second filter must equal to 'before' ")
+
+            try:
+                # default format is "%Y-%m-%d %H:%M:%S" 
+                iso_date_after = datetime.datetime.strptime(args[3],"%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                raise cherrypy.HTTPError( status=400, message='invalid after date format, default date format is "%Y-%m-%d %H:%M:%S"')
+           
+            try:
+                # default format is "%Y-%m-%d %H:%M:%S" 
+                iso_date_before = datetime.datetime.strptime(args[5],"%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                raise cherrypy.HTTPError( status=400, message='invalid before date format, default date format is "%Y-%m-%d %H:%M:%S"')
+            collection_filter = {"date":{ "$gte":iso_date_after, "$lt":iso_date_before } }
+            value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname, myfilter=collection_filter)
+        else:
+            raise cherrypy.HTTPError( status=400, message='invalid request')
+        
+        services.datastore.stringify( value )
+        return value
+        
+    
+    def handle_collection_DELETE( self, args ):
+        self.logger.debug('')
+     
+        if 'delete' not in self.database_acl :
+            raise cherrypy.HTTPError( status=400, message="delete is denied, add 'delete' in ManagerController properties 'ManagerController': { 'database_acl': [ 'read', 'delete' ] }")
+        if not isinstance( args, tuple):
+            raise cherrypy.HTTPError( status=400, message='invalid request')
+        if len(args)!=2:
+            raise cherrypy.HTTPError( status=400, message='invalid request')
+
+        # this is a list request
+        # drop /API/manager/collection/desktop
+        databasename = args[0]
+        collectionname = args[1]
+        value = services.datastore.drop_collection(databasename=databasename, collectionname=collectionname)
+        return value
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -160,9 +256,6 @@ class ManagerController(BaseController):
             return self.handle_image_DELETE( image=image )
         elif cherrypy.request.method == 'PATCH':
             return self.handle_image_PATCH( image=image, json_images=cherrypy.request.json )
-
-
-    
 
     def handle_image_GET( self, image ):
         self.logger.debug('')
@@ -226,7 +319,6 @@ class ManagerController(BaseController):
         cherrypy.response.status = 404
         return "Not found"
         
-
     def handle_image_PATCH( self, image=None, json_images=None ):
         self.logger.debug('')
         # image can be an sha_id or an repotag
@@ -290,16 +382,16 @@ class ManagerController(BaseController):
             return describedesktop
 
         if len(args) > 1:
-
             if args[1]=="resources_usage":
                 # specify desktop
                 if len(args)==2 :
                     # list container for a desktop
-                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/mem
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/resources_usage
                     resource = oc.od.composer.get_desktop_resources_usage(desktop_name)
                     return resource
-
+                
             if args[1]=="container":
+                # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
                 # specify desktop
                 if len(args)==2 :
                     # list container for a desktop
@@ -311,17 +403,10 @@ class ManagerController(BaseController):
                     container_id = args[2]
                     if not isinstance( container_id, str):
                         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
-                    # list container for a desktop
-                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
+                    # describe container for a desktop
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id
                     container = oc.od.composer.describe_container( desktop_name, container=container_id )
                     return container
-
-        # specify desktop and specify container
-        if len(args)==3 and args[1]=="container":
-            # list container for a desktop
-            # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/
-            container = oc.od.composer.describe_container( desktop_name, container=container_id )
-            return container
 
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
