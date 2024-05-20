@@ -15,6 +15,7 @@
 import logging
 import oc.logging
 import cherrypy
+import json
 from oc.od.services import services
 from oc.cherrypy import Results
 from oc.od.base_controller import BaseController
@@ -102,7 +103,8 @@ class StoreController(BaseController):
         # only key 'loginHistory' or 'callHistory' is allowed
         if key not in ['loginHistory', 'callHistory']:
             raise cherrypy.HTTPError( status=400, message='denied key value')
-        return self._getcollection( databasename=key, collectionname=userid )
+        collection =  self._getcollection( databasename=key, collectionname=userid )
+        return collection
     
     def _getcollection(self, databasename, collectionname):        
         assert isinstance( databasename, str), f"invalid databasename {type(databasename)}"
@@ -110,4 +112,5 @@ class StoreController(BaseController):
         value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname)
         if value is None:
             raise cherrypy.HTTPError( status=404, message=f"{collectionname} not found")
+        services.datastore.stringify( value )
         return Results.success(result=value)
