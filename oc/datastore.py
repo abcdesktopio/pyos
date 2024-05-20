@@ -91,14 +91,9 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             client = self.createclient(databasename)        
             collection = client[databasename][collectionname]    
             if isinstance( collection, pymongo.collection.Collection ):
-                findcollection = collection.find() if myfilter is None else collection.find(filter=myfilter, limit=limit)
+                findcollection = collection.find(filter=myfilter, limit=limit)
                 if isinstance( findcollection, pymongo.cursor.Cursor):
-                    for obj in findcollection:
-                        id = obj.get('_id', None)  # should never be None
-                        if id is not None: 
-                            id = str(id) # translate type to string
-                        obj['_id'] = id
-                        mycollection.append(obj)
+                    mycollection = list( findcollection )
             client.close()
         except pymongo.errors.ConnectionFailure  as e  :
             self.logger.error( f"getcollection {e}" )
@@ -106,6 +101,13 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             self.logger.error( f"getcollection {e}" )
         return mycollection
 
+    def stringify( self, collectionresult:list ):
+        if isinstance( collectionresult, list):
+            for obj in collectionresult:
+                if isinstance( obj, dict ):
+                    for k,v in obj.items():
+                        obj[k] = str( v ) # translate type to string
+        return collectionresult
 
     def set_document_value_in_collection(self, databasename, collectionname, key, value):
         self.logger.debug( f"database={databasename} collectionname={collectionname} key={key} value={value}")
@@ -147,6 +149,19 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         except Exception  as e  :
             self.logger.error( f"addtocollection {e}" ) 
 
+        return False
+    
+    def drop_collection(self, databasename, collectionname):
+        try:
+            client = self.createclient(databasename)        
+            collection = client[databasename][collectionname]                                    
+            collection.drop()
+            client.close()
+            return True
+        except pymongo.errors.ConnectionFailure  as e  :
+            self.logger.error( f"drop_collection {e}" )     
+        except Exception  as e  :
+            self.logger.error( f"drop_collection {e}" ) 
         return False
 
     """
