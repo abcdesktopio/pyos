@@ -39,6 +39,7 @@ class BaseController(object):
           # apikey  is None by default
 
           self.apikey = None
+          self.database_acl = []
           # set value from config
           if isinstance( config, dict ):
                self.init_ipfilter()
@@ -47,6 +48,7 @@ class BaseController(object):
                self.enable = config.get('enable', True )
                # apikey is a list of str
                self.apikey = config.get('apikey')
+               self.database_acl = config.get('database_acl', [])
           class_filter=r'^(\w+)Controller$'
           self.controllerprefix = re.match(class_filter, self.__class__.__name__).group(1).lower()
 
