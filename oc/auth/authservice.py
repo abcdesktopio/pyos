@@ -3150,7 +3150,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.error( f"failed to delete tmp file: {koutputfilename} {e}" )
 
         ''' ktutil
-			addent -password -p username@MYDOMAIN.COM -k 1 -e RC4-HMAC
+			addent -password -p username@MYDOMAIN.COM -k 1 -f
 			- enter password for username -
 			wkt username.keytab
 			q
@@ -3170,7 +3170,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         koutputfilename = '/tmp/' + oc.auth.namedlib.normalize_name( principal ) + '.keytab'
 
         userPrincipalName = principal + '@' + self.get_kerberos_realm()
-        inputs = [  'addent -password -p ' + userPrincipalName + ' -k 1 -e RC4-HMAC',
+        inputs = [  'addent -password -p ' + userPrincipalName + ' -k 1 -f',
                     password,
                     'wkt ' + koutputfilename,
                     'q']
