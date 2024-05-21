@@ -114,29 +114,39 @@ class ManagerController(BaseController):
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def collection(self, *args):   
-        # /API/manager/collection/ 
+    def datastore(self, *args):   
+        # /API/manager/datastore/ 
         self.is_permit_request()
         if cherrypy.request.method == 'GET':
-            return self.handle_collection_GET( args )
+            return self.handle_datastore_GET( args )
         elif cherrypy.request.method == 'DELETE':
-            return self.handle_collection_DELETE( args )
+            return self.handle_datastore_DELETE( args )
     
-    def handle_collection_GET( self, args ):
+    def handle_datastore_GET( self, args ):
         self.logger.debug('')
         if 'read' not in self.database_acl :
             raise cherrypy.HTTPError( status=400, message="read is denied, add 'read' in ManagerController properties 'ManagerController': { 'database_acl': [ 'read' ] } ")
    
         if not isinstance( args, tuple):
             raise cherrypy.HTTPError( status=400, message='invalid request')
-        if len(args)<2:
-            raise cherrypy.HTTPError( status=400, message='invalid request')
+        #if len(args)<2:
+        #    raise cherrypy.HTTPError( status=400, message='invalid request')
 
         value = None
 
-        # this is a list request
-        if len(args)==2:
-            # /API/manager/collection/desktop/history
+        if len(args)==0:
+            # /API/manager/datastore
+            # list all db
+            value = oc.od.settings.mongodblist
+
+        elif len(args)==1:
+            # list all db
+            databasename = args[0]
+            value = services.datastore.list_collections(databasename=databasename)
+
+        elif len(args)==2:
+            # this is a list request
+            # /API/manager/datastore/desktop/history
             databasename = args[0]
             collectionname = args[1]
             value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname)
@@ -191,7 +201,7 @@ class ManagerController(BaseController):
         return value
         
     
-    def handle_collection_DELETE( self, args ):
+    def handle_datastore_DELETE( self, args ):
         self.logger.debug('')
      
         if 'delete' not in self.database_acl :
