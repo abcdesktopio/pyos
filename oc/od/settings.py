@@ -25,6 +25,7 @@ namespace = 'abcdesktop'
 
 mongodburl = None  # Mongodb config Object Class
 fail2banconfig = None # Fail2ban config 
+mongodblist = []
 
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
@@ -479,7 +480,7 @@ def get_mongodburl():
         MongoClientConfig : MongoClientConfig instance 
     """
 
-    # read mongodb_url env var
+    # read MONGODB_URL env var
     # 'mongodb://pyos:YWUwNDJhZTI3NjVjZDg4Zjhk@mongodb.abcdesktop.svc.cluster.local:30017'
     mongodburl = os.getenv('MONGODB_URL') or gconfig.get('mongodburl',f"mongodb://mongodb.{kubernetes_default_domain}")
     logger.debug( f"mongodburl is read as {mongodburl}" )
@@ -550,9 +551,11 @@ def init_config_mongodb():
     """init mongodb config
     """
     global mongodburl
-    mongodburl =get_mongodburl()
+    global mongodblist
+    mongodburl = get_mongodburl()
     logger.info(f"MongoDB url: {mongodburl}")
-
+    mongodblist = gconfig.get('mongodblist', ['image','fail2ban','loginHistory','applications','profiles','desktop'] )
+    logger.info(f"MongoDB list: {mongodblist}")
 
 def init_config_fail2ban():
     """init fail2ban config
