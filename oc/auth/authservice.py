@@ -2058,6 +2058,12 @@ class ODExternalAuthProvider(ODAuthProviderBase):
                 data = json.loads(jsondata)
                 self.logger.debug( f"dump userinfo data={data}" )
                 userinfo = self.parseuserinfo( data )
+                # expecting to read posix account response format
+                self.logger.debug("expecting to read posix account response format")
+                posixuser = AuthUser.getPosixAccountfromlocalAccount( userinfo )
+                self.logger.debug(f"posix account posixuser={posixuser}")
+                userinfo['posix'] = posixuser
+
         return userinfo
         
   
