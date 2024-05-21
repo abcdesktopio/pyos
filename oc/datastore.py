@@ -49,7 +49,12 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         self.index_name = 'kind'
 
     def createhosturl( self, databasename ):
-        return f"{self.mongodburl}/{databasename}?authSource={databasename}"
+        url = None
+        if isinstance(databasename, str ):
+            url = f"{self.mongodburl}/{databasename}?authSource={databasename}"
+        else:
+            url = self.mongodburl
+        return url
 
     def createclient(self, databasename):
         self.logger.debug( f"databasename={databasename}")
@@ -163,6 +168,16 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         except Exception  as e  :
             self.logger.error( f"drop_collection {e}" ) 
         return False
+
+    def list_collections(self, databasename:str):
+        collections = []
+        try:
+            client = self.createclient(databasename)
+            collections = client[databasename].list_collection_names()
+            client.close()
+        except Exception  as e  :
+            self.logger.error( f"list_collections {e}" ) 
+        return collections
 
     """
     def config_replicaset( self, replicaset_name ):
