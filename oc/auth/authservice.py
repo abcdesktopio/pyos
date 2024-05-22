@@ -2791,7 +2791,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.error('failed to delete tmp file: %s %s', koutputfilename, e)
 
         ''' ktutil
-			addent -password -p username@MYDOMAIN.COM -k 1 -e RC4-HMAC
+			addent -password -p username@MYDOMAIN.COM -k 1 -f
 			- enter password for username -
 			wkt username.keytab
 			q
