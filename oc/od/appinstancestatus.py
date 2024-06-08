@@ -23,3 +23,6 @@ class ODAppInstanceStatus():
 
     def to_dict( self ):
         return { 'container_id': self.id, 'state': self.message, 'type': self.type }
+    
+    def __str__(self):
+        return str( self.to_dict() )
