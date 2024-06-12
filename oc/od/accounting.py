@@ -80,7 +80,7 @@ class ODAccounting:
         response = {}
 
         # update not updated value
-        orchestrator = oc.od.orchestrator.ODOrchestratorBase.selectOrchestrator()
+        orchestrator = oc.od.orchestrator.selectOrchestrator()
         self.setaccountex('desktop', 'current', orchestrator.countdesktop() )
         self.setaccountex('applist', 'installed', services.apps.countApps() )
         self.setaccountex('applist', 'cached', services.apps.getCached_image_counter() )
