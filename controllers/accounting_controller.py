@@ -53,8 +53,8 @@ class AccountingController(BaseController):
         # metric_name [ # "{" label_name "=" `"` label_value `"` { "," label_name "=" `"` label_value `"` } [ "," ] "}" ] value [ timestamp ]
         #
         message = oc.od.services.services.accounting.todict()
-        if type( message ) is dict:
-            for k, v in message.items():
+        if isinstance(message,dict):
+            for counter_name, v in message.items():
                 # t = int( datetime.datetime.now().timestamp() )
                 # dump data                
                 if isinstance(v, dict):
@@ -64,17 +64,17 @@ class AccountingController(BaseController):
                     # http_requests_total{method="post",code="400"}    3 1395066363000
 
                     for ka in v:
-                        if k in ['container', 'image'] :
+                        if counter_name in ['container', 'image'] :
                             datatype = oc.auth.namedlib.normalize_containername(str(ka))                            
                         else:    
-                            datatype=str(ka)
-
-                        output += "pyos_{counter}_total{{{counter}=\"{type}\"}} {value}\n".format( counter=k, type=datatype, value=str(v[ka]))  
-                else:                    
+                            datatype=ka
+        
+                        output += f"pyos_{counter_name}_total{{{counter_name}=\"{datatype}\"}} {v.get(ka)}\n"
+                if isinstance(v, str):                
                     # now = datetime.datetime.now() # current date and time
                     # timestamp = datetime.timestamp(now)
-                    output += "# {} pyos_counter\n".format( k )  
-                    output += "pyos_{counter}_total {value}\n".format( counter=k, value=message[k] )  
+                    output += "# {counter_name} pyos_counter\n"
+                    output += f"pyos_{counter_name}_total {v}\n"
         return output.encode('utf8')
 
     def dump_tojson(self):
