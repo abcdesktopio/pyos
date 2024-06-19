@@ -510,11 +510,11 @@ class AuthController(BaseController):
         self.isban_ip(ipsource)
         
         if not services.logmein.enable:
-            self.logger.error('logmein is disabled, but request ask for logmein from %s', ipsource)
+            self.logger.error(f"logmein is disabled, but request ask for logmein from ipsource={ipsource}")
             raise cherrypy.HTTPError(400, 'logmein configuration file error, service is disabled')
 
         if not services.logmein.request_match( ipsource ):
-            self.logger.error('logmein invalid network source error ipsource=%s', ipsource)
+            self.logger.error( f"logmein invalid network source error ipsource={ipsource}")
             services.fail2ban.fail( ipsource, services.fail2ban.ip_collection_name )
             raise cherrypy.HTTPError(400, 'logmein invalid network source error')
 
@@ -530,11 +530,11 @@ class AuthController(BaseController):
             # if the http header name exixsts in the current http request
             if isinstance( cert, str ):
                 strcert = urllib.parse.unquote( cert )
-                self.logger.info('read cert:' + strcert  )
+                self.logger.debug( f"read cert: {strcert}" )
                 # update the certificat format if not begin with -----BEGIN CERTIFICATE-----
                 if not strcert.startswith('-----BEGIN') :
                     strcert = '-----BEGIN CERTIFICATE-----\n' + strcert + '\n-----END CERTIFICATE-----'
-                    self.logger.info('changed cert:' + strcert  )
+                    self.logger.debug( f"changed cert: {strcert}" )
                 
                 # only to debug cert format
                 # f = open('user.cer')
@@ -542,19 +542,23 @@ class AuthController(BaseController):
                 # f.close()
 
                 cert_info = x509.load_pem_x509_certificate( strcert.encode(), default_backend() )
-                self.logger.debug('logmein certificat subject data %s', str(cert_info.subject) )
+                if not isinstance( cert_info, x509.Certificate ):
+                    self.logger.error(f"Bad certificate load_pem_x509_certificate return {type(cert_info)}" )
+                    raise cherrypy.HTTPError(400, 'Bad certificate')
+
+                self.logger.debug( f"certificat subject={cert_info.subject}" )
 
                 cert_info_data = None
                 for oid in services.logmein.oid_query_list :
                     try:
-                        self.logger.debug('cert get oid %s', str(oid))
+                        self.logger.debug( f"cert get oid {oid}")
                         cert_info_data = cert_info.subject.get_attributes_for_oid(oid)[0].value
                         if isinstance( cert_info_data, str ) and len( cert_info_data ) > 0:
                             userid = cert_info_data
-                            self.logger.info('cert read user=%s', str(cert_info_data))
+                            self.logger.info(f"read from certificate userid={cert_info_data}")
                             break
                     except Exception as e:
-                        self.logger.error('cert read %s', str(e))
+                        self.logger.error( "skiping certificat subject read {oid} error {e}")
 
         if not isinstance(userid, str) :
             self.logger.error('invalid userid parameter' )
@@ -564,7 +568,7 @@ class AuthController(BaseController):
             self.logger.error('invalid userid parameter' )
             raise cherrypy.HTTPError(400, 'logmein invalid user parameter')
 
-        self.logger.info('start login(provider=%s, manager=implicit, userid=%s)', str(provider), str(userid))
+        self.logger.info( f"start login(provider={provider}, manager=implicit, userid={userid}" )
         response = services.auth.login( provider=provider, manager='implicit', userid=userid )
         
         # can raise excetion if an error occurs
