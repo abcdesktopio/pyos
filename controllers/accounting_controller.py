@@ -65,8 +65,8 @@ class AccountingController(BaseController):
 
                     for ka in v:
                         if counter_name in ['container', 'image'] :
-                            datatype = oc.auth.namedlib.normalize_containername(str(ka))                            
-                        else:    
+                            datatype = oc.auth.namedlib.normalize_containername(ka)
+                        else:
                             datatype=ka
         
                         output += f"pyos_{counter_name}_total{{{counter_name}=\"{datatype}\"}} {v.get(ka)}\n"
