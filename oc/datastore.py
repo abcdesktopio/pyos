@@ -114,7 +114,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
                         obj[k] = str( v ) # translate type to string
         return collectionresult
 
-    def set_document_value_in_collection(self, databasename, collectionname, key, value):
+    def set_document_value_in_collection(self, databasename:str, collectionname:str, key:str, value:dict):
         self.logger.debug( f"database={databasename} collectionname={collectionname} key={key} value={value}")
         datadict = value if isinstance(value, dict) else {key: value}
         try:            
