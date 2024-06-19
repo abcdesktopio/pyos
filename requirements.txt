@@ -1,8 +1,8 @@
 haversine==2.5.1
 chevron==0.14.0
-kubernetes>=23.3.0
+kubernetes>=29.0.0
 CherryPy>=18.6.0
-cryptography==42.0.2
+cryptography==42.0.7
 pyopenssl==24.0.0
 pycryptodome>=3.4.11
 dnspython>=2.2.1
