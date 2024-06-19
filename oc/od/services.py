@@ -223,6 +223,7 @@ class ODServices(object):
     def init_kuberneteswatcher( self ):
         self.logger.info('')
         self.kuberneteswatcher = oc.od.kuberneteswatcher.ODKubernetesWatcher()
+        # oc.od.kuberneteswatcher.ODKubernetesWatcher()
 
 # use services to access 
 services = ODServices()
