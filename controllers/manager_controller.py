@@ -113,19 +113,22 @@ class ManagerController(BaseController):
         return garbaged
 
     @cherrypy.expose
+    @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def datastore(self, *args):   
-        # /API/manager/datastore/ 
+        # /API/manager/datastore/
         self.is_permit_request()
         if cherrypy.request.method == 'GET':
             return self.handle_datastore_GET( args )
+        elif cherrypy.request.method == 'PUT':
+            return self.handle_datastore_PUT( args )
         elif cherrypy.request.method == 'DELETE':
             return self.handle_datastore_DELETE( args )
     
     def handle_datastore_GET( self, args ):
         self.logger.debug('')
-        if 'read' not in self.database_acl :
-            raise cherrypy.HTTPError( status=400, message="read is denied, add 'read' in ManagerController properties 'ManagerController': { 'database_acl': [ 'read' ] } ")
+        if 'read' not in self.database_acl and 'get' not in self.database_acl :
+            raise cherrypy.HTTPError( status=400, message="'get' is denied, add 'get' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get' ] } ")
    
         if not isinstance( args, tuple):
             raise cherrypy.HTTPError( status=400, message='invalid request')
@@ -199,20 +202,46 @@ class ManagerController(BaseController):
         
         services.datastore.stringify( value )
         return value
-        
-    
-    def handle_datastore_DELETE( self, args ):
+
+    def handle_datastore_PUT( self, args ):
         self.logger.debug('')
      
-        if 'delete' not in self.database_acl :
-            raise cherrypy.HTTPError( status=400, message="delete is denied, add 'delete' in ManagerController properties 'ManagerController': { 'database_acl': [ 'read', 'delete' ] }")
+        if 'put' not in self.database_acl :
+            raise cherrypy.HTTPError( status=400, message="put is denied, add 'put' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get', 'put' ] }")
         if not isinstance( args, tuple):
             raise cherrypy.HTTPError( status=400, message='invalid request')
         if len(args)!=2:
             raise cherrypy.HTTPError( status=400, message='invalid request')
 
         # this is a list request
-        # drop /API/manager/collection/desktop
+        # PUT /API/manager/collection/databasename/collectionname
+        databasename = args[0]
+        collectionname = args[1]
+        json_object = cherrypy.request.json
+
+        _id = json_object.get( '_id' )
+        if _id is None :
+            raise cherrypy.HTTPError( status=400, message="invalid '_id' value in json content")
+        value = services.datastore.set_document_value_in_collection(
+            databasename=databasename,  
+            collectionname=collectionname, 
+            key=_id, 
+            value=json_object )
+        
+        return value
+    
+    def handle_datastore_DELETE( self, args ):
+        self.logger.debug('')
+     
+        if 'delete' not in self.database_acl :
+            raise cherrypy.HTTPError( status=400, message="delete is denied, add 'delete' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get', 'delete' ] }")
+        if not isinstance( args, tuple):
+            raise cherrypy.HTTPError( status=400, message='invalid request')
+        if len(args)!=2:
+            raise cherrypy.HTTPError( status=400, message='invalid request')
+
+        # this is a DELETE request
+        # drop /API/manager/datastore/desktop
         databasename = args[0]
         collectionname = args[1]
         value = services.datastore.drop_collection(databasename=databasename, collectionname=collectionname)
