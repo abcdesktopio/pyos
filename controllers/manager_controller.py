@@ -17,7 +17,6 @@ import logging
 import cherrypy
 import datetime 
 import distutils.util
-import json
 from typing_extensions import assert_type
 
 from oc.od.base_controller import BaseController
@@ -117,6 +116,46 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def datastore(self, *args):   
         # /API/manager/datastore/
+        # GET all entries
+        '''
+            curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry
+            [{"_id": "6649f78e57946141eadc8084", "colors": "['#6ec6f0', '#333333', '#666666', '#cd3c14', '#4bb4e6', '#50be87', '#a885d8', '#ffb4e6', '#000000']", "kind": "colors"}, {"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "[{'_id': '664f5b6fbd2e3c1d6645f5d5', 'dock': \"['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']\", 'kind': 'dock'}]", "kind": "dock"}, {"_id": "665deb6a04bf92a283961a5a", "backgroundType": "color", "kind": "backgroundType"}, {"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "['keyboard', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox' ]", "kind": "664f5b6fbd2e3c1d6645f5d5"}]
+
+            # GET dock
+            curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock
+            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "[{'_id': '664f5b6fbd2e3c1d6645f5d5', 'dock': \"['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']\", 'kind': 'dock'}]", "kind": "dock"}]
+
+            # GET backgroundType
+            curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/backgroundType
+            [{"_id": "665deb6a04bf92a283961a5a", "backgroundType": "color", "kind": "backgroundType"}]
+
+            # GET entry does not exist
+            curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/NOT_EXIST
+            []
+
+            # dump dock.json
+            cat dock.json 
+            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']", "kind": "dock"}]
+
+            # update dock.json 
+            vim dock.json 
+            cat dock.json 
+            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "['keyboard', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']", "kind": "dock"}]
+
+            # PUT dock.json
+            curl -X PUT -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock -d@dock.json
+            {"status": 200, "result": null, "message": "ok"}
+
+            # GET dock.json
+            curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock
+            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "[{'_id': '664f5b6fbd2e3c1d6645f5d5', 'dock': \"['keyboard', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']\", 'kind': 'dock'}]", "kind": "dock"}]
+
+            # DELETE dock
+            curl -X DELETE -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock
+            true
+ 
+
+        '''
         self.is_permit_request()
         if cherrypy.request.method == 'GET':
             return self.handle_datastore_GET( args )
@@ -153,8 +192,16 @@ class ManagerController(BaseController):
             databasename = args[0]
             collectionname = args[1]
             value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname)
+
+        elif len(args)==3:
+            # /API/manager/datastore/profiles/fry/dock
+            databasename = args[0]
+            collectionname = args[1]
+            kind = args[2]
+            collection_filter = { 'kind' : kind }
+            value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname, myfilter=collection_filter )
         
-        # /API/manager/collection/desktop/history/[after|before]/date
+        # /API/manager/datastore/desktop/history/[after|before]/date
         elif len(args)==4:
             databasename = args[0]
             collectionname = args[1]
@@ -210,25 +257,22 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError( status=400, message="put is denied, add 'put' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get', 'put' ] }")
         if not isinstance( args, tuple):
             raise cherrypy.HTTPError( status=400, message='invalid request')
-        if len(args)!=2:
-            raise cherrypy.HTTPError( status=400, message='invalid request')
+        
+        if len(args)!=3:
+            raise cherrypy.HTTPError( status=400, message='invalid request use database/collection/databasename/collectionname/key')
 
         # this is a list request
-        # PUT /API/manager/collection/databasename/collectionname
+        # PUT /API/manager/datastore/databasename/collectionname/key
         databasename = args[0]
         collectionname = args[1]
+        key = args[2]
         json_object = cherrypy.request.json
 
-        _id = json_object.get( '_id' )
-        if _id is None :
-            raise cherrypy.HTTPError( status=400, message="invalid '_id' value in json content")
-        value = services.datastore.set_document_value_in_collection(
-            databasename=databasename,  
-            collectionname=collectionname, 
-            key=_id, 
-            value=json_object )
+        if services.datastore.set_document_value_in_collection( databasename, collectionname, key, json_object) is True:
+            return True
+        else:
+            raise cherrypy.HTTPError( status=400, message='set_document_value_in_collection failed')
         
-        return value
     
     def handle_datastore_DELETE( self, args ):
         self.logger.debug('')
@@ -237,14 +281,25 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError( status=400, message="delete is denied, add 'delete' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get', 'delete' ] }")
         if not isinstance( args, tuple):
             raise cherrypy.HTTPError( status=400, message='invalid request')
-        if len(args)!=2:
+        
+        if len(args) == 2 :
+            # this is a DELETE request
+            # drop /API/manager/datastore/desktop/fry
+            databasename = args[0]
+            collectionname = args[1]
+            value = services.datastore.drop_collection(databasename=databasename, collectionname=collectionname)
+            return value
+        elif len(args) == 3 :
+            databasename = args[0]
+            collectionname = args[1]
+            key = args[2]
+            # this is a DELETE request
+            # drop /API/manager/datastore/databasename/collectionname/key
+            value = services.datastore.delete_one_in_colection(databasename=databasename, collectionname=collectionname, key=key)
+            return value
+        else: 
             raise cherrypy.HTTPError( status=400, message='invalid request')
 
-        # this is a DELETE request
-        # drop /API/manager/datastore/desktop
-        databasename = args[0]
-        collectionname = args[1]
-        value = services.datastore.drop_collection(databasename=databasename, collectionname=collectionname)
         return value
 
     @cherrypy.expose
