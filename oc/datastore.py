@@ -16,7 +16,7 @@ import oc.logging
 import pymongo
 import pymongo.errors
 from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure
+# from pymongo.errors import ConnectionFailure
 # from bson.objectid import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             obj = collection.find_one( {self.index_name: key })
             datadict[self.index_name] = key
             if isinstance(obj, dict):
-                collection.replace_one({'_id': obj['_id']}, datadict)
+                collection.replace_one( {'_id': obj['_id']}, datadict)
             else:
                 collection.insert_one( datadict )
             client.close()
@@ -156,7 +156,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
 
         return False
     
-    def drop_collection(self, databasename, collectionname):
+    def drop_collection(self, databasename:str, collectionname:str):
         try:
             client = self.createclient(databasename)        
             collection = client[databasename][collectionname]                                    
@@ -168,6 +168,38 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         except Exception  as e  :
             self.logger.error( f"drop_collection {e}" ) 
         return False
+    
+    def delete_one_in_colection(self, databasename:str, collectionname:str, key:str):
+        self.logger.debug( f"database={databasename} collectionname={collectionname} key={key}")
+        bReturn = False    
+        result = None   
+        try:            
+            client = self.createclient(databasename)
+            collection = client[databasename][collectionname]                        
+            obj = collection.find_one( {self.index_name: key })
+            if isinstance(obj, dict):
+                result = collection.delete_one({'_id': obj['_id']})
+                if isinstance( result, pymongo.results.DeleteResult):
+                    bReturn = True
+            client.close()
+        except pymongo.errors.ConnectionFailure  as e :
+            self.logger.error( f"delete_one_in_colection {e}" ) 
+        except Exception  as e  :            
+            self.logger.error( f"delete_one_in_colection {e}" ) 
+        return bReturn
+
+    def drop_database(self, databasename:str):
+        self.logger.debug( f"database={databasename}")
+        bReturn = False      
+        try:            
+            client = self.createclient(databasename)
+            client.drop_database(databasename) 
+            bReturn = True
+        except pymongo.errors.ConnectionFailure  as e :
+            self.logger.error( f"drop_database {e}" ) 
+        except Exception  as e  :            
+            self.logger.error( f"drop_database {e}" ) 
+        return bReturn
 
     def list_collections(self, databasename:str):
         collections = []
