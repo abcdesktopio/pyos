@@ -2252,8 +2252,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # groups ou query, ou=groups,dc=example,dc=com
         # if not set use ldap_basedn
         self.groups_ou = config.get('goups_ou', config.get('ldap_basedn') ) 
+
         # list of servers
-        self.servers = config.get('servers', []) 
+        self.servers = config.get('servers', [])
+
         # default ldap timeout
         self.timeout = config.get('ldap_timeout') # timeout in seconds 
         # ldap connect timeout
@@ -2386,6 +2388,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 ODLdapAuthProvider.DEFAULT_TOP_ATTRS.get('top') + ODLdapAuthProvider.DEFAULT_POSIXGROUP_ATTRS.get('posixGroup')
             )
         )
+
 
 
     def getdisplaydescription( self ):
@@ -2787,8 +2790,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if auth_type is None :
             auth_type = self.auth_type
         self.logger.info( f"ldap getconnection auth userid={userid} auth={auth_type}" )
-
-        for server_name in self.servers:
+        servers = self.servers.copy()
+        oc.lib.fortunewheel( servers )
+        self.logger.info( f"servers list order servers={servers}" )
+        for server_name in servers:
             try: 
                 self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={auth_type}")
                 server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, get_info='ALL')

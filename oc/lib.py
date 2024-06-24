@@ -120,3 +120,20 @@ def try_to_read_json_entry( key:str, myjson:str ):
     except Exception as e:
         pass
     return str_return
+
+
+
+def fortunewheel( mylist ):
+    # turn the fortune wheel in to a list
+    # if mylist is a list
+    if isinstance(mylist, list):
+        len_mylist = len(mylist)-1
+        # turn the wheel
+        for i in range( len( mylist )):
+            a = random.randint(0, len_mylist )
+            b = random.randint(0, len_mylist )
+            # swap mylist[a] and mylist[b]
+            d = mylist[a]
+            mylist[a] = mylist[b]
+            mylist[b] = d
+    return mylist
