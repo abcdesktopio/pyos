@@ -156,7 +156,7 @@ def getclientipaddr():
 
 
 
-
+'''
 class WebAppError(cherrypy.HTTPError):
     def __init__(self, message, status=400, code=400, source=None): 
         super().__init__(status, message)
@@ -167,6 +167,7 @@ class WebAppError(cherrypy.HTTPError):
 
     def to_dict(self): 
         return { 'status':self.status, 'error': { 'code': self.code, 'message': self.message, 'source': self.source  } }
+'''
 
 # Allow (partial) case-insensivity in URLs 
 class CaseInsensitiveDispatcher(Dispatcher):
