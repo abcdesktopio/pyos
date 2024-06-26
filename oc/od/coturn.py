@@ -24,7 +24,7 @@ from time import time
 def create_coturn_credentials( coturn_static_auth_secret:str, ttl:int=3600 )->tuple:
   timestamp = int(time()) + ttl
   # username = str(timestamp) + ':' + user
-  username = str(timestamp)
-  dig = hmac.new(coturn_static_auth_secret.encode(), username.encode(), hashlib.sha1).digest()
+  username_timestamp = str(timestamp) # username has value time() + ttl
+  dig = hmac.new(coturn_static_auth_secret.encode(), username_timestamp.encode(), hashlib.sha1).digest()
   password = base64.b64encode(dig).decode()
-  return (username,password)
+  return (username_timestamp,password)
