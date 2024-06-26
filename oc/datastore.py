@@ -122,14 +122,15 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         """
         if isinstance( collectionresult, list):
             for obj in collectionresult:
-                if isinstance( obj.get('_id'), bson.objectid.ObjectId ):
-                    # should always True 
-                    if hasattr( obj['_id'], '__str__') and callable(obj['_id'].__str__):
-                        obj['_id'] = obj['_id'].__str__()
-                if isinstance( obj.get('date'), datetime.datetime) :
-                    # should always True 
-                    if hasattr( obj['date'], '__str__') and callable(obj['date'].__str__):
-                        obj['date'] = obj['date'].__str__()
+                if isinstance( obj, dict) :
+                    if isinstance( obj.get('_id'), bson.objectid.ObjectId ):
+                        # should always True 
+                        if hasattr( obj['_id'], '__str__') and callable(obj['_id'].__str__):
+                            obj['_id'] = obj['_id'].__str__()
+                    if isinstance( obj.get('date'), datetime.datetime) :
+                        # should always True 
+                        if hasattr( obj['date'], '__str__') and callable(obj['date'].__str__):
+                            obj['date'] = obj['date'].__str__()
         return collectionresult
 
     def set_document_value_in_collection(self, databasename:str, collectionname:str, key:str, value:dict):
