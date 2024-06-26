@@ -119,15 +119,15 @@ class ManagerController(BaseController):
         # GET all entries
         '''
             curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry
-            [{"_id": "6649f78e57946141eadc8084", "colors": "['#6ec6f0', '#333333', '#666666', '#cd3c14', '#4bb4e6', '#50be87', '#a885d8', '#ffb4e6', '#000000']", "kind": "colors"}, {"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "[{'_id': '664f5b6fbd2e3c1d6645f5d5', 'dock': \"['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']\", 'kind': 'dock'}]", "kind": "dock"}, {"_id": "665deb6a04bf92a283961a5a", "backgroundType": "color", "kind": "backgroundType"}, {"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "['keyboard', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox' ]", "kind": "664f5b6fbd2e3c1d6645f5d5"}]
+            [{"_id": "66796de19782bb2927441c44", "dock": ["keyboard", "frontendjs.webshell", "org.gnome.TwentyFortyEight.Gnome-2048", "libreoffice.libreoffice-draw", "Navigator.firefox-esr", "geany.Geany", "libreoffice.libreoffice-impress", "org.gnome.Nautilus.Org.gnome.Nautilus", "konsole.konsole", "libreoffice.libreoffice-writer"], "kind": "dock"}, {"_id": "667adaf7698d29f16c6442bc", "colors": ["#6ec6f0", "#333333", "#666666", "#cd3c14", "#4bb4e6", "#50be87", "#a885d8", "#ffb4e6", "#000000"], "kind": "colors"}, {"_id": "667adaf9698d29f16c6442be", "backgroundType": "color", "kind": "backgroundType"}]
 
             # GET dock
             curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock
-            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "[{'_id': '664f5b6fbd2e3c1d6645f5d5', 'dock': \"['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']\", 'kind': 'dock'}]", "kind": "dock"}]
+            [{"_id": "66796de19782bb2927441c44", "dock": ["keyboard", "frontendjs.webshell", "org.gnome.TwentyFortyEight.Gnome-2048", "libreoffice.libreoffice-draw", "Navigator.firefox-esr", "geany.Geany", "libreoffice.libreoffice-impress", "org.gnome.Nautilus.Org.gnome.Nautilus", "konsole.konsole", "libreoffice.libreoffice-writer"], "kind": "dock"}]
 
             # GET backgroundType
             curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/backgroundType
-            [{"_id": "665deb6a04bf92a283961a5a", "backgroundType": "color", "kind": "backgroundType"}]
+            [{"_id": "667adaf9698d29f16c6442be", "backgroundType": "color", "kind": "backgroundType"}]
 
             # GET entry does not exist
             curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/NOT_EXIST
@@ -138,9 +138,8 @@ class ManagerController(BaseController):
             [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']", "kind": "dock"}]
 
             # update dock.json 
-            vim dock.json 
             cat dock.json 
-            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "['keyboard', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']", "kind": "dock"}]
+            [{"_id": "66796de19782bb2927441c44", "dock": ["keyboard", "frontendjs.webshell", "org.gnome.TwentyFortyEight.Gnome-2048", "org.gnome.Nautilus.Org.gnome.Nautilus", "konsole.konsole", "libreoffice.libreoffice-writer"], "kind": "dock"}]
 
             # PUT dock.json
             curl -X PUT -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock -d@dock.json
