@@ -18,7 +18,7 @@ import oc.logging
 import re
 
 from netaddr import IPNetwork, IPAddress
-from oc.cherrypy import WebAppError, getclientipaddr
+from oc.cherrypy import getclientipaddr
 from oc.od.services import services
 
 logger = logging.getLogger(__name__)
@@ -123,29 +123,29 @@ class BaseController(object):
      def validate_env(self):
           '''
                return (auth, user) if the user is identified and authenticated. 
-               else raise WebAppError('user is not identified') 
-               or   raise WebAppError('user is not authenticated')
-               or   raise WebAppError('ip address is banned')
-               or   raise WebAppError('login is banned')
+               else raise cherrypy.HTTPError( status=401, 'user is not identified') 
+               or   raise cherrypy.HTTPError( status=401, 'user is not authenticated')
+               or   raise cherrypy.HTTPError( status=401, 'ip address is banned')
+               or   raise cherrypy.HTTPError( status=401, 'login is banned')
           '''
 
           if self.isban_ip():
-               raise WebAppError('ip address is banned')
+               raise cherrypy.HTTPError( status=401, message='ip address is banned' )
           
           if not services.auth.isauthenticated:
                self.fail_ip()
-               raise WebAppError('user is not authenticated')
+               raise cherrypy.HTTPError( status=401, message='user is not authenticated')
           
           if not services.auth.isidentified:
                self.fail_ip()
-               raise WebAppError('user is not identified')
+               raise cherrypy.HTTPError( status=401, message='user is not identified')
 
 
           user = services.auth.user
           auth = services.auth.auth
 
           if self.isban_login(user.userid):
-               raise WebAppError('user is banned')
+               raise cherrypy.HTTPError( status=401, message='user is banned')
 
           return (auth, user)
 
