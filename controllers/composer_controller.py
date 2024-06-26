@@ -312,7 +312,7 @@ class ComposerController(BaseController):
                 if oc.od.composer.removedesktop( auth, user ) is True:        
                     services.messageinfo.push(user.userid, 'e.Delete desktop done.')
                 error_msg = oc.od.desktop.getunreachablemessage( desktop )
-                return Results.error( message=f"Your desktop previous was unreachable. {error_msg}. Please reload try again.")
+                return Results.error( message=f"Your desktop previous was unreachable. {error_msg}. Please try to reload again.")
                                      
 
             # build a jwt token with desktop.internaluri
