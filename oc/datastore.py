@@ -17,7 +17,8 @@ import pymongo
 import pymongo.errors
 from pymongo import MongoClient
 # from pymongo.errors import ConnectionFailure
-# from bson.objectid import ObjectId
+import bson.objectid
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +108,28 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         return mycollection
 
     def stringify( self, collectionresult:list ):
+        """stringify
+            for each dict in collectionresult
+                - convert bson.objectid.ObjectId to str
+                - convert datetime.datetime to str
+            fix json convert 
+
+        Args:
+            collectionresult (list): _description_
+
+        Returns:
+            _type_: _description_
+        """
         if isinstance( collectionresult, list):
             for obj in collectionresult:
-                if isinstance( obj, dict ):
-                    for k,v in obj.items():
-                        obj[k] = str( v ) # translate type to string
+                if isinstance( obj.get('_id'), bson.objectid.ObjectId ):
+                    # should always True 
+                    if hasattr( obj['_id'], '__str__') and callable(obj['_id'].__str__):
+                        obj['_id'] = obj['_id'].__str__()
+                if isinstance( obj.get('date'), datetime.datetime) :
+                    # should always True 
+                    if hasattr( obj['date'], '__str__') and callable(obj['date'].__str__):
+                        obj['date'] = obj['date'].__str__()
         return collectionresult
 
     def set_document_value_in_collection(self, databasename:str, collectionname:str, key:str, value:dict):
