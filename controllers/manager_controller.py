@@ -68,9 +68,10 @@ class ManagerController(BaseController):
             'headers' : cherrypy.request.headers,
             'remote' : cherrypy.request.remote.__dict__
         }
+        # log before is_permit_request
+        self.logger.debug( http_dump )
         # check if request is allowed, raise an exception if deny
         self.is_permit_request()
-        self.logger.debug( http_dump )
         return http_dump
 
     # buildapplist request is protected by is_permit_request()
