@@ -83,9 +83,9 @@ def getclientxforwardedfor_ip():
     clientip = None
     xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
     if isinstance(xforwardedfor, str):
-        clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
         try:
             # Check if clientip is an ipAddr 
+            clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
             # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
             if isinstance( clientiplistxforwardedfor, list ):
                 # Check if ipaddr is an ipAddr 
@@ -124,9 +124,11 @@ def getclientipaddr_dict():
     clientip = getclientxforwardedfor_ip()
     realip   = getclientreal_ip()
 
-    clientip_dict = { 'X-Forwarded-For' : clientip,
-                      'X-Real-IP':  realip,
-                      'remoteip': remoteip }
+    clientip_dict = { 
+        'X-Forwarded-For': clientip,
+        'X-Real-IP':  realip,
+        'remoteip': remoteip 
+    }
 
     return clientip_dict
 
@@ -138,19 +140,20 @@ def getclientipaddr():
         return string ipAddr of browser client, None if failed
         
         Do the best to obtain the Client IP Address
-        use X-Forwarded-For HTTP header from nginx
+        [ 'X-Forwarded-For', 'X-Real-IP', 'remoteip' ]
+           use X-Forwarded-For HTTP header from nginx
         or use X-Real-IP-For HTTP header from nginx
         or cherrypy.request.remote.ip  
     Returns:
         str: ip client address
     """
-    ipaddr = None   # the return value
-    clientip_dict = getclientipaddr_dict()
-    ipaddr = clientip_dict.get('X-Forwarded-For')
-    if not isinstance( ipaddr, str) :
-        ipaddr = clientip_dict.get('X-Real-IP')
-        if not isinstance( ipaddr, str) :
-            ipaddr = clientip_dict.get('remoteip')
+    ipaddr = None   # the return value None by default
+    clientip_dict = getclientipaddr_dict() # getclientipaddr_dict returns always a dict
+    # look for each HTTP Header 
+    for myip in clientip_dict.values():
+        if isinstance( myip, str) : # should never be empty string
+            ipaddr = myip
+            break
     return ipaddr
 
 
