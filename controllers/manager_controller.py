@@ -49,6 +49,30 @@ class ManagerController(BaseController):
         return { 'controler': self.__class__.__name__, 'status': 'ok' }
 
 
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.allow(methods=['GET','POST'])
+    def echohttp(self):
+        """echohttp
+            echo hhtp header dict 
+        """
+
+        #    def get_json(obj):
+        # return json.loads(
+        #    json.dumps(obj, default=lambda o: getattr(o, '__dict__', str(o)))
+        # )
+        # return http reqest content
+        # http_dump = get_json( cherrypy.request.body )
+
+        http_dump = { 
+            'headers' : cherrypy.request.headers,
+            'remote' : cherrypy.request.remote.__dict__
+        }
+        # check if request is allowed, raise an exception if deny
+        self.is_permit_request()
+        self.logger.debug( http_dump )
+        return http_dump
+
     # buildapplist request is protected by is_permit_request()
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -135,7 +159,7 @@ class ManagerController(BaseController):
 
             # dump dock.json
             cat dock.json 
-            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']", "kind": "dock"}]
+            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": ['keyboard', 'org.gnome.TwentyFortyEight.Gnome-2048', 'libreoffice.libreoffice-draw', 'Navigator.firefox-esr', 'Navigator.firefox', 'Navigator.firefox', 'Navigator.firefoxubuntupod', 'geany.Geany', 'libreoffice.libreoffice-impress', 'org.gnome.Nautilus.Org.gnome.Nautilus', 'konsole.konsole', 'konsole.konsole', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg'], "kind": "dock"}]
 
             # update dock.json 
             cat dock.json 
@@ -147,7 +171,7 @@ class ManagerController(BaseController):
 
             # GET dock.json
             curl -X GET -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock
-            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": "[{'_id': '664f5b6fbd2e3c1d6645f5d5', 'dock': \"['keyboard', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg']\", 'kind': 'dock'}]", "kind": "dock"}]
+            [{"_id": "664f5b6fbd2e3c1d6645f5d5", "dock": [{'_id': '664f5b6fbd2e3c1d6645f5d5', 'dock': \"['keyboard', 'libreoffice.libreoffice-writer', 'blobby.blobby', 'gnome-klotski.Gnome-klotski', 'gnome-mahjongg.Gnome-mahjongg'], 'kind': 'dock'}]", "kind": "dock"}]
 
             # DELETE dock
             curl -X DELETE -H 'Content-Type: text/javascript' http://localhost:30443/API/manager/datastore/profiles/fry/dock
