@@ -44,19 +44,17 @@ def api_handle_error():
     
     status = 500
     message = None
-    if isinstance(ex, oc.cherrypy.WebAppError):
-        status = ex.status
-        message = ex.to_dict()
-    else:
-        if hasattr( ex, 'code' ):   
-            status = ex.code
-        for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
-            if hasattr( ex, m ):
-                message = getattr( ex, m )
-                if isinstance( message, list) or isinstance( message, tuple):
-                    message = message[0]
-                if isinstance( message, str) and len(message) > 0:
-                    break
+    
+    if hasattr( ex, 'code' ):   
+        status = ex.code
+    for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
+        if hasattr( ex, m ):
+            message = getattr( ex, m )
+            if isinstance( message, list) or isinstance( message, tuple):
+                message = message[0]
+            if isinstance( message, str) and len(message) > 0:
+                break
+            
     # message is ALWAYS a str
     if not isinstance(message, str ):
         message = 'Internal api server error'
@@ -72,16 +70,11 @@ def api_handle_error():
 def api_build_error(status, message, traceback, version):
     _ex_type, ex, _ex_tb = sys.exc_info()
 
-    if isinstance(ex, oc.cherrypy.WebAppError):
-        cherrypy.response.status = ex.status
-        result = ex.to_dict()
-        log_result = result
-    else:
-        result = {
-            'status': cherrypy.response.status,  
-            'message':message 
-        }
-        log_result = { 'status': cherrypy.response.status,  'message':message, 'traceback':str(traceback), 'version':version }
+    result = {  'status': cherrypy.response.status,  
+                'message':message 
+    }
+    
+    log_result = { 'status': cherrypy.response.status,  'message':message, 'traceback':str(traceback), 'version':version }
     if cherrypy.config.get('tools.log_full.on'):
         logger.info( log_result )
     build_error = json.dumps( result ) + '\n'
@@ -205,6 +198,24 @@ class API(object):
         cherrypy.response.notrace = True
         # return OK i'm fine
         return "OK"  
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.allow(methods=['GET','POST'])
+    def dumphttpheader(self):
+        # disable trace response in log
+        #http_dump = { 
+        #    'headers' : cherrypy.request.headers,
+        #    'remote' : cherrypy.request.remote.__dict__,
+        #    'body' : cherrypy.request.body.__dict__
+        #}
+        http_dump = { 
+            'headers' : cherrypy.request.headers,
+            'remote' : cherrypy.request.remote.__dict__,
+        }
+        cherrypy.response.notrace = True
+        # return http reqest content
+        return http_dump
     
 class ODCherryWatcher(plugins.SimplePlugin):
     """ signal thread to stop when cherrypy stop"""
