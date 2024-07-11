@@ -42,9 +42,11 @@ class ODApps:
             'id',           'launch',           'name',         'icon',         'icondata',
             'keyword',      'uniquerunkey',     'cat',          'args',         'execmode',
             'showinview',   'displayname',      'mimetype',     'path',         'desktopfile',
-            'executablefilename',   'secrets_requirement', 'architecture', 'os' ]
+            'sha_id',       'created',          'executablefilename',           'os',     
+            'secrets_requirement', 'architecture']
+        
         # define private attributs keep
-        self.private_attr_list  = [ 'sha_id',  'acl',  'rules', 'securityContext' ]
+        self.private_attr_list  = [   'acl',  'rules', 'securityContext' ]
         self.thead_event = None
 
         # mongo db defines
@@ -385,6 +387,8 @@ class ODApps:
         image_architecture = json_image.get('Architecture')
         # Read OS
         image_os = json_image.get('Os')
+        # created date
+        created = inspect_dict.get('Created')
 
         # read the config
         inspect_dict = None
@@ -419,6 +423,7 @@ class ODApps:
         launch = labels.get('oc.launch')
         name = labels.get('oc.name')
         path = labels.get('oc.path')
+        
 
         # safe load convert json data json
         usedefaultapplication = self.safe_load_label_json( imageid, labels, 'oc.usedefaultapplication',  default_value=False )
@@ -480,7 +485,8 @@ class ODApps:
                 'image_pull_policy' :   labels.get('image_pull_policy', 'IfNotPresent' ),
                 'image_pull_secrets':   labels.get('image_pull_secrets'),
                 'containerengine':      labels.get('oc.containerengine', 'ephemeral_container'),
-                'securitycontext':      securitycontext
+                'securitycontext':      securitycontext,
+                'created':              created
             }
         else:
             self.logger.warning(f"skip application missing data sha_id={sha_id} launch={launch} name={name} icon={icon} imageid={imageid}")
