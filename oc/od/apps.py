@@ -388,7 +388,7 @@ class ODApps:
         # Read OS
         image_os = json_image.get('Os')
         # created date
-        created = inspect_dict.get('Created')
+        created = json_image.get('Created')
 
         # read the config
         inspect_dict = None
