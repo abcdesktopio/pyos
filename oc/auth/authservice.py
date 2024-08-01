@@ -2413,7 +2413,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.logger.info( f"ldap getconnection auth userid={userid}" )
         conn = None
         lastException = None
-        for server_name in self.servers:
+        server_list = self.servers.copy()
+        oc.lib.fortunewheel( server_list )
+        self.logger.debug( f"ldap server list after the fortune wheel is {server_list}")
+        for server_name in server_list:
             try: 
                 self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={self.auth_type}")
                 server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, get_info='ALL')
@@ -2748,11 +2751,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.error('failed to delete tmp file: %s %s', koutputfilename, e)
 
         ''' ktutil
-			addent -password -p username@MYDOMAIN.COM -k 1 -e RC4-HMAC
+			addent -password -p username@MYDOMAIN.COM -k 1 
 			- enter password for username -
 			wkt username.keytab
 			q
-		'''
+	'''
         if not all([principal, password ]):
             self.logger.error('makekeytab invalid parameters ')
             return None
@@ -2768,7 +2771,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         koutputfilename = '/tmp/' + oc.auth.namedlib.normalize_name( principal ) + '.keytab'
 
         userPrincipalName = principal + '@' + self.get_kerberos_realm()
-        inputs = [  'addent -password -p ' + userPrincipalName + ' -k 1 -e RC4-HMAC',
+        inputs = [  'addent -password -p ' + userPrincipalName + ' -k 1 -f',
                     password,
                     'wkt ' + koutputfilename,
                     'q']
@@ -2962,7 +2965,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         self.dcs_list_maxage = config.get('dcs_list_maxage', 3600)
         self.dcs_list_lastupdated = 0
         self.refreshdcs_lock = None
-        self.servers = config.get('servers') or []
+        self.servers = config.get('servers', []) 
         self.user_query.filter = config.get('filter', '(&(objectClass=user)(sAMAccountName=%s))')
         self.user_query.attrs = config.get('attrs', ODAdAuthProvider.DEFAULT_ATTRS)
         self.group_query.filter = config.get('group_filter', "(&(objectClass=group)(cn=%s))")
