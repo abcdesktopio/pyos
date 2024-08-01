@@ -183,10 +183,10 @@ class API(object):
                 message = message + m.rstrip(b' ')
             message = message.rstrip(b' \n')
 
-        if isinstance( message, str):
-            # drop message too long
-            # OSError: [Errno 90] Message too long
-            message = message[:4096] # suppose to be 4096
+        if hasattr( message, "__iter__" ):
+          # drop message too long
+          # OSError: [Errno 90] Message too long
+          message = message[:1024] # suppose to be less than 1024
 
         # message = message.encode("ascii","ignore")
         logger.info(f"{cherrypy.request.path_info} {message}")
