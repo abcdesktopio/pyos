@@ -1813,7 +1813,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if kwargs.get('type') != self.x11servertype:
             homedir_enabled = self.applyappinstancerules_homedir( authinfo, rules )
         self.logger.debug( f"added applyappinstancerules_homedir homedir_enabled={homedir_enabled}" )
-        
+       
         if  homedir_enabled and kwargs.get('homedirectory_type') == 'persistentVolumeClaim':
             self.logger.debug( "adding homedir volume" )
             self.on_desktoplaunchprogress('b.Building home dir data storage')
@@ -1833,6 +1833,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug( 'volume mount : %s %s', 'home', volumes_mount['home'] )
             self.logger.debug( 'volumes      : %s %s', 'home', volumes['home'] )
             self.logger.debug( "added homedir volume" )
+
+        self.logger.debug( "test for homedirectory_type" )
+        if  homedir_enabled and kwargs.get('homedirectory_type') is None :
+            self.logger.debug( "homedirectory_type is None" )
+            self.logger.debug( "adding homedir volume as memory" )
+            self.on_desktoplaunchprogress('b.Building home dir data storage')
+            volume_home_name = self.get_volumename( 'home', userinfo )
+            # Map the home directory
+            volumes['home'] = { 'name': volume_home_name,  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1Gi' } }
+            volumes_mount['home'] = { 'name': volume_home_name,  'mountPath':  oc.od.settings.getballoon_homedirectory() }
+
+            self.logger.debug( 'volume mount : %s %s', 'home', volumes_mount['home'] )
+            self.logger.debug( 'volumes      : %s %s', 'home', volumes['home'] )
+            self.logger.debug( "added homedir volume" )
+
 
         if isinstance( rules, dict ):
             self.logger.debug( f"selecting volume by rules" )
