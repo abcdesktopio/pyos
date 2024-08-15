@@ -46,7 +46,7 @@ class ODApps:
             'secrets_requirement', 'architecture']
         
         # define private attributs keep
-        self.private_attr_list  = [   'acl',  'rules', 'securityContext' ]
+        self.private_attr_list  = [ 'acl',  'rules', 'securityContext' ]
         self.thead_event = None
 
         # mongo db defines
