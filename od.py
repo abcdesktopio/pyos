@@ -199,27 +199,6 @@ class API(object):
         # return OK i'm fine
         return "OK"  
     
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.allow(methods=['GET','POST'])
-    def dumphttpheader(self):
-        # disable trace response in log
-
-        #    def get_json(obj):
-        # return json.loads(
-        #    json.dumps(obj, default=lambda o: getattr(o, '__dict__', str(o)))
-        # )
-        # return http reqest content
-        # http_dump = get_json( cherrypy.request.body )
-
-        http_dump = { 
-            'headers' : cherrypy.request.headers,
-            'remote' : cherrypy.request.remote.__dict__
-        }
-        cherrypy.response.notrace = True
-
-        return http_dump
     
 class ODCherryWatcher(plugins.SimplePlugin):
     """ signal thread to stop when cherrypy stop"""
