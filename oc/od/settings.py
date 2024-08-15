@@ -355,6 +355,7 @@ def init_desktop():
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim') or gconfig.get('desktop.persistentvolumeclaimspec')
     desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
     desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', False)
+    desktop['directorytomemoryemptydir']= gconfig.get('desktop.directorytomemoryemptydir', [])
     desktop['removepersistentvolume']   = gconfig.get('desktop.removepersistentvolume', False)
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
@@ -372,6 +373,7 @@ def init_desktop():
     desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
     desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
     desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 30 )
+    desktop['K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS', 10 )
     
 
     if not isinstance(desktop['nodeselector'], dict):
@@ -392,6 +394,17 @@ def init_desktop():
     # environmentlocalrules must be a dict 
     if not isinstance( desktop['environmentlocalrules'], dict ):
         desktop['environmentlocalrules'] = {}  
+
+    # check for desktop['directorytomemoryemptydir']
+    if not isinstance(desktop['directorytomemoryemptydir'], list):
+        logger.error("desktop.directorytomemoryemptydir must be a list")
+        exit(-1)
+    
+    # for compatibiliy with 3.x
+    if gconfig.get('desktop.homedirdotcachetoemptydir', False):
+        # homedirdotcachetoemptydir is True
+        if '.cache' not in desktop['directorytomemoryemptydir']:
+            desktop['directorytomemoryemptydir'].append('.cache')
 
     init_balloon()
 
