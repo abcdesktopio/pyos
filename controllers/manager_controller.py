@@ -66,7 +66,8 @@ class ManagerController(BaseController):
 
         http_dump = { 
             'headers' : cherrypy.request.headers,
-            'remote' : cherrypy.request.remote.__dict__
+            'remote'  : cherrypy.request.remote.__dict__,
+            'params'  : cherrypy.request.params
         }
         # log before is_permit_request
         self.logger.debug( http_dump )
