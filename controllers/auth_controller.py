@@ -296,19 +296,21 @@ class AuthController(BaseController):
         except Exception as e:
             return Results.error( status=401, message='failed to prepare ressources ' + str(e) )
         
-
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
         oc.od.tracking.addnewentryinloginhistory( auth=response.result.auth, user=response.result.user )
 
-        return Results.success( message=response.reason, 
-                                result={'userid': response.result.user.userid,
-                                        'jwt_user_token': jwt_user_token,
-                                        'name': response.result.user.name,
-                                        'provider': response.result.auth.providertype,       
-                                        'expire_in': expire_in      
-                                })
-
+        res = Results.success(
+                message=response.reason,
+                result={
+                    'userid': response.result.user.userid,
+                    'jwt_user_token': jwt_user_token,
+                    'name': response.result.user.name,
+                    'provider': response.result.auth.providertype,
+                    'expire_in': expire_in
+                }
+        )
+        return res
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
