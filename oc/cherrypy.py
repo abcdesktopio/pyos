@@ -88,9 +88,11 @@ def getclientxforwardedfor_ip():
             clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
             # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
             if isinstance( clientiplistxforwardedfor, list ):
-                # Check if ipaddr is an ipAddr 
+                # Check if ipaddr is an ipAddress 
                 ipaddr = netaddr.IPAddress( clientiplistxforwardedfor[0] )
                 # reconvert to string make sure to remove garbage data 
+                # this is not dummy
+                # you nedd to check if the str is a true ipaddress  
                 # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
                 # str( ipaddr ) returns '127.0.0.1'
                 clientip = str( ipaddr )
@@ -157,9 +159,6 @@ def getclientipaddr():
     return ipaddr
 
 
-
-
-
 class WebAppError(cherrypy.HTTPError):
     def __init__(self, message, status=400, code=400, source=None): 
         super().__init__(status, message)
@@ -214,8 +213,9 @@ class Tools(object):
 class Results(object):
     @staticmethod
     def result(message:str=None, status:int=200, result:dict=None)->dict:
-        response = {    'status': status,
-                        'result': result
+        response = {
+            'status': status,
+            'result': result
         }
         if status == 200:
             response['message'] = message
