@@ -24,6 +24,7 @@ import json
 import crypt
 import datetime
 import re
+import threading
 from urllib.parse import urlparse
 from ldap import filter as ldap_filter
 import ldap3
@@ -755,7 +756,7 @@ class ODAuthTool(cherrypy.Tool):
 
         
         
-    def compiledcondition( self, condition, user, roles, **kwargs ):     
+    def compiledcondition( self, condition, user, roles, provider=None, auth=None ):     
 
         def isPrimaryGroup(user, primaryGroupID):
             # if user is not a dict return False
@@ -828,6 +829,7 @@ class ODAuthTool(cherrypy.Tool):
             return value
 
         def isMemberOf(roles, groups )->bool:
+            self.logger.debug( locals() )
             if not isinstance(roles,list):  
                 roles = [roles]
             if not isinstance(groups,list): 
@@ -887,7 +889,12 @@ class ODAuthTool(cherrypy.Tool):
                 return False
             return False
 
-        self.logger.info( f"condition {condition}" )
+
+        thread_id = None
+        try: 
+            thread_id = threading.get_ident()
+        except Exception: pass
+        self.logger.info( f"thread_id={thread_id} condition {condition}" )
 
         compiled_result = False  # default compiled_result is False
 
@@ -929,17 +936,16 @@ class ODAuthTool(cherrypy.Tool):
             # check if the provider object is an ODAdAuthMetaProvider
             # and auth object is an AuthInfo
             # kwargs can contain 'provider' and 'auth' entries
-            meta_provider = kwargs.get('provider')
-            auth = kwargs.get('auth')
+            meta_provider = provider
             if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
                 # call the isMember method to run LDAP Qeury and 
                 # read the member attribut in group
                 # This is not the user's memberOf 
-                self.logger.debug('This is a ODAdAuthMetaProvider and auth is AuthInfo')
-                self.logger.debug( f"isMemberOf query to provider={meta_provider.name}")
+                self.logger.debug(f"thread_id={thread_id} this is a ODAdAuthMetaProvider and auth is AuthInfo")
+                self.logger.debug(f"thread_id={thread_id} isMemberOf query to provider={meta_provider.name}")
                 result = meta_provider.isMemberOf( auth, memberOf )
-                self.logger.debug( f"meta_provider.isMemberOf -> result={result}")
-                self.logger.debug( f"result == condition.get('expected') -> {result} == {condition.get('expected')}")
+                self.logger.debug( f"thread_id={thread_id} meta_provider.isMemberOf -> result={result}")
+                self.logger.debug( f"thread_id={thread_id} result == condition.get('expected') -> {result} == {condition.get('expected')}")
                 if result == condition.get('expected'):
                     compiled_result = True
             else:
@@ -1015,14 +1021,19 @@ class ODAuthTool(cherrypy.Tool):
             if result == condition.get('expected'):
                 compiled_result = True
 
-        self.logger.debug( f"compiledcondition -> {compiled_result}")
+        self.logger.debug( f"thread_id={thread_id} compiledcondition -> {compiled_result}")
         return compiled_result
 
-    def compiledrule( self, name, rule, user, roles, **kwargs ):        
+    def compiledrule( self, name, rule, user, roles, provider=None, auth=None ):        
 
         if type(rule) is not dict :
             return False
        
+        thread_id = None
+        try: 
+            thread_id = threading.get_ident()
+        except Exception: pass
+
         conditions  = rule.get('conditions')   
         expected    = rule.get('expected')
         if type(expected) is not bool:
@@ -1030,8 +1041,8 @@ class ODAuthTool(cherrypy.Tool):
 
         results = []
         for condition in conditions :
-            r = self.compiledcondition(condition, user, roles, **kwargs)
-            self.logger.debug(f"condition={condition} compiled_result={r}")
+            r = self.compiledcondition(condition, user, roles, provider, auth)
+            self.logger.debug(f"thread_id={thread_id} condition={condition} compiled_result={r}")
             results.append( r )
         
         # if results is empty return False 
@@ -1039,13 +1050,13 @@ class ODAuthTool(cherrypy.Tool):
             return False
 
         compiled_result = all( results )
-        logger.debug( f"rules (compiled_result={compiled_result})==(expected=={expected})" )
+        logger.debug( f"thread_id={thread_id} rules (compiled_result={compiled_result})==(expected=={expected})" )
         result = compiled_result == expected 
-        logger.debug( f"rules return {result}" )
+        logger.debug( f"thread_id={thread_id} rules return {result}" )
         return result
 
 
-    def compiledrules( self, rules, user, roles, **kwargs ):
+    def compiledrules( self, rules, user, roles, provider=None, auth=None ):
         # 
         # 'rule-ship':   {  'conditions' : { 'memberOf': [  'cn=ship_crew,ou=people,dc=planetexpress,dc=com'] },
         #                   'expected' : True,
@@ -1066,25 +1077,47 @@ class ODAuthTool(cherrypy.Tool):
         #                       'label': 'noinnet' }
         #
         self.logger.debug('')
-
+        compilerule_timeout = 640 # seconds
         buildcompiledrules = {}
         if not isinstance( rules, dict ):
             return buildcompiledrules
+        threads = {}
+        thread_compiled_result = {}
+        for name in rules.keys():
+            thread_compiled_result[name] = None
 
         for name in rules.keys():
             try:
-                compiled_result = self.compiledrule( name, rules.get(name), user, roles, **kwargs )
-                logger.debug( f"rule={name} compiled_result={compiled_result}")
-                if compiled_result is True:
+                threads[name] = threading.Thread(
+                    target=self.compiledrule,
+                    args=[ name, rules.get(name), thread_compiled_result, user, roles, provider, auth ]
+                )
+
+                threads[name].start()
+                logger.debug( f"thread[{name}] is starting id {threads[name].ident}")
+            except Exception as e:
+                self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
+
+        for name in rules.keys():
+            logger.debug( f"thread[{name}] {threads[name].ident} is joining")
+            threads[name].join( timeout=compilerule_timeout )
+            if  threads[name].isAlive():
+                # timeout expired
+                self.logger.error( 'rules %s compilation failed with timeout', name )
+                pass
+
+            # logger.debug( f"rule={name} compiled_result={compiled_result}")
+            if thread_compiled_result.get(name) is True:
+                try:
                     k = rules.get(name).get('label')
                     # if a label exists
                     if k is not None:
                         # set the label value
                         # true by default or the load value
                         buildcompiledrules[ k ] = rules.get(name).get('load', 'true')
-            except Exception as e:
-                self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
-            
+                except Exception as e:
+                    self.logger.error( 'rules %s compilation failed %s, skipping rule', name, e)
+
         return buildcompiledrules
 
 
@@ -2799,7 +2832,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 server = ldap3.Server( server_name, connect_timeout=self.connect_timeout, mode=self.ldap_ipmod, get_info='ALL')
                 
                 # create a Connection to get supported_sasl_mechanisms from server
-                c = ldap3.Connection(server, auto_bind=False)
+                c = ldap3.Connection(server, client_strategy=ldap3.SAFE_SYNC, auto_bind=False)
                 c.open()  # establish connection without performing any bind (equivalent to ANONYMOUS bind)
                 # read https://ldap3.readthedocs.io/en/latest/bind.html
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
@@ -2820,7 +2853,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # If you specify user=, it is expected to be a Kerberos principal (though it appears you can omit the domain). 
                     # If there is a credential for that user in the collection, it will be used.
                     self.logger.debug( f"ldap getconnection:Connection server={server_name} as user={kerberos_principal_name} authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS KRB5CCNAME={cred_store}")
-                    conn = ldap3.Connection( server, user=kerberos_principal_name, authentication=ldap3.SASL, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
+                    conn = ldap3.Connection( server, user=kerberos_principal_name, authentication=ldap3.SASL, client_strategy=ldap3.SAFE_SYNC, sasl_mechanism=ldap3.KERBEROS, read_only=True, raise_exceptions=True, cred_store=cred_store )
 
                 # do ntlm bind
                 if auth_type == 'NTLM':
@@ -2830,7 +2863,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # userid MUST be DOMAIN\\SAMAccountName format, call overwrited by bODAdAuthProvider:getconnection
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( f"ldap getconnection:Connection server={server_name} userid={userid} authentication=ldap3.NTLM" )
-                    conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, read_only=True, raise_exceptions=True )
+                    conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.NTLM, client_strategy=ldap3.SAFE_SYNC, read_only=True, raise_exceptions=True )
                     
                 # do textplain simple_bind_s 
                 if auth_type == 'SIMPLE':
@@ -2838,12 +2871,12 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # need to get the dn to bind previously userdn = self.getuserdnldapconnection(userid)
                     # self.logger.debug(locals()) # uncomment this line may dump password in clear text 
                     self.logger.info( f"ldap getconnection:Connection server={server_name} userdn={userid} authentication=ldap3.SIMPLE" )
-                    conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.SIMPLE, read_only=True, raise_exceptions=True )
+                    conn = ldap3.Connection( server, user=userid, password=password, authentication=ldap3.SIMPLE, client_strategy=ldap3.SAFE_SYNC, read_only=True, raise_exceptions=True )
 
                 if auth_type == 'ANONYMOUS':
                     # authentication method, can be one of ANONYMOUS, SIMPLE, SASL or NTLM. Defaults to ANONYMOUS if user and password are both None
                     self.logger.info( f"ldap getconnection:Connection server={server_name} ANONYMOUS authentication=ldap3.ANONYMOUS" )
-                    conn = ldap3.Connection( server, authentication=ldap3.ANONYMOUS, read_only=True, raise_exceptions=True )
+                    conn = ldap3.Connection( server, authentication=ldap3.ANONYMOUS, client_strategy=ldap3.SAFE_SYNC, read_only=True, raise_exceptions=True )
 
                 #
                 # let's bind to the ldap server conn.open()
@@ -2914,21 +2947,23 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         withdn = attrs is not None and 'dn' in (a.lower() for a in attrs)
         entries = []
         time_start = time.time() # expressed in seconds since the epoch, in UTC
-        results = conn.search( search_base=basedn, search_filter=filter, search_scope=scope, attributes=attrs)
-        if results is True:
-            elapsed = time.time() - time_start # in seconds
-            self.logger.info( f"ldap search_s {basedn} {filter} take {elapsed} seconds" )
-            for entry in conn.entries: 
-                data = {}
-                for k,v in entry.entry_attributes_as_dict.items():
-                    data[k] = self.decodeValue(k,v)
-                data['dn'] = entry.entry_dn
-                # if only the first entry is need as param
-                # return it 
-                if one: 
-                    return data
-                # else append to a entries list
-                entries.append(data)
+        ldap3_status, ldap3_results, ldap3_response, ldap3_request = \
+            conn.search( search_base=basedn, search_filter=filter, search_scope=scope, attributes=attrs)
+        if ldap3_status is True:
+         if isinstance( ldap3_response, list ):
+            for entry in ldap3_response:
+                    data = {}
+                    attributes = entry.get('attributes')
+                    if isinstance( attributes, ldap3.utils.ciDict.CaseInsensitiveDict ):
+                        for k,v in attributes.items():
+                            data[k] = self.decodeValue(k,v)
+                    data['dn'] = entry['dn']
+                    # if only the first entry is need as param
+                    # return it
+                    if one is True: 
+                        return data
+                    # else append to a entries list
+                    entries.append(data)
             return entries
         return None 
 
@@ -3872,25 +3907,33 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
     def isMemberOf(self, authinfo, groupdistinguished_name: str):
         memberof = False
+        thread_id = None
+        try:
+            thread_id = threading.get_ident()
+        except Exception as e:
+            pass
         q = self.foreingmemberof_query
         filter = ldap_filter.filter_format( q.filter, [ groupdistinguished_name ] )
+        time_start = time.time() # expressed in seconds since the epoch, in UTC
         try:
-            self.logger.debug ( "run ldapquery isMember FSP:ForeignSecurityPrincipals" )
-            self.logger.debug ( f"search_base={q.basedn}, search_scope={q.scope}, search_filter={filter}" )
-            self.logger.debug ( "starting query" )
-            memberof = authinfo.conn.search( search_base=q.basedn, search_filter=filter, search_scope=q.scope )
-            self.logger.debug ( f"end of query authinfo.conn.search return {memberof}" )
-            if memberof:
-                self.logger.debug ( "start dumping data query" )
-                for entry in authinfo.conn.response:
-                    self.logger.debug(entry)
-                self.logger.debug ( "end of dumping data query" )
+            self.logger.debug ( f"thread_id={thread_id} run ldapquery isMember FSP:ForeignSecurityPrincipals" )
+            self.logger.debug ( f"thread_id={thread_id} search_base={q.basedn}, search_scope={q.scope}, search_filter={filter}" )
+            self.logger.debug ( f"thread_id={thread_id} starting query" )
+            ldap3_status, ldap3_results, ldap3_response, ldap3_request = authinfo.conn.search( search_base=q.basedn, search_filter=filter, search_scope=q.scope )
+            elapsed = time.time() - time_start # in seconds
+            self.logger.info( f"thread_id={thread_id} ldap search {q.basedn} {filter} take {elapsed} seconds" )
+            self.logger.debug(f"thread_id={thread_id} ldap3_status={ldap3_status}, ldap3_results={ldap3_results}, ldap3_response={ldap3_response}, ldap3_request={ldap3_request}")
+            if ldap3_status is True:
+                if isinstance( ldap3_response, list ) and len(ldap3_response)>0:
+                    if isinstance(ldap3_response[0], dict ):
+                      dn = ldap3_response[0].get('dn')
+                      if isinstance( dn, str ) and len(dn) > 0:
+                          memberof = True
         except Exception as e:
             self.logger.error( e )
 
-        self.logger.debug ( f"return memberof={memberof}" )
+        self.logger.debug ( f"thread_id={thread_id} return memberof={memberof}" )
         return memberof
-        
 
     def isMemberOfForeingSecuriyPrincipalsbyObjectSid( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
         self.logger.debug('ODAdAuthMetaProvider')
