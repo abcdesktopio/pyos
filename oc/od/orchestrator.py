@@ -1026,7 +1026,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     }   
         return (volumes, volumes_mount)
 
-    def build_volumes_additional_by_rules( self, authinfo, userinfo, volume_type, secrets_requirement, rules={}, **kwargs):
+        
+    def build_volumes_additional_by_rules( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
