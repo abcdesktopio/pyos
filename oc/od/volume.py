@@ -33,50 +33,91 @@ def selectODVolume( authinfo, userinfo ):
     return volumes
 
 
+def getODVolumebyRules( authinfo, userinfo, rule ):
+    """getODVolumebyRules
+
+    Args:
+        authinfo (AuthInfo): authinfo
+        userinfo (AuthUser): AuthUser
+        rule (dict): rule 
+
+    Returns:
+        ODVolume: a volume for this pod 
+        None if unmatch
+    """
+    vol = None
+
+    if not isinstance( rule, dict ):
+        return vol
+
+    if rule.get('type') == 'cifs' :
+        name          = rule.get('volumename')
+        mountOptions  = rule.get('mountOptions')
+        if rule.get('name') == 'homedirectory' :
+            homeDrive     = userinfo.get('homeDrive', 'homeDrive')
+            networkPath   = userinfo.get('homeDirectory')
+            vol = ODVolumeActiveDirectoryCIFS( authinfo, userinfo, name, homeDrive, networkPath, mountOptions )
+        else:
+            entry       = rule.get('name')
+            unc         = rule.get('unc')
+            vol         = ODVolumeActiveDirectoryCIFS( authinfo, userinfo, name, entry, unc, mountOptions )
+
+    if rule.get('type') == 'webdav' :
+        entry       = userinfo.get('name')
+        url         = rule.get('url')
+        vol         = ODVolumeActiveDirectoryWebDav( authinfo, userinfo, entry, url )
+
+    if rule.get('type') == 'nfs' :
+        name          = rule.get('name')
+        server        = rule.get('server')
+        path          = rule.get('path')
+        readOnly      = rule.get('readOnly')
+        mountPath     = rule.get('mountPath')
+        vol           = ODVolumeNFS( name, server=server, path=path, mountPath=mountPath, readOnly=readOnly)
+
+    if rule.get('type') == 'pvc'  :
+        name          = rule.get('name')
+        claimName     = rule.get('claimName')
+        mountPath     = rule.get('mountPath')
+        vol           = ODVolumePersistentVolumeClaim( name=name, mountPath=mountPath, claimName=claimName)
+
+    return vol
+
 def selectODVolumebyRules( authinfo, userinfo, rules ):
+    """selectODVolumebyRules
+
+    Args:
+        authinfo (AuthInfo): authinfo
+        userinfo (AuthUser): AuthUser
+        rules (dict): dict of rules
+
+    Returns:
+        list: list of volume for this pod
+    """
     volumes = []
     if isinstance(rules,dict) :
+        # get all user labels
         for k in authinfo.get_labels() :
-            rule =  rules.get(k)
-            
-            if not isinstance(rule,dict):
-                continue
-
-            vol = None
-            if rule.get('type') == 'cifs' :
-                name          = rule.get('volumename')
-                mountOptions  = rule.get('mountOptions')
-                if rule.get('name') == 'homedirectory' :
-                    homeDrive     = userinfo.get('homeDrive', 'homeDrive')
-                    networkPath   = userinfo.get('homeDirectory')
-                    vol = ODVolumeActiveDirectoryCIFS( authinfo, userinfo, name, homeDrive, networkPath, mountOptions )
-                else:
-                    entry       = rule.get('name')
-                    unc         = rule.get('unc')
-                    vol         = ODVolumeActiveDirectoryCIFS( authinfo, userinfo, name, entry, unc, mountOptions )
-
-            if rule.get('type') == 'webdav' :
-                entry       = userinfo.get('name')
-                url         = rule.get('url')
-                vol         = ODVolumeActiveDirectoryWebDav( authinfo, userinfo, entry, url )
-
-            if rule.get('type') == 'nfs' :
-                name          = rule.get('name')
-                server        = rule.get('server')
-                path          = rule.get('path')
-                readOnly      = rule.get('readOnly')
-                mountPath     = rule.get('mountPath')
-                vol           = ODVolumeNFS( name, server=server, path=path, mountPath=mountPath, readOnly=readOnly)
-
-            if rule.get('type') == 'pvc'  :
-                name          = rule.get('name')
-                claimName     = rule.get('claimName')
-                mountPath     = rule.get('mountPath')
-                vol           = ODVolumePersistentVolumeClaim( name=name, mountPath=mountPath, claimName=claimName)
-
-            if vol :        
-                volumes.append( vol ) 
-
+            # apply volume rules for each label
+            # read the volumerules
+            volumerules =  rules.get(k)
+            # if volumerules is a list
+            if isinstance( volumerules, list ):
+                # for each entry
+                for rule in volumerules: 
+                    # get volume from rule
+                    selectedVolume = getODVolumebyRules(authinfo, userinfo, rule )
+                    # add it 
+                    if isinstance( selectedVolume, ODVolumeBase ):        
+                        volumes.append( selectedVolume ) 
+            # if volumerules is a dict
+            elif isinstance(volumerules,dict):
+                 # get volume from rule
+                selectedVolume = getODVolumebyRules(authinfo, userinfo, volumerules )
+                if isinstance( selectedVolume, ODVolumeBase ): 
+                    # add it  
+                    volumes.append( selectedVolume ) 
+    # return the list of volume
     return volumes
 
 
