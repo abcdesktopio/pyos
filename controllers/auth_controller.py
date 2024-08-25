@@ -46,7 +46,7 @@ class AuthController(BaseController):
     redirect_page_local_filename = 'redirect.mustache.html'
 
     def __init__(self, config_controller=None):
-        self.logger.info( 'config_controller=%s', config_controller )
+        self.logger.info( f"config_controller={config_controller}" )
         super().__init__(config_controller)
         try:
             self.oauth_html_redirect_page = oc.lib.load_local_file(filename=AuthController.redirect_page_local_filename)
@@ -294,7 +294,7 @@ class AuthController(BaseController):
             self.logger.debug( 'login prepareressources' )
             oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
         except Exception as e:
-            return Results.error( status=401, message='failed to prepare ressources ' + str(e) )
+            return Results.error( status=401, message=f"failed to prepare ressources {e}" )
         
         expire_in = oc.od.settings.jwt_config_user.get('exp')    
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles )
@@ -382,7 +382,7 @@ class AuthController(BaseController):
     def prelogin(self,userid=None):
         self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
         ipsource = getclientipaddr()
-        self.logger.debug('prelogin request from ip source %s', ipsource)
+        self.logger.debug(f"prelogin request from ip source {ipsource}")
         
         # can raise exception 
         self.isban_ip(ipsource)
@@ -506,7 +506,7 @@ class AuthController(BaseController):
     def logmein(self, provider=None, userid=None, format='deprecated' ):
 
         ipsource = getclientipaddr()
-        self.logger.debug('logmein request from ip source %s', ipsource)
+        self.logger.debug( f"logmein request from ip source {ipsource}")
 
         # can raise exception 
         self.isban_ip(ipsource)
