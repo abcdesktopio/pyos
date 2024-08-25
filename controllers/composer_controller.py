@@ -371,7 +371,7 @@ class ComposerController(BaseController):
                 url = urllib.parse.urlparse(myhosturl)
                 route = url.hostname
             except Exception as e:
-                self.logger.error('failed: %s', e)
+                self.logger.error(e)
 
         elif websocketrouting == 'bridge':
             route = target
@@ -383,7 +383,7 @@ class ComposerController(BaseController):
                     url = urllib.parse.urlparse(http_origin)
                     route = url.hostname
                 except Exception as e:
-                    self.logger.error('Errror: %s', e)
+                    self.logger.error(e)
 
         elif websocketrouting == 'http_host':
             try:
@@ -391,9 +391,9 @@ class ComposerController(BaseController):
                 url = urllib.parse.urlparse(http_host)
                 route = url.hostname
             except Exception as e:
-                self.logger.error('Errror: %s', e)
+                self.logger.error(e)
 
-        self.logger.debug('Route websocket to: %s', route)
+        self.logger.debug( f"Route websocket to: {route}")
         return route
 
     @cherrypy.expose
