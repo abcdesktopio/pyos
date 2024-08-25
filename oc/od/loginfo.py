@@ -32,7 +32,7 @@ class ODLogInfo:
         try:
             ODLogInfo.loginfo[key].append(message)
         except Exception as e:
-            logger.error('set %s',e) 
+            logger.error( e ) 
 
     @staticmethod    
     def get( key ):

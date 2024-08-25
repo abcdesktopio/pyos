@@ -112,7 +112,7 @@ class ODSecret():
             # try to decode as utf8
             b = b.decode('utf-8')
         except Exception:
-            # self.logger.error( 'failed to decode b64 str %s', str(e))
+            # self.logger.error( f"failed to decode b64 str {e}")
             # don't care if decode as utf8 has failed, it should not be a utf8
             pass
         return b
@@ -199,7 +199,7 @@ class ODSecret():
         mysecret = V1Secret( data=myauth_dict_secret, metadata=metadata, type=self.secret_type ) 
         if isinstance( mysecret, V1Secret) :      
             created_secret = self.kubeapi.create_namespaced_secret( namespace=self.namespace, body=mysecret )
-            self.logger.info( 'new secret name %s type %s created', mysecretname, self.secret_type )
+            self.logger.info( f"new secret name {mysecretname} type {self.secret_type} created" )
         return created_secret
 
     def read( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Secret:
@@ -209,7 +209,7 @@ class ODSecret():
             mysecret = self.kubeapi.read_namespaced_secret( name=secret_name, namespace=self.namespace )
         except ApiException as e:
             if e.status != 404:
-                self.logger.error('secret name %s can not be read: error %s', str(secret_name), e ) 
+                self.logger.error(f"secret name {secret_name} can not be read {e}" ) 
         return mysecret
       
     def delete( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Status:
@@ -220,7 +220,7 @@ class ODSecret():
             secret_name = self.get_name( authinfo, userinfo )
             v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace, grace_period_seconds=0 )
         except ApiException as e:
-            self.logger.error('secret name %s can not be deleted %s', str(secret_name), e ) 
+            self.logger.error( f"secret name {secret_name} can not be deleted {e}") 
         return v1status
 
     def create(self, authinfo:AuthInfo, userinfo:AuthUser, data:dict )->V1Secret:
@@ -252,10 +252,10 @@ class ODSecret():
                 op = 'create'  # operation is used for log message
                 mysecret = self._create( authinfo, userinfo, data )
         except Exception as e:
-            self.logger.error( 'Failed to %s secret type=%s %s', str(op), str(self.secret_type), str(e) )
+            self.logger.error( f"Failed to call method {op} on secret type={self.secret_type} {e}" )
         
         if isinstance( mysecret, V1Secret) :
-            self.logger.info( '%s secret type=%s name=%s done', str(op), self.secret_type, mysecret.metadata.name )
+            self.logger.info( f"{op} secret type={self.secret_type} name={mysecret.metadata.name} done" )
 
         return mysecret
 
@@ -271,6 +271,7 @@ class ODSecretLocalAccount( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='localaccount' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='localaccount'
+
 class ODSecretPosixAccount( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='posixaccount' ):

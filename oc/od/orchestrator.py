@@ -203,25 +203,25 @@ class ODOrchestratorBase(object):
         return oc.lib.remove_accents( name ) 
    
     def resumedesktop(self, authinfo, userinfo, **kwargs):
-        raise NotImplementedError('%s.resumedesktop' % type(self))
+        raise NotImplementedError(f"{type(self)}.resumedesktop")
 
     def createdesktop(self, authinfo, userinfo, **kwargs):
-        raise NotImplementedError('%s.createdesktop' % type(self))
+        raise NotImplementedError(f"{type(self)}.createdesktop")
 
     def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs):
-        raise NotImplementedError('%s.build_volumes' % type(self))
+        raise NotImplementedError(f"{type(self)}.build_volumes")
 
     def findDesktopByUser( self, authinfo, userinfo ):
-        raise NotImplementedError('%s.findDesktopByUser' % type(self))
+        raise NotImplementedError(f"{type(self)}.findDesktopByUser")
 
     def removedesktop(self, authinfo, userinfo, args={}):
-        raise NotImplementedError('%s.removedesktop' % type(self))
+        raise NotImplementedError(f"{type(self)}.removedesktop")
 
     def get_auth_env_dict( self, authinfo, userinfo ):
-        raise NotImplementedError('%s.get_auth_env_dict' % type(self))
+        raise NotImplementedError(f"{type(self)}.get_auth_env_dict")
 
     def getsecretuserinfo(self, authinfo, userinfo):
-        raise NotImplementedError('%s.getsecretuserinfo' % type(self))
+        raise NotImplementedError(f"{type(self)}.getsecretuserinfo")
 
     def garbagecollector( self, timeout ):
         raise NotImplementedError(f"{type(self)}.garbagecollector")
@@ -236,29 +236,29 @@ class ODOrchestratorBase(object):
         raise NotImplementedError(f"{type(self)}.countdesktop")
 
     def listContainerApps( self, authinfo, userinfo, apps ):
-        raise NotImplementedError('%s.listContainerApps' % type(self))
+        raise NotImplementedError(f"{type(self)}.listContainerApps")
 
     def countRunningContainerforUser( self, authinfo, userinfo):  
-        raise NotImplementedError('%s.countRunningContainerforUser' % type(self))
+        raise NotImplementedError(f"{type(self)}.countRunningContainerforUser")
 
     def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
-        raise NotImplementedError('%s.envContainerApp' % type(self))
+        raise NotImplementedError(f"{type(self)}.envContainerApp")
     
     def removeContainerApp( self, authinfo, userinfo, containerid):
-        raise NotImplementedError('%s.removeContainerApp' % type(self))
+        raise NotImplementedError(f"{type(self)}.removeContainerApp")
 
     def logContainerApp( self, authinfo, userinfo, podname, containerid):
-        raise NotImplementedError('%s.logContainerApp' % type(self))
+        raise NotImplementedError(f"{type(self)}.logContainerApp")
 
     def stopContainerApp( self, authinfo, userinfo, myDesktop, podname, containerid, timeout=5 ):
-        raise NotImplementedError('%s.stopContainerApp' % type(self))
+        raise NotImplementedError(f"{type(self)}.stopContainerApp")
 
     def get_volumename(self, prefix, userinfo):
         if not isinstance(prefix,str):
-             raise ValueError('invalid prefix value %s' % type(prefix))
+             raise ValueError(f"invalid prefix value {type(self)}")
 
         if not isinstance(userinfo, oc.auth.authservice.AuthUser):
-             raise ValueError('invalid userinfo value %s' % type(userinfo))
+             raise ValueError(f"invalid userinfo value {type(self)}")
 
         name = prefix + '-' + userinfo.get('userid')
         normalize_name = oc.auth.namedlib.normalize_name( name )
@@ -386,7 +386,7 @@ class ODOrchestratorBase(object):
         healtzbintimeout = oc.od.settings.desktop_pod[service].get('healtzbintimeout', timeout*1000 )
         command = [ oc.od.settings.desktop_pod[service].get('healtzbin'), '--max-time', str(healtzbintimeout), binding ]       
         result = self.execwaitincontainer( desktop, command, timeout)
-        self.logger.debug( 'command %s , return %s output %s', command, str(result.get('exit_code')), result.get('stdout') )
+        self.logger.debug( f"command {command} returns {result.get('exit_code')} output {result.get('stdout')}" )
 
         if isinstance(result, dict):
             return result.get('ExitCode') == 0
@@ -513,42 +513,39 @@ class ODOrchestrator(ODOrchestratorBase):
         return {} 
 
     def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
-        raise NotImplementedError('%s.build_volumes' % type(self))
+        raise NotImplementedError(f"{type(self)}.build_volumes")
   
     def countdesktop(self):
-        raise NotImplementedError('%s.countdesktop' % type(self))
+        raise NotImplementedError(f"{type(self)}.countdesktop")
 
     def removedesktop(self, authinfo, userinfo, args={}):
-        raise NotImplementedError('%s.removedesktop' % type(self))
+        raise NotImplementedError(f"{type(self)}.removedesktop")
 
     def is_instance_app( self, appinstance ):
-        raise NotImplementedError('%s.is_instance_app' % type(self))
+        raise NotImplementedError(f"{type(self)}.is_instance_app")
 
     def execwaitincontainer( self, desktop, command, timeout=1000):
-        raise NotImplementedError('%s.removedesktop' % type(self))
+        raise NotImplementedError(f"{type(self)}.removedesktop")
 
     def execininstance( self, container_id, command):
-        raise NotImplementedError('%s.execininstance' % type(self))
+        raise NotImplementedError(f"{type(self)}.execininstance")
 
     def getappinstance( self, authinfo, userinfo, app ):        
-        raise NotImplementedError('%s.getappinstance' % type(self))
+        raise NotImplementedError(f"{type(self)}.getappinstance")
 
     def get_auth_env_dict( self, authinfo, userinfo  ):
         return {}
 
     @staticmethod
     def applyappinstancerules_homedir( authinfo, rules ):
-        homedir_enabled = False      # by default application do not share the user homedir
-
+        homedir_enabled = False # by default application do not share the user homedir
         # Check if there is a specify rules to start this application
-        if type(rules) is dict  :
+        if isinstance(rules,dict):
             # Check if there is a homedir rule
             rule_homedir =  rules.get('homedir')
-            if type(rule_homedir) is dict:
-
+            if isinstance(rule_homedir,dict):
                 # read the default rule first and them apply specific rules
                 homedir_enabled = rule_homedir.get('default', False )
-                
                 # list user context tag 
                 # check if user auth tag context exist
                 for kn in rule_homedir.keys():
@@ -618,7 +615,7 @@ class ODOrchestrator(ODOrchestratorBase):
     
 
     def createappinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):                    
-        raise NotImplementedError('%s.createappinstance' % type(self))
+        raise NotImplementedError(f"{type(self)}.createappinstance")
 
     def buildwebhookinstance( self, authinfo, userinfo, app, network_config, network_name=None, appinstance_id=None ):
 
@@ -661,9 +658,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # merge all dict data from app, authinfo, userinfo, and containerip
         # if add is a ODDekstop use to_dict to convert ODDesktop to dict 
         # else app is a dict 
-        
-        self.logger.debug( f"type(app) is {type(app)}" )
-
+        self.logger.debug( f"type of app is {type(app)}" )
         if isinstance( app, dict ) :
             sourcedict.update( app )
         elif isinstance(app, ODDesktop ):
@@ -702,13 +697,13 @@ class ODOrchestrator(ODOrchestratorBase):
         return webhookcmd
 
     def logs( self, authinfo, userinfo ):
-        raise NotImplementedError('%s.logs' % type(self))
+        raise NotImplementedError(f"{type(self)}.logs")
 
     def isgarbagable( self, container, expirein, force=False ):
-        raise NotImplementedError('%s.isgarbagable' % type(self))
+        raise NotImplementedError(f"{type(self)}.isgarbagable")
 
     def garbagecollector( self, expirein, force=False ):
-        raise NotImplementedError('%s.garbagecollector' % type(self))
+        raise NotImplementedError(f"{type(self)}.garbagecollector")
 
 @oc.logging.with_logger()
 class ODOrchestratorKubernetes(ODOrchestrator):
@@ -867,7 +862,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if isinstance( node_list, V1NodeList) and len(node_list.items) > 0:
                     bReturn = True
         except Exception as e:
-            self.logger.error( str(e) )
+            self.logger.error( e )
         return bReturn
 
 
@@ -962,7 +957,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 container_name = myDesktop.container_name
                 strlogs = self.kubeapi.read_namespaced_pod_log( name=pod_name, namespace=self.namespace, container=container_name, pretty='true' )
             except ApiException as e:
-                self.logger.error( str(e) )
+                self.logger.error(e)
         else:
             self.logger.info( f"No pod found for user {userinfo.userid}" )
         return strlogs
@@ -1094,7 +1089,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     secret_dict_data    = secret.read_alldata( authinfo, userinfo )
                     if not isinstance( secret_dict_data, dict ):
                         # skipping bad values
-                        self.logger.error( f"Invalid value read from secret={secret_name} type={str(type(secret_dict_data))}" )
+                        self.logger.error( f"Invalid value read from secret={secret_name} type={type(secret_dict_data)}" )
                         continue
 
                     mountPath           = secret_dict_data.get( 'mountPath')
@@ -1103,21 +1098,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # Check if the secret contains valid datas 
                     if not isinstance( mountPath, str) :
                         # skipping bad values
-                        self.logger.error( f"Invalid value for mountPath read from secret={secret_name} type={str(type(mountPath))}" )
+                        self.logger.error( f"Invalid value for mountPath read from secret={secret_name} type={type(mountPath)}" )
                         continue
 
                     if not isinstance( networkPath, str) :
                         # skipping bad values
-                        self.logger.error( f"Invalid value for networkPath read from secret={secret_name}  type={str(type(networkPath))}" )
+                        self.logger.error( f"Invalid value for networkPath read from secret={secret_name}  type={type(networkPath)}" )
                         continue
 
                     volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }     
                     posixaccount = self.alwaysgetPosixAccountUser( authinfo, userinfo )
                     # Default mount options
-                    mountOptions = 'uid=' + str( posixaccount.get('uidNumber') ) + ',gid=' + str( posixaccount.get('gidNumber')  )
+                    mountOptions = f"uid={posixaccount.get('uidNumber')}',gid={posixaccount.get('gidNumber')}"
                     # concat mountOptions for the volume if exists 
                     if mountvol.has_options():
-                        mountOptions += ',' + mountvol.mountOptions
+                        mountOptions += f"',{mountvol.mountOptions}"
 
                     # dump for debug
                     self.logger.debug( f"flexvolume: {mountvol.name} set option {mountOptions}" )
@@ -1581,7 +1576,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             )
 
         except ApiException as e:
-            self.logger.error( str(e) )
+            self.logger.error( f"{e}" )
 
         return deletedPod
 
@@ -2062,7 +2057,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 configmap_dict[myconfigmap.metadata.name] = { 'data': myconfigmap.data }
       
         except ApiException as e:
-            self.logger.error("Exception %s", str(e) )
+            self.logger.error( f"ApiException {e}" )
     
         return configmap_dict
 
@@ -2108,7 +2103,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         secret_dict[mysecret.metadata.name]['data'][mysecretkey] = data 
 
         except ApiException as e:
-            self.logger.error("Exception %s", str(e) )
+            self.logger.error( f"ApiException: {e}" )
     
         return secret_dict
 
@@ -2321,7 +2316,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 resp.close()
 
         except Exception as e:
-            self.logger.error( 'command exec failed %s', str(e)) 
+            self.logger.error( f"command exec failed {e}") 
 
         return result
 
@@ -3221,8 +3216,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # graphical volumes
         (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=secrets_requirement, rules=rules,  **kwargs)
         list_volumeMounts = list( volumeMounts.values() )
-        self.logger.info( 'volumes=%s', volumes.values() )
-        self.logger.info( 'volumeMounts=%s', volumeMounts.values() )
+        self.logger.info( f"volumes={volumes.values()}" )
+        self.logger.info( f"volumeMounts={volumeMounts.values()}")
         self.logger.debug('volumes created')
 
 
@@ -3385,7 +3380,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None
         self.on_desktoplaunchprogress('b.Creating your desktop')
         jsonpod_manifest = json.dumps( pod_manifest, indent=2 )
-        self.logger.info( 'dump yaml %s', jsonpod_manifest )
+        self.logger.info('dump create pod_manifest json pod')
+        self.logger.info(jsonpod_manifest)
 
         pod = None
         try:
@@ -3628,7 +3624,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         return myPod                    
                     
         except ApiException as e:
-            self.logger.info("Exception when calling list_namespaced_pod: %s" % e)
+            self.logger.info(e)
         
         return None
 
@@ -3647,7 +3643,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        assert isinstance(pod_name,  str),      f"pod_name has invalid type {type(pod_name)}"
+        assert isinstance(pod_name, str),       f"pod_name has invalid type {type(pod_name)}"
 
         belong = False
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name )
@@ -4029,11 +4025,11 @@ class ODAppInstanceBase(object):
         self.executeclassename='default' # default value overwrited by class instance 
 
     def findRunningAppInstanceforUserandImage( self, authinfo, userinfo, app):
-        raise NotImplementedError('%s.build_volumes' % type(self))
+        raise NotImplementedError(f"{type(self)}.build_volumes")
 
     @staticmethod
     def isinstance( app ):
-        raise NotImplementedError('isinstance' % type(app))
+        raise NotImplementedError( "isinstance")
 
     def get_DISPLAY( self, desktop_ip_addr:str='' ):
         raise NotImplementedError('get_DISPLAY')
@@ -4281,8 +4277,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         Returns:
             _type_: _description_
         """
-        assert isinstance(pod_ephemeralcontainers, V1Pod), f"pod_ephemeralcontainers has invalid type  {type(pod_ephemeralcontainers)}"
-        assert isinstance(container_name,  str),  f"container_name has invalid type  {type(container_name)}"
+        assert isinstance(pod_ephemeralcontainers, V1Pod), f"pod_ephemeralcontainers has invalid type {type(pod_ephemeralcontainers)}"
+        assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
         pod_ephemeralcontainer = None
 
         if isinstance( pod_ephemeralcontainers.status, V1PodStatus ) and \
@@ -4317,8 +4313,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
     def stop(self, pod_name:str, container_name:str)->bool:
         self.logger.debug('')
-        assert isinstance(pod_name,  str),  f"pod_name has invalid type  {type(pod_name)}"
-        assert isinstance(container_name,  str),  f"container_name has invalid type  {type(container_name)}"
+        assert isinstance(pod_name,  str),  f"pod_name has invalid type {type(pod_name)}"
+        assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
 
         pod_ephemeralcontainers =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
             name=pod_name, 
@@ -5200,8 +5196,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 } ]
             }
         }
-
-        self.logger.info( 'dump yaml %s', json.dumps( pod_manifest, indent=2 ) )
+        self.logger.info( json.dumps( pod_manifest, indent=2 ) )
         try:
             pod = self.orchestrator.kubeapi.create_namespaced_pod(
                 namespace=self.orchestrator.namespace,
@@ -5215,7 +5210,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         except Exception as e:
             self.logger.error('== Exception ==')
             self.logger.error(e)
-            raise ODError( status=500, message=str(e) )
+            raise ODError( status=500, message=f"{e}" )
         
         if not isinstance(pod, V1Pod ):
             raise ValueError( f"Invalid create_namespaced_pod type return {type(pod)} V1Pod is expecting")

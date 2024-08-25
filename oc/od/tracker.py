@@ -32,7 +32,7 @@ class jiraclient( object ):
             try:
                 self.jira = JIRA( url, basic_auth=(username, apikey) )
             except Exception as e:
-                self.logger.error( 'Init jira failed %s', e)
+                self.logger.error( f"Init jira failed {e}")
     
     def __del__(self):
         if self.jira:

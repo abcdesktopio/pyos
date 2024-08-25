@@ -134,6 +134,9 @@ class API(object):
     @staticmethod
     @cherrypy.tools.register('before_handler')
     def trace_request():
+        
+        logmessage = cherrypy.request.path_info
+
         if hasattr(cherrypy.request, 'json'):
             # if request is an auth request
             if cherrypy.request.path_info == '/auth/auth' :
@@ -144,11 +147,11 @@ class API(object):
                 # replace password data by XXXXXXXXXXXXX in jsonhidendata object
                 jsonhidendata['password'] = 'XXXXXXXXXXX'
                 # log data message with the hidden passord value
-                logger.info('%s %s', cherrypy.request.path_info, jsonhidendata )
+                logmessage = logmessage + f" {jsonhidendata}"
             else:
-                logger.info('%s %s', cherrypy.request.path_info, cherrypy.request.json)
-        else:
-            logger.info(cherrypy.request.path_info)
+                logmessage = logmessage + f" {cherrypy.request.json}"
+
+        logger.info(logmessage)
 
     @staticmethod    
     @cherrypy.tools.register('on_end_request')
@@ -164,13 +167,8 @@ class API(object):
                 message = message + m.rstrip(b' ')
             message = message.rstrip(b' \n')
 
-        if hasattr(message, "__iter__"):
-            # drop message too long
-            # OSError: [Errno 90] Message too long
-            message = message[:1024] # suppose must be less than 1024 
-
-        # message = message.encode("ascii","ignore")
-        logger.info(f"{cherrypy.request.path_info} {message}")
+        logmessage = f"{cherrypy.request.path_info} {message}"
+        logger.info(logmessage)
     
     
     @cherrypy.expose

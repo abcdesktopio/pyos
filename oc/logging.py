@@ -18,6 +18,9 @@ import logging.config
 import pymongo
 import graypy # graylog lib
 import cherrypy
+import threading
+import os
+import socket 
 from cherrypy.lib.reprconf import Config
 from cherrypy._cplogging import LogManager
 from cherrypy import _json as json
@@ -25,6 +28,9 @@ from cherrypy import _json as json
 from oc.cherrypy import getclientipaddr
 
 logger = logging.getLogger(__name__)
+# node_name is ENV var NODE_NAME for kubernetes or gethostname() if None
+node_name = os.environ.get('NODE_NAME', socket.gethostname() )
+
 
 # Return the name of a function in the call stack
 def func_name(frame_num=0,append_module=True):
@@ -101,6 +107,19 @@ class OdContextFilter(logging.Filter):
     def filter(self, record):        
         ''' Log Filter that add to the current log record a userid field    '''
         ''' containing the user id (extracted from the http request)        '''
+        ''' add node_name '''
+        ''' add thread ident '''
+
+        # read thread ident 
+        record.threadid = None
+        try:
+            record.threadid = threading.get_ident()
+        except Exception as e:
+            pass
+
+        # read node_name
+        record.nodename = node_name
+
         record.userid = 'internal' # by default this is not a http request
         try:  
             if cherrypy.request.app : # if the log message come from an a http request

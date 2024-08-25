@@ -228,7 +228,7 @@ def init_defaulthostfqdn():
         logger.warning('Use Host HTTP header to redirect url, this is a security Warning')
         
     else:
-        logger.info('default_host_url: %s', default_host_url)
+        logger.info( f"default_host_url: {default_host_url}")
         default_host_url_is_securised = default_host_url.lower().startswith('https')
 
 
@@ -240,27 +240,27 @@ def init_defaulthostfqdn():
             hostname = url.hostname
             default_server_ipaddr = socket.gethostbyname(hostname)
        except Exception as e:
-            logger.warning('default_server_ipaddr set to dummy value %s', str(e) )
-            logger.warning('correct default_server_ipaddr to localhost' )
+            logger.warning(f"default_server_ipaddr set to dummy value error {e}" )
+            logger.warning('fixing default_server_ipaddr to 127.0.0.1' )
             default_server_ipaddr = '127.0.0.1' # dummy value localhost
-    logger.info('default_server_ipaddr: %s', default_server_ipaddr)
+    logger.info(f"default_server_ipaddr: {default_server_ipaddr}")
 
 
     # if not set autologin is denied 
     services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True} )
-    logger.info('services http request denied: %s', services_http_request_denied)
+    logger.info( f"services http request denied: {services_http_request_denied}")
 
 def init_logmein():
     global logmein
     logmein = gconfig.get(  'auth.logmein', { 'enable': False } )
     if logmein.get('enable') is True:
-        logger.info('logmein config %s', str(logmein))
+        logger.info( f"logmein config {logmein}")
 
 def init_prelogin():
     global prelogin
     prelogin = gconfig.get(  'auth.prelogin', { 'enable': False } )
     if prelogin.get('enable') is True:
-        logger.info('prelogin config %s', str(prelogin))
+        logger.info( f"prelogin config {prelogin}" )
 
 def init_websocketrouting():
     """init_websocketrouting
@@ -288,13 +288,13 @@ def init_websocketrouting():
             # check if value make sence
             url = urlparse(default_host_url)
             route = url.hostname
-            logger.debug('routing mode use hostname %s', route)
+            logger.debug( f"routing mode use hostname {route}")
         except Exception as e:
-            logger.error("webroutingmode is set to 'default_host_url', but 'default_host_url' is in valid format %s ", e)
+            logger.error(f"webroutingmode is set to 'default_host_url', but 'default_host_url' is in valid format {e} ")
             logger.error("please check the default_host_url parameter in config file")
             exit(-1)
 
-    logger.info('mode is %s', websocketrouting)
+    logger.info( f"mode is {websocketrouting}" )
   
 def init_fakedns():
     global fakedns

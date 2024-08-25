@@ -391,7 +391,7 @@ class ODJanusCluster():
             janus.attach()
             results[i] = janus.find( description=pod_name )
         except Exception as e:
-            logger.error('not responding gateway %s %s', node.get('host'), str(e) )
+            logger.error( f"not responding gateway {node.get('host')} {e}" )
             results[i] = None
 
     def find_stream( self, pod_name, timeout=3 ):

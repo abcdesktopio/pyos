@@ -134,11 +134,11 @@ class ODApps:
                 f.write(data)
                 bReturn = True
             except Exception as e:
-                self.logger.error('Can not makeicon_file %s: %s', filename, e)
+                self.logger.error(f"Can not makeicon_file write {filename}: {e}")
             f.close()
 
         except Exception as e:
-            self.logger.error('Can not makeicon_file %s: %s', filename, e)
+            self.logger.error(f"Can not makeicon_file {filename}: {e}")
         return bReturn
 
     def countApps(self):

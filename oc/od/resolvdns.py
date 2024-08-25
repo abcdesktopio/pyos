@@ -36,11 +36,11 @@ class ODResolvDNS(object):
                 name = result.target.to_text()
                 resolv_list.append(name)         
         except dns.resolver.NoAnswer:
-            logger.info("No SRV record for %s", fqdn_name)
+            logger.info( f"No SRV record for {fqdn_name}" )
         except dns.resolver.NXDOMAIN:
-            logger.info("The name %s does not exist",  fqdn_name)
+            logger.info( f"The name {fqdn_name} does not exist" )
         except Exception as e:
-            logger.error('failed: %s', e)
+            logger.error( f"resolv error {e}")
         return resolv_list
 
     @staticmethod

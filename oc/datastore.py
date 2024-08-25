@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 class ODDatastoreClient(object):
 
     def getcollection(self, databasename, collectionname, myfilter=None, limit=0):
-        raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'getcollection'))
+        raise NotImplementedError( f"class {self.__class__.__name__} doesn't implement method getcollection")
 
     def addtocollection(self, databasename, collectionname, datadict):
-        raise NotImplementedError("Class %s doesn't implement method %s" %(self.__class__.__name__, 'addtocollection'))
+        raise NotImplementedError( f"class {self.__class__.__name__} doesn't implement method addtocollection")
 
 @oc.logging.with_logger()
 class ODMongoDatastoreClient(ODDatastoreClient):

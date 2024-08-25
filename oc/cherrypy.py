@@ -181,7 +181,7 @@ class Tools(object):
     @staticmethod
     def create_controllers(parent, source_module, config_controllers, module_filter=r'^\w+_controller$',class_filter=r'^(\w+)Controller$'):
         for _class in pyutils.import_classes(source_module, module_filter, class_filter):
-            logger.debug( 'instancing class %s', _class.__name__)
+            logger.debug( f"instancing class {_class.__name__}")
             controller = _class(config_controllers.get( _class.__name__))
             controller.root = parent
             controller.logger = logging.getLogger(_class.__module__ + '.' + _class.__name__)

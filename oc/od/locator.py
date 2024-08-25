@@ -181,7 +181,7 @@ class ODLocatorActiveDirectory(ODLocatorBase):
         self.domain = domain
 
     def locate( self, ipAddr ):        
-        logger.info('ipAddr=%s', ipAddr)
+        logger.info( f"ipAddr={ipAddr}")
         mysite = None
         location = None
         
@@ -222,7 +222,7 @@ class ODLocatorPublicInternet( ODLocatorBase ):
             self.logger.error( e )
 
     def locate( self, ipAddr ):        
-        self.logger.debug('Looking for ipAddr location %s', ipAddr)
+        self.logger.debug( f"Looking for ipAddr location {ipAddr}")
         location = None
 
         # read 

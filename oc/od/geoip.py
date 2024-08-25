@@ -18,7 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def getGeoIPdict( ipaddr ):
-    logger.debug('Looking for ip data %s', ipaddr)
+    logger.debug( f"Looking for ip data {ipaddr}")
     mydict = {'location': None, 'ip': ipaddr}
     try:
       import GeoIP
@@ -30,6 +30,6 @@ def getGeoIPdict( ipaddr ):
       mydict['location']      = [ gir.get('latitude'), gir.get('longitude') ]
       mydict['timezone']      = gir.get('time_zone')
     except Exception as e:
-      logger.error('%s', e)
+      logger.error(e)
 
     return mydict

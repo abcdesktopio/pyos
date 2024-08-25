@@ -590,7 +590,6 @@ def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
                                                 **myCreateDesktopArguments )
 
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
-        # logger.debug( 'desktop dump : %s', myDesktop.to_json() )
         if runwebhook( myDesktop, messageinfo ): # run web hook as soon as possible 
             messageinfo.push('c.Webhooking network services')
        

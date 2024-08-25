@@ -28,18 +28,18 @@ class ODInternalDNS():
         self.server = server
         self.secret = secret
 
-        if type(server) is not str :
+        if not isinstance(server,str) :
             raise ValueError('Invalid internal dns server value')
 
-        if type(secret) is not str :
+        if not isinstance(secret,str) :
             raise ValueError('Invalid internal dns secret value')            
 
         # http://myhost.mydomain.tld:8080/update?secret=changeme&domain=foo&addr=1.2.3.4
-        self.url = 'http://' + server  + ':8080/update'
+        self.url = f"http://{server}:8080/update"
 
 
     def get_targetfqdn( self, hostname ):
-        return hostname + '.' + self.domain
+        return f"{hostname}.{self.domain}"
 
     def update_dns(self, hostname, ipaddr ):
 
@@ -53,23 +53,16 @@ class ODInternalDNS():
         values = {  'secret': self.secret,
                     'domain': hostname,
                     'addr': ipaddr
-                  }       
+        }       
         try:
             data = urllib.parse.urlencode(values)
             url = self.url + '?' + data
-            self.logger.info( 'update url: %s', url )
+            self.logger.info( f"update url: {url}" )
             response = urllib.request.urlopen(url)
-            
         except IOError as e:
-            if hasattr(e, 'reason'):
-                self.logger.error( 'url %s failed %s', self.url, str(e.reason) )
-            elif hasattr(e, 'code'):
-                self.logger.error( 'url %s failed %s', self.url, str(e.code) )                
-            else:
-                self.logger.error( 'url %s failed', self.url )            
-            
+            self.logger.error( f"IOError url {self.url} failed {e}" )         
         except Exception as e:
-            self.logger.error( 'url %s failed %s', self.url, str(e) )            
+            self.logger.error( f"url {self.url} failed {e}" )            
         else:
             # everything is fine
             try:
@@ -79,7 +72,7 @@ class ODInternalDNS():
                     response.close()
                     # {"Success":true,"Message":"Updated A record for e96f94bb-84ed-4a64-8080-03399e6da748 to IP address 10.244.0.89","Domain":"e96f94bb-84ed-4a64-8080-03399e6da748","Domains":["e96f94bb-84ed-4a64-8080-03399e6da748"],"Address":"10.244.0.89","AddrType":"A"}
                     jsondns = json.loads(content.decode(encoding))
-                    self.logger.info( 'dns response  %s', content.decode(encoding) )
+                    self.logger.info( f"dns response {content.decode(encoding)}" )
                     
                     dnssuccess = jsondns.get('Success', False)
                     dnsresponseaddr = jsondns.get('Address', '')
@@ -89,9 +82,9 @@ class ODInternalDNS():
                         dnsresponsetype == 'A':
                        bReturn = True
             except Exception as e:
-                self.logger.error( 'dns response error %s', str(e) )
+                self.logger.error( f"dns response error {e}" )
        
-        self.logger.info( 'bReturn  %s', bReturn )
+        self.logger.info( f"bReturn {bReturn}" )
         
         if bReturn : 
             return self.get_targetfqdn( hostname )

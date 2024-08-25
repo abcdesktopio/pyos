@@ -120,7 +120,7 @@ class ODConfigMap():
         metadata = client.V1ObjectMeta( name=myconfigmapname, labels=labels_dict, namespace=self.namespace )  
         myconfigmap = client.V1ConfigMap( data=myauth_dict_configmap, metadata=metadata )         
         created_configmap = self.kubeapi.create_namespaced_config_map( namespace=self.namespace, body=myconfigmap)
-        self.logger.info( 'new configmap name %s created', myconfigmapname )
+        self.logger.info( f"new configmap name {myconfigmapname} created" )
         return  created_configmap
 
     def read( self, userinfo ):
@@ -130,7 +130,7 @@ class ODConfigMap():
             myconfigmap = self.kubeapi.read_namespaced_config_map( name=configmap_name, namespace=self.namespace )
         except ApiException as e:
             if e.status != 404:
-                self.logger.error('configmap name %s can not be read: %s', str(configmap_name), e ) 
+                self.logger.error(f"configmap name {configmap_name} can not be read {e}" ) 
         return myconfigmap
       
     def delete( self, userinfo ):
@@ -141,7 +141,7 @@ class ODConfigMap():
             configmap_name = self.get_name( userinfo )
             v1status = self.kubeapi.delete_namespaced_config_map( name=configmap_name, namespace=self.namespace )
         except ApiException as e:
-            self.logger.error('configmap name %s can not be deleted %s', str(configmap_name), e ) 
+            self.logger.error(f"configmap name {configmap_name} can not be deleted {e}") 
         return v1status
 
     def create(self, authinfo, userinfo, data ):
@@ -170,20 +170,20 @@ class ODConfigMap():
             myconfigmap = self._create( authinfo, userinfo, data )
             if not isinstance( myconfigmap, client.models.v1_config_map.V1ConfigMap):
                 # an error occurs
-                self.logger.error( 'Failed to create configmap return type=%s', type(myconfigmap) )
+                self.logger.error( f"Failed to create configmap return type={type(myconfigmap)}" )
             else: 
                 # This section is to debug an config map create issue
                 # try to read the configmap created
                 # there should be an error in sync etc database
-                self.logger.debug( 'create configmap return type=%s', type(myconfigmap) )
+                self.logger.debug( f"create configmap return type={type(myconfigmap)}" )
                 readconfigmap = self.read(userinfo)
                 if not isinstance( readconfigmap, client.models.v1_config_map.V1ConfigMap):
                     # an error occurs
                     self.logger.error( 'Failed to read a created configmap' )
-                self.logger.debug( 'reread configmap return %s', type(readconfigmap) )
+                self.logger.debug( "reread configmap return {type(readconfigmap)}" )
 
         except Exception as e:
-            self.logger.error( 'Failed to create configmap type=%s %s', str(self.configmap_type), str(e) )
+            self.logger.error( f"Failed to create configmap type={self.configmap_type} {e}" )
 
         return myconfigmap
 

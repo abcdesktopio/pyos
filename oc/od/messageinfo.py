@@ -43,7 +43,7 @@ class ODMessageInfoManager():
             if self.memcacheclient.set(str(key), str(value), time) != 0: 
                 return True            
         except Exception as e:
-            self.logger.error( str(e) )                      
+            self.logger.error(e)                      
         return False
 
     def set(self, key, value ):

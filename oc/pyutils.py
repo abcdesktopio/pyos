@@ -80,13 +80,13 @@ def get_class(path, class_name=None):
 def import_classes(package, module_name_filter=None, class_name_filter=None, base_class=None):
     classes = []
     path = importlib.import_module(package).__path__
-    logger.debug( "Loading module in directory %s" % path)
+    logger.debug( f"Loading module in directory {path}" )
     for _filefinder, name, ispkg in pkgutil.iter_modules(importlib.import_module(package).__path__):
         if ispkg or (module_name_filter and not re.match(module_name_filter, name)):
             continue 
 
         module_name = '.'.join([package, name])
-        logger.debug("Importing module '%s'", module_name)
+        logger.debug(f"Importing module '{module_name}'")
         module = importlib.import_module(module_name)       
         for class_info in pyclbr.readmodule(module_name).values():
    

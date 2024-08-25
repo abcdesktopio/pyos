@@ -157,7 +157,7 @@ class ODVolumeHostPath(ODVolumeBase):
         self._name          = 'hostpath'    
           
     def is_mountable(self):
-        raise NotImplementedError('%s.is_mountable' % type(self))
+        raise NotImplementedError( f"{type(self)}.is_mountable" )
 
 
 @oc.logging.with_logger()
@@ -241,12 +241,13 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
         self.networkPath   = networkPath
         self.mountOptions  = mountOptions
 
-        if isinstance( self.homeDrive, str ):
+        user_homedir = '/home/balloon/'
+        msLogicUnit = self.homeDrive
+        if isinstance( msLogicUnit, str ):
             # remove the last char if it is ':'
-            if self.homeDrive[-1] == ':':
-                self._containertarget  = '/home/balloon/' + self.homeDrive[0:-1] 
-            else:
-                self._containertarget  = '/home/balloon/' + self.homeDrive 
+            if msLogicUnit[-1] == ':':
+                msLogicUnit =  self.homeDrive[0:-1] 
+            self._containertarget  = user_homedir + msLogicUnit
 
     def is_mountable( self ):
         return all( [ super().is_mountable(), self.homeDrive, self.networkPath, self._containertarget ] )

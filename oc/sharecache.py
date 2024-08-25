@@ -22,12 +22,10 @@ class ODSharecacheBase(object):
         object (_type_): _description_
     """
     def get(self, key):
-        raise NotImplementedError(  'Class %s doesn\'t implement method %s' %
-                                    (self.__class__.__name__, 'get'))
+        raise NotImplementedError( f"class {self.__class__.__name__} does not implement method get")
 
     def set(self, key, value):
-        raise NotImplementedError(  'Class %s doesn\'t implement method %s' %
-                                    (self.__class__.__name__, 'set'))
+        raise NotImplementedError( f"class {self.__class__.__name__} does not implement method set")
 
 
 @oc.logging.with_logger()
@@ -44,31 +42,29 @@ class ODMemcachedSharecache(ODSharecacheBase):
     def get(self, key):        
         try:     
             value = self.createclient().get(str(key))   
-            self.logger.debug('memcached get(%s)->%s', key, value)             
+            self.logger.debug(f"get({key})->{value}")             
             return value
         except Exception as e:
-            self.logger.error('memcached %s failed, key:(%s) %s', self.connectionstring, key, e )
+            self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
             return None
 
     def set(self, key, value, time=0 ):
-        # self.logger.debug("setting key '%s' = %s", key, value)
         try:
             if self.createclient().set(str(key), str(value), time=time) != 0: 
-                self.logger.debug('memcached set(%s)->%s', key, value) 
+                self.logger.debug(f"set({key})->{value}") 
                 return True
-            self.logger.error('memcached %s failed, (%s: %s) return failed', self.connectionstring, key, value)
+            self.logger.error(f"{self.connectionstring} failed, {key} {value} return failed")
         except Exception as e:
-            self.logger.error('memcached %s failed, (%s: %s)', self.connectionstring, key, value, e)
+            self.logger.error(f"{self.connectionstring} failed, {key} {e}")
         return False
 
     def delete(self, key, time=0 ):
-        # self.logger.debug("setting key '%s' = %s", key, value)
         try:
             if self.createclient().delete(str(key), time=time) != 0: 
                 return True
-            self.logger.error('memcached %s failed, (%s: %s) return failed', self.connectionstring, key)
+            self.logger.error(f"{self.connectionstring} failed {key} return failed")
         except Exception as e:
-            self.logger.error('memcached %s failed, (%s: %s)', self.connectionstring, key, e)
+            self.logger.error(f"{self.connectionstring} failed, {key} {e}")
 
         return False
 
