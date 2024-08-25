@@ -85,7 +85,7 @@ class StoreController(BaseController):
             # return default wrapped value
             # for {"status": 200, "result": "img", "message": "ok"}
             value = self.wrapped_key.get( key )
-            self.logger.debug('wrapped_get result %s:%s->%s', userid, key, value )
+            self.logger.debug(f"wrapped_get result {userid}:{key}->{value}" )
         return value
 
     @cherrypy.expose
