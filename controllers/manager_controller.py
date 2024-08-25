@@ -123,11 +123,10 @@ class ManagerController(BaseController):
         nexpirein = None
         try:
             nexpirein = int( expirein )
-            if type(force) is str:
+            if isinstance(force,str):
                 # convert str parameter to bool type
                 force = bool( distutils.util.strtobool( force ) )
             else:
-                self.logger.error( 'bad force value str is expected : %s, using default value force to False', type(force))
                 force = False
         except Exception:
             raise cherrypy.HTTPError(status=400)        
