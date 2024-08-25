@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ODPrelogin:
 
     def __init__(self, config, memcache_connection_string ):
-        self.maxlogintimeout = int(config.get('maxlogintimeout',120))
+        self.maxprelogintimeout = int(config.get('maxprelogintimeout',120))
         self.mustache_data = None
         self.prelogin_url = config.get('url')
         self.memcache = oc.sharecache.ODMemcachedSharecache( memcache_connection_string )
@@ -85,14 +85,14 @@ class ODPrelogin:
             try: 
                 self.update_prelogin_mustache_data()
             except Exception as e:
-                self.logger.error( e )
-                return str(e)   # return error as html_data
+                self.logger.error(e)
+                return f"{e}" # return error as str html_data
 
         # set data to memcached
         self.memcacheclient = self.memcache.createclient()
         userid = userid.upper() # always cache data in upper case only 
-        self.logger.info( f"prelogin_html setting key={sessionid} value={userid} timeout={self.maxlogintimeout}" )
-        bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxlogintimeout )
+        self.logger.info( f"prelogin_html setting key={sessionid} value={userid} timeout={self.maxprelogintimeout}" )
+        bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxprelogintimeout )
         if not isinstance( bset, bool) or bset is False:
             self.logger.error( f"memcacheclient:set failed to set data key={sessionid} value={userid}" )
         html_data = chevron.render( self.mustache_data, prelogindict )
