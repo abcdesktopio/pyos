@@ -21,7 +21,6 @@ import re
 import subprocess
 from subprocess import run, PIPE
 from string import Formatter
-import urllib
 
 logger = logging.getLogger(__name__)
 
