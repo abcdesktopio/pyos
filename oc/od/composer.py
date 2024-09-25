@@ -774,7 +774,7 @@ def launch_app_in_process(orchestrator, app, appinstance, userargs):
     return (cmd, result)
 """
 
-def garbagecollector( expirein:int, force:bool=False ):
+def garbagecollector( expirein:int, nodename:str=None, force:bool=False ):
 
     """garbagecollector
 
@@ -791,9 +791,16 @@ def garbagecollector( expirein:int, force:bool=False ):
     # list of garbaged pod 
     garbaged = [] 
     list_label_selector = [ 'type=' + myOrchestrator.x11servertype ]
+
+    # field_selector to select pod from a dedicated node 
+    # implement gracefull shutdown of a node
+    field_selector = None
+    if isinstance( nodename, str ):
+        field_selector = f"spec.nodeName={nodename}"
+
     for label_selector in list_label_selector:
         # list all graphical pods 
-        myPodList = myOrchestrator.kubeapi.list_namespaced_pod(myOrchestrator.namespace, label_selector=label_selector)
+        myPodList = myOrchestrator.kubeapi.list_namespaced_pod(myOrchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
         if isinstance( myPodList, V1PodList):
             for pod in myPodList.items:
                 try: 
