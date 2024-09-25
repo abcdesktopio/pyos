@@ -82,10 +82,21 @@ def api_build_error(status, message, traceback, version):
     return build_error.encode('utf-8')
 
 
-
-
 def img_handle_404_application(status, message, traceback, version):
-    ''' if the image icone file does not exist      '''
+    """img_handle_404_application overwrite 404 to default icon
+        return 'img/app/application-default-icon.svg' content 
+        using cherrypy.lib.static.serve_file
+
+    Args:
+        status (_type_): _description_
+        message (_type_): _description_
+        traceback (_type_): _description_
+        version (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    ''' if the image icon file does not exist      '''
     ''' return img/app/application-default-icon.svg '''
     curdir = os.getcwd()
     path = os.path.join(curdir, 'img/app', 'application-default-icon.svg')
@@ -95,17 +106,6 @@ def img_handle_404_application(status, message, traceback, version):
     cherrypy.response.message = 'OK'
     return cherrypy.lib.static.serve_file(path, content_type='image/svg+xml')
 
-
-#
-# img class to serve static files 
-# for example icon files for applications
-class IMG(object):
-    def __init__(self):
-        """ init IMG static files
-        """
-
-
-
 #
 # main API class 
 @oc.logging.with_logger()
@@ -114,8 +114,6 @@ class IMG(object):
     'error_page.default': api_build_error,
     'tools.trace_request.on': True,
     'tools.trace_response.on': True,
-    'tools.add_response_result.on': True,
-    # 'tools.allow_origin.on': True,
     'tools.allow.on': True,
     'tools.allow.methods': [ 'POST' ]  # POST for API, GET for OAuth 2.0 response by OAuth provider
 })
@@ -209,31 +207,20 @@ class ODCherryWatcher(plugins.SimplePlugin):
         oc.od.services.services.stop()
 
 
-def run_server():   
+def run_server():
     logger.info("Starting cherrypy service...")
-    # update config for cherrypy
-    cherrypy.config.update(settings.get_configuration_file_name())  
-    # cherrypy.config['/']
-    # APIConfig = { '/': { 'request.dispatch': APIDispatcher() } }
-    # settings.config['/']['request.dispatch'] = APIDispatcher() # can't be set with @cherrypy.config decorator
+    # update config for cherrypy with the od.config file
+    cherrypy.config.update(settings.get_configuration_file_name())
+    logger.info(f"cherrypy.config.update({settings.get_configuration_file_name()})")  
     # set auth tools
     cherrypy.tools.auth = services.services.auth
     # set /API
     cherrypy.tree.mount( API(settings.controllers), '/API', settings.config )
-    # set /IMG
-    cherrypy.tree.mount( IMG(), '/img', config=
-                        { '/img': { 'tools.staticdir.on' : True, 
-                                    'tools.staticdir.dir': '/var/pyos/img', # relative path not allowed
-                                    'tools.allow.methods': [ 'GET' ],  # HTTP GET only for images 
-                                    'error_page.404'     : img_handle_404_application # overwrite 404 to default icon
-                                    } } )
-
+    # create ODCherryWatcher to subscribe start and stop
     odthread_watcher = ODCherryWatcher(cherrypy.engine)
     odthread_watcher.subscribe()
-
     # start cherrypy engine
     cherrypy.engine.start()
-
     # infite loop
     logger.info("Waiting for requests.")
     cherrypy.engine.block()
