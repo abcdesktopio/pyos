@@ -15,7 +15,7 @@
 import random           # for randomStringwithDigitsAndSymbols
 import string           # for randomStringwithDigitsAndSymbols
 import unicodedata      # for remove accent
-import uuid
+import uuid             # for uuid_digits 
 import json             # for try_to_read_json_entry
 
 # lib shared tools
@@ -51,6 +51,8 @@ def remove_accents(input_str):
     s = input_str
     try:
         # nkfd_form = unicodedata.normalize('NFKD', unicode(input_str))
+        # 'NFKD' : Normalization Form KC (NFKC)	Characters are decomposed by compatibility, 
+        # then re-composed by canonical equivalence
         nkfd_form = unicodedata.normalize('NFKD', input_str)
         s = "".join([c for c in nkfd_form if not unicodedata.combining(c)])
     except Exception:
@@ -60,6 +62,14 @@ def remove_accents(input_str):
     return r
 
 def uuid_digits( ndigits:int=5)->str:
+    """uuid_digits
+        return a uuid string with the number of digit requested
+    Args:
+        ndigits (int, optional): number of digit. Defaults to 5.
+
+    Returns:
+        str: uuid str formated with the number of digit requested
+    """
     digits = uuid.uuid4().hex
     local_uuid = digits[-ndigits:]
     return local_uuid
@@ -123,9 +133,15 @@ def try_to_read_json_entry( key:str, myjson:str ):
 
 
 
-def fortunewheel( mylist ):
-    # turn the fortune wheel in to a list
-    # if mylist is a list
+def fortunewheel( mylist:list )->list:
+    """fortunewheel
+        turn the fortune wheel in to a list 
+    Args:
+        mylist (list): list of element
+
+    Returns:
+        list: the mixed list
+    """
     if isinstance(mylist, list):
         len_mylist = len(mylist)-1
         # turn the wheel
