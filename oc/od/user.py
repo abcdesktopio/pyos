@@ -30,7 +30,7 @@ def getlocation(auth):
     
     location = {}
     clientip = getclientipaddr()
-    serverip = settings.default_server_ipaddr
+    serverip = settings.default_geolocation_ipaddr
 
     locatorPrivateActiveDirectory = None
     try:                        
