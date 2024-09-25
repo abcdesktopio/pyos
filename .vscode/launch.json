@@ -10,7 +10,8 @@
             "request": "launch",
             "program": "od.py",
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
         }
     ]
 }
