@@ -87,7 +87,7 @@ kubernetes_default_domain = 'abcdesktop.svc.cluster.local'
 # fake network default interface ip address Only for reverse proxy
 # if not set use the default_host_url hostname as defaul ip address
 # this is not the binding ip for the server
-default_server_ipaddr   = None  # THIS IS NOT THE BINDING IP ADDR 
+default_geolocation_ipaddr  = None  # THIS IS NOT THE BINDING IP ADDR 
 default_host_url        = None  # default FQDN host name to reach the web site
 default_host_url_is_securised = False  # is default_host_url securized https
 
@@ -208,7 +208,7 @@ def init_defaulthostfqdn():
     """
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
-    global default_server_ipaddr            # default ip addr to fake real ip source in geoip
+    global default_geolocation_ipaddr            # default ip addr to fake real ip source in geoip
     global services_http_request_denied     # denied http request uri
 
 
@@ -228,39 +228,39 @@ def init_defaulthostfqdn():
         logger.warning('Use Host HTTP header to redirect url, this is a security Warning')
         
     else:
-        logger.info( f"default_host_url: {default_host_url}")
+        logger.debug( f"default_host_url: {default_host_url}")
         default_host_url_is_securised = default_host_url.lower().startswith('https')
 
 
-    default_server_ipaddr = gconfig.get('server.default.ipaddr')
-    if default_server_ipaddr is None: 
+    default_geolocation_ipaddr = gconfig.get('server.geolocation_ipaddr')
+    if not isinstance(default_geolocation_ipaddr, str): 
        # try to get the ip add from the url hostname
        try:
             url = urlparse(default_host_url)
             hostname = url.hostname
-            default_server_ipaddr = socket.gethostbyname(hostname)
+            default_geolocation_ipaddr = socket.gethostbyname(hostname)
        except Exception as e:
-            logger.warning(f"default_server_ipaddr set to dummy value error {e}" )
-            logger.warning('fixing default_server_ipaddr to 127.0.0.1' )
-            default_server_ipaddr = '127.0.0.1' # dummy value localhost
-    logger.info(f"default_server_ipaddr: {default_server_ipaddr}")
+            logger.warning(f"default_geolocation_ipaddr set to dummy value error {e}" )
+            logger.warning('fixing default_geolocation_ipaddr to 127.0.0.1' )
+            default_geolocation_ipaddr = '127.0.0.1' # dummy value localhost
+    logger.debug(f"default_geolocation_ipaddr: {default_geolocation_ipaddr}")
 
 
     # if not set autologin is denied 
-    services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True} )
-    logger.info( f"services http request denied: {services_http_request_denied}")
+    services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True } )
+    logger.debug( f"services http request denied: {services_http_request_denied}")
 
 def init_logmein():
     global logmein
     logmein = gconfig.get(  'auth.logmein', { 'enable': False } )
     if logmein.get('enable') is True:
-        logger.info( f"logmein config {logmein}")
+        logger.debug( f"logmein config {logmein}")
 
 def init_prelogin():
     global prelogin
     prelogin = gconfig.get(  'auth.prelogin', { 'enable': False } )
     if prelogin.get('enable') is True:
-        logger.info( f"prelogin config {prelogin}" )
+        logger.debug( f"prelogin config {prelogin}" )
 
 def init_websocketrouting():
     """init_websocketrouting
@@ -294,7 +294,7 @@ def init_websocketrouting():
             logger.error("please check the default_host_url parameter in config file")
             exit(-1)
 
-    logger.info( f"mode is {websocketrouting}" )
+    logger.debug( f"mode is {websocketrouting}" )
   
 def init_fakedns():
     global fakedns
@@ -474,11 +474,11 @@ def init_config_memcached():
 
     logger.debug( f"memcachedserver is read as {memcachedserver}" )
     memcachedipaddr = _resolv(memcachedserver)
-    logger.info( f"host {memcachedserver} resolved as {memcachedipaddr}")
+    logger.debug( f"host {memcachedserver} resolved as {memcachedipaddr}")
     memcachedport = gconfig.get('memcacheport', 11211)
     memconnectionstring = f"{memcachedserver}:{memcachedport}"
-    logger.info(f"memcachedserver is set to {memcachedserver}")
-    logger.info( f"memcached connection string is set to {memconnectionstring}")
+    logger.debug(f"memcachedserver is set to {memcachedserver}")
+    logger.debug(f"memcached connection string is set to {memconnectionstring}")
 
 
 def get_mongodburl():
@@ -500,8 +500,8 @@ def get_mongodburl():
     parsedmongourl = urlparse( mongodburl )
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
     mongodbhostipaddr = _resolv(parsedmongourl.hostname)
-    logger.info(f"host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
-    logger.info(f"mongodburl is set to {mongodburl}")
+    logger.debug(f"host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
+    logger.debug(f"mongodburl is set to {mongodburl}")
     return mongodburl
 
 
@@ -566,16 +566,16 @@ def init_config_mongodb():
     global mongodburl
     global mongodblist
     mongodburl = get_mongodburl()
-    logger.info(f"MongoDB url: {mongodburl}")
+    logger.debug(f"MongoDB url: {mongodburl}")
     mongodblist = gconfig.get('mongodblist', ['image','fail2ban','loginHistory','applications','profiles','desktop'] )
-    logger.info(f"MongoDB list: {mongodblist}")
+    logger.debug(f"MongoDB list: {mongodblist}")
 
 def init_config_fail2ban():
     """init fail2ban config
     """
     global fail2banconfig
     fail2banconfig = gconfig.get('fail2ban', { 'enable' : False } )
-    logger.info(f"Fail2ban config: {fail2banconfig}" )
+    logger.debug(f"Fail2ban config: {fail2banconfig}" )
 
 
 def init_config_auth():
@@ -637,7 +637,7 @@ def init_locales():
     # all containers application must support this list
     # by default support en_US language
     supportedLocales = gconfig.get('language', ['en_US'])
-    # logger.info(f"Supported local language is set to {supportedLocales}")
+
 
 
 def loadfile(filename:str)->str:
@@ -724,15 +724,15 @@ def load_config():
     global gconfig
 
     configpath = get_configuration_file_name()
-    logger.info(f"Loading configuration file {configpath}")
+    logger.debug(f"Loading configuration file {configpath}")
     try:
         config = Config(configpath)
         if isinstance( config.get('global'), dict ):
-            logger.info(f"config file contains [global] entry (ini file format)")
+            logger.debug(f"config file contains [global] entry (ini file format)")
             gconfig = config.get('global', {}) # = cherrypy.gconfig 
         else:
-            logger.info(f"config file does not set [global] entry")
-            logger.info(f"config file is not a ini file format, use json")
+            logger.debug(f"config file does not set [global] entry")
+            logger.debug(f"config file is not a ini file format, use json")
             
     except Exception as e:
         logger.error(f"Failed to load configuration file {configpath} {e}")
@@ -740,7 +740,7 @@ def load_config():
 
 
 def init():
-    logger.info('Init configuration start')
+    logger.debug('Init configuration start')
 
     # load config file od.config
     # use global config and gconfig
@@ -833,4 +833,4 @@ def init():
     # for SET_DEFAULT_COLOR option
     init_controllers()
 
-    logger.info('Init configuration done.')
+    logger.debug('Init configuration done.')
