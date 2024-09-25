@@ -507,9 +507,9 @@ class ODAuthTool(cherrypy.Tool):
             try:
                 # skip the entry if not enabled
                 if not cfg.get('enabled', True):
-                    self.logger.info( f"Auth manager {name} is disabled, skipping")
+                    self.logger.debug( f"Auth manager {name} is disabled, skipping")
                     continue
-                self.logger.info( f"Adding new Auth manager {name}")
+                self.logger.debug( f"Adding new Auth manager {name}")
                 self.managers[name] = self.createmanager(name,cfg)
             except Exception as e:
                 self.logger.exception(e)
@@ -640,7 +640,7 @@ class ODAuthTool(cherrypy.Tool):
         else:
             # for another class extended 
             cls = oc.pyutils.get_class(config.get('class', name))
-        self.logger.info( f"createmanager name={name} {cls}" )
+        self.logger.debug( f"createmanager name={name} {cls}" )
         return cls(name, config)
  
     def findmanager(self, providername, managername=None):
@@ -919,7 +919,7 @@ class ODAuthTool(cherrypy.Tool):
                 return False
             return False
 
-        self.logger.info(f"condition {condition}" )
+        self.logger.debug(f"condition {condition}" )
 
         compiled_result = False  # default compiled_result is False
 
@@ -1004,9 +1004,9 @@ class ODAuthTool(cherrypy.Tool):
         network = condition.get('network-x-forwarded-for')
         if isinstance(network, str ) or isinstance(network, list ) :
             # getclientxforwardedfor_listip return a list of all ip addr
-            self.logger.info(f"condition network-x-forwarded-for start" )
+            self.logger.debug(f"condition network-x-forwarded-for start" )
             ipsources = getclientxforwardedfor_listip()
-            self.logger.info(f"condition network-x-forwarded-for test isinNetwork ipsources={ipsources} network={network}" )
+            self.logger.debug(f"condition network-x-forwarded-for test isinNetwork ipsources={ipsources} network={network}" )
             result = isinNetwork( ipsources, network )
             if result == condition.get( 'expected'):
                 compiled_result = True
@@ -1285,7 +1285,7 @@ class ODAuthTool(cherrypy.Tool):
         if  not isinstance( mgr_meta, ODExplicitMetaAuthManager) or \
             not isinstance( provider_meta, ODAdAuthMetaProvider):
             # no metaexplicit manager has been defined or no metaexplicit provider has been defined 
-            self.logger.info( 'skipping metalogin, no metaexplicit manager or no metadirectory provider has been defined')
+            self.logger.debug( 'skipping metalogin, no metaexplicit manager or no metadirectory provider has been defined')
             return self.login(provider, manager, **arguments)
 
         # 
@@ -1343,9 +1343,10 @@ class ODAuthTool(cherrypy.Tool):
         # now we have found a new provider 
         # dump this info in log file
         # and them run auth
-        self.logger.info( f"metadirectory replay from provider {provider_meta.name} -> {new_provider.name}" )
-        self.logger.info( f"metadirectory replay from user {arguments.get('userid')} -> {new_userid}" )
-        self.logger.info( f"metadirectory replay from domain {provider_meta.domain} -> {new_domain}" )
+        self.logger.info( f"metadirectory replay \
+                            from provider {provider_meta.name} -> {new_provider.name}\
+                            from user {arguments.get('userid')} -> {new_userid} \
+                            from domain {provider_meta.domain} -> {new_domain}" )
 
         # update login with new data from meta directory
         arguments[ 'userid'   ] = new_userid
@@ -1416,7 +1417,7 @@ class ODAuthTool(cherrypy.Tool):
                 self.logger.debug('compiledrules')
                 metaAuthInfoForUserLabels = self.compiledrules( newmetaprovider.rules, metauser, roles, provider=newmetaprovider, auth=metaAuthInfoForUser )
                 # dump metaAuthInfoForUserLabels
-                self.logger.info( f"compiled rules metaAuthInfoForUserLabels {metaAuthInfoForUserLabels}" )
+                self.logger.debug( f"compiled rules metaAuthInfoForUserLabels {metaAuthInfoForUserLabels}" )
                 # update the  auth.data['labels'] with the new metaAuthInfoForUserLabels
                 auth.data['labels'].update( metaAuthInfoForUserLabels )
                 # dump updated auth.data['labels']
@@ -1519,7 +1520,7 @@ class ODAuthTool(cherrypy.Tool):
             # convert server_utctimestamp to milliseconds
             # server_utctimestamp = float(datetime.datetime.utcnow().timestamp()) * 1000
             arguments['difftime'] = server_utctimestamp - user_utctimestamp
-            self.logger.info(f"Diff between server-client {arguments['difftime']} in milliseconds")
+            self.logger.debug(f"Diff between server-client {arguments['difftime']} in milliseconds")
         return server_utctimestamp
 
     def mesuretimeserver_auth_duration( self,server_utctimestamp):
@@ -1541,7 +1542,7 @@ class ODAuthTool(cherrypy.Tool):
                 # provider is None
                 # can raise exception
                 # do everythings possible to find one provider
-                self.logger.info( f"provider is None, login try to find a provider using manager={manager}" )
+                self.logger.debug( f"provider is None, login try to find a provider using manager={manager}" )
                 provider = self.logintrytofindaprovider( manager )
                 
             # look for an auth manager
@@ -1591,7 +1592,7 @@ class ODAuthTool(cherrypy.Tool):
                 self.logger.debug( f"provider {provider} has rules, compile rules start" )      
                 auth.data['labels'] = self.compiledrules( pdr.rules, userinfo, roles )
                 self.logger.debug( "compiledrules done")      
-                self.logger.info( f"compiled rules get labels {auth.data.get('labels')}")
+                self.logger.debug( f"compiled rules get labels {auth.data.get('labels')}")
 
             auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
             # build a AuthCache as response result 
@@ -1680,7 +1681,7 @@ class ODAuthManagerBase(object):
         for name,cfg in config.get('providers',{}).items():
             if not cfg.get('enabled', True): 
                 continue
-            self.logger.info( "adding provider name {name}" )
+            self.logger.debug( "adding provider name {name}" )
             provider = self.createprovider(name, cfg)
             try:
                 # add only instance ODAuthProviderBase or herited
@@ -2336,7 +2337,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.attrs = attrs            
 
     def __init__(self, manager, name, config={}):
-        self.logger.info('')
+        self.logger.debug('')
         super().__init__(manager, name, config)
         self.type = 'ldap'
 
@@ -2393,7 +2394,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if self.auth_protocol.get('citrix'):
             self.citrix_all_regions = oc.lib.load_local_file( config.get('citrix_all_regions.ini' ) )
             if isinstance( self.citrix_all_regions, str):
-                self.logger.info( f"provider {name} has enabled citrix, mustache file {config.get('citrix_all_regions.ini')}" )
+                self.logger.debug( f"provider {name} has enabled citrix, mustache file {config.get('citrix_all_regions.ini')}" )
             else:
                 self.logger.error( f"provider {name} has disabled citrix, invalid entry citrix_all_regions.ini")
 
@@ -2892,10 +2893,10 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         lastException = None
         if auth_type is None :
             auth_type = self.auth_type
-        self.logger.info( f"ldap getconnection auth userid={userid} auth={auth_type}" )
+        self.logger.debug( f"ldap getconnection auth userid={userid} auth={auth_type}" )
         servers = self.servers.copy()
         oc.lib.fortunewheel( servers )
-        self.logger.info( f"servers list order servers={servers}" )
+        self.logger.debug( f"servers list order servers={servers}" )
         for server_name in servers:
             try: 
                 self.logger.debug( f"ldap getconnection:create ldap3.Server server={server_name} auth_type={auth_type}")
@@ -2912,7 +2913,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 del c # remove the c Connection, only use to get supported_sasl_mechanisms 
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
-                    self.logger.warning( f"{auth_type} is not defined in {server_name}.info.supported_sasl_mechanisms supported_sasl_mechanisms={supported_sasl_mechanisms}" )
+                    self.logger.debug( f"{auth_type} is not defined in {server_name}.info.supported_sasl_mechanisms supported_sasl_mechanisms={supported_sasl_mechanisms}" )
                 
                 # do kerberos bind
                 if auth_type == 'KERBEROS': 
@@ -3243,7 +3244,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
 
     def generateKerberosKeytab(self, principal, password ):
-        self.logger.info('')
+        self.logger.debug('')
         #
         # source https://support.microsoft.com/en-us/help/327825/problems-with-kerberos-authentication-when-a-user-belongs-to-many-grou
         # 
@@ -3271,11 +3272,11 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             return None
 
         if not isinstance(self.kerberos_krb5_conf, str):
-            self.logger.error('krb5.conf file is unconfigured')
+            self.logger.debug('krb5.conf file is unconfigured')
             return None
 
         if not isinstance(self.kerberos_ktutil, str):
-            self.logger.error('ktutil file is unconfigured')
+            self.logger.debug('ktutil file is unconfigured')
             return None
 
         koutputfilename = '/tmp/' + oc.auth.namedlib.normalize_name( principal ) + '.keytab'
@@ -3288,7 +3289,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         returncode = None
         try:
-            self.logger.info('makekeytab Popen ' + str(self.kerberos_ktutil))
+            self.logger.debug('makekeytab Popen ' + str(self.kerberos_ktutil))
             # You can override the default location by setting the environment variable KRB5_CONFIG.
             my_env = os.environ.copy()
             my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
@@ -3311,7 +3312,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             return keytab
 
        
-        self.logger.info( f"{self.kerberos_ktutil} return code: {returncode}" )
+        self.logger.debug( f"{self.kerberos_ktutil} return code: {returncode}" )
         if returncode == 0:
             try:
                 koutputfile = open( koutputfilename, mode='rb' )
@@ -3325,7 +3326,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             except Exception as e:
                 self.logger.error(f"read keytab file {koutputfilename} error: {e}")
         else:
-            self.logger.info(f"failed to run {self.kerberos_ktutil} return code {returncode}")
+            self.logger.debug(f"failed to run {self.kerberos_ktutil} return code {returncode}")
     
         # clean tmp filename
         removekoutputfile( koutputfilename )
@@ -3361,7 +3362,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                         timeout=self.exec_timeout)
             if ret != 0:
                 raise RuntimeError( f"Command ntlm_auth returned error code: {ret}" )
-            self.logger.info( f"Running ntlm_command={self.ntlm_command}" )
+            self.logger.debug( f"Running ntlm_command={self.ntlm_command}" )
             hashes = {}
             for line in out:
                 if len( line ) < 1: # skipping empty line
@@ -3720,10 +3721,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             return
         try:
             ldap_tcp_domain = '_ldap._tcp.' + self.domain_fqdn            
-            self.logger.info( f"Refreshing domain controllers list - {ldap_tcp_domain}")
+            self.logger.debug( f"Refreshing domain controllers list - {ldap_tcp_domain}")
             self.servers = oc.od.resolvdns.ODResolvDNS.resolv( fqdn_name=ldap_tcp_domain, query_type='SRV' )
             self.dcs_list_lastupdated = time.time()
-            self.logger.info( "Domain controllers list: {self.servers}" )            
+            self.logger.debug( "Domain controllers list: {self.servers}" )            
         finally:
             self.refreshdcs_lock.release()
 
@@ -3756,7 +3757,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         password   = params.get( 'password',self.password )                
         
         if not isinstance(userid, str) or not isinstance(password, str) :
-            self.logger.info( 'service account not set in config file, listsite return empty site')
+            self.logger.debug( 'service account not set in config file, listsite return empty site')
             return dictsite
 
         try:
@@ -3770,7 +3771,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                 attrs = result[dn]
 
                 if attrs is None:
-                    self.logger.info( f"ldap dn={dn} has no attrs {self.site_query.attr} skipping"  )
+                    self.logger.debug( f"ldap dn={dn} has no attrs {self.site_query.attr} skipping"  )
                     continue
 
                 if not isinstance( attrs, dict): 
@@ -3787,7 +3788,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
                     dictsite[ entry.get('subnet') ] = entry
                 
             len_dictsite = len( dictsite )
-            self.logger.info(f"query result count:{len_dictsite} {self.site_query.basedn} {self.site_query.filter}")
+            self.logger.debug(f"query result count:{len_dictsite} {self.site_query.basedn} {self.site_query.filter}")
 
             conn.unbind()
 
@@ -3795,7 +3796,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             self.logger.error( f"LDAP query siteObject {e}" )     
         
         if len_dictsite == 0:
-            self.logger.warning('ActiveDirectory has no siteObject defined')
+            self.logger.debug('ActiveDirectory has no siteObject defined')
             
         return dictsite
 
@@ -3874,7 +3875,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         self.logger.debug('')     
         userid = arguments.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
-        self.logger.info( f"ODAdAuthMetaProvider:ldap.filter {filter}")
+        self.logger.debug( f"ODAdAuthMetaProvider:ldap.filter {filter}")
         usersinfo = self.search_all(    conn=authinfo.conn, 
                                         basedn=self.user_query.basedn, 
                                         scope=self.user_query.scope, 
@@ -3913,7 +3914,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         # memberOf must always exists in Active Directory
         userid = params.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
-        self.logger.info( f"ODAdAuthMetaProvider:ldap.filter {filter}")
+        self.logger.debug( f"ODAdAuthMetaProvider:ldap.filter {filter}")
         userinfo = self.search_one( conn=authinfo.conn, 
                                     basedn=self.user_query.basedn, 
                                     scope=self.user_query.scope, 
@@ -3987,7 +3988,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             self.logger.debug ( f"starting query" )
             ldap3_status, ldap3_results, ldap3_response, ldap3_request = authinfo.conn.search( search_base=q.basedn, search_filter=filter, search_scope=q.scope )
             elapsed = time.time() - time_start # in seconds
-            self.logger.info( f"ldap search {q.basedn} {filter} take {elapsed} seconds" )
+            self.logger.debug(f"ldap search {q.basedn} {filter} take {elapsed} seconds" )
             self.logger.debug(f"ldap3_status={ldap3_status}, ldap3_results={ldap3_results}, ldap3_response={ldap3_response}, ldap3_request={ldap3_request}")
             if ldap3_status is True:
                 if isinstance( ldap3_response, list ) and len(ldap3_response)>0:
