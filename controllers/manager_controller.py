@@ -106,7 +106,7 @@ class ManagerController(BaseController):
     # garbagecollector request is protected by is_permit_request()
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    def garbagecollector(self, expirein, force=False):
+    def garbagecollector(self, expirein, nodename=None, force=False):
         self.logger.debug('')
         ''' garbage collector remove all user container not connected created since more than expirein time
             expirein:   value in second
@@ -132,7 +132,7 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400)        
         
         # remove all disconnected container
-        garbaged = oc.od.composer.garbagecollector( expirein=nexpirein, force=force )
+        garbaged = oc.od.composer.garbagecollector( expirein=nexpirein, nodename=nodename, force=force )
 
         return garbaged
 
