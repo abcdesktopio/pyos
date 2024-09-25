@@ -153,7 +153,6 @@ class ODServices(object):
         import oc.auth.jwtdesktop
         self.jwtdesktop = oc.auth.jwtdesktop.ODDesktopJWToken( settings.jwt_config_desktop )
 
-
     def init_internaldns(self):
         self.logger.info('')
         if settings.internaldns.get('enable') is True:
