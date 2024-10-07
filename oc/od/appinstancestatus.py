@@ -15,14 +15,15 @@
 # -*- coding: utf-8 -*-
 
 class ODAppInstanceStatus():
-    def __init__(self, message=None, id=None, webhook=None, type=None):
+    def __init__(self, message=None, id=None, webhook=None, type=None, wm_class=None):
         self.message = message
         self.id = id
         self.webhook = webhook
         self.type=type
+        self.wm_class = wm_class
 
     def to_dict( self ):
-        return { 'container_id': self.id, 'state': self.message, 'type': self.type }
+        return { 'container_id': self.id, 'state': self.message, 'type': self.type, 'wm_class': self.wm_class }
     
     def __str__(self):
         return str( self.to_dict() )
