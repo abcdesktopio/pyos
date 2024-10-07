@@ -688,7 +688,7 @@ def openapp( auth, user={}, kwargs={} ):
         raise ODError( status=500, message=f"Failed to run application createappinstance return {type(appinstancestatus)}")
     logger.info(f"app {appinstancestatus.id} is {appinstancestatus.message}")
     
-    runwebhook( appinstancestatus )
+    # runwebhook( appinstancestatus )
     # default return value appinstancestatus dict format to json format
     return appinstancestatus.to_dict()
 
