@@ -420,7 +420,7 @@ class ODApps:
         # read oc specific value
         icon = labels.get('oc.icon')
         icondata = labels.get('oc.icondata')
-        launch = labels.get('oc.launch')
+        launch = labels.get('oc.launch') or labels.get('oc.wm_class')
         name = labels.get('oc.name')
         path = labels.get('oc.path')
         
