@@ -5353,7 +5353,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             id=pod.metadata.name,
             message=pod.status.phase,
             webhook = fillednetworkconfig.get('webhook'),
-            type=self.type
+            type=self.type,
+            wm_class=app.get('wm_class')
         )
         
         return appinstancestatus
