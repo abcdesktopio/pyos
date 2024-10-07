@@ -919,7 +919,7 @@ class ODAuthTool(cherrypy.Tool):
                 return False
             return False
 
-        self.logger.debug(f"condition {condition}" )
+        # self.logger.debug(f"condition {condition}" )
 
         compiled_result = False  # default compiled_result is False
 
@@ -2375,7 +2375,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         # self.kerberos_servers = config.get('kerberos_servers', self.servers)
 
         # not used deprecated 
-        # do not launch /usr/bin/kinit anyore 
+        # do not execute /usr/bin/kinit anyore 
         # use gssapi  
         # self.kerberos_service_identifier = config.get('krb5_service_identifier', '')
         # self.kerberos_kinit  = config.get('kinit', '/usr/bin/kinit')   # change to /usr/sbin/kinit on macOS
