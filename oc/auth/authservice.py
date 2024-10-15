@@ -1528,6 +1528,30 @@ class ODAuthTool(cherrypy.Tool):
         auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
         return auth_duration_in_milliseconds
 
+    def update_user_resqueted_executeclassname(self, auth, **arguments)->None:
+        # execute class is defined separatly
+        # if an executeclassname is already defined by rules
+        # do not read the users requested value
+        # rules preempt the executeclassname value
+
+        user_requested_features = arguments.get('features')
+        if not isinstance( user_requested_features ,dict ):
+            return
+        
+        executeclassname = user_requested_features.get('executeclassname')
+        if not isinstance( executeclassname, str) :
+            return
+        
+        # executeclassname is a str
+        if auth.data['labels'].get('executeclassname') is None:
+            # look for users requested arguments
+            self.logger.debug( f"user asks for executeclassname={executeclassname}" )
+            auth.data['labels']['executeclassname'] = executeclassname
+        else:  
+            self.logger.warning( 
+                f"conflit executeclassname is already defined {auth.data['labels'].get('executeclassname')} \
+                but user requested value {arguments.get('executeclassname')}" 
+            )
 
     def login(self, provider, manager=None, **arguments):  
         self.logger.debug('')
@@ -1588,12 +1612,17 @@ class ODAuthTool(cherrypy.Tool):
             # if the provider has rules defined then 
             # compile data using rules
             # runs the rules to get associated labels tag
-            if pdr.rules:
-                self.logger.debug( f"provider {provider} has rules, compile rules start" )      
+            if pdr.rules: 
                 auth.data['labels'] = self.compiledrules( pdr.rules, userinfo, roles )
-                self.logger.debug( "compiledrules done")      
-                self.logger.debug( f"compiled rules get labels {auth.data.get('labels')}")
 
+            # update auth.data['labels']['executeclassname'] 
+            # if user requests feature executeclassname
+            self.update_user_resqueted_executeclassname( auth, **arguments)
+            
+
+            # dump labels for debug 
+            self.logger.debug( f"labels {auth.data.get('labels')}")
+            # end of auth, mesuretimeserver_auth_duration
             auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
             # build a AuthCache as response result 
             myauthcache = AuthCache( { 
