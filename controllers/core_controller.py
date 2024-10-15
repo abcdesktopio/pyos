@@ -66,8 +66,6 @@ class CoreController(BaseController):
             id = menuconfig
         elif provider == 'geolocation':    
             id = oc.od.settings.geolocation
-        elif provider == 'executeclasses':    
-            id = oc.od.settings.executeclasses.items()
         elif provider == 'tracker' :
             id = oc.od.tracker.jiraclient().isenable()
         elif provider == 'zoom':
@@ -82,7 +80,9 @@ class CoreController(BaseController):
             id = oc.od.settings.webrtc.get('rtc_constraints')
         elif provider == 'webrtc.enable':
             id = oc.od.settings.webrtc.get('enable')
-
+        elif provider == 'features_permissions_executeclasses' :
+            if 'read' in oc.od.settings.desktop.get('features_permissions',[]):
+                id = oc.od.settings.executeclasses
         return { 'id': id, 'callbackurl': callbackurl }
 
 
