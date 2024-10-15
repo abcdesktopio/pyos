@@ -32,13 +32,8 @@ controllers  = {}  # controllers dict
 menuconfig   = {}  # default menu config
 geolocation  = None  # default geolocation 
 fakedns      = {}
-
 executeclasses = {}
-# no limits
-default_executeclass =  {
-        'nodeSelector' : None,
-        'resources': None
-}
+
 
 # User balloon define
 # Balloon is the default user used inside container
@@ -368,7 +363,11 @@ def init_desktop():
             'cpu.cfs_quota_us': '/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us'
         } )
     desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
-   
+    # features_permissions
+    # 'read' features_permissions is exposed to the frontend
+    # 'submit' features_permissions can be set to create a desktop
+    # full permissions are [ 'read', 'submit' ]
+    desktop['features_permissions'] = gconfig.get('desktop.features_permissions', [] )
     # Kubernetes timeout 
     desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
     desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
@@ -701,6 +700,7 @@ def init_executeclass():
 
     executeclasses = gconfig.get('executeclasses', {} )
     if not isinstance( executeclasses.get('default'), dict ):
+        default_executeclass =  { 'nodeSelector' : None, 'resources': None } # no limits
         logger.error('something wrong in the config file no default executeclass has been defined ')
         logger.error(f"fixing default execute class {default_executeclass}")
         executeclasses['default'] = default_executeclass
