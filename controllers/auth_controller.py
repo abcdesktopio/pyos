@@ -512,7 +512,7 @@ class AuthController(BaseController):
         self.isban_ip(ipsource)
         
         if not services.logmein.enable:
-            self.logger.error(f"logmein is disabled, but request ask for logmein from ipsource={ipsource}")
+            self.logger.error(f"logmein is disabled, but request asks for logmein from ipsource={ipsource}")
             raise cherrypy.HTTPError(400, 'logmein configuration file error, service is disabled')
 
         if not services.logmein.request_match( ipsource ):
@@ -625,6 +625,16 @@ class AuthController(BaseController):
         args = cherrypy.request.json
         # can raise exception
         (auth, user ) = self.validate_env()
+        # check if args contains a features dict 
+        if args.get('features') is not None :
+            if isinstance( args.get('features'), dict ) :
+                # this request asks for custom features 
+                # Check if features update are allowed 
+                if 'submit' not in oc.od.settings.desktop.get['features_permissions']:
+                    raise cherrypy.HTTPError(401, message="'submit' is not in desktop.features_permissions, update configuration file" )
+            else:
+                raise cherrypy.HTTPError(401, message="bad parameters features, features must be a dict" )  
+
         # push a start message to database cache info
         services.messageinfo.start( user.userid, "b.Launching desktop")
         # launch the user desktop 
