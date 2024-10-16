@@ -1,0 +1,9 @@
+*** Variables *** 
+${USER_ID}	fry
+${USER_PASSWORD}  fry
+${HTTP_OR_HTTPS}  http
+${ABCDESKTOP_HOSTNAME}  localhost:30443 
+${MAX_TIMEOUT_IN_SECONDS_TO_START_AN_APPLICATION}  10
+${CONTAINER_APP_TO_OPEN}  firefox.d:3.2
+${REGISTRY_URL}  abcdesktopio
+${AUTH_PROVIDER}  anonymous

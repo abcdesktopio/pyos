@@ -1,0 +1,32 @@
+
+This is the robot-framework test for abcdesktop
+Variables are defined in file variables.robot
+Default auth provider is the planet LDAP server
+
+$ robot abcdesktop-robot.robot 
+
+==============================================================================
+Abcdesktop-Robot                                                              
+==============================================================================
+Check authentication :: Check authentication                          ..auth params: {'manager': None, 'provider': 'planet', 'userid': 'fry', 'password': 'fry'}
+..auth header: {'Content-Type': 'application/json'}
+Check authentication :: Check authentication                          | PASS |
+------------------------------------------------------------------------------
+Launch a user desktop :: Launch a user desktop                        | PASS |
+------------------------------------------------------------------------------
+Count desktop window list :: Count desktop window list                .....First getwindowslist 1
+Count desktop window list :: Count desktop window list                | PASS |
+------------------------------------------------------------------------------
+Open user application :: Open user application                        | PASS |
+------------------------------------------------------------------------------
+Get desktop window list :: Get desktop window list                    ..desktop_list_len 1
+...1/10 number of windows 2 > 1
+Get desktop window list :: Get desktop window list                    | PASS |
+------------------------------------------------------------------------------
+Logout from user desktop :: Logout from user desktop                  ....{'status': 200, 'result': {'url': '/'}, 'message': 'ok'}
+Logout from user desktop :: Logout from user desktop                  | PASS |
+------------------------------------------------------------------------------
+Abcdesktop-Robot                                                      | PASS |
+6 tests, 6 passed, 0 failed
+==============================================================================
+
