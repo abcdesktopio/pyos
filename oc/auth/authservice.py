@@ -850,7 +850,7 @@ class ODAuthTool(cherrypy.Tool):
             return value
 
         def isMemberOf(roles, groups ) :
-            self.logger.debug(locals())
+            # self.logger.debug(locals())
             if not isinstance(roles,list):
                 roles = [roles]
             if not isinstance(groups,list):
@@ -861,7 +861,7 @@ class ODAuthTool(cherrypy.Tool):
                 for g in groups:
                     if not isinstance( g, str):
                         continue
-                    logger.debug(f"isMemberOf {m} {g}")
+                    # logger.debug(f"isMemberOf {m} {g}")
                     if m.lower().startswith(g.lower()):
                         return True
             return False
@@ -874,7 +874,7 @@ class ODAuthTool(cherrypy.Tool):
             except Exception as e:
                 logger.error( e )
                 bReturn = False
-            self.logger.debug( f"ipsource={ipsource} is in network={network} return {bReturn}")
+            # self.logger.debug( f"ipsource={ipsource} is in network={network} return {bReturn}")
             return bReturn
 
         def _isinNetwork( ipsource, network ):
@@ -955,7 +955,7 @@ class ODAuthTool(cherrypy.Tool):
 
         memberOf = condition.get('memberOf') or condition.get('memberof')
         if isinstance(memberOf,str):
-            self.logger.debug(f"tmemberOf checking for ODAdAuthMetaProvider")
+            self.logger.debug(f"memberOf is checking for ODAdAuthMetaProvider")
             # read the member LDAP attribut with objectClass=group
             # check if the provider object is an ODAdAuthMetaProvider
             # and auth object is an AuthInfo
@@ -977,12 +977,12 @@ class ODAuthTool(cherrypy.Tool):
                     self.logger.debug( f"this call will take a while")
                     self.logger.debug( f"isMemberOf query to provider={meta_provider.name}")
                     result = meta_provider.isMemberOf( auth, memberOf )
-                    self.logger.debug( f"meta_provider.isMemberOf returns result={result}")
             else:
                 # read the role (memberOf LDAP attribut of objectClass=user)
                 # use string compare if memberOf match
                 result = isMemberOf( roles, memberOf )
 
+            self.logger.debug( f"isMemberOf({memberOf}) returns {result}")
             self.logger.debug( f"result == condition.get('expected') -> {result} == {condition.get('expected')}")
             if result == condition.get('expected'):
                 compiled_result = True
@@ -3857,7 +3857,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             config.get('foreign_basedn', 'CN=ForeignSecurityPrincipals,' + self.user_query.basedn),
             config.get('foreign_scope', self.user_query.scope),
             config.get('foreign_filter', "(&(objectClass=foreignSecurityPrincipal)(objectSid=%s))"),
-            config.get('foreign_attrs',  ['cn', 'distinguishedName'] ) )
+            config.get('foreign_attrs',  ['cn', 'distinguishedName', 'memberOf' ] ) )
 
         self.foreingmemberof_query = self.Query(
             config.get('foreingmemberof_basedn', 'CN=ForeignSecurityPrincipals,' + self.user_query.basedn),
@@ -4090,12 +4090,8 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             return None
 
         roles = query_foreingdistinguished.get('memberOf')
-        if isinstance( roles, list ):
-            # Although roles is empty list ForeignSecurityPrincipals with sid is done 
-            authinfo.isForeignSecurityPrincipalsWithSid = True
         self.logger.debug( f"return {roles}" )
         return roles
-
 
 
 @oc.logging.with_logger()
