@@ -658,7 +658,7 @@ class ODOrchestrator(ODOrchestratorBase):
         # merge all dict data from app, authinfo, userinfo, and containerip
         # if add is a ODDekstop use to_dict to convert ODDesktop to dict 
         # else app is a dict 
-        self.logger.debug( f"type of app is {type(app)}" )
+        # self.logger.debug( f"type of app is {type(app)}" )
         if isinstance( app, dict ) :
             sourcedict.update( app )
         elif isinstance(app, ODDesktop ):
@@ -3329,6 +3329,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Add graphical servives 
         currentcontainertype='graphical'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            resources=executeclasse.get('resources') 
             graphical_container = self.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
@@ -3337,7 +3338,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 envlist=envlist,
                 workingdir=env['HOME'],
                 list_volumeMounts=list_volumeMounts,
-                resources=executeclasse.get('resources')
+                resources=resources
             )
             # by default remove anonymous home directory content at preStop 
             # or if oc.od.settings.desktop['removehomedirectory'] is True
@@ -3490,8 +3491,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # list_namespaced_event done
         #
-
-        self.logger.debug( f"watch list_namespaced_event pod created {event_object.type}")
         self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
         w = watch.Watch()                 
         for event in w.stream(  self.kubeapi.list_namespaced_pod, 
@@ -3523,7 +3522,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.on_desktoplaunchprogress( f"b.Your pod {pod_event.metadata.name} is {pod_event.status.phase}"  )
                 continue
             elif pod_event.status.phase == 'Running' :
-                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event, event_object)
+                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event, myEvent=None)
                 self.on_desktoplaunchprogress( startedmsg )
                 w.stop()
             elif pod_event.status.phase == 'Succeeded' or \
