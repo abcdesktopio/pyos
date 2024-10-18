@@ -10,7 +10,7 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-
+import os
 import logging
 import oc.logging
 import oc.od.settings
@@ -241,13 +241,13 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
         self.networkPath   = networkPath
         self.mountOptions  = mountOptions
 
-        user_homedir = '/home/balloon/'
+        user_homedir = oc.od.settings.getballoon_homedirectory( userinfo.userid )
         msLogicUnit = self.homeDrive
         if isinstance( msLogicUnit, str ):
             # remove the last char if it is ':'
             if msLogicUnit[-1] == ':':
                 msLogicUnit =  self.homeDrive[0:-1] 
-            self._containertarget  = user_homedir + msLogicUnit
+            self._containertarget  = os.path.join( user_homedir, msLogicUnit )
 
     def is_mountable( self ):
         return all( [ super().is_mountable(), self.homeDrive, self.networkPath, self._containertarget ] )
