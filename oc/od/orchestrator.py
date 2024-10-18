@@ -4699,6 +4699,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         appinstancestatus = oc.od.appinstancestatus.ODAppInstanceStatus( id=app_container_name, type=self.type, wm_class=app.get('launch') )
         appinstancestatus.message = "Application" # default message 
 
+        """
         # field_selector=f'involvedObject.name={pod_name}'
         # timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
         # send_initial_events=False,
@@ -4796,9 +4797,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 else:       
                     self.logger.debug(f"stop because {event_object.reason}")  
                     w.stop()
-
+       
         self.logger.debug(f"w.stream kubeapi.list_namespaced_event done")
-
+        """
         
         pod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=pod_name)
         if  isinstance( pod, V1Pod ) and \
