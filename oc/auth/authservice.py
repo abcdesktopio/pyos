@@ -346,7 +346,7 @@ class AuthInfo(object):
 
     def get_identity(self):
         if isinstance( self.claims, dict ):
-            return self.claims.get('identity')
+            return self.claims.get('identity',{})
         return {}
 
     def get_localaccount(self):

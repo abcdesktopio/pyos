@@ -13,7 +13,6 @@
 import os
 import logging
 import oc.logging
-import oc.od.settings
 import oc.auth.namedlib
 
 logger = logging.getLogger(__name__)
@@ -124,9 +123,9 @@ def selectODVolumebyRules( authinfo, userinfo, rules ):
 @oc.logging.with_logger()
 class ODVolumeBase(object):    
     def __init__(self):                 
-        self._type          = 'base'    
-        self._name          = 'volbase'                 
-        self._fstype        = None
+        self._type = 'base'    
+        self._name = 'volbase'                 
+        self._fstype = None
 
     @property
     def type(self):
@@ -234,20 +233,25 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
     def __init__(self, authinfo, userinfo, name, homeDrive, networkPath, mountOptions=None ):
         self.logger.info(locals())
         super().__init__(authinfo, userinfo, name)
-        self._fstype       = 'cifs'
-        self._type         = 'flexvol'
-        self._name         = 'flexvol-cifs-' + name   
-        self.homeDrive     = homeDrive
-        self.networkPath   = networkPath
-        self.mountOptions  = mountOptions
+        self._fstype = 'cifs'
+        self._type = 'flexvol'
+        self._name = f"{self._type}-{self._fstype}-{name}"
+        self.homeDrive = homeDrive
+        self.networkPath = networkPath
+        self.mountOptions = mountOptions
+        self._containertarget = None # default value
 
-        user_homedir = oc.od.settings.getballoon_homedirectory( userinfo.userid )
-        msLogicUnit = self.homeDrive
-        if isinstance( msLogicUnit, str ):
-            # remove the last char if it is ':'
-            if msLogicUnit[-1] == ':':
-                msLogicUnit =  self.homeDrive[0:-1] 
-            self._containertarget  = os.path.join( user_homedir, msLogicUnit )
+        localaccount = authinfo.get_localaccount()
+        if isinstance( localaccount, dict ):
+            user_homedir = localaccount.get('homeDirectory')
+            assert isinstance(user_homedir, str),  f"authinfo.get_localaccount().get('homeDirectory') has invalid type {type(user_homedir)}"
+            
+            msLogicUnit = self.homeDrive
+            if isinstance( msLogicUnit, str ):
+                # remove the last char if it is ':'
+                if msLogicUnit[-1] == ':':
+                    msLogicUnit =  self.homeDrive[0:-1] 
+                self._containertarget  = os.path.join( user_homedir, msLogicUnit )
 
     def is_mountable( self ):
         return all( [ super().is_mountable(), self.homeDrive, self.networkPath, self._containertarget ] )
@@ -259,12 +263,12 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
 
     def __init__(self, authinfo, userinfo, name, entry, url, mountOptions=None ):
         super().__init__(authinfo, userinfo)
-        self._fstype            = 'webdav'
-        self._type              = 'flexvol'
-        self._name              = 'flexvol-webdav-' + name
-        self.networkPath        = url
-        self._containertarget   = '/home/balloon/' + entry
-        self.mountOptions       = mountOptions
+        self._fstype = 'webdav'
+        self._type = 'flexvol'
+        self._name = f"{self._type}-{self._fstype}-{name}"
+        self.networkPath = url
+        self._containertarget = os.path.join( authinfo.get_localaccount().get['homeDirectory'], entry )
+        self.mountOptions = mountOptions
 
        
 

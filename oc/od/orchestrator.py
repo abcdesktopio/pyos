@@ -1021,7 +1021,79 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     }
         return (volumes, volumes_mount)
 
+    def build_volumes_additional_for_flexvolume( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, mountvol, **kwargs):
+
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+
+        volumes = {}        # set empty volume dict by default
+        volumes_mount = {}  # set empty volume_mount dict by default
         
+        fstype = mountvol.fstype
+        volume_name = self.get_volumename( mountvol.name, userinfo )
+
+        secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype )
+        if isinstance( secret, oc.od.secret.ODSecret):
+            driver_type =  self.namespace + '/' + fstype
+            self.on_desktoplaunchprogress('b.Building flexVolume storage data for driver ' + driver_type )
+
+            # read the container mount point from the secret
+            # for example /home/balloon/U             
+            # Read data from secret    
+            secret_name         = secret.get_name( authinfo, userinfo )
+            secret_dict_data    = secret.read_alldata( authinfo, userinfo )
+            if not isinstance( secret_dict_data, dict ):
+                # skipping bad values
+                self.logger.error( f"Invalid value read from secret={secret_name} type={type(secret_dict_data)}" )
+                return ( None, None )
+            
+            volmountsecretedata = secret_dict_data.get('data')
+            if not isinstance( volmountsecretedata, dict ):
+                # skipping bad values
+                self.logger.error( f"Invalid value read from secret={secret_name}['data'] expecting type=dict gets type={type(volmountsecretedata)}" )
+                return ( None, None )
+            
+            mountPath           = volmountsecretedata.get( 'mountPath')
+            networkPath         = volmountsecretedata.get( 'networkPath' )
+            
+            # Check if the secret contains valid datas 
+            if not isinstance( mountPath, str) :
+                # skipping bad values
+                self.logger.error( f"Invalid value for mountPath read from secret={secret_name} type={type(mountPath)}" )
+                return ( None, None )
+
+            if not isinstance( networkPath, str) :
+                # skipping bad values
+                self.logger.error( f"Invalid value for networkPath read from secret={secret_name}  type={type(networkPath)}" )
+                return ( None, None )
+
+            volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }     
+            posixaccount = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+            # Default mount options
+            mountOptions = f"uid={posixaccount.get('uidNumber')},gid={posixaccount.get('gidNumber')}"
+            # concat mountOptions for the volume if exists 
+            if mountvol.has_options():
+                mountOptions += f",{mountvol.mountOptions}"
+
+            # dump for debug
+            self.logger.debug( f"flexvolume: {mountvol.name} set option {mountOptions}" )
+            self.logger.debug( f"flexvolume: read secret {secret_name} to mount {networkPath}")
+            # add dict volumes entry mountvol.name
+            volumes[mountvol.name] = {  
+                'name': volume_name,
+                'flexVolume' : {
+                    'driver': driver_type,
+                    'fsType': fstype,
+                    'secretRef' : { 'name': secret_name },
+                    'options'   : { 'networkPath':  networkPath, 'mountOptions': mountOptions }
+                }
+            }
+            # dump for debug
+            self.logger.debug( f"volumes {mountvol.name} use volume {volumes[mountvol.name]} and volume mount {volumes_mount[mountvol.name]}")
+        
+        return (volumes, volumes_mount)
+    
     def build_volumes_additional_by_rules( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -1036,8 +1108,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 fstype = mountvol.fstype
                 volume_name = self.get_volumename( mountvol.name, userinfo )
                 self.logger.debug( f"selected volume fstype:{fstype} volumes name:{volume_name}")
-
-                # if fstype='csi-driver'
 
                 if fstype=='nfs':
                     volumes_mount[mountvol.name] = {
@@ -1067,75 +1137,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         }
                     continue     
                    
-                # mount the remote home dir as a flexvol
-                # WARNING ! if the flexvol mount failed, the pod must start
-                # abcdesktop/cifs always respond a success
-                # in case of failure access right is denied                
-                # the flexvolume driver abcdesktop/cifs MUST be deploy on each node
+                if fstype=='cifs': # this is a flexvolume
+                    (flex_volumes, flex_volumes_mount) = self.build_volumes_additional_for_flexvolume( 
+                        authinfo=authinfo, 
+                        userinfo=userinfo, 
+                        volume_type=volume_type, 
+                        secrets_requirement=secrets_requirement, 
+                        mountvol=mountvol, 
+                        kwargs=kwargs)
+                    if isinstance(flex_volumes, dict) and isinstance(flex_volumes_mount, dict):
+                        volumes.update( flex_volumes )
+                        volumes_mount.update( flex_volumes_mount )
 
-                # Flex volume use kubernetes secret                    
-                # Kubernetes secret as already been created by prepareressource function call 
-                # Read the secret and use it
-                
-                secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype )
-                if isinstance( secret, oc.od.secret.ODSecret):
-                    driver_type =  self.namespace + '/' + fstype
-                    self.on_desktoplaunchprogress('b.Building flexVolume storage data for driver ' + driver_type )
+                if fstype=='csi': # this is a csi 
+                    pass
 
-                    # read the container mount point from the secret
-                    # for example /home/balloon/U             
-                    # Read data from secret    
-                    secret_name         = secret.get_name( authinfo, userinfo )
-                    secret_dict_data    = secret.read_alldata( authinfo, userinfo )
-                    if not isinstance( secret_dict_data, dict ):
-                        # skipping bad values
-                        self.logger.error( f"Invalid value read from secret={secret_name} type={type(secret_dict_data)}" )
-                        continue
-                    
-                    volmountsecretedata = secret_dict_data.get('data')
-                    if not isinstance( volmountsecretedata, dict ):
-                        # skipping bad values
-                        self.logger.error( f"Invalid value read from secret={secret_name}['data'] expecting type=dict gets type={type(volmountsecretedata)}" )
-                        continue
-
-                    secret_dict_data
-                    mountPath           = volmountsecretedata.get( 'mountPath')
-                    networkPath         = volmountsecretedata.get( 'networkPath' )
-                    
-                    # Check if the secret contains valid datas 
-                    if not isinstance( mountPath, str) :
-                        # skipping bad values
-                        self.logger.error( f"Invalid value for mountPath read from secret={secret_name} type={type(mountPath)}" )
-                        continue
-
-                    if not isinstance( networkPath, str) :
-                        # skipping bad values
-                        self.logger.error( f"Invalid value for networkPath read from secret={secret_name}  type={type(networkPath)}" )
-                        continue
-
-                    volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }     
-                    posixaccount = self.alwaysgetPosixAccountUser( authinfo, userinfo )
-                    # Default mount options
-                    mountOptions = f"uid={posixaccount.get('uidNumber')},gid={posixaccount.get('gidNumber')}"
-                    # concat mountOptions for the volume if exists 
-                    if mountvol.has_options():
-                        mountOptions += f",{mountvol.mountOptions}"
-
-                    # dump for debug
-                    self.logger.debug( f"flexvolume: {mountvol.name} set option {mountOptions}" )
-                    self.logger.debug( f"flexvolume: read secret {secret_name} to mount {networkPath}")
-                    # add dict volumes entry mountvol.name
-                    volumes[mountvol.name] = {  
-                        'name': volume_name,
-                        'flexVolume' : {
-                            'driver': driver_type,
-                            'fsType': fstype,
-                            'secretRef' : { 'name': secret_name },
-                            'options'   : { 'networkPath':  networkPath, 'mountOptions': mountOptions }
-                        }
-                    }
-                    # dump for debug
-                    self.logger.debug( f"volumes {mountvol.name} use volume {volumes[mountvol.name]} and volume mount {volumes_mount[mountvol.name]}")
         return (volumes, volumes_mount)
 
     def get_user_homedirectory(self, authinfo:AuthInfo, userinfo:AuthUser )->str:
@@ -1843,16 +1859,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # - /etc/group 
         # - /etc/gshadow
         # files will be set as link in build_volumes
+        localaccount_data = authinfo.get_localaccount()
         # localaccount_data is a dict like
         # { 'uid': 'fry', 'gid': 'fry', 'gecos': [], 'groups': None, 'uidNumber': 2042, 'gidNumber': 12042, 'loginShell': '/bin/bash', 'description': 'Human', 'homeDirectory': '/home/fry', 'sha512': '$6$wliVSqROUCodfRsM$...oiyyvAmJl1'}
-        localaccount_data = authinfo.get_localaccount()
+        localaccount_files = self.preparelocalaccount( localaccount_data )
         # create dict from localaccount_data entry for 'passwd', 'shadow', 'group', 'gshadow' files
         # { 'passwd': 'root:x:0:0:root:/roo.../bin/bash\n', 
         #   'shadow': 'root:*:19020:0:99999...999:7:::\n\n', 
         #   'group': 'root:x:0:\ndaemon:x:1...y:x:12042:', 
         #   'gshadow': 'root:*::\ndaemon:*::\n...::\nfry:!::'
         # }
-        localaccount_files = self.preparelocalaccount( localaccount_data )
         self.logger.debug('localaccount secret.create creating')
         # create ODSecretLocalAccount object
         secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
@@ -1889,8 +1905,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     else:
                         self.logger.debug(f"secret.create {secret.get_name(authinfo, userinfo)} created")
     
-        # Create flexvolume secrets
-        self.logger.debug('flexvolume secrets creating')
+        # Create volume from policies 
+        self.logger.debug('create volumes from policies')
         rules = oc.od.settings.desktop['policies'].get('rules')
         if isinstance(rules, dict):
             mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo,  rules.get('volumes') )
@@ -1908,7 +1924,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         self.logger.error( f"Failed to build auth secret {secret.get_name(authinfo, userinfo)} fstype={fstype}" )
                     else:
                         self.logger.debug(f"secret.create {secret.get_name(authinfo, userinfo)} created")
-
 
     def get_annotations_lastlogin_datetime(self):
         """get_annotations_lastlogin_datetime
