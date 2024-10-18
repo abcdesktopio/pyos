@@ -37,6 +37,7 @@ executeclasses = {}
 
 # User balloon define
 # Balloon is the default user used inside container
+homerootdirectory = '/root'
 balloon_homedirectory = '/home/balloon'
 balloon_uidNumber = 4096            # default user id
 balloon_gidNumber = 4096            # default group id
@@ -96,12 +97,14 @@ internaldns = { 'subdomain': None, 'domain': None, 'secret': None }
 jwt_config_user = None
 jwt_config_desktop = None
 
-# webrtc config
+#
+# default webrtc config
 webrtc = { 
     'enable': False, 
     'rtc_configuration': {},
     'rtc_constraints': {},
-    'coturn': {}     }
+    'coturn': {}    
+}
 
 def getballoon_loginname()->str:     
     return balloon_loginname
@@ -109,10 +112,23 @@ def getballoon_groupname()->str:
     return balloon_groupname
 def getballoon_loginShell()->str:    
     return balloon_shell
-def getballoon_homedirectory()->str: 
-    return balloon_homedirectory
+def getballoon_homedirectory( uid:str=None )->str:
+    """getballoon_homedirectory
+
+    Args:
+        uid (str, optional): user id  Defaults to None.
+
+    Returns:
+        str: user HOMEDIR str like /home/myuser
+    """
+    homedirectory = None
+    if uid is None:
+        homedirectory = balloon_homedirectory
+    else:
+        homedirectory = os.path.join( homerootdirectory, str(uid) )
+    return homedirectory
 def getballoon_uidNumber()->int:
-    """[summary]
+    """getballoon_uidNumber
 
     Returns:
         int: balloon user id
@@ -120,7 +136,7 @@ def getballoon_uidNumber()->int:
     return balloon_uidNumber
 
 def getballoon_gidNumber()->int:
-    """[summary]
+    """getballoon_gidNumber
 
     Returns:
         int: balloon group id
@@ -432,14 +448,19 @@ def init_balloon():
     global balloon_groupname
     global balloon_password
     global balloon_homedirectory
+    global homerootdirectory 
 
+    homerootdirectory = gconfig.get('desktop.homerootdirectory', '/home')
     balloon_loginname = gconfig.get('desktop.username',  'balloon')
     balloon_groupname = gconfig.get('desktop.groupname', 'balloon')
     balloon_uidNumber = gconfig.get('desktop.userid', 4096)
     balloon_gidNumber = gconfig.get('desktop.groupid', 4096)
     balloon_shell     = gconfig.get('destkop.shell', '/bin/bash')
-    balloon_password    = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
-    balloon_homedirectory = gconfig.get('desktop.userhomedirectory', '/home/balloon')
+    balloon_password  = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
+    balloon_homedirectory = gconfig.get(
+        'desktop.userhomedirectory', 
+        os.path.join( homerootdirectory, balloon_loginname ) 
+    )
 
 
 def _resolv( fqdh:str )->str:

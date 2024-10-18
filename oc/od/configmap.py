@@ -198,9 +198,10 @@ class ODConfigMapLocalAccount( ODConfigMap ):
         # Default configmap dict
         uid = arguments.get('uid' )
         sha512 = arguments.get('sha512')
-        uidNumber =  arguments.get('uidNumber' )
-        gidNumber =  arguments.get('gidNumber' )
-        passwd_line = f"{uid}:x:{uidNumber}:{gidNumber}::{oc.od.settings.balloon_homedirectory}:{oc.od.settings.balloon_shell}"
+        uidNumber =  arguments.get('uidNumber')
+        gidNumber =  arguments.get('gidNumber')
+        homedir = oc.od.settings.getballoon_homedirectory(uid)
+        passwd_line = f"{uid}:x:{uidNumber}:{gidNumber}::{homedir}:{oc.od.settings.balloon_shell}"
         group_line  = f"{uid}:x:{gidNumber}" + "\n" + "sudo:x:27:{uid}"
         shadow_line = f"{uid}:{sha512}:19080:0:99999:7:::"
 

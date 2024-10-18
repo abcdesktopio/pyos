@@ -135,28 +135,43 @@ class AuthUser(dict):
 
     @staticmethod
     def getConfigdefaultPosixAccount():
+        uid=oc.od.settings.getballoon_loginname()
+        gid=oc.od.settings.getballoon_groupname()
+        uidNumber=oc.od.settings.getballoon_uidNumber()
+        gidNumber=oc.od.settings.getballoon_gidNumber()
+        homeDirectory=oc.od.settings.getballoon_homedirectory( uid )
+        loginShell=oc.od.settings.getballoon_loginShell()
+        description='abcdesktop default account'
         return AuthUser.getdefaultPosixAccount( 
-            uid=oc.od.settings.getballoon_loginname(),
-            gid=oc.od.settings.getballoon_groupname(),
-            uidNumber=oc.od.settings.getballoon_uidNumber(),
-            gidNumber=oc.od.settings.getballoon_gidNumber(),
-            homeDirectory=oc.od.settings.getballoon_homedirectory(),
-            loginShell=oc.od.settings.getballoon_loginShell(),
-            description='abcdesktop default account'
+            uid=uid,
+            gid=gid,
+            uidNumber=uidNumber,
+            gidNumber=gidNumber,
+            homeDirectory=homeDirectory,
+            loginShell=loginShell,
+            description=description
         )
 
     @staticmethod
     def getPosixAccountfromlocalAccount( localaccount:dict )->dict:
         if not isinstance(localaccount, dict):
-            localaccount = AuthUser.getConfigdefaultPosixAccount()
+            return AuthUser.getConfigdefaultPosixAccount()
+        
+        uid=localaccount.get('uid',oc.od.settings.getballoon_loginname())
+        gid=localaccount.get('gid',oc.od.settings.getballoon_groupname())
+        uidNumber=localaccount.get('uidNumber', oc.od.settings.getballoon_uidNumber())
+        gidNumber=localaccount.get('gidNumber',oc.od.settings.getballoon_gidNumber())
+        homeDirectory=localaccount.get('homeDirectory',oc.od.settings.getballoon_homedirectory(uid))
+        loginShell=localaccount.get('loginShell',oc.od.settings.getballoon_loginShell())
+        description=localaccount.get('description', "abcdesktop generated account")
         return AuthUser.getdefaultPosixAccount( 
-            uid=localaccount.get('uid',oc.od.settings.getballoon_loginname()),
-            gid=localaccount.get('gid',oc.od.settings.getballoon_groupname()),
-            uidNumber=localaccount.get('uidNumber', oc.od.settings.getballoon_uidNumber()),
-            gidNumber=localaccount.get('gidNumber',oc.od.settings.getballoon_gidNumber()),
-            homeDirectory=localaccount.get('homeDirectory',oc.od.settings.getballoon_homedirectory()),
-            loginShell=localaccount.get('loginShell',oc.od.settings.getballoon_loginShell()),
-            description=localaccount.get('description','abcdesktop default account')
+            uid=uid,
+            gid=gid,
+            uidNumber=uidNumber,
+            gidNumber=gidNumber,
+            homeDirectory=homeDirectory,
+            loginShell=loginShell,
+            description=description
         )
 
     @staticmethod
@@ -846,7 +861,6 @@ class ODAuthTool(cherrypy.Tool):
             if not isinstance(value, bool):
                 logger.warning(f"invalid value type boolean {type(value)}, bool is expected in rule")
                 return False
-
             return value
 
         def isMemberOf(roles, groups ) :
@@ -996,7 +1010,7 @@ class ODAuthTool(cherrypy.Tool):
         network = condition.get('network')
         if isinstance(network, str ) or isinstance(network, list ) :
             ipsource = getclientipaddr()
-            self.logger.debug( f"network rules ipsource={ipsource}" )
+            # self.logger.debug( f"network rules ipsource={ipsource}" )
             result = isinNetwork( ipsource, network )
             if result == condition.get( 'expected' ):
                 compiled_result = True
@@ -1004,9 +1018,9 @@ class ODAuthTool(cherrypy.Tool):
         network = condition.get('network-x-forwarded-for')
         if isinstance(network, str ) or isinstance(network, list ) :
             # getclientxforwardedfor_listip return a list of all ip addr
-            self.logger.debug(f"condition network-x-forwarded-for start" )
+            # self.logger.debug(f"condition network-x-forwarded-for start" )
             ipsources = getclientxforwardedfor_listip()
-            self.logger.debug(f"condition network-x-forwarded-for test isinNetwork ipsources={ipsources} network={network}" )
+            # self.logger.debug(f"condition network-x-forwarded-for test isinNetwork ipsources={ipsources} network={network}" )
             result = isinNetwork( ipsources, network )
             if result == condition.get( 'expected'):
                 compiled_result = True
@@ -1055,7 +1069,7 @@ class ODAuthTool(cherrypy.Tool):
             if result == condition.get('expected'):
                 compiled_result = True
 
-        self.logger.debug( f"compiledcondition -> {compiled_result}")
+        # self.logger.debug( f"compiledcondition -> {compiled_result}")
         return compiled_result
 
     def compiledrule( self, name, rule, thread_compiled_result, user, roles, provider=None, auth=None ):
@@ -1080,10 +1094,9 @@ class ODAuthTool(cherrypy.Tool):
             return False
 
         compiled_result = all( results )
-        logger.debug( f"rules (compiled_result={compiled_result})==(expected=={expected})" )
         result = compiled_result == expected
         thread_compiled_result[name] = result
-        logger.debug( f"rules return result={result} thread_compiled_result[{name}] {thread_compiled_result[name]} name={name}" )
+        logger.debug( f"{name} rules {conditions} (compiled_result={compiled_result})==(expected=={expected}) return result={result}" )
         return result
 
 
@@ -2096,7 +2109,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         if not isinstance( password, str ): 
             password = self.default_passwd_if_not_exist
         if not isinstance( homeDirectory, str ): 
-            homeDirectory = oc.od.settings.getballoon_homedirectory()
+            homeDirectory = oc.od.settings.getballoon_homedirectory(uid)
         
         hashes = {  
             'uid'  : uid,
@@ -2293,7 +2306,7 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
             cn=name, 
             uidNumber=oc.od.settings.getballoon_uidNumber(),
             gidNumber=oc.od.settings.getballoon_gidNumber(),
-            homeDirectory=oc.od.settings.getballoon_homedirectory(),
+            homeDirectory=oc.od.settings.getballoon_homedirectory(uid),
             loginShell=oc.od.settings.getballoon_loginShell(),
             description='abcdesktop anonymous account' )
         userinfo['posix'] = anonymousPosix
@@ -2615,7 +2628,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         conn   = None   # set default value
 
         if self.auth_type not in ODLdapAuthProvider.LDAP_AUTH_SUPPORTED_METHOD:
-             raise AuthenticationError(f"auth_type must be in {ODLdapAuthProvider.LDAP_AUTH_SUPPORTED_METHOD}")
+             raise AuthenticationError(f"auth_type must be in {ODLdapAuthProvider.LDAP_AUTH_SUPPORTED_METHOD} entry is {self.auth_type}")
 
         self.logger.debug( f"validate uses auth_type={self.auth_type}")
         if self.auth_type == 'KERBEROS':

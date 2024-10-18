@@ -350,6 +350,19 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
         if isinstance(domain,str) :
             mydict_secret.update( { 'domain':  ODSecret.strtob64(domain) } )
         return mydict_secret
+    
+    def read_alldata(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
+        alldata = super().read_alldata(authinfo, userinfo)
+        if isinstance(alldata,dict):
+            data = alldata.get('data')
+            # try to decode json data to dict 
+            if isinstance( data, str ):
+                try:
+                    _data = json.loads( data )
+                    alldata['data'] = _data
+                except Exception as e:
+                    self.logger.error( e )
+        return alldata
 
 
 class ODSecretRemoteFileSystemDriverUsingKerberosAuth( ODSecret ):
