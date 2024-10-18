@@ -1009,16 +1009,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # Owing to JSON limitations, you must specify the mode in decimal notation.
                     # 644 in decimal equal to 420
                     volumes[secret_auth_name] = {
-                        'name':secret_auth_name, 
-                        'secret': { 
-                            'secretName': secret_auth_name, 
+                        'name':secret_auth_name,
+                        'secret': {
+                            'secretName': secret_auth_name,
                             'defaultMode': 420
                         }
                     }
                     volumes_mount[secret_auth_name] = {
-                        'name':secret_auth_name, 
-                        'mountPath':secretmountPath 
-                    }   
+                        'name':secret_auth_name,
+                        'mountPath':secretmountPath
+                    }
         return (volumes, volumes_mount)
 
         
@@ -1052,6 +1052,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             'readOnly': mountvol.readOnly
                         }
                     }
+                    continue
 
                 if fstype=='pvc':
                     claimName = mountvol.claimName
@@ -1064,9 +1065,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             'name': volume_name, 
                             'persistentVolumeClaim': { 'claimName': mountvol.claimName } 
                         }
-                        
+                    continue     
                    
-
                 # mount the remote home dir as a flexvol
                 # WARNING ! if the flexvol mount failed, the pod must start
                 # abcdesktop/cifs always respond a success
@@ -1076,7 +1076,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # Flex volume use kubernetes secret                    
                 # Kubernetes secret as already been created by prepareressource function call 
                 # Read the secret and use it
-
+                
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype )
                 if isinstance( secret, oc.od.secret.ODSecret):
                     driver_type =  self.namespace + '/' + fstype
@@ -1091,9 +1091,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         # skipping bad values
                         self.logger.error( f"Invalid value read from secret={secret_name} type={type(secret_dict_data)}" )
                         continue
+                    
+                    volmountsecretedata = secret_dict_data.get('data')
+                    if not isinstance( volmountsecretedata, dict ):
+                        # skipping bad values
+                        self.logger.error( f"Invalid value read from secret={secret_name}['data'] expecting type=dict gets type={type(volmountsecretedata)}" )
+                        continue
 
-                    mountPath           = secret_dict_data.get( 'mountPath')
-                    networkPath         = secret_dict_data.get( 'networkPath' )
+                    secret_dict_data
+                    mountPath           = volmountsecretedata.get( 'mountPath')
+                    networkPath         = volmountsecretedata.get( 'networkPath' )
                     
                     # Check if the secret contains valid datas 
                     if not isinstance( mountPath, str) :
@@ -1109,10 +1116,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     volumes_mount[mountvol.name] = {'name': volume_name, 'mountPath': mountPath }     
                     posixaccount = self.alwaysgetPosixAccountUser( authinfo, userinfo )
                     # Default mount options
-                    mountOptions = f"uid={posixaccount.get('uidNumber')}',gid={posixaccount.get('gidNumber')}"
+                    mountOptions = f"uid={posixaccount.get('uidNumber')},gid={posixaccount.get('gidNumber')}"
                     # concat mountOptions for the volume if exists 
                     if mountvol.has_options():
-                        mountOptions += f"',{mountvol.mountOptions}"
+                        mountOptions += f",{mountvol.mountOptions}"
 
                     # dump for debug
                     self.logger.debug( f"flexvolume: {mountvol.name} set option {mountOptions}" )
@@ -1139,7 +1146,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         localaccount_secret = localaccount.read( authinfo,userinfo )
         homeDirectory = oc.od.secret.ODSecretLocalAccount.read_data( localaccount_secret, 'homeDirectory' )
         if not isinstance( homeDirectory, str ):
-            homeDirectory = oc.od.settings.getballoon_homedirectory()
+            homeDirectory = oc.od.settings.getballoon_homedirectory( userinfo.userid )
         return homeDirectory
 
     def get_mixedataforchevron(self, authinfo:AuthInfo, userinfo:AuthUser )->dict:
@@ -1836,11 +1843,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # - /etc/group 
         # - /etc/gshadow
         # files will be set as link in build_volumes
+        # localaccount_data is a dict like
+        # { 'uid': 'fry', 'gid': 'fry', 'gecos': [], 'groups': None, 'uidNumber': 2042, 'gidNumber': 12042, 'loginShell': '/bin/bash', 'description': 'Human', 'homeDirectory': '/home/fry', 'sha512': '$6$wliVSqROUCodfRsM$...oiyyvAmJl1'}
         localaccount_data = authinfo.get_localaccount()
+        # create dict from localaccount_data entry for 'passwd', 'shadow', 'group', 'gshadow' files
+        # { 'passwd': 'root:x:0:0:root:/roo.../bin/bash\n', 
+        #   'shadow': 'root:*:19020:0:99999...999:7:::\n\n', 
+        #   'group': 'root:x:0:\ndaemon:x:1...y:x:12042:', 
+        #   'gshadow': 'root:*::\ndaemon:*::\n...::\nfry:!::'
+        # }
         localaccount_files = self.preparelocalaccount( localaccount_data )
         self.logger.debug('localaccount secret.create creating')
+        # create ODSecretLocalAccount object
         secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
+        # put localaccount_files into ODSecretLocalAccount secret
         createdsecret = secret.create( authinfo, userinfo, data=localaccount_files )
+        # check if createdsecret is a V1Secret
         if not isinstance( createdsecret, V1Secret):
             self.logger.error(f"can not create secret {secret.get_name(authinfo, userinfo)}")
         else:
