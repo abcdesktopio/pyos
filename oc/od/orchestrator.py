@@ -4680,11 +4680,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         # create a thread to watch for pulling event 
         # self.create_thread_to_watch_for_pulling_event( myDesktop, pod_name, app_container_name, app )
-
-        
-        pod_resource_version = pod.metadata.resource_version
-
-        send_previous_pulling_message = False
         # start
         data = {    'message':  app.get('name'), 
                     'name':     app.get('name'),
@@ -4700,6 +4695,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         appinstancestatus.message = "Application" # default message 
 
         """
+        pod_resource_version = pod.metadata.resource_version
+        send_previous_pulling_message = False
         # field_selector=f'involvedObject.name={pod_name}'
         # timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
         # send_initial_events=False,
