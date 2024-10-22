@@ -156,7 +156,7 @@ class AuthUser(dict):
     def getPosixAccountfromlocalAccount( localaccount:dict )->dict:
         if not isinstance(localaccount, dict):
             return AuthUser.getConfigdefaultPosixAccount()
-        
+
         uid=localaccount.get('uid',oc.od.settings.getballoon_loginname())
         gid=localaccount.get('gid',oc.od.settings.getballoon_groupname())
         uidNumber=localaccount.get('uidNumber', oc.od.settings.getballoon_uidNumber())
@@ -182,6 +182,8 @@ class AuthUser(dict):
         # NAME: PosixAccount
         # MUST: cn uid uidNumber gidNumber homeDirectory
 
+        uid = uid.lower()
+
         # fix missing value if need
         if not isinstance(cn, str): 
             cn = uid
@@ -195,7 +197,7 @@ class AuthUser(dict):
         defaultposixAccount = { 
             'cn':cn, 
             'uid':uid, 
-            'gid':gid, 
+            'gid':gid.lower(), 
             'uidNumber':uidNumber, 
             'gidNumber':gidNumber, 
             'homeDirectory':homeDirectory, 
@@ -2020,6 +2022,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
         """
         uid = userinfo.get('uid') or userinfo.get('userid') or user
         uid = ODAuthProviderBase.safe_uid(uid)
+        # always use lower case
+        uid = uid.lower()
         return uid
 
     @staticmethod
@@ -2060,6 +2064,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         new_uid= new_uid[0:UID_MAX_LENGTH-1]
         if not new_uid:
             raise ValueError("invalid uid value")
+        
         return new_uid
 
     def getdefault_gid(self, userinfo , user):
@@ -2072,7 +2077,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
         """
         gid = userinfo.get('gid') or userinfo.get('userid')
         if not isinstance( gid, str):
-            gid = user.replace(' ','').tolower()
+            gid = user.replace(' ','')
+        # always use lower case
+        gid = gid.lower()
         return gid
         
     def generateLocalAccount(self, userinfo, user, password ):
@@ -3529,7 +3536,6 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         self.recursive_search = config.get('recursive_search', False) is True
         self.trusted_domains = config.get('trusted_domains')
 
-
         if self.query_dcs:
             if not self.domain_fqdn: 
                 raise ValueError(f"provider {name} property 'domain_fqdn' not set, cannot query domain controllers list")
@@ -3583,8 +3589,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             if isinstance( uid, str ):
                 # convert a sAMAccountName to a linux uid 
                 uid = ODAuthProviderBase.safe_uid( uid )
+                uid = uid.lower()
         if not isinstance( uid, str ):
             uid = super().getdefault_uid(userinfo , user)
+        uid = uid.lower()
         return uid
 
 
@@ -3835,10 +3843,10 @@ class ODAdAuthProvider(ODLdapAuthProvider):
             conn.unbind()
 
         except Exception as e:
-            self.logger.error( f"LDAP query siteObject {e}" )     
+            self.logger.warning( f"LDAP query siteObject {e}" )     
         
         if len_dictsite == 0:
-            self.logger.debug('ActiveDirectory has no siteObject defined')
+            self.logger.warning('ActiveDirectory has no siteObject defined')
             
         return dictsite
 
