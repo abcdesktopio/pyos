@@ -862,7 +862,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if isinstance( node_list, V1NodeList) and len(node_list.items) > 0:
                     bReturn = True
         except Exception as e:
-            self.logger.error( e )
+            self.logger.warning( e )
         return bReturn
 
 
