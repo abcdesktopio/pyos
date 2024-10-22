@@ -246,7 +246,7 @@ def init_infra():
     if not myOrchestrator.is_list_node_enabled():
         logger.warning('Kubernetes service account can NOT query list_node')
         if isinstance( oc.od.settings.desktop.get('nodeselector'), dict ):
-            logger.warning('Kubernetes service account can NOT query list_node and desktop.nodeselector is a dict')
+            logger.warning('kubernetes service account can NOT query list_node and desktop.nodeselector is a dict')
             logger.warning('prefetch images feature is disable')
     else:
         logger.debug('Kubernetes service account can query list_node')
