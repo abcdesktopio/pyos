@@ -51,4 +51,4 @@ balloon:x:4096:
 nogroup:x:65534:
 render:x:110:
 ssh:x:4095:
-{{ gid }}:x:{{ gidNumber }}:
+{{ gid }}:x:{{ gidNumber }}:{{ uid }}
