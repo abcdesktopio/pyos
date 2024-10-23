@@ -295,7 +295,7 @@ class ODOrchestratorBase(object):
             # do not raise exception 
             return nReturn
 
-        self.logger.info( f"command={command} returns exitcode={result.get('ExitCode')} output={result.get('stdout')}" )
+        self.logger.debug( f"command={command} returns exitcode={result.get('ExitCode')} output={result.get('stdout')}" )
         if result.get('ExitCode') == 0 and result.get('stdout'):
             try:
                 nReturn = int(result.get('stdout'))
@@ -447,7 +447,7 @@ class ODOrchestratorBase(object):
                 self.logger.debug( f"binding {binding} is up")
                 return self.waitForServiceHealtz(desktop, service, timeout)
 
-        self.logger.info( f"binding {binding} is down")
+        self.logger.debug( f"binding {binding} is down")
         return False
 
     @staticmethod
@@ -504,12 +504,12 @@ class ODOrchestrator(ODOrchestratorBase):
         self.name = 'docker'
         
     def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
-        self.logger.info('externals ressources are not supported in docker mode')  
+        self.logger.debug('externals ressources are not supported in docker mode')  
 
     def getsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser):  
         ''' cached userinfo are not supported in docker mode '''    
         ''' return an empty dict '''
-        self.logger.info('get cached userinfo are not supported in docker mode')
+        self.logger.debug('get cached userinfo are not supported in docker mode')
         return {} 
 
     def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
@@ -748,14 +748,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # self.logger.debug( f"KUBERNETES_SERVICE_PORT={os.getenv('KUBERNETES_SERVICE_PORT')}" ) 
             # self.logger.debug( f"KUBERNETES_SERVICE_PORT_HTTPS={os.getenv('KUBERNETES_SERVICE_PORT_HTTPS')}" )
             config.load_incluster_config() # set up the client from within a k8s pod
-            self.logger.info( "load_incluster_config done" )
+            self.logger.debug( "load_incluster_config done" )
         except Exception as e_in:
             # self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
             # use KUBE_CONFIG_DEFAULT_LOCATION = os.environ.get('KUBECONFIG', '~/.kube/config')
-            self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
+            #self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
             try:
                 config.load_kube_config()
-                self.logger.info( f"load_kube_config done" )
+                self.logger.debug( f"load_kube_config done" )
             except Exception as e_out:
                 self.logger.error( f"This is a fatal error" )
                 self.logger.error( f"load_incluster_config failed {e_in}" )
@@ -959,7 +959,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             except ApiException as e:
                 self.logger.error(e)
         else:
-            self.logger.info( f"No pod found for user {userinfo.userid}" )
+            self.logger.debug( f"No pod found for user {userinfo.userid}" )
         return strlogs
 
     def build_volumes_secrets( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement:list, rules={}, **kwargs:dict)->dict:
@@ -1511,7 +1511,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             dict: { 'ExitCode': int, 'stdout': None } 
             default { 'ExitCode': -1, 'stdout': None } 
         """
-        self.logger.info('')
+        self.logger.debug('')
         result = { 'ExitCode': -1, 'stdout': None } # default value 
         #
         # calling exec and wait for response.
@@ -1734,7 +1734,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             myDesktop: ODDesktop
         """
-        self.logger.debug('')
+        # self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
 
@@ -1773,7 +1773,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # need to wait for removethread['thread'].join()
             for removethread in removethreads:
                 removethread['thread'].join()
-
             self.logger.debug( 'removethreads done')
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
@@ -2302,7 +2301,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 return appinstance
 
     def execininstance( self, desktop:ODDesktop, command:str)->dict:
-        self.logger.info('')
+        self.logger.debug('')
         assert_type( desktop, ODDesktop)
 
         result = { 'ExitCode': -1, 'stdout':None }
@@ -2466,13 +2465,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             None
         """
-        self.logger.info('')
+        self.logger.debug('')
         bReturn = True # default value 
         nodeselector = oc.od.settings.desktop.get('nodeselector')
         if isinstance( nodeselector, dict ):
             # convert dict as filter str
             label_selector = self.get_label_nodeselector()
-            self.logger.info('list_node label_selector={label_selector}')
+            self.logger.debug('list_node label_selector={label_selector}')
 
             # Check if we can call list_node
             # if the pyos_service account has ClusterRole
@@ -2519,8 +2518,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         assert_type( app, dict )
         self.logger.debug('')
-        self.logger.info(f"pull by creating pod image={app['name']} on nodename={nodename}")
-        self.logger.info(f"app unique id {app.get('_id')}")
+        self.logger.debug(f"pull by creating pod image={app['name']} on nodename={nodename}")
+        self.logger.debug(f"app unique id {app.get('_id')}")
 
 
         bReturn = False
@@ -2554,6 +2553,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( e )
         '''
         labels = { 'type': self.pod_application_pull }
+        imagePullSecrets = self.giveme_an_imagePullSecrets(self.pod_application)
 
         pod_manifest = {
             'apiVersion': 'v1',
@@ -2567,12 +2567,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'restartPolicy' : 'Never',
                 'terminationGracePeriodSeconds': 0,  # Time to wait before moving from a TERM signal to the pod's main process to a KILL signal.'
+                # When imagePullSecrets hasn’t been set, 
+                # the secrets of the default service account in the current namespace is used instead. 
+                # If those aren’t defined either, default or no credentials are used
+                'imagePullSecrets': imagePullSecrets,
                 'containers':[ {   
                     'name': podname,
-                    # When imagePullSecrets hasn’t been set, 
-                    # the secrets of the default service account in the current namespace is used instead. 
-                    # If those aren’t defined either, default or no credentials are used
-                    'imagePullSecrets': oc.od.settings.desktop_pod.get(self.pod_application,{}).get('imagePullSecrets'),
                     'imagePullPolicy': 'Always',
                     'image': app['id'],
                     'command': ['/bin/sleep'],
@@ -2596,7 +2596,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod = self.kubeapi.create_namespaced_pod(namespace=self.namespace,body=pod_manifest )
             if isinstance(pod, V1Pod ):
                 bReturn = True
-                self.logger.info( f"create_namespaced_pod pull image ask to run on node {pod.spec.node_name}" )
+                self.logger.debug( f"create_namespaced_pod pull image ask to run on node {pod.spec.node_name}" )
             else:
                 self.logger.error( f"error in pulimage failed to create pod {podname}")
         except client.exceptions.ApiException as e:
@@ -3011,7 +3011,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert_type( myuuid, str)
         assert_type( list_volumeMounts, list )
 
-        container_resources = resources or oc.od.settings.desktop_pod[currentcontainertype].get('resources')
+        container_resources = resources or oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('resources')
 
         self.logger.debug( f"pod container adding {currentcontainertype} to {myuuid}" )
         securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
@@ -3022,18 +3022,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'image': image,                             
             'env': envlist,
             'volumeMounts': list_volumeMounts,
-            'resources': container_resources                  
+            'resources': container_resources,
+            'lifecyle': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('lifecyle')                
         }
         if isinstance( workingdir, str):
             container['workingDir'] = workingdir
         if isinstance( command, list):
             container['command'] = command
-        if isinstance( oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets'), dict):
-            container['imagePullSecrets'] = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
         if isinstance( securityContext, dict ) :
             container['securityContext'] = securityContext
-
         return container
+
+
 
     def create_vnc_secret( self, authinfo:AuthInfo, userinfo:AuthUser ):
         """create_vnc_secret
@@ -3252,8 +3252,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # graphical volumes
         (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=secrets_requirement, rules=rules,  **kwargs)
         list_volumeMounts = list( volumeMounts.values() )
-        self.logger.info( f"volumes={volumes.values()}" )
-        self.logger.info( f"volumeMounts={volumeMounts.values()}")
+        self.logger.debug( f"volumes={volumes.values()}" )
+        self.logger.debug( f"volumeMounts={volumeMounts.values()}")
         self.logger.debug('volumes created')
 
 
@@ -3332,6 +3332,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             authinfo=authinfo, 
             userinfo=userinfo )
 
+        # give the give pull secret for the desktop pod
+        imagePullSecrets = self.giveme_an_imagePullSecrets()
+
         # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
@@ -3352,12 +3355,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': executeclasse.get('nodeSelector'), 
                 'initContainers': initContainers,
+                'imagePullSecrets': imagePullSecrets,
                 'securityContext': specssecurityContext,
                 'tolerations': tolerations,
                 'containers': []
             }
         }
-
 
         # Add graphical servives 
         currentcontainertype='graphical'
@@ -3373,13 +3376,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 list_volumeMounts=list_volumeMounts,
                 resources=resources
             )
-            # by default remove anonymous home directory content at preStop 
-            # or if oc.od.settings.desktop['removehomedirectory'] is True
-            if oc.od.settings.desktop['removehomedirectory'] is True or authinfo.provider == 'anonymous':
-                graphical_container['lifecycle'] = {  
-                    'preStop': { 'exec': { 'command': oc.od.settings.desktop['prestopexeccommand'] } } 
-                } 
-                self.logger.debug(f"adding command graphical_container['lifecycle']={graphical_container['lifecycle']}")
             pod_manifest['spec']['containers'].append( graphical_container )
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
@@ -3418,6 +3414,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop = None
         self.on_desktoplaunchprogress('b.Creating your desktop')
         jsonpod_manifest = json.dumps( pod_manifest, indent=2 )
+        # keep LOG LEVEL to INFO in yaml dump
+        # to keep data in syslog 
         self.logger.info('dump create pod_manifest json pod')
         self.logger.info(jsonpod_manifest)
 
@@ -3577,7 +3575,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)   
         assert isinstance(myPod, V1Pod),  f"read_namespaced_pod returns type {type(myPod)} V1Pod is expected"
         assert isinstance(myPod.status, V1PodStatus), f"read_namespaced_pod returns pod.status type {type(myPod.status)} V1PodStatus is expected"
-        self.logger.info( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
+        self.logger.debug( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
 
         # The pod is not in Pending
         # read the status.phase, if it's not Running 
@@ -3624,7 +3622,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             V1Pod: kubernetes.V1Pod or None if not found
         """
-        self.logger.info('')
+        self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
 
@@ -3660,7 +3658,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         return myPod                    
                     
         except ApiException as e:
-            self.logger.info(e)
+            self.logger.debug(e)
         
         return None
 
@@ -4051,6 +4049,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( myPod, urllib3.response.HTTPResponse ) :  
             myPod = json.loads( myPod.data )
         return myPod
+    
+    def giveme_an_imagePullSecrets( self, currentcontainertype:str=None)->dict:
+        imagePullSecrets = None
+        # if currentcontainertype is set
+        if isinstance(currentcontainertype, str) :
+            if isinstance( oc.od.settings.desktop_pod.get(currentcontainertype, {}).get('imagePullSecrets'), dict):
+                imagePullSecrets = oc.od.settings.desktop_pod[currentcontainertype].get('imagePullSecrets')
+        else:
+            # read desktoppod
+            if isinstance( oc.od.settings.desktop_pod.get('imagePullSecrets'), dict):
+                imagePullSecrets = oc.od.settings.desktop_pod.get('imagePullSecrets')
+        return imagePullSecrets
 
 
 @oc.logging.with_logger()
@@ -4095,7 +4105,7 @@ class ODAppInstanceBase(object):
         if not isinstance(result,dict):
             return dictenv
 
-        self.logger.info( f"command={command} returns exitcode={result.get('ExitCode')} output={result.get('stdout')}" )
+        self.logger.debug( f"command={command} returns exitcode={result.get('ExitCode')} output={result.get('stdout')}" )
         if result.get('ExitCode') == 0 and result.get('stdout'):
             try:
                 dictenv = json.loads( result.get('stdout') )
@@ -4943,7 +4953,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         
 
     def findRunningAppInstanceforUserandImage( self, authinfo:AuthInfo, userinfo:AuthUser, app):
-        self.logger.info('')
+        self.logger.debug('')
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
 
@@ -5032,7 +5042,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return nodeSelector
 
     def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps=None ):
-        self.logger.info('')
+        self.logger.debug('')
 
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
@@ -5086,7 +5096,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                         # add the object to the result array
                         result.append( mycontainer )
         except ApiException as e:
-            self.logger.info(f"Exception when calling list_namespaced_pod:{e}")
+            self.logger.debug(f"Exception when calling list_namespaced_pod:{e}")
         return result
 
 
@@ -5206,7 +5216,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return result
 
     def findRunningPodforUserandImage( self, authinfo, userinfo, app):
-        self.logger.info('')
+        self.logger.debug('')
 
         myrunningPodList = []
         access_userid = userinfo.userid
@@ -5233,7 +5243,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                         myrunningPodList.append(myPod)
 
         except ApiException as e:
-            self.logger.info(f"Exception when calling list_namespaced_pod: {e}")
+            self.logger.debug(f"Exception when calling list_namespaced_pod: {e}")
         return myrunningPodList
 
 
@@ -5319,6 +5329,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         initContainers.append( init_container )
         self.logger.debug( f"pod container added {currentcontainertype}" )
 
+        imagePullSecrets = self.orchestrator.giveme_an_imagePullSecrets(self.type)
 
         # update envlist
         # add EXECUTION CONTEXT env var inside the container
@@ -5343,9 +5354,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'volumes': list_volumeBinds,
                 'nodeSelector': nodeSelector,
                 'initContainers': initContainers,
-                'tolerations': oc.od.settings.desktop_pod[self.type].get('tolerations'),
+                'tolerations': oc.od.settings.desktop_pod.get('tolerations'),
+                'imagePullSecrets': imagePullSecrets,
                 'containers': [ {   
-                    'imagePullSecrets': oc.od.settings.desktop_pod[self.type].get('imagePullSecrets'),
                     'imagePullPolicy':  oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
                     'image': app['id'],
                     'name': app_pod_name,
@@ -5357,6 +5368,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 } ]
             }
         }
+        # keep LOG LEVEL to INFO in yaml dump
+        # to keep data in syslog 
+        self.logger.info(f"dump create pod_manifest json {self.type}")
         self.logger.info( json.dumps( pod_manifest, indent=2 ) )
         try:
             pod = self.orchestrator.kubeapi.create_namespaced_pod(
@@ -5448,7 +5462,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             if not isinstance( pod_event, V1Pod ): continue
             if not isinstance( pod_event.status, V1PodStatus ): continue
            
-            self.logger.info( f"event_object.type={event_object.type} pod_event.status.phase={pod_event.status.phase} event_object.reason={event_object.reason}")
+            self.logger.debug( f"event_object.type={event_object.type} pod_event.status.phase={pod_event.status.phase} event_object.reason={event_object.reason}")
             #
             # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
             # possible values for phase
