@@ -2064,8 +2064,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         new_uid= new_uid[0:UID_MAX_LENGTH-1]
         if not new_uid:
             raise ValueError("invalid uid value")
-        
-        return new_uid
+        return new_uid.lower()
 
     def getdefault_gid(self, userinfo , user):
         """getdefault_gid
