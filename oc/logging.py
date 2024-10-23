@@ -108,14 +108,6 @@ class OdContextFilter(logging.Filter):
         ''' Log Filter that add to the current log record a userid field    '''
         ''' containing the user id (extracted from the http request)        '''
         ''' add node_name '''
-        ''' add thread ident '''
-
-        # read thread ident 
-        record.threadid = None
-        try:
-            record.threadid = threading.get_ident()
-        except Exception as e:
-            pass
 
         # read node_name
         record.nodename = node_name

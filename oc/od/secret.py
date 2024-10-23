@@ -422,7 +422,7 @@ class ODSecretRemoteFileSystemDriverUsingKerberosAuth( ODSecret ):
         # Default secret 
         mydict_secret = {   'principal' :   ODSecret.strtob64( principal ),
                             'realm'     :   ODSecret.strtob64( realm ),
-                            'keytab'    :   ODSecret.bytestob64( keytab ), # this is a binary file
+                            'keytab'    :   ODSecret.bytestob64( keytab ),
                             'krb5_conf' :   ODSecret.strtob64( krb5_conf ),
                             'data'      :   ODSecret.strtob64( str_dict_data),
                             'authprotocol': ODSecret.strtob64( self.authprotocol)                        

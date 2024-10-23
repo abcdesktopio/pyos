@@ -53,7 +53,6 @@ class ODServices(object):
             start threads 
                 * kuberneteswatcher
         """
-        self.logger.debug('')
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             self.kuberneteswatcher.start()
 
@@ -63,11 +62,10 @@ class ODServices(object):
             stop threads 
                 * kuberneteswatcher
         """
-        self.logger.debug('')
         # stop thread imagewatcher if instance exists
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             try:
-                self.logger.debug( 'kuberneteswatcher stop')
+                self.logger.debug( 'kuberneteswatcher in stopping')
                 self.kuberneteswatcher.stop()
                 self.logger.debug( 'kuberneteswatcher stopped')
             except Exception as e:
@@ -118,7 +116,6 @@ class ODServices(object):
     def init_locator(self):
         """geolocatization from ip address
         """
-        self.logger.info('')
         import oc.od.locator
         self.locatorPublicInternet = oc.od.locator.ODLocatorPublicInternet()
         self.locatorPrivateActiveDirectory = {}
@@ -149,23 +146,19 @@ class ODServices(object):
         """Load rsa keys jwtdesktopprivatekeyfile jwtdesktoppublickeyfile payloaddesktoppublickeyfile
            to build the jwtdesktop  
         """
-        self.logger.info('')
         import oc.auth.jwtdesktop
         self.jwtdesktop = oc.auth.jwtdesktop.ODDesktopJWToken( settings.jwt_config_desktop )
 
     def init_internaldns(self):
-        self.logger.info('')
         if settings.internaldns.get('enable') is True:
             import oc.od.internaldns
             self.internaldns = oc.od.internaldns.ODInternalDNS( domain=settings.internaldns.get('domain'), server=settings.internaldns.get('server'), secret=settings.internaldns.get('secret') )
 
     def init_accounting(self):
-        self.logger.info('')
         import oc.od.accounting
         self.accounting = oc.od.accounting.ODAccounting()
 
     def init_datastore(self):
-        self.logger.info('')
         import oc.datastore
         self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongodburl)
         
@@ -187,42 +180,34 @@ class ODServices(object):
         return True
 
     def init_datacache(self):
-        self.logger.info('')
         import oc.sharecache
         self.sharecache = oc.sharecache.ODMemcachedSharecache(settings.memconnectionstring)
 
     def init_prelogin(self):
-        self.logger.info('')
         import oc.auth.prelogin
         self.prelogin = oc.auth.prelogin.ODPrelogin(    config=settings.prelogin,
                                                         memcache_connection_string=settings.memconnectionstring )
 
     def init_logmein(self):
-        self.logger.info('')
         import oc.auth.logmein
         self.logmein = oc.auth.logmein.ODLogmein( config=settings.logmein )
 
     def init_messageinfo(self):
-        self.logger.info('')
         import oc.od.messageinfo
         self.messageinfo = oc.od.messageinfo.ODMessageInfoManager(settings.memconnectionstring)
 
     def init_auth(self):
-        self.logger.info('')
         import oc.auth.authservice
         self.auth = oc.auth.authservice.ODAuthTool(settings.default_host_url, settings.jwt_config_user, settings.authmanagers) 
 
     def init_applist( self ):
-        self.logger.info('')
         import oc.od.apps 
         # Build applist cache data
         self.apps = oc.od.apps.ODApps(mongodburl=settings.mongodburl)
         self.apps.cached_applist(bRefresh=True)
 
     def init_kuberneteswatcher( self ):
-        self.logger.info('')
         self.kuberneteswatcher = oc.od.kuberneteswatcher.ODKubernetesWatcher()
-        # oc.od.kuberneteswatcher.ODKubernetesWatcher()
 
 # use services to access 
 services = ODServices()
@@ -233,7 +218,6 @@ def init_infra():
 
        find configuration for kubernetes
     """
-    logger.info('')
 
     # Check kubernetes config 
     myOrchestrator = oc.od.orchestrator.ODOrchestratorKubernetes()

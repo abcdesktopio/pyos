@@ -79,13 +79,13 @@ class StoreController(BaseController):
         return Results.success(result=value)
 
     def wrapped_get( self, userid, key ):
-        self.logger.debug('')
+        # self.logger.debug('')
         value = services.datastore.get_document_value_in_collection( self.databasename, userid, key)
         if value is None:
             # return default wrapped value
             # for {"status": 200, "result": "img", "message": "ok"}
             value = self.wrapped_key.get( key )
-            self.logger.debug(f"wrapped_get result {userid}:{key}->{value}" )
+            self.logger.debug(f"wrapped_get result key={key}->{value}" )
         return value
 
     @cherrypy.expose

@@ -199,11 +199,11 @@ class API(object):
 class ODCherryWatcher(plugins.SimplePlugin):
     """ signal thread to stop when cherrypy stop"""
     def start(self):
-        logger.debug( "ODCherryWatcher start events, skipping" )
+        # logger.debug( "ODCherryWatcher start events" )
         oc.od.services.services.start()
 
     def stop(self):
-        logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
+        # logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
         oc.od.services.services.stop()
 
 
@@ -211,7 +211,7 @@ def run_server():
     logger.info("Starting cherrypy service...")
     # update config for cherrypy with the od.config file
     cherrypy.config.update(settings.get_configuration_file_name())
-    logger.info(f"cherrypy.config.update({settings.get_configuration_file_name()})")  
+    logger.debug(f"cherrypy.config.update({settings.get_configuration_file_name()}) done")  
     # set auth tools
     cherrypy.tools.auth = services.services.auth
     # set /API

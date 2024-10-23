@@ -44,7 +44,7 @@ class UserController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getlocation(self):
-        self.logger.debug('')
+        # self.logger.debug('')
         (auth, user) = self.validate_env() 
         location = oc.od.user.getlocation( auth )
         return Results.success(result=location)
@@ -53,7 +53,7 @@ class UserController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def whoami(self):
-        self.logger.debug('')  
+        # self.logger.debug('')  
         auth = None
         user = None
         # same has super().validate_env 

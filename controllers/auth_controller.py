@@ -46,7 +46,7 @@ class AuthController(BaseController):
     redirect_page_local_filename = 'redirect.mustache.html'
 
     def __init__(self, config_controller=None):
-        self.logger.info( f"config_controller={config_controller}" )
+        self.logger.debug( f"config_controller={config_controller}" )
         super().__init__(config_controller)
         try:
             self.oauth_html_redirect_page = oc.lib.load_local_file(filename=AuthController.redirect_page_local_filename)

@@ -76,7 +76,7 @@ def whoami(auth, user):
             'container_id',     
             'hostedby'         
     """
-    logger.debug('')  
+    # logger.debug('')  
 
     # return default value
     userinfo = {

@@ -24,9 +24,9 @@ class ODKubernetesWatcher:
         self.logger.debug( f"ODKubernetesWatcher use namespace={self.orchestrator.namespace}")
 
     def loopforevent( self ):
-        self.logger.debug('' )
+        # self.logger.debug('' )
         self.watch = watch.Watch() 
-        self.logger.debug('loopforevent start inifity loop')
+        # self.logger.debug('loopforevent start inifity loop')
         while( True ): #  inifity loop stop when watch.stop     
             try:
                 # watch list_namespaced_pod waiting for a valid ip addr          
@@ -54,7 +54,7 @@ class ODKubernetesWatcher:
                             #    self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
                             if podtype == self.orchestrator.pod_application_pull or \
                                 podtype == self.orchestrator.pod_application  :
-                                self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
+                                # self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
                                 if isinstance( pod_event.status, V1PodStatus ):
                                     if not isinstance(pod_event.status.container_statuses, list):
                                         continue
@@ -78,7 +78,7 @@ class ODKubernetesWatcher:
                     elif event_type == 'DELETED':
                         # if podevent type is pod
                         if isinstance( pod_event, V1Pod ) : 
-                            self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
+                            # self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
                             podtype = pod_event.metadata.labels.get( 'type' )
                             if podtype == self.orchestrator.x11servertype :
                                 self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
@@ -90,12 +90,12 @@ class ODKubernetesWatcher:
                 pass
                     
     def start(self):
-        self.logger.debug('starting watcher thread')
+        self.logger.debug('watcher thread is starting')
         self.thead_event = threading.Thread(target=self.loopforevent)
         self.thead_event.start() # infinite loop until events.close()
 
     def stop(self):
-        self.logger.debug('ODKubernetesWatcher thread stopping')
+        self.logger.debug('watcher thread is stopping')
         if isinstance( self.thead_event, threading.Thread ):
             while self.thead_event.is_alive():
                 self.logger.debug('thread watcher is alive')
