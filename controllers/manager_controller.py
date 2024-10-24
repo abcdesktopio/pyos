@@ -276,8 +276,7 @@ class ManagerController(BaseController):
 
     def handle_datastore_PUT( self, args ):
         self.logger.debug('')
-     
-        if 'put' not in self.database_acl :
+        if 'write' not in self.database_acl and 'put' not in self.database_acl :
             raise cherrypy.HTTPError( status=400, message="put is denied, add 'put' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get', 'put' ] }")
         if not isinstance( args, tuple):
             raise cherrypy.HTTPError( status=400, message='invalid request')
