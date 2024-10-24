@@ -2479,14 +2479,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             try:
                 # query nodes
                 listnode = self.kubeapi.list_node(label_selector=label_selector)
-                self.logger.info(f"pulling image on nodelist={listnode}")
+                # self.logger.debug(f"pulling image on nodelist={listnode}")
             except Exception as e:
-                self.logger.warning( f"Can not get list of nodes. {e}, service account can not get nodelist, check RoleBinding and ClusterRoleBinding" )
+                self.logger.info( f"this is not an error can not get list of nodes. {e}, service account can not get nodelist, check RoleBinding and ClusterRoleBinding" )
 
             if isinstance( listnode, V1NodeList ) and len(listnode.items) > 0:
                 for node in listnode.items :
                     if isinstance( node, V1Node): 
-                        self.logger.debug( f"pulling image on node={node.metadata.name}")
+                        self.logger.info( f"pulling image on node={node.metadata.name}")
                         pull = self.pullimage( app, node.metadata.name )
                         bReturn = pull and bReturn # return False if one error occurs
                     else:
