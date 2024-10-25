@@ -13,7 +13,7 @@
 #
 # graylog tester is a simple graylog client to send message to graylog  
 #
-# graylog-tester.py
+# ./graylog-tester.py
 # usage: graylog-tester [-h] [--hostname HOSTNAME] [--port PORT] [--protocol {UDP,TCP,HTTP}] [--message MESSAGE] [--loglevel LOGLEVEL]
 #
 # send a message using python graypy.GELF API
