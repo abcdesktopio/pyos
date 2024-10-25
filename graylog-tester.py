@@ -1,4 +1,33 @@
+#!/usr/bin/env python3.8
+#
+# Software Name : abcdesktop.io
+# Version: 0.1
+# SPDX-FileCopyrightText: Copyright (c) 2020-2022 Orange
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# This software is distributed under the GNU General Public License v2.0 only
+# see the "license.txt" file for more details.
+#
+# Author: abcdesktop.io team
+# Software description: cloud native desktop service
+#
+# graylog tester is a simple graylog client to send message to graylog  
+#
 # graylog-tester.py
+# usage: graylog-tester [-h] [--hostname HOSTNAME] [--port PORT] [--protocol {UDP,TCP,HTTP}] [--message MESSAGE] [--loglevel LOGLEVEL]
+#
+# send a message using python graypy.GELF API
+#
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   --hostname HOSTNAME   graylog hostname, the default value is 'localhost'
+#   --port PORT           graylog port number, the default value is 12201
+#   --protocol {UDP,TCP,HTTP}
+#                        protocol can be 'UDP' or 'TCP' or 'HTTP', the default value is 'UDP'
+#   --message MESSAGE     message to send to the graylog server, the default value is 'Hello graylog world'
+#   --loglevel LOGLEVEL   loglevel can be DEBUG or WARNING or INFO or ERROR or CRITICAL or FATAL, the default value is DEBUG
+#
+# 
 
 import argparse
 import logging
