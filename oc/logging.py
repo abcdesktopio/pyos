@@ -18,7 +18,6 @@ import logging.config
 import pymongo
 import graypy # graylog lib
 import cherrypy
-import threading
 import os
 import socket 
 from cherrypy.lib.reprconf import Config
