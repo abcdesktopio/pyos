@@ -338,16 +338,8 @@ def init_desktop():
 
     # default secret path
     desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
-
-    desktop['release']                  = gconfig.get('desktop.release', '3.2')  
-    #  
-    # in release 3.1
-    # desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
-    # in release 3.0
-    # desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/secrets/abcdesktop/localaccount')
-    #
-    desktop['zoom']                     = gconfig.get('desktop.zoom', 1)
     desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
+    desktop['zoom']                     = gconfig.get('desktop.zoom', 1)
     desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
