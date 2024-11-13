@@ -16,7 +16,7 @@ import jwt
 import logging
 import time
 import base64
-from Crypto.PublicKey import RSA as rsa
+from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5, PKCS1_OAEP
 import Crypto.Hash.SHA1 
 import Crypto.Hash.SHA256 
@@ -39,7 +39,7 @@ class ODDesktopJWToken(object):
         self.algorithms=['RS256']  
         
         jwt_desktop_privatekeyfile    = config.get('jwtdesktopprivatekeyfile')
-        jwt_desktop_publickeyfile     = config.get('jwtdesktoppublickeyfile')
+        # jwt_desktop_publickeyfile     = config.get('jwtdesktoppublickeyfile')
         payload_desktop_publickeyfile = config.get('payloaddesktoppublickeyfile')
         self.rsa_encryption_protocol  = config.get('rsaencryptionprotocol', 'PKCS1_v1_5')
         self.rsa_hash_protocol        = config.get('rsahashprotocol', 'SHA1')
@@ -49,10 +49,13 @@ class ODDesktopJWToken(object):
         self.jwt_privatekey = f.read()
         f.close()
 
+        #
+        # uncomment to call decode method
         # readjwt_desktop_publickeyfile
         # f = open(jwt_desktop_publickeyfile, 'r')        
         # self.jwt_publickey = f.read()
         # f.close()
+        #
 
         # read payload_desktop_publickeyfile
         f = open(payload_desktop_publickeyfile, 'r')        
@@ -67,7 +70,7 @@ class ODDesktopJWToken(object):
     def encrypt( self, msg):
 
         # import the payload_desktop_publickeyfile
-        rsakey = rsa.importKey( self.payload_desktop_publickeyfile )
+        rsakey = RSA.importKey( self.payload_desktop_publickeyfile )
         
         if self.rsa_encryption_protocol == 'PKCS1_OAEP':
             # crypto.subtle.decrypt 
