@@ -55,7 +55,7 @@ class ODJWToken( object):
             'user': user, 
             'roles': roles }
         # All data can be ready clearly
-        encoded_jwt = jwt.encode( token , self.jwt_privatekey, algorithm=self.algorithms[0])
+        encoded_jwt = jwt.encode( payload=token , key=self.jwt_privatekey, algorithm=self.algorithms[0])
         return encoded_jwt
 
     def decode( self, payload ):

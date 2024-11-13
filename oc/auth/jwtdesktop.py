@@ -17,7 +17,10 @@ import logging
 import time
 import base64
 from Crypto.PublicKey import RSA as rsa
-from Crypto.Cipher import PKCS1_v1_5
+from Crypto.Cipher import PKCS1_v1_5, PKCS1_OAEP
+import Crypto.Hash.SHA1 
+import Crypto.Hash.SHA256 
+import Crypto.Hash.SHA512
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +41,20 @@ class ODDesktopJWToken(object):
         jwt_desktop_privatekeyfile    = config.get('jwtdesktopprivatekeyfile')
         jwt_desktop_publickeyfile     = config.get('jwtdesktoppublickeyfile')
         payload_desktop_publickeyfile = config.get('payloaddesktoppublickeyfile')
-        
+        self.rsa_encryption_protocol  = config.get('rsaencryptionprotocol', 'PKCS1_v1_5')
+        self.rsa_hash_protocol        = config.get('rsahashprotocol', 'SHA1')
+
+        # read jwt_desktop_privatekeyfile
         f = open(jwt_desktop_privatekeyfile, 'r')        
         self.jwt_privatekey = f.read()
         f.close()
 
-        f = open(jwt_desktop_publickeyfile, 'r')        
-        self.jwt_publickey = f.read()
-        f.close()
+        # readjwt_desktop_publickeyfile
+        # f = open(jwt_desktop_publickeyfile, 'r')        
+        # self.jwt_publickey = f.read()
+        # f.close()
 
+        # read payload_desktop_publickeyfile
         f = open(payload_desktop_publickeyfile, 'r')        
         self.payload_desktop_publickeyfile = f.read()
         f.close()
@@ -57,13 +65,32 @@ class ODDesktopJWToken(object):
     # decrypt does not exist
     # decrypt is used by nginx lua script
     def encrypt( self, msg):
+
+        # import the payload_desktop_publickeyfile
         rsakey = rsa.importKey( self.payload_desktop_publickeyfile )
-        pubobj = PKCS1_v1_5.new(rsakey)
-        crypto = pubobj.encrypt(msg)
+        
+        if self.rsa_encryption_protocol == 'PKCS1_OAEP':
+            # crypto.subtle.decrypt 
+            hashAlgo = Crypto.Hash.SHA1 # default value 
+            if self.rsa_hash_protocol == 'SHA1':
+                hashAlgo = Crypto.Hash.SHA1
+            if self.rsa_hash_protocol == 'SHA256':
+                hashAlgo = Crypto.Hash.SHA256
+            if self.rsa_hash_protocol == 'SHA512':
+                hashAlgo = Crypto.Hash.SHA512
+            pubobj = PKCS1_OAEP.new(key=rsakey, hashAlgo=hashAlgo )
+            crypto = pubobj.encrypt(msg)
+        else :
+            # self.rsa_encryption_protocol == 'PKCS1_v1_5':
+            pubobj = PKCS1_v1_5.new(rsakey)
+            crypto = pubobj.encrypt(msg)
         return base64.b64encode( crypto )     
 
                 
-    def encode( self, data ):             
+                
+    def encode( self, data ):   
+        # pyos encrypt the data with the public key from nginx
+        # and nginx use his private key to decrypt it           
         encrypt_hash = self.encrypt(data.encode('ascii'))
         now = int( time.time() )
         expire_in = now + self._exp
