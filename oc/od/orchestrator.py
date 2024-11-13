@@ -3158,7 +3158,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
         env[ 'LOCALACCOUNT_PATH'] = oc.od.settings.desktop['secretslocalaccount']
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
-        self.logger.debug( f"HOME={env[ 'HOME']}")
         self.logger.debug('env created')
 
         # create labels for pod
@@ -3176,19 +3175,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'pulseaudio_cookie': env[ 'PULSEAUDIO_COOKIE' ],
             'broadcast_cookie': env[ 'BROADCAST_COOKIE' ]
         }
-
         # add authinfo labels and env 
         # could also use downward-api https://kubernetes.io/docs/concepts/workloads/pods/downward-api/
         for k,v in authinfo.get_labels().items():
             abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_LABEL_NAME + k.lower()
             env[ abcdesktopvarenvname ] = v
             labels[k] = v
-
+        # add enabled services in env dict 
         for currentcontainertype in self.nameprefixdict.keys() :
             if self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_SERVICE_NAME + currentcontainertype
                 env[ abcdesktopvarenvname ] = 'enabled'
-    
         # create a desktop
         # set value as default type x11servertype
         labels['type'] = self.x11servertype
