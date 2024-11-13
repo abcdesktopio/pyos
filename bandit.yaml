@@ -1,0 +1,5 @@
+# exclude panxapi
+exclude_dirs: ['pan']
+
+# (optional) list skipped tests here:
+skips: ['B101' ]
