@@ -3473,7 +3473,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         try:
             password = password + '\n'
-            ret,out = pyutils.execproc( [ cntlm_command, '-H', '-u', user, '-d', domain ], input=password, timeout=self.exec_timeout)
+            command = [ cntlm_command, '-H', '-u', user, '-d', domain ]
+            ret,out = pyutils.execproc( command=command, input=password, timeout=self.exec_timeout)
             if ret!=0:
                 raise RuntimeError(f"Command cntml returns error code {ret}")
 

@@ -19,7 +19,6 @@ import functools
 import os
 import re
 import subprocess
-from subprocess import run, PIPE
 from string import Formatter
 
 logger = logging.getLogger(__name__)
@@ -119,7 +118,7 @@ def execproc(command,environment={},stdout=subprocess.PIPE,timeout=60,input=None
         if type(environment) is dict and len(environment) > 0: 
            env.update(environment)
 
-        proc = run(command, stdout=PIPE, input=input, timeout=timeout, env=env, encoding=encoding)
+        proc = subprocess.run(command, stdout=subprocess.PIPE, input=input, timeout=timeout, env=env, encoding=encoding)
         if not isinstance(proc, subprocess.CompletedProcess):
             return (None, None)
 
