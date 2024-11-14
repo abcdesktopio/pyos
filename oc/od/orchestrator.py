@@ -1738,13 +1738,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
 
-        self.logger.info( f"removedesktop for {authinfo.provider} {userinfo.userid}" )
 
         # get the user's pod
         if not isinstance(myPod, V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
 
         if isinstance(myPod, V1Pod ):
+            # log lovel to info for accounting
+            self.logger.info( f"removedesktop {myPod.metadata.name} for {authinfo.provider} {userinfo.userid}" ) 
+            
             # convert pod to ODDesktop as return value
             myDesktop = self.pod2desktop( myPod, authinfo, userinfo)
 
