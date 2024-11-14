@@ -1,7 +1,7 @@
 import requests
 import json
 import string
-import random
+import secrets
 import threading
 import logging
 import oc.logging
@@ -59,8 +59,8 @@ class janusclient( object ):
     @staticmethod
     def randomStringwithDigitsAndSymbols(stringLength=10):
         ''' Generate a random string of letters, digits and special characters '''
-        password_characters = string.ascii_letters + string.digits 
-        return ''.join(random.choice(password_characters) for i in range(stringLength))
+        alphabet = string.ascii_letters + string.digits
+        return ''.join(secrets.choice(alphabet) for i in range(stringLength))
 
     def mktoken( self, token ):
         h = hashlib.new('sha256')
@@ -352,9 +352,8 @@ class ODJanusCluster():
 
     def givemeanode( self ):
         keys = list(self.nodes.keys())
-        random.seed()
         while( len(keys) > 0 ):
-            i = random.randint(0, len(keys)-1)
+            i = secrets.choice( range(len(keys)) )
             node = self.nodes[ keys[i] ]
             # Check if node is up
             janus = janusclient( node )

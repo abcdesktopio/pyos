@@ -12,7 +12,7 @@
 #
 
 # -*- coding: utf-8 -*-
-import random           # for randomStringwithDigitsAndSymbols
+import secrets          # for randomStringwithDigitsAndSymbols
 import string           # for randomStringwithDigitsAndSymbols
 import unicodedata      # for remove accent
 import uuid             # for uuid_digits 
@@ -30,14 +30,14 @@ def randomStringwithDigitsAndSymbols(stringLength=10):
     Returns:
         [str]: [the random string with digits and symbols]
     """
-    # password_characters = string.ascii_letters + string.digits + string.punctuation
-    password_characters = string.ascii_letters + string.digits 
-    return ''.join(random.choice(password_characters) for i in range(stringLength))
+    # alphabet = string.ascii_letters + string.digits + string.punctuation
+    alphabet = string.ascii_letters + string.digits 
+    return ''.join(secrets.choice(alphabet) for i in range(stringLength))
 
 
 def randomStringwithHexa(stringLength=10):
     # password_characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(string.hexdigits) for i in range(stringLength))
+    return ''.join(secrets.choice(string.hexdigits) for i in range(stringLength))
 
 def remove_accents(input_str):
     """[remove_accents]
@@ -143,13 +143,13 @@ def fortunewheel( mylist:list )->list:
         list: the mixed list
     """
     if isinstance(mylist, list):
-        len_mylist = len(mylist)-1
+        myrange = range( len(mylist)-1 )
         # turn the wheel
-        for i in range( len( mylist )):
-            a = random.randint(0, len_mylist )
-            b = random.randint(0, len_mylist )
+        for b in range( len( mylist )):
+            a = secrets.choice( myrange )  
             # swap mylist[a] and mylist[b]
-            d = mylist[a]
+            # print( f"swap mylist[{a}]={mylist[a]} <->  mylist[{b}]={mylist[b]}" )
+            c = mylist[a]
             mylist[a] = mylist[b]
-            mylist[b] = d
+            mylist[b] = c
     return mylist
