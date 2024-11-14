@@ -60,7 +60,7 @@ class ODMemcachedSharecache(ODSharecacheBase):
 
     def delete(self, key, time=0 ):
         try:
-            if self.createclient().delete(str(key), time=time) != 0: 
+            if self.createclient().delete(str(key)) != 0: 
                 return True
             self.logger.error(f"{self.connectionstring} failed {key} return failed")
         except Exception as e:
