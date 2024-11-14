@@ -143,7 +143,7 @@ def fortunewheel( mylist:list )->list:
         list: the mixed list
     """
     if isinstance(mylist, list):
-        myrange = range( len(mylist)-1 )
+        myrange = range( len(mylist) )
         # turn the wheel
         for b in range( len( mylist )):
             a = secrets.choice( myrange )  
