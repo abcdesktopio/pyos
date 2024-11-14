@@ -50,10 +50,11 @@ class ODJWToken( object):
         expire_in = now + self._exp
         token = { 
             'exp' : expire_in, 
-            'nbf': now, # Not Before Time Claim (nbf)
+            'nbf' : now, # Not Before Time Claim (nbf)
             'auth': auth, 
             'user': user, 
-            'roles': roles }
+            'roles': roles 
+        }
         # All data can be ready clearly
         encoded_jwt = jwt.encode( payload=token , key=self.jwt_privatekey, algorithm=self.algorithms[0])
         return encoded_jwt
