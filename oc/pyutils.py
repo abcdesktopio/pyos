@@ -118,7 +118,7 @@ def execproc(command,environment={},stdout=subprocess.PIPE,timeout=60,input=None
         if type(environment) is dict and len(environment) > 0: 
            env.update(environment)
 
-        proc = subprocess.run(command, stdout=subprocess.PIPE, input=input, shell=True, timeout=timeout, env=env, encoding=encoding)
+        proc = subprocess.run(command, stdout=subprocess.PIPE, input=input, timeout=timeout, env=env, encoding=encoding)
         if not isinstance(proc, subprocess.CompletedProcess):
             return (None, None)
         output = proc.stdout
