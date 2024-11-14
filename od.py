@@ -173,10 +173,15 @@ class API(object):
     @cherrypy.tools.json_out()
     @cherrypy.tools.allow(methods=['GET', 'POST']) 
     def version(self):
-        """
+        """version
+
+        Returns:
+            dict: content of version.json file in current directory
             return the pyos build information as json format
             load json data file version.json in current directory
+            return { 'date': 'undefined', 'commit': 'undefined' } if error
         """
+
         data = { 'date': 'undefined', 'commit': 'undefined' }
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
