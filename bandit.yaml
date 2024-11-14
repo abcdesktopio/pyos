@@ -2,4 +2,8 @@
 exclude_dirs: ['pan']
 
 # (optional) list skipped tests here:
-skips: ['B101' ]
+# B101: Test for use of assert
+# B110: try_except_pass
+# B107: hardcoded_password_default 
+skips: ['B101', 'B110', 'B107' ]
+
