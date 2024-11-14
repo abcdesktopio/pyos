@@ -3352,7 +3352,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             my_env = os.environ.copy()
             my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
             # run /usr/bin/ktutil
-            proc = subprocess.Popen(self.kerberos_ktutil, stdin=subprocess.PIPE, env=my_env, shell=True  )
+            proc = subprocess.Popen(self.kerberos_ktutil, stdin=subprocess.PIPE, env=my_env )
             for p in inputs:
                 # Only for troubleshooting password show in clear text
                 # self.logger.info( f"makekeytab send args to stdin {p}" )
