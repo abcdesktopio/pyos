@@ -379,8 +379,8 @@ def init_desktop():
     # Kubernetes timeout 
     desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
     desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
-    desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 30 )
-    desktop['K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS', 10 )
+    desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 300 )
+    desktop['K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS', 300 )
     
 
     if not isinstance(desktop['nodeselector'], dict):
