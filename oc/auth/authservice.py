@@ -3309,7 +3309,17 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             except Exception as e:
                 self.logger.error( f"failed to delete tmp file: {koutputfilename} {e}" )
 
-        ''' ktutil
+        '''
+         add_entry
+          add_entry {-key|-password} -p principal -k kvno [-e enctype] [-f|-s salt]
+
+          Add  principal to keylist using key or password.  If the -f flag is specified, salt information will be fetched from the KDC; in this case the -e flag may be omitted, or it may be supplied to
+          force a particular enctype.  If the -f flag is not specified, the -e flag must be specified, and the default salt will be used unless overridden with the -s option.
+
+          kvno kvno : The initial key version number
+          Alias: addent
+        
+        ktutil
 			addent -password -p username@MYDOMAIN.COM -k 1 -f
 			- enter password for username -
 			wkt username.keytab
@@ -3327,30 +3337,27 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             self.logger.debug('ktutil file is unconfigured')
             return None
 
-        koutputfilename = '/tmp/' + oc.auth.namedlib.normalize_name( principal ) + '.keytab'
+        koutputfilename = f"/tmp/{oc.auth.namedlib.normalize_name(principal)}.keytab"
 
-        userPrincipalName = principal + '@' + self.get_kerberos_realm()
-        inputs = [  'addent -password -p ' + userPrincipalName + ' -k 1 -f',
+        userPrincipalName = f"{principal}@{self.get_kerberos_realm()}"
+        inputs = [  f"addent -password -p {userPrincipalName} -k 1 -f",
                     password,
-                    'wkt ' + koutputfilename,
-                    'q']
+                    f"wkt {koutputfilename}",
+                    "q"]
 
         returncode = None
         try:
-            self.logger.debug('makekeytab Popen ' + str(self.kerberos_ktutil))
+            self.logger.debug( f"makekeytab Popen {self.kerberos_ktutil}" )
             # You can override the default location by setting the environment variable KRB5_CONFIG.
             my_env = os.environ.copy()
             my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
-            proc = subprocess.Popen(self.kerberos_ktutil, stdin=subprocess.PIPE, env=my_env )
+            # run /usr/bin/ktutil
+            proc = subprocess.Popen(self.kerberos_ktutil, stdin=subprocess.PIPE, env=my_env, shell=True  )
             for p in inputs:
                 # Only for troubleshooting password show in clear text
-                # self.logger.info('ocad:makekeytab send args to stdin ' +
-                # str(p) )
-                ewl = p.encode()
-                proc.stdin.write(ewl)
-                proc.stdin.write(b'\n')
+                # self.logger.info( f"makekeytab send args to stdin {p}" )
+                proc.stdin.write( p.encode() + b'\n')
             proc.stdin.close()
-
             returncode = proc.wait( self.exec_timeout )
 
         except Exception as e:
