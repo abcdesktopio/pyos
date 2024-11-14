@@ -1531,7 +1531,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             resp.run_forever(timeout) # timeout in seconds
             err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
             self.logger.debug( f"exec in desktop.name={desktop.name} container={desktop.container_name} command={command} return code {err}")
-            respdict = yaml.load(err, Loader=yaml.BaseLoader )        
+            respdict = yaml.safe_load(err)        
             result['stdout'] = resp.read_stdout()
             # should be like:
             # {"metadata":{},"status":"Success"}
@@ -2336,7 +2336,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 resp.close()
             else:
                 err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
-                pod_exec_result = yaml.load(err, Loader=yaml.BaseLoader )  
+                pod_exec_result = yaml.safe_load(err)  
                 result['stdout'] = resp.read_stdout(timeout=timeout)
                 # should be like:
                 # {"metadata":{},"status":"Success"}
