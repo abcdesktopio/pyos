@@ -101,7 +101,12 @@ class ODApps:
 
     def list_app_images( self ):
         collection = self.get_collection( self.image_collection_name )
-        return list( collection.find() )
+        app_images_collecion = []
+        try:
+            app_images_collecion = list( collection.find() )
+        except Exception as e:
+            self.logger.error( e )
+        return app_images_collecion
 
 
     def makeicon_url(self, filename ):
@@ -160,6 +165,8 @@ class ODApps:
             self.lock.acquire()
             try:
                 self.myglobal_list = mybuild_applist
+            except Exception as e:
+                self.logger.error( e )
             finally:
                 self.lock.release()
 
