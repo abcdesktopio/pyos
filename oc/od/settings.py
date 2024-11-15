@@ -1,7 +1,7 @@
 import os
 import socket
 import sys
-import distutils
+import distutils.util
 import logging
 
 from cherrypy.lib.reprconf import Config
@@ -734,8 +734,8 @@ def get_exit_on_error():
     Returns:
         bool: 
     """
-    env_exit_on_error = os.environ.get('OD_EXIT_ON_ERROR', 'True')
-    exit_on_error = distutils.util.strtobool(env_exit_on_error)
+    env_exit_on_error = os.environ.get('OD_EXIT_ON_ERROR', 'true')
+    exit_on_error = bool(distutils.util.strtobool(env_exit_on_error))
     return exit_on_error
 
 
