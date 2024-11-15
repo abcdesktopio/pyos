@@ -7,15 +7,10 @@ import logging
 from cherrypy.lib.reprconf import Config
 from urllib.parse import urlparse
 import oc.pyutils as pyutils
-
 import base64
 
 logger = logging.getLogger(__name__)
 
-# current pyos release
-ABCDESKTOP_PYOS_CURRENT_RELEASE = '3.0'
-# supported image format
-ABCDESKTOP_IMAGE_FORMAT_RELEASE = '3.0'
 
 config  = {}	    # use for application config and global config
 gconfig = {}	    # use for global config
@@ -472,10 +467,8 @@ def _resolv( fqdh:str )->str:
     try:
         ipaddr = socket.gethostbyname(fqdh)
     except socket.gaierror as err:
-        logger.error(f"Cannot resolve hostname:{fqdh}")
-        logger.error(f"Cannot start: {err}")
-        logger.error(f"This is a fatal error, check coredns config")
-        logger.error(f"kubectl get pods -n kube-system")
+        logger.fatal(f"Cannot resolve hostname:{fqdh} {err}")
+        logger.fatal(f"This is a fatal error, check coredns config or netpol")
         exit_on_error = get_exit_on_error()
         if exit_on_error is True:
             sys.exit(-1)
