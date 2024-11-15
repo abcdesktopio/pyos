@@ -1,7 +1,7 @@
 import os
 import socket
 import sys
-
+import distutils
 import logging
 
 from cherrypy.lib.reprconf import Config
@@ -468,6 +468,7 @@ def _resolv( fqdh:str )->str:
     """    
     assert isinstance(fqdh, str), 'invalid full qualified host name'
     logger.debug( f"trying to gethostbyname {fqdh}" )
+    ipaddr = None
     try:
         ipaddr = socket.gethostbyname(fqdh)
     except socket.gaierror as err:
@@ -475,7 +476,9 @@ def _resolv( fqdh:str )->str:
         logger.error(f"Cannot start: {err}")
         logger.error(f"This is a fatal error, check coredns config")
         logger.error(f"kubectl get pods -n kube-system")
-        sys.exit(-1)
+        exit_on_error = get_exit_on_error()
+        if exit_on_error is True:
+            sys.exit(-1)
     return ipaddr
 
 def init_config_memcached():
@@ -731,6 +734,17 @@ def get_configuration_file_name():
     """
     configuration_file_name = os.environ.get('OD_CONFIG_PATH', 'od.config')
     return configuration_file_name
+
+def get_exit_on_error():
+    """get_exit_on_error
+
+    Returns:
+        bool: 
+    """
+    env_exit_on_error = os.environ.get('OD_EXIT_ON_ERROR', 'True')
+    exit_on_error = distutils.util.strtobool(env_exit_on_error)
+    return exit_on_error
+
 
 def load_config():    
     global config

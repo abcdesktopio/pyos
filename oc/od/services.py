@@ -32,11 +32,7 @@ class ODServices(object):
         """
         self.init_messageinfo()
         self.init_accounting()
-
-        if not self.init_datastore():
-            self.logger.error( 'Connection refused to database or error')
-            exit(-2)
-
+        self.init_datastore()
         self.init_datacache()
         self.init_auth()
         self.init_internaldns()
@@ -222,8 +218,11 @@ def init_infra():
     # Check kubernetes config 
     myOrchestrator = oc.od.orchestrator.ODOrchestratorKubernetes()
     if not myOrchestrator.is_configured():
-        logger.error('Kubernetes config is not detected')
-        exit(-1)
+        logger.fatal('Kubernetes config is not detected')
+        if settings.get_exit_on_error() is True:
+            exit(-1)
+        else:
+            return
 
     # check if service account can call list_node
     # pyos service account can have clusterRole or Role
