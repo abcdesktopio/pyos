@@ -1,5 +1,6 @@
 import logging 
 import threading
+import time
 import oc.logging
 
 from kubernetes import client, watch
@@ -87,7 +88,8 @@ class ODKubernetesWatcher:
 
             except Exception as e:
                 self.logger.debug( e )
-                pass
+                # an error occurs 
+                time.sleep( self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS )
                     
     def start(self):
         self.logger.debug('watcher thread is starting')
