@@ -93,7 +93,7 @@ class ODKubernetesWatcher:
                 self.logger.fatal( e )
                 self.watch.stop()
                 # stop the infinte loop
-                return
+                return # stop this thread 
             
             except urllib3.exceptions.MaxRetryError as e:
                 # <class 'urllib3.exceptions.MaxRetryError'> 
@@ -102,7 +102,7 @@ class ODKubernetesWatcher:
                 self.logger.fatal( e )
                 self.watch.stop()
                 # stop the infinte loop
-                return
+                return # stop this thread 
             
             except Exception as e:
                 self.logger.debug( f"{type(e)} {e}" )
