@@ -90,13 +90,13 @@ class ODKubernetesWatcher:
             except urllib3.exceptions.NewConnectionError as e:
                 # HTTPConnectionPool(host='localhost', port=80): Max retries exceeded with url: /api/v1/namespaces/abcdesktop/pods?timeoutSeconds=10&watch=True 
                 # (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f61656a28b0>: Failed to establish a new connection: [Errno 111] Connection refused')
-                self.logger.fatal( "{type(e)} {e}" )
+                self.logger.fatal( f"{type(e)} {e}" )
                 self.watch.stop()
                 # stop the infinte loop
                 return
             
             except Exception as e:
-                self.logger.debug( "{type(e)} {e}" )
+                self.logger.debug( f"{type(e)} {e}" )
 
                     
     def start(self):
