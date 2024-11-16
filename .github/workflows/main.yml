@@ -16,6 +16,19 @@ jobs:
     
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+
+      - name: checkout
+        uses: actions/checkout@v4
+      
+      - name: bandit
+        uses: mdegis/bandit-action@v1.0
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: "."
+          level: high
+          confidence: high
+          exit_zero: true
+  
       - name: Repository Dispatch
         uses: peter-evans/repository-dispatch@v3
         with:
