@@ -12,7 +12,7 @@ class ODFail2ban:
         self.databasename = 'fail2ban'
         self.ip_collection_name = 'ipaddr'
         self.login_collection_name = 'login'
-        self.enable = fail2banconfig.get('enable') # specify a positive non-zero value 
+        self.enable = fail2banconfig.get('enable') # specify bool value 
         self.failmaxvaluebeforeban = fail2banconfig.get('failsbeforeban', 5 ) # specify a positive non-zero value 
         self.banexpireAfterSeconds = fail2banconfig.get('banexpireafterseconds', 30*60 )
         self.protectedNetworks    = fail2banconfig.get('protectednetworks', [] )
@@ -27,8 +27,9 @@ class ODFail2ban:
         self.counter = 'count'
         self.index_date = 'date'
 
-        self.init_collection( self.ip_collection_name )
-        self.init_collection( self.login_collection_name )
+        if self.enable is True:
+            self.init_collection( self.ip_collection_name )
+            self.init_collection( self.login_collection_name )
 
     def sanity( self, value, filter ):
         """sanity
