@@ -1,7 +1,8 @@
 import logging 
 import threading
-import urllib3
+import urllib3.exceptions
 import oc.logging
+import time
 
 from kubernetes import client, watch
 from kubernetes.client.models.v1_pod import V1Pod
@@ -86,24 +87,17 @@ class ODKubernetesWatcher:
                                 self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
                                 desktop = self.orchestrator.pod2desktop( pod_event )
                                 oc.od.composer.detach_container_from_network(desktop.name)
-
-            except urllib3.exceptions.NewConnectionError as e:
-                # HTTPConnectionPool(host='localhost', port=80): Max retries exceeded with url: /api/v1/namespaces/abcdesktop/pods?timeoutSeconds=10&watch=True 
-                # (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f61656a28b0>: Failed to establish a new connection: [Errno 111] Connection refused')
-                self.logger.fatal( e )
-                self.watch.stop() # stop the infinte loop
-                return # stop this thread 
             
-            except urllib3.exceptions.MaxRetryError as e:
+            except (urllib3.exceptions.NewConnectionError, urllib3.exceptions.MaxRetryError) as e:
                 # <class 'urllib3.exceptions.MaxRetryError'> 
                 # HTTPConnectionPool(host='localhost', port=80): Max retries exceeded with url: /api/v1/namespaces/abcdesktop/pods?timeoutSeconds=10&watch=True 
                 # (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f14fc0cf6d0>: Failed to establish a new connection: [Errno 111] Connection refused'))
                 self.logger.fatal( e )
-                self.watch.stop() # stop the infinte loop
-                return # stop this thread 
+                self.logger.fatal( f"ODKubernetesWatcher will not die but the api server is not responding, sleeping for 60 s" )
+                time.sleep( 60 ) # wait a minute 
             
             except Exception as e:
-                self.logger.debug( f"{type(e)} {e}" )
+                self.logger.info( f"{type(e)} {e}" )
 
                     
     def start(self):
