@@ -1,6 +1,6 @@
 import logging 
 import threading
-import time
+import urllib3
 import oc.logging
 
 from kubernetes import client, watch
@@ -34,6 +34,7 @@ class ODKubernetesWatcher:
                 events = self.watch.stream(  self.orchestrator.kubeapi.list_namespaced_pod, namespace=self.orchestrator.namespace, timeout_seconds=self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS)
                 # events = self.watch.stream(  self.orchestrator.kubeapi.list_namespaced_ , namespace=self.orchestrator.namespace, timeout_seconds=self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS)
                 if self.watch._stop :
+                    self.watch.stop()
                     return  # stop this thread 
                 
                 for event in events:
@@ -86,10 +87,17 @@ class ODKubernetesWatcher:
                                 desktop = self.orchestrator.pod2desktop( pod_event )
                                 oc.od.composer.detach_container_from_network(desktop.name)
 
+            except urllib3.exceptions.NewConnectionError as e:
+                # HTTPConnectionPool(host='localhost', port=80): Max retries exceeded with url: /api/v1/namespaces/abcdesktop/pods?timeoutSeconds=10&watch=True 
+                # (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f61656a28b0>: Failed to establish a new connection: [Errno 111] Connection refused')
+                self.logger.fatal( e )
+                self.watch.stop()
+                # stop the infinte loop
+                return
+            
             except Exception as e:
                 self.logger.debug( e )
-                # an error occurs 
-                time.sleep( self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS )
+
                     
     def start(self):
         self.logger.debug('watcher thread is starting')
