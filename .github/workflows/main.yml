@@ -20,15 +20,9 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       
-      - name: bandit
-        uses: mdegis/bandit-action@v1.0
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          path: "."
-          level: high
-          confidence: high
-          exit_zero: true
-  
+      - name: Perform Bandit Analysis
+        uses: PyCQA/bandit-action@v1
+        
       - name: Repository Dispatch
         uses: peter-evans/repository-dispatch@v3
         with:
