@@ -622,14 +622,16 @@ class AuthController(BaseController):
             raise cherrypy.HTTPError(401, message )  
         
     def check_features_permissions( sefl, args:dict)->None:
-        # check if args contains a features dict     
-        if isinstance( args.get('features'), dict ) :
-            # this request asks for custom features 
-            # Check if features update are allowed 
-            if 'submit' not in oc.od.settings.desktop['features_permissions']:
-                raise cherrypy.HTTPError(401, message="'submit' is not in desktop.features_permissions, update configuration file" )
-        else:
-            raise cherrypy.HTTPError(401, message="bad parameters features, features must be a dict" )
+        # if features is defined, then it must be a dict
+        if args.get('features') is not None :
+            # check if args contains a features dict     
+            if isinstance( args.get('features'), dict ) :
+                # this request asks for custom features 
+                # Check if features update are allowed 
+                if 'submit' not in oc.od.settings.desktop['features_permissions']:
+                    raise cherrypy.HTTPError(401, message="'submit' is not in desktop.features_permissions, update configuration file" )
+            else:
+                raise cherrypy.HTTPError(401, message="bad parameters features, features must be a dict" )
 
     def update_features_args(self, args:dict)->None:
         """update_features_args
