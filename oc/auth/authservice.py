@@ -25,6 +25,7 @@ import crypt
 import datetime
 import re
 import threading
+import base64
 from urllib.parse import urlparse
 from ldap import filter as ldap_filter
 import ldap3
@@ -1543,30 +1544,23 @@ class ODAuthTool(cherrypy.Tool):
         auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
         return auth_duration_in_milliseconds
 
-    def update_user_resqueted_executeclassname(self, auth, **arguments)->None:
-        # execute class is defined separatly
-        # if an executeclassname is already defined by rules
-        # do not read the users requested value
-        # rules preempt the executeclassname value
-
-        user_requested_features = arguments.get('features')
+    def update_user_resqueted_executeclassname(self, auth, user_requested_features:dict)->None:
+        # update auth.data['labels'] with user_requested_features entries
         if not isinstance( user_requested_features ,dict ):
             return
         
-        executeclassname = user_requested_features.get('executeclassname')
-        if not isinstance( executeclassname, str) :
-            return
-        
-        # executeclassname is a str
-        if auth.data['labels'].get('executeclassname') is None:
-            # look for users requested arguments
-            self.logger.debug( f"user asks for executeclassname={executeclassname}" )
-            auth.data['labels']['executeclassname'] = executeclassname
-        else:  
-            self.logger.warning( 
-                f"conflit executeclassname is already defined {auth.data['labels'].get('executeclassname')} \
-                but user requested value {arguments.get('executeclassname')}" 
+        # filter to ['executeclassname']
+        for feature_name in ['executeclassname'] :
+            feature_value = user_requested_features.get(feature_name)
+            if not isinstance( feature_value, str) :
+                return
+            
+            self.logger.debug( 
+                f"previous auth.data['labels']['{feature_name}']={auth.data['labels'].get(feature_name)} updating value to auth.data['labels']['{feature_name}']='{feature_value}'" 
             )
+            
+            auth.data['labels'][feature_name] = feature_value
+
 
     def login(self, provider, manager=None, **arguments):  
         self.logger.debug('')
@@ -1586,39 +1580,39 @@ class ODAuthTool(cherrypy.Tool):
                 
             # look for an auth manager
             mgr = self.findmanager(provider, manager)
+
+            # get the provider object from the provider name
+            pdr = mgr.getprovider(provider, raise_error=True)
                  
             # do authenticate with the auth manager
-            self.logger.debug( f"mgr.authenticate provider={provider} start") 
-            auth = mgr.authenticate(provider, **arguments)
-            self.logger.debug( f"mgr.authenticate provider={provider} done") 
+            self.logger.debug( f"pdr.authenticate provider={provider} start") 
+            auth = pdr.authenticate( **arguments)
+            self.logger.debug( f"pdr.authenticate provider={provider} done") 
 
             if not isinstance( auth, AuthInfo ):
                 raise AuthenticationFailureError('No authentication provided')
             
             # uncomment this line only to dump password in clear text format
             # self.logger.debug( f"mgr.getuserinfo arguments={arguments}")   
-            self.logger.debug( f"mgr.getuserinfo provider={provider} start")          
-            userinfo = mgr.getuserinfo(provider, auth, **arguments)
-            self.logger.debug( f"mgr.getuserinfo provider={provider} done")  
+            self.logger.debug( f"pdr.getuserinfo provider={provider} start")          
+            userinfo = pdr.getuserinfo( auth, **arguments)
+            self.logger.debug( f"pdr.getuserinfo provider={provider} done")  
             if not isinstance(userinfo, dict ):
                 raise AuthenticationFailureError(f"getuserinfo return {type(userinfo)} provider={provider}")
  
             # 
             # create claims with auth and userinfo
-            self.logger.debug( f"mgr.createclaims provider={provider} start") 
-            mgr.createclaims(provider, auth, userinfo, **arguments )
-            self.logger.debug( f"mgr.createclaims provider={provider} done") 
+            self.logger.debug( f"pdr.createclaims provider={provider} start") 
+            pdr.createclaims( auth, userinfo, **arguments )
+            self.logger.debug( f"pdr.createclaims provider={provider} done") 
             
             #
             # get roles 
-            self.logger.debug( f"mgr.getroles provider={provider} start")             
-            roles = mgr.getroles(provider, auth, userinfo, **arguments)
-            self.logger.debug( f"mgr.getroles provider={provider} done") 
+            self.logger.debug( f"pdr.getroles provider={provider} start")             
+            roles = pdr.getroles( auth, userinfo, **arguments)
+            self.logger.debug( f"pdr.getroles provider={provider} done") 
             if not isinstance(roles, list):
-                raise AuthenticationFailureError( f"mgr.getroles provider={provider} error" )
-
-            # get the provider object from the provider name
-            pdr = mgr.getprovider(provider)
+                raise AuthenticationFailureError( f"pdr.getroles provider={provider} error" )
 
             # check if acl matches with tag
             if not oc.od.acl.ODAcl().isAllowed( auth, pdr.acls ):
@@ -1632,7 +1626,7 @@ class ODAuthTool(cherrypy.Tool):
 
             # update auth.data['labels']['executeclassname'] 
             # if user requests feature executeclassname
-            self.update_user_resqueted_executeclassname( auth, **arguments)
+            self.update_user_resqueted_executeclassname( auth, arguments.get('features') )
             
 
             # dump labels for debug 
@@ -1654,9 +1648,7 @@ class ODAuthTool(cherrypy.Tool):
                                 reason=reason )
             
         finally:
-            # call finalize to clean conn if need
-            if isinstance( auth, AuthInfo ) :
-                mgr.finalize(provider, auth, **arguments)
+            pdr.finalize( auth, **arguments)
 
         return response
 
@@ -1856,6 +1848,7 @@ class ODExplicitAuthManager(ODAuthManagerBase):
         else:
             provider = ODLdapAuthProvider(self, name, config)
         return provider
+
 
     def isActiveDirectory( self, config ) -> bool:
         """[isActiveDirectory]
@@ -2141,7 +2134,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
     def createclaims( self, authinfo, userinfo, **arguments):
         userid = self.default_user_if_not_exist
         password = self.default_passwd_if_not_exist
-        claims = {  'identity': self.createauthenv(userinfo, userid, password) }
+        claims = { 'identity': self.createauthenv(userinfo, userid, password) }
         authinfo.set_claims(claims)
 
 # Implement OAuth 2.0 AuthProvider
@@ -2160,7 +2153,8 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         self.userinfo_auth = config.get('userinfo_auth', False) is True
         self.type = config.get('type', 'oauth')
         self.userinfomap = config.get('userinfomap')
-       
+        self.state = config.get('state')
+
         self.authorization_base_url = config.get('authorization_base_url')
         self.token_url = config.get('token_url')
         self.redirect_uri_prefix = config.get('redirect_uri_prefix')
@@ -2174,13 +2168,14 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         # the defautl attribut name for memberof is groups
         self.memberof_attribut_name = config.get('memberof_attribut_name', 'groups')
 
+
     def getclientdata(self):
         data = super().getclientdata()
         oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
-        authorization_url, state = oauthsession.authorization_url( self.authorization_base_url ) 
-        data['dialog_url']  = authorization_url
+        authorization_url, state = oauthsession.authorization_url( self.authorization_base_url, state=self.state ) 
+        data['dialog_url'] = authorization_url
         data['explicitproviderapproval'] = self.explicitproviderapproval 
-        data['state']       = state
+        data['state'] = state
         return data
 
     def authenticate(self, code=None, **params):
@@ -2188,7 +2183,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         authorization_response = self.redirect_uri_prefix + '?' + cherrypy.request.query_string
         token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, authorization_response=authorization_response )
         self.logger.debug( f"provider {self.name} type {self.type} return token {token}" )
-        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth')
+        authinfo = AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth', data={})
         return authinfo
 
 
@@ -2242,12 +2237,15 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         user['name']   = name
         return user
 
-    def finalize(self, authinfo, **params):   
+    def finalize(self, auth, **params):   
+        if not isinstance( auth, AuthInfo ):
+            return 
         # retrieve the token object from the previous authinfo 
-        oauthsession = authinfo.token 
+        oauthsession = auth.token 
         # Check if type is OAuth2Session
         if isinstance(oauthsession,OAuth2Session) :
-            authinfo.token = oauthsession.token
+            auth.token = oauthsession.token
+            oauthsession.close()
 
     def getroles(self, authinfo, userinfo, **params):
         self.logger.debug('') 
@@ -2620,6 +2618,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return True
 
     def finalize( self, auth, **params):
+        if not isinstance( auth, AuthInfo ):
+            return 
         if isinstance( auth.conn , ldap3.core.connection.Connection ):
             try:
                 auth.conn.unbind()

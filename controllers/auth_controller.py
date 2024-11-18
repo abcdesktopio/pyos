@@ -14,6 +14,7 @@
 import logging
 import cherrypy
 import chevron
+import base64
 import oc.od.tracking
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -178,7 +179,14 @@ class AuthController(BaseController):
 
         # overwrite auth params to prevent manager changes
         # for security reasons
-        params['manager'] = 'external' # oauth MUST force an 'external' manager 
+        params['manager'] = 'external' # oauth MUST force an 'external' manager
+
+        # base64 decode 'state' as 'features' if need
+        self.update_features_args( args=params )
+        # verify is features can be set 
+        self.check_features_permissions( args=params )
+        
+        # do login
         response = services.auth.login(**params)
 
         # can raise excetion 
@@ -236,8 +244,12 @@ class AuthController(BaseController):
         # read user's client ipsource
         ipsource = getclientipaddr()
 
-        # can raise excetion 
+        # can raise exception 
         self.isban_ip(ipsource)
+
+        # verify if features is set and can be set
+        # can raise exception 
+        self.check_features_permissions( args=args )
 
         # if force_auth_prelogin
         http_attribut_to_force_auth_prelogin = cherrypy.request.headers.get(services.prelogin.http_attribut_to_force_auth_prelogin)
@@ -608,6 +620,43 @@ class AuthController(BaseController):
 
             self.logger.error( f"services auth.login error {message}" )
             raise cherrypy.HTTPError(401, message )  
+        
+    def check_features_permissions( sefl, args:dict)->None:
+        # check if args contains a features dict     
+        if isinstance( args.get('features'), dict ) :
+            # this request asks for custom features 
+            # Check if features update are allowed 
+            if 'submit' not in oc.od.settings.desktop['features_permissions']:
+                raise cherrypy.HTTPError(401, message="'submit' is not in desktop.features_permissions, update configuration file" )
+        else:
+            raise cherrypy.HTTPError(401, message="bad parameters features, features must be a dict" )
+
+    def update_features_args(self, args:dict)->None:
+        """update_features_args
+
+        Args:
+            args (dict): params
+
+        Raises:
+            cherrypy.HTTPError: cherrypy.HTTPError(401) for bad parameters
+            cherrypy.HTTPError: cherrypy.HTTPError(401) for features disallow
+
+        """
+        # features can be implemented as 'state' in querystring 
+        # create 'features' entry in args dict
+        # as base64 decoded values 
+        if isinstance( args, dict ):
+            # for ODExternalAuthManager 
+            # features is named as 'state' and is base64 encoded
+            state = args.get('state')
+            if isinstance( state, str):
+                try:
+                    decoded_state = base64.b64decode( state.encode('ascii') ).decode()
+                    dict_state = json.loads( decoded_state )
+                    if isinstance( dict_state, dict ):
+                        args['features'] = dict_state
+                except Exception as e:
+                    self.logger.debug(e)
 
 
     @cherrypy.expose
@@ -625,15 +674,6 @@ class AuthController(BaseController):
         args = cherrypy.request.json
         # can raise exception
         (auth, user ) = self.validate_env()
-        # check if args contains a features dict 
-        if args.get('features') is not None :
-            if isinstance( args.get('features'), dict ) :
-                # this request asks for custom features 
-                # Check if features update are allowed 
-                if 'submit' not in oc.od.settings.desktop.get['features_permissions']:
-                    raise cherrypy.HTTPError(401, message="'submit' is not in desktop.features_permissions, update configuration file" )
-            else:
-                raise cherrypy.HTTPError(401, message="bad parameters features, features must be a dict" )  
 
         # push a start message to database cache info
         services.messageinfo.start( user.userid, "b.Launching desktop")
