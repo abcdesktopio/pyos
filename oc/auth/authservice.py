@@ -4118,7 +4118,9 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
             return None
 
         roles = query_foreingdistinguished.get('memberOf')
-        self.logger.debug( f"return {roles}" )
+        if isinstance(roles, str):
+            roles = [roles]
+        self.logger.debug( f"return {type(roles)} {roles}" )
         return roles
 
 
