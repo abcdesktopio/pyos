@@ -27,8 +27,11 @@ from cherrypy import _json as json
 from oc.cherrypy import getclientipaddr
 
 logger = logging.getLogger(__name__)
+
+
 # node_name is ENV var NODE_NAME for kubernetes or gethostname() if None
-node_name = os.environ.get('NODE_NAME', socket.gethostname() )
+record_nodename = os.environ.get('NODE_NAME', socket.gethostname() )
+record_hostname = os.environ.get('HOSTNAME', socket.gethostname() )
 
 
 # Return the name of a function in the call stack
@@ -108,8 +111,9 @@ class OdContextFilter(logging.Filter):
         ''' containing the user id (extracted from the http request)        '''
         ''' add node_name '''
 
-        # read node_name
-        record.nodename = node_name
+        # set node_name
+        record.nodename = record_nodename
+        record.hostname = record_hostname
 
         record.userid = 'internal' # by default this is not a http request
         try:  
