@@ -49,6 +49,9 @@ class ODApps:
         self.private_attr_list  = [ 'acl',  'rules', 'securityContext' ]
         self.thead_event = None
 
+        # img path
+        self.img_path = '/img/app/'
+
         # mongo db defines
         self.databasename = 'applications'
         self.index_name = 'id' # id is the name of the image repoTags[0]
@@ -110,21 +113,19 @@ class ODApps:
 
 
     def makeicon_url(self, filename ):
-        self.img_path = '/img/app/'
         icon_url = oc.od.settings.default_host_url + self.img_path + filename
         return icon_url
 
 
     def makeicon_file(self, filename, b64data):
         bReturn = False
-        self.img_path = '/img/app/'
+
         if filename is None or b64data is None:
             return bReturn
 
-        # normalise trust no one
-        # hard code image path
-        currentPath = os.getcwd() # '/var/pyos' or os.getcwd()
-        filepath = os.path.normpath( currentPath + self.img_path + filename )
+        img_directory = os.getcwd() + self.img_path # /var/pyos/img/app
+        filepath = os.path.join( img_directory, filename )
+        filepath = os.path.normpath( filepath )
         try:
             f = None
             strdecode = base64.b64decode(b64data)
