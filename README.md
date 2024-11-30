@@ -4,7 +4,6 @@
 
 The default development branch is `main`. 
 
-
 ## To get more informations
 
 Please, read the public documentation web site:
