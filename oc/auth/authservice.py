@@ -3071,7 +3071,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if ldap3_status is True:
          if isinstance( ldap3_response, list ):
             for entry in ldap3_response:
-
                     # type is the type of the response as specified by RFC4511.
                     # filter only entry.get('type') is 'searchResEntry' if 
                     type_of_entry = entry.get('type')
