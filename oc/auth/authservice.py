@@ -3071,18 +3071,35 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if ldap3_status is True:
          if isinstance( ldap3_response, list ):
             for entry in ldap3_response:
+
+                    # type is the type of the response as specified by RFC4511.
+                    # filter only entry.get('type') is 'searchResEntry' if 
+                    type_of_entry = entry.get('type')
+                    if isinstance(type_of_entry,str) and type_of_entry != 'searchResEntry':
+                        continue
+
                     data = {}
                     attributes = entry.get('attributes')
                     if isinstance( attributes, ldap3.utils.ciDict.CaseInsensitiveDict ):
                         for k,v in attributes.items():
-                            data[k] = self.decodeValue(k,v)
-                    data['dn'] = entry['dn']
+                            data[k] = self.decodeValue(name=k,value=v)
+
+                    # check if dn exist
+                    if data.get('dn') is None:
+                        distinguishedName = entry.get('dn') or entry.get('distinguishedName')
+                        if distinguishedName:
+                            data['dn'] = distinguishedName
+
                     # if only the first entry is need as param
-                    # return it
+                    # return data
                     if one is True: 
                         return data
-                    # else append to a entries list
-                    entries.append(data)
+                    
+                    # append to a entries list 
+                    # only if there something to add
+                    if len( data ) > 0:
+                        entries.append(data)
+
             return entries
         return None 
 
