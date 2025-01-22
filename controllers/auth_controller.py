@@ -73,21 +73,21 @@ class AuthController(BaseController):
         """
         return services.auth.getclientdata()
 
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.json_in()
-    def isauthenticated(self):
-        """
-        Return a result object with auth status 
-
-        Args:
-            None
-
-        Returns:
-            Results object if user is authenticated
-
-        """
-        return Results.success(result=services.auth.isauthenticated)
+    # @cherrypy.expose
+    # @cherrypy.tools.json_out()
+    # @cherrypy.tools.json_in()
+    # def isauthenticated(self):
+    #   """
+    #    Return a result object with auth status 
+    #
+    #    Args:
+    #        None
+    #
+    #    Returns:
+    #        Results object if user is authenticated
+    #
+    #    """
+    #    return Results.success(result=services.auth.isauthenticated)
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -487,7 +487,6 @@ class AuthController(BaseController):
         oauth_html_refresh_page = self.build_redirecthtmlpage( jwt_user_token )
         cherrypy.response.headers[ 'Refresh' ] = '5; url=' + oc.od.settings.default_host_url
         return oauth_html_refresh_page
-
 
     def handler_logmein_json(self, jwt_user_token):
         cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'

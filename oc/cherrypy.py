@@ -42,6 +42,7 @@ def getclientreal_ip():
         _realip = cherrypy.request.headers.get('X-Real-IP')
         if isinstance( _realip, str ):
             # Check if realip is an ipAddr 
+            # if netaddr.valid_ipv4(_realip) or netaddr.valid_ipv6(_realip) :
             ipaddr = netaddr.IPAddress(_realip)
             # reconvert to string make sure to remove garbage data 
             # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )

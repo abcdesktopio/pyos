@@ -3062,27 +3062,46 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return self.search(conn, basedn, scope, filter, attrs, True)
 
     def search(self, conn, basedn, scope, filter=None, attrs=None, one=False):
-        self.logger.debug(locals())
-        withdn = attrs is not None and 'dn' in (a.lower() for a in attrs)
+        self.logger.debug('')
         entries = []
-        time_start = time.time() # expressed in seconds since the epoch, in UTC
+        # run ldap search
         ldap3_status, ldap3_results, ldap3_response, ldap3_request = \
             conn.search( search_base=basedn, search_filter=filter, search_scope=scope, attributes=attrs)
+        # if ldap is successful
         if ldap3_status is True:
          if isinstance( ldap3_response, list ):
             for entry in ldap3_response:
+                    # type is the type of the response as specified by RFC4511.
+                    # filter only entry.get('type') is 'searchResEntry' if 
+                    type_of_entry = entry.get('type')
+                    if isinstance(type_of_entry,str) and type_of_entry != 'searchResEntry':
+                        continue
+
+                    # response dict 
                     data = {}
+
+                    # always add the 'dn' in data dict
+                    # source https://ldap3.readthedocs.io/en/latest/searches.html
+                    # Each entry is a dictionary with the following field:
+                    #  - dn: the distinguished name of the entry
+                    dn = entry.get('dn')
+                    if isinstance(dn,str):
+                        data['dn'] = dn
+
                     attributes = entry.get('attributes')
                     if isinstance( attributes, ldap3.utils.ciDict.CaseInsensitiveDict ):
                         for k,v in attributes.items():
-                            data[k] = self.decodeValue(k,v)
-                    data['dn'] = entry['dn']
+                            data[k] = self.decodeValue(name=k,value=v)
+
                     # if only the first entry is need as param
-                    # return it
+                    # return data, do not return a list
                     if one is True: 
                         return data
-                    # else append to a entries list
-                    entries.append(data)
+                    
+                    # append to a entries list 
+                    # only if there something to add
+                    if len( data ) > 0:
+                        entries.append(data)
             return entries
         return None 
 

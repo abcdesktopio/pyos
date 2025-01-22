@@ -448,7 +448,7 @@ class ODApps:
 
         securitycontext = self.safe_load_label_json(imageid, labels, 'oc.securitycontext', default_value={} )
         
-        # executablefilename is used to query applist 
+        # executablefilename is only used to query applist 
         executablefilename = None
         if isinstance(path,str):
             executablefilename = os.path.basename(path)
