@@ -1381,23 +1381,82 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         #
         # mount secret in directory desktop['secretslocalaccount'] eq: /etc/localaccount
-        #
         mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
-        #secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
-        #localaccountsecret = secret.read_alldata
-        for secret_auth_name in mysecretdict.keys():
-            # https://kubernetes.io/docs/concepts/configuration/secret
-            # create an entry in desktop['secretslocalaccount']
-            # do not use the namespace
-            self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']}" )
-            secretmountPath = oc.od.settings.desktop['secretslocalaccount']
-            # mode is 644 -> rw-r--r--
-            # Owing to JSON limitations, you must specify the mode in decimal notation.
-            # 644 in decimal equal to 420
-            volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
-            volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+        assert isinstance(mysecretdict, dict), f"no secret type access_type='localaccount' found for userid={userinfo.userid}"
+
+        # there should be only one items
+        localaccountsecretitems = mysecretdict.items()
+        assert len(localaccountsecretitems) == 1, f"localaccountsecretitems is invalid len, len=1 is expected gets, len={len(localaccountsecretitems)} {localaccountsecretitems}" 
+
+        secret_auth_name = list(mysecretdict.items())[0][0]
+        assert isinstance(secret_auth_name,str), f"secret_auth_name is not a str {secret_auth_name}"
+
+        self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']}" )
+        # mode is 644 -> rw-r--r--
+        # Owing to JSON limitations, you must specify the mode in decimal notation.
+        # 644 in decimal equal to 420
+        secretmountPath = oc.od.settings.desktop['secretslocalaccount']
+        volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+        volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+        return (volumes, volumes_mount)
+
+        
+
+        '''
+        This section code does the same but with one volume per file in [ 'passwd', 'group', 'shadow', 'gshadow' ]
+        It build for example with a sample pod 
+
+            #
+            # this yaml file overwrite passwd file into the container 
+            #
+            apiVersion: v1
+            kind: Pod
+            metadata:
+            namespace: abcdesktop
+            name: sample
+            spec:
+            containers:
+            - name: sample
+                image: busybox
+                command: [ '/bin/sleep', '3600s' ]
+                volumeMounts:
+                - mountPath: "/etc/passwd"
+                    subPath: passwd
+                    name: localaccount
+            volumes:
+                - name: localaccount
+                secret:
+                    secretName: auth-localaccount-alex
+                    items:
+                    - key: passwd
+                      path: passwd
+
+        This section code doesn't work when we try to start an ephemeralContainer because ephemeralContainers don't support subpath
+        source https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1EphemeralContainer.md
+        The error code when you try to start an ephemeralContainer is 
+        error "message":"Pod is invalid: spec.ephemeralContainers[0].volumeMounts[11].subPath
+        "Forbidden: cannot be set for an Ephemeral Container"
+ 
+        for filesecret in [ 'passwd', 'group', 'shadow', 'gshadow' ] :
+            mountPath = f"/etc/{filesecret}"
+            volumename = f"localaccount{filesecret}"
+            volumes[ volumename ] = { 
+                'name': volumename, 
+                'secret': { 
+                    'secretName': secret_auth_name,  
+                    'items': [ {'key': filesecret, 'path': filesecret} ]
+                }
+            }
+            volumes_mount[volumename] = { 
+                'name': volumename, 
+                'mountPath':  mountPath, 
+                'subPath': filesecret
+            }        
+
 
         return (volumes, volumes_mount)
+
+        '''
 
     def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         """[build_volumes]
@@ -2200,9 +2259,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """countRunningAppforUser
 
         Args:
-            authinfo (AuthInfo): _description_
-            userinfo (AuthUser): _description_
-            myDesktop (ODDesktop): _description_
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
+            myDesktop (ODDesktop): ODDesktop
 
         Returns:
             int: counter of running applications for a user
@@ -2221,10 +2280,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """listContainerApps
 
         Args:
-            authinfo (AuthInfo): _description_
-            userinfo (AuthUser): _description_
-            myDesktop (ODDesktop): _description_
-            apps (ODApps): _description_
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
+            myDesktop (ODDesktop): ODDesktop
+            apps (ODApps): ODApps
 
         Returns:
             list: list of applications
@@ -2245,10 +2304,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """getAppInstanceKubernetes
             return the AppInstanceKubernetes of an appliction
         Args:
-            authinfo (_type_): _description_
-            userinfo (_type_): _description_
-            pod_name (_type_): _description_
-            containerid (_type_): _description_
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
+            pod_name (str): str
+            containerid (str): str
 
         Returns:
             ODAppInstanceBase can be :
@@ -3932,18 +3991,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if pod.status.phase == 'Failed' :
             bReturn = True
             self.logger.warning(f"pod {pod.metadata.name} is in phase {pod.status.phase} reason {pod.status.reason}" )
-            self.logger.debug( f"isgarbagable returns {bReturn}")
+            self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
             return bReturn
         
         if isinstance( pod.metadata.deletion_timestamp, datetime.datetime ):
             self.logger.warning(f"pod {pod.metadata.name} has deletion_timestamp {pod.metadata.deletion_timestamp}" )
-            self.logger.debug( f"isgarbagable returns {bReturn}")
+            self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
             return bReturn
 
         myDesktop = self.pod2desktop( pod=pod )
         if not isinstance(myDesktop, ODDesktop):
             self.logger.debug( f"myDesktop has bad type, ODDesktop is expected, get {type(myDesktop)}")
-            self.logger.debug( f"isgarbagable returns {bReturn}")
+            self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
             return bReturn
 
         if force is False:
@@ -3954,13 +4013,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # do not garbage this pod
                 # this is an error, return False
                 self.logger.debug( f"nCount={nCount} this is an error")
-                self.logger.debug( f"isgarbagable returns {bReturn}")
+                self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
                 return bReturn 
             if nCount > 0 : 
                 # if a user is connected do not garbage this pod
                 # user is connected, return False
                 self.logger.debug( f"the user is connected, nCount={nCount} nothing to do")
-                self.logger.debug( f"isgarbagable returns {bReturn}")
+                self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
                 return bReturn 
             #
             # now nCount == 0 continue 
@@ -3987,7 +4046,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         else:
             self.logger.error( f"unknow type for lastlogin_datetime {type(lastlogin_datetime)}, datetime.datetime is expected")
 
-        self.logger.debug( f"isgarbagable returns {bReturn}")
+        self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
         return bReturn
 
 
