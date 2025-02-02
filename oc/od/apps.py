@@ -102,50 +102,26 @@ class ODApps:
             q = collection.insert_one(app)
         return q
 
-    def list_app_images( self ):
-        collection = self.get_collection( self.image_collection_name )
+    def list_app_images( self )->list:
+        # get the collection
+        collection = self.get_collection( self.image_collection_name ) 
         app_images_collecion = []
         try:
+            # get all the collection
             app_images_collecion = list( collection.find() )
         except Exception as e:
+            # log error
             self.logger.error( e )
+        # return the list of app images
         return app_images_collecion
 
-
-    def makeicon_url(self, filename ):
-        icon_url = oc.od.settings.default_host_url + self.img_path + filename
-        return icon_url
-
-
-    def makeicon_file(self, filename, b64data):
-        bReturn = False
-
-        if filename is None or b64data is None:
-            return bReturn
-
-        img_directory = os.getcwd() + self.img_path # /var/pyos/img/app
-        filepath = os.path.join( img_directory, filename )
-        filepath = os.path.normpath( filepath )
-        try:
-            f = None
-            strdecode = base64.b64decode(b64data)
-            try:
-                data = strdecode.decode("utf-8")
-                f = open(filepath, 'w')
-            except Exception:
-                data = strdecode
-                f = open(filepath, 'wb')
-
-            try:
-                f.write(data)
-                bReturn = True
-            except Exception as e:
-                self.logger.error(f"Can not makeicon_file write {filename}: {e}")
-            f.close()
-
-        except Exception as e:
-            self.logger.error(f"Can not makeicon_file {filename}: {e}")
-        return bReturn
+    def makeicon_from_scratch( self, name:str )->str:
+        # create a simple svg file with thename of the application
+        text_svg = f'<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/><text x="0" y="32" fill="black">{name}</text></svg>'
+        # encode the svg file in base64
+        b64_text_svg = base64.encodebytes(text_svg.encode('utf-8'))
+        # return the base64 encoded svg file use strip to remove the last '\n' character
+        return b64_text_svg.decode().strip()
 
     def countApps(self):
         return len(self.myglobal_list)
@@ -356,6 +332,15 @@ class ODApps:
                     del myapp['_id']
         return myapp
 
+    def get_command_container_str( self, command_container:any )->str:
+        p='unknow'
+        if isinstance(command_container, str ):
+            p = command_container
+        if isinstance(command_container, list ):
+            p = command_container[0]
+        name = os.path.basename(p)
+        return name
+
     def json_imagetoapp( self, json_image):
         """[json_imagetoapp]
             return an abcdesktop image object from a json image format
@@ -378,6 +363,7 @@ class ODApps:
         # repoTags is a list of repoTag
         repoTags = json_image.get('RepoTags') or json_image.get('status',{}).get('repoTags')
         if not isinstance(repoTags,list): # skip image if no repoTags
+            self.loggger.warning( f"skip image {json_image.get('Id')} no repoTags")
             return None
         # take the first one
         imageid = repoTags[0]
@@ -407,31 +393,58 @@ class ODApps:
             # this is a crictl inspecti
             inspect_dict = json_image.get('info',{}).get('imageSpec',{}).get('config')
 
-        # read the CMD with fallback for compatibiliy with old version release
-        cmd = inspect_dict.get('Cmd', '/composer/appli-dockerentrypoint.sh' )
-        if isinstance( cmd, list ):
-            # fix error in deprecated image format in release 2.0
-            if cmd[0] == 'bash' and len(cmd) == 1:
-                cmd.append('/composer/appli-docker-entrypoint.sh')
-                self.logger.warning( f"fixing cmd entry for image {imageid} update to {cmd}")
-
-        # read USER with fallback for compatibiliy with old version release
-        # user = inspect_dict.get('User') or json_image.get('status',{}).get('username') or oc.od.settings.getballoon_loginname()
 
         # read the labels dict
+               # read the labels dict
         if isinstance( inspect_dict.get('Labels'), dict ):
             # this is a docker image format
             labels = inspect_dict.get('Labels')
         else:
             labels = json_image
 
-        # read oc specific value
-        icon = labels.get('oc.icon')
-        icondata = labels.get('oc.icondata')
-        launch = labels.get('oc.launch') or labels.get('oc.wm_class')
+
+        command_container = None
+        command_container_args = None
+        entrypoint = inspect_dict.get('Entrypoint')
+        cmd = inspect_dict.get('Cmd')
+
+        if isinstance( entrypoint, list ):
+            command_container = entrypoint
+            if isinstance( cmd, list ):
+                command_container_args = cmd
+            else:
+                command_container_args = labels.get('oc.args')
+        else:
+            # entrypoint is not defined in the image
+            # look for cmd in the image 
+            if isinstance( cmd, list ):
+                command_container = cmd[-1:]
+                command_container_args = labels.get('oc.args')
+   
+
+        # read USER with fallback for compatibiliy with old version release
+        # user = inspect_dict.get('User') or json_image.get('status',{}).get('username') or oc.od.settings.getballoon_loginname()
+
+
+        # read the labels 'oc.name' as name 
         name = labels.get('oc.name')
-        path = labels.get('oc.path')
+        # check label value, name and path must be string
+        if not isinstance(name,str) :
+            name = self.get_command_container_str( command_container )
         
+        # read the labels 'oc.launch' or 'oc.wm_class' as launch
+        launch = labels.get('oc.launch') or labels.get('oc.wm_class') or name
+
+        # read the labels 'oc.path' as path
+        path = labels.get('oc.path')
+
+        self.logger.debug( f"image {name} path={path} cmd={cmd} args={command_container_args}")
+
+        # read oc specific value
+        # use name as icon if icon is not defined
+        icon = labels.get('oc.icon', name )
+        # use create a simple svg file as icondata if icondata is not defined
+        icondata = labels.get('oc.icondata', self.makeicon_from_scratch(name=name) )
 
         # safe load convert json data json
         usedefaultapplication = self.safe_load_label_json( imageid, labels, 'oc.usedefaultapplication',  default_value=False )
@@ -443,26 +456,21 @@ class ODApps:
         if secrets_requirement is not None: 
             # type of secrets_requirement must be list
             if isinstance( secrets_requirement, str ):
-                secrets_requirement = [ secrets_requirement ]
+                secrets_requirement = [ secrets_requirement ]  
             secrets_requirement = self.safe_secrets_requirement_prefix( secrets_requirement, oc.od.settings.namespace)
 
         securitycontext = self.safe_load_label_json(imageid, labels, 'oc.securitycontext', default_value={} )
         
         # executablefilename is only used to query applist 
-        executablefilename = None
+        executablefilename = None 
         if isinstance(path,str):
             executablefilename = os.path.basename(path)
-
-        # icon_url = None
-        # check if icon file name exists and icon data is str
-        if isinstance(icon, str) and isinstance(icondata, str):
-            if self.makeicon_file(icon, icondata):
-                # create the file icon with icondata
-                self.makeicon_url(icon)
+        else:
+            executablefilename = self.get_command_container_str( command_container )
 
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
-                'cmd':          cmd,
+                'cmd':          command_container,
                 'path':         path,
                 'sha_id':       sha_id,
                 'id':           imageid,
@@ -477,11 +485,10 @@ class ODApps:
                 'keyword':      labels.get('oc.keyword'),
                 'uniquerunkey': labels.get('oc.uniquerunkey'),
                 'cat':          labels.get('oc.cat'),
-                'args':         labels.get('oc.args'),
+                'args':         command_container_args,
                 'execmode':     labels.get('oc.execmode'),
                 'showinview':   labels.get('oc.showinview'),
                 'displayname':  labels.get('oc.displayname', name),
-                'home':         labels.get('oc.home'),
                 'desktopfile':  labels.get('oc.desktopfile'),
                 'executeclassname':     labels.get('oc.executeclassname'),
                 'executablefilename':   executablefilename,
