@@ -4707,6 +4707,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             env=envlist,
             image=app['id'],
             command=app.get('cmd'),
+            args=app.get('args'),
             target_container_name=myDesktop.container_name,
             image_pull_policy=oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
             volume_mounts = list_volumeMounts,
