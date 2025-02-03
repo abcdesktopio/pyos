@@ -418,7 +418,7 @@ class ODApps:
             # entrypoint is not defined in the image
             # look for cmd in the image 
             if isinstance( cmd, list ):
-                command_container = cmd[-1:]
+                command_container = cmd[-1]
                 command_container_args = labels.get('oc.args')
    
 
