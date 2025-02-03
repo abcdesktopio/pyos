@@ -117,9 +117,9 @@ class ODApps:
 
     def makeicon_from_scratch( self, name:str )->str:
         # create a simple svg file with thename of the application
-        text_svg = f'<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/><text x="0" y="32" fill="black">{name}</text></svg>'
+        text_svg = f"<svg version=\"1.1\" viewBox=\"0 0 64 64\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><rect width=\"100%\" height=\"100%\" fill=\"white\"/><text x=\"0\" y=\"32\" fill=\"black\">{name}</text></svg>"
         # encode the svg file in base64
-        b64_text_svg = base64.encodebytes(text_svg.encode('utf-8'))
+        b64_text_svg = base64.b64encode(text_svg.encode('utf-8'))
         # return the base64 encoded svg file use strip to remove the last '\n' character
         return b64_text_svg.decode().strip()
 
