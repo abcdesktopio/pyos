@@ -367,6 +367,7 @@ class ODApps:
             return None
         # take the first one
         imageid = repoTags[0]
+        
         # read the image Id
         # docker output format use Id
         #
@@ -395,7 +396,7 @@ class ODApps:
 
 
         # read the labels dict
-               # read the labels dict
+        # read the labels dict
         if isinstance( inspect_dict.get('Labels'), dict ):
             # this is a docker image format
             labels = inspect_dict.get('Labels')
@@ -418,7 +419,7 @@ class ODApps:
             # entrypoint is not defined in the image
             # look for cmd in the image 
             if isinstance( cmd, list ):
-                command_container = cmd[-1]
+                command_container = cmd
                 command_container_args = labels.get('oc.args')
    
 
