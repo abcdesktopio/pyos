@@ -29,4 +29,4 @@ jobs:
           token: ${{ secrets.TOKEN_DISPATCH }}
           repository: abcdesktopio/oc.pyos
           event-type: dispatch-from-pyos
-          client-payload: '{"ref": "${{ github.ref_name }}", "sha": "${{ github.sha }}"}'
+          client-payload: '{"ref": "${{ github.head_ref || github.ref_name }}", "sha": "${{ github.sha }}"}'
