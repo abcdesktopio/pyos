@@ -1386,7 +1386,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # there should be only one items
         localaccountsecretitems = mysecretdict.items()
-        assert len(localaccountsecretitems) == 1, f"localaccountsecretitems is invalid len, len=1 is expected gets, len={len(localaccountsecretitems)} {localaccountsecretitems}" 
+        if len(localaccountsecretitems) != 1:
+            self.logger.error( f"{userinfo.userid} localaccountsecretitems is invalid len, len=1 is expected gets, len={len(localaccountsecretitems)} {localaccountsecretitems}" )
+            self.logger.debug( f"{userinfo.userid} abcdesktop secret has expired, found {len(localaccountsecretitems)} expecting 1" )
+            raise Exception( f"Your secret has been deleted, found {len(localaccountsecretitems)}, please reload" )
 
         secret_auth_name = list(mysecretdict.items())[0][0]
         assert isinstance(secret_auth_name,str), f"secret_auth_name is not a str {secret_auth_name}"

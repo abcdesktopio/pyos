@@ -378,22 +378,22 @@ class ODApps:
         if not isinstance(sha_id,str): # skip image if no Id or id
             return None
 
-        # Read Architecture
-        image_architecture = json_image.get('Architecture')
-        # Read OS
-        image_os = json_image.get('Os')
-        # created date
-        created = json_image.get('Created')
 
         # read the config
         inspect_dict = None
         if isinstance( json_image.get('Config'), dict ):
             # this is a docker image format
             inspect_dict = json_image.get('Config')
+            image_architecture = json_image.get('Architecture') # Read Architecture
+            image_os = json_image.get('Os') # Read OS
+            created = json_image.get('Created') # created date
         else:
             # this is a crictl inspecti
-            inspect_dict = json_image.get('info',{}).get('imageSpec',{}).get('config')
-
+            imageSpec = json_image.get('info',{}).get('imageSpec',{}) 
+            inspect_dict = imageSpec.get('config')
+            image_architecture = imageSpec.get('architecture') # Read Architecture
+            image_os = imageSpec.get('os') # Read OS
+            created = imageSpec.get('created') # created date
 
         # read the labels dict
         # read the labels dict
