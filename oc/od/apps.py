@@ -391,8 +391,8 @@ class ODApps:
             # this is a crictl inspecti
             imageSpec = json_image.get('info',{}).get('imageSpec',{}) 
             inspect_dict = imageSpec.get('config')
-            image_architecture = imageSpec.get('architecture') # Read Architecture
-            image_os = imageSpec.get('os') # Read OS
+            image_architecture = imageSpec.get('architecture') # Read architecture
+            image_os = imageSpec.get('os') # Read os
             created = imageSpec.get('created') # created date
 
         # read the labels dict
@@ -422,6 +422,9 @@ class ODApps:
                 command_container = cmd
                 command_container_args = labels.get('oc.args')
    
+        # if command_container_args is a string convert it to a list
+        if isinstance( command_container_args, str):
+            command_container_args = [ command_container_args ]
 
         # read USER with fallback for compatibiliy with old version release
         # user = inspect_dict.get('User') or json_image.get('status',{}).get('username') or oc.od.settings.getballoon_loginname()
