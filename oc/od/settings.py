@@ -365,6 +365,7 @@ def init_desktop():
             'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage',
             'cpu.cfs_quota_us': '/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us'
         } )
+    desktop['hostname'] = gconfig.get('desktop.hostname')
     desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
     # features_permissions
     # 'read' features_permissions is exposed to the frontend
