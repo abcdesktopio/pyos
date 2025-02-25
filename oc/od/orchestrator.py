@@ -3396,6 +3396,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # give the give pull secret for the desktop pod
         imagePullSecrets = self.giveme_an_imagePullSecrets()
 
+        hostname = oc.od.settings.desktop.get('hostname', pod_name)
+
         # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
@@ -3408,6 +3410,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # 'ownerReferences': ownerReferences
             },
             'spec': {
+                'hostname': hostname,
                 'dnsPolicy' : dnspolicy,
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
