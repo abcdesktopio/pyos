@@ -978,7 +978,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance( secrets_requirement, list ):
             self.logger.debug( f"skipping secrets_requirement type={type(secrets_requirement)}, no secret to mount" ) 
         else:
-
             for access_type in ['auth', 'ldif']:
                 self.logger.debug( f"listing list_dict_secret_data access_type='{access_type}'" )
                 mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type=access_type )
@@ -1026,8 +1025,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             'name':secret_name,
                             'mountPath':secretmountPath
                         }
-            
-            return (volumes, volumes_mount)
+
+        return (volumes, volumes_mount)
 
     def build_volumes_additional_for_flexvolume( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, mountvol, **kwargs):
 
