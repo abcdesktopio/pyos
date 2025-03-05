@@ -1648,7 +1648,8 @@ class ODAuthTool(cherrypy.Tool):
                                 reason=reason )
             
         finally:
-            pdr.finalize( auth, **arguments)
+            if isinstance( pdr, ODAuthProviderBase):
+                pdr.finalize( auth, **arguments)
 
         return response
 
