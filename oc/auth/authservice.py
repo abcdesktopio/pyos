@@ -1564,7 +1564,8 @@ class ODAuthTool(cherrypy.Tool):
 
     def login(self, provider, manager=None, **arguments):  
         self.logger.debug('')
-        auth = None
+        auth = None # must be define to prevent referenced before assignment exception
+        pdr  = None # must be define to prevent referenced before assignment exception
         response = AuthResponse(self)
         try:
             # take time to mesure time of login call
