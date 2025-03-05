@@ -978,47 +978,54 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance( secrets_requirement, list ):
             self.logger.debug( f"skipping secrets_requirement type={type(secrets_requirement)}, no secret to mount" ) 
         else:
-            self.logger.debug( "listing list_dict_secret_data access_type='auth'" )
-            mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='auth' )
-            if isinstance( mysecretdict, dict):
-                # read all entries in dict
-                # {'auth-ntlm-fry': {'type': 'abcdesktop/ntlm', 'data': {...}}}
-                self.logger.debug(f"list of secret is {mysecretdict.keys()}")
-                for secret_auth_name in mysecretdict.keys():
-                    # https://kubernetes.io/docs/concepts/configuration/secret
-                    # create an entry eq: 
+            for access_type in ['auth', 'ldif']:
+                self.logger.debug( f"listing list_dict_secret_data access_type='{access_type}'" )
+                mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type=access_type )
+            
+                if isinstance( mysecretdict, dict):
+                    # read all entries in dict
+                    # like for access_type=auth
+                    # {'auth-ntlm-fry': {'type': 'abcdesktop/ntlm', 'data': {...}}}
+                    # like for access_type=ldif
+                    # {'auth-ldif-alex': {'type': 'abcdesktop/ldif', 'data': {...}}}
                     #
-                    # /var/secrets/abcdesktop/ntlm
-                    # /var/secrets/abcdesktop/kerberos
-                    #  
-                    self.logger.debug(f"checking {secret_auth_name} access_type='auth'")
+                    self.logger.debug(f"list of secret is {mysecretdict.keys()}")
+                    for secret_name in mysecretdict.keys():
+                        # https://kubernetes.io/docs/concepts/configuration/secret
+                        # create an entry eq: 
+                        #
+                        # /var/secrets/abcdesktop/ntlm
+                        # /var/secrets/abcdesktop/kerberos
+                        #  
+                        self.logger.debug(f"checking {secret_name} access_type='{access_type}'")
 
-                    if not isinstance(mysecretdict[secret_auth_name], dict):
-                        self.logger.error(f"skipping secret {secret_auth_name} is not a dict")
-                        continue
-
-                    # only mount secrets_requirement
-                    if 'all' not in secrets_requirement:
-                        if mysecretdict[secret_auth_name]['type'] not in secrets_requirement:
-                            self.logger.debug(f"skipping {mysecretdict[secret_auth_name]['type']} not in {secrets_requirement}")
+                        if not isinstance(mysecretdict[secret_name], dict):
+                            self.logger.error(f"skipping secret {secret_name} is not a dict")
                             continue
 
-                    self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']} to volume pod" )
-                    secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_auth_name]['type'] 
-                    # mode is 644 -> rw-r--r--
-                    # Owing to JSON limitations, you must specify the mode in decimal notation.
-                    # 644 in decimal equal to 420
-                    volumes[secret_auth_name] = {
-                        'name':secret_auth_name,
-                        'secret': {
-                            'secretName': secret_auth_name,
-                            'defaultMode': 420
+                        # only mount secrets_requirement
+                        if 'all' not in secrets_requirement:
+                            if mysecretdict[secret_name]['type'] not in secrets_requirement:
+                                self.logger.debug(f"skipping {mysecretdict[secret_name]['type']} not in {secrets_requirement}")
+                                continue
+
+                        self.logger.debug( f"adding secret type {mysecretdict[secret_name]['type']} to volume pod" )
+                        secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_name]['type'] 
+                        # mode is 644 -> rw-r--r--
+                        # Owing to JSON limitations, you must specify the mode in decimal notation.
+                        # 644 in decimal equal to 420
+                        volumes[secret_name] = {
+                            'name':secret_name,
+                            'secret': {
+                                'secretName': secret_name,
+                                'defaultMode': 420
+                            }
                         }
-                    }
-                    volumes_mount[secret_auth_name] = {
-                        'name':secret_auth_name,
-                        'mountPath':secretmountPath
-                    }
+                        volumes_mount[secret_name] = {
+                            'name':secret_name,
+                            'mountPath':secretmountPath
+                        }
+
         return (volumes, volumes_mount)
 
     def build_volumes_additional_for_flexvolume( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, mountvol, **kwargs):
