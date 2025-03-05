@@ -2154,6 +2154,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         self.type = config.get('type', 'oauth')
         self.userinfomap = config.get('userinfomap')
         self.state = config.get('state')
+        self.include_client_id = config.get('include_client_id', False)
 
         self.authorization_base_url = config.get('authorization_base_url')
         self.token_url = config.get('token_url')
@@ -2181,7 +2182,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
     def authenticate(self, code=None, **params):
         oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
         authorization_response = self.redirect_uri_prefix + '?' + cherrypy.request.query_string
-        token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, authorization_response=authorization_response )
+        token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, include_client_id=self.include_client_id,  authorization_response=authorization_response )
         self.logger.debug( f"provider {self.name} type {self.type} return token {token}" )
         authinfo = AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth', data={})
         return authinfo
@@ -3371,7 +3372,15 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             my_env = os.environ.copy()
             my_env['KRB5_CONFIG'] = self.kerberos_krb5_conf
             # run /usr/bin/ktutil
-            proc = subprocess.Popen(self.kerberos_ktutil, stdin=subprocess.PIPE, env=my_env )
+            # redirect stdout to subprocess.DEVNULL to hidde commands including clear password 
+            # redirect stderr to subprocess.DEVNULL to hidde password including clear password 
+            proc = subprocess.Popen(
+                args=self.kerberos_ktutil, 
+                stdin=subprocess.PIPE, 
+                stdout=subprocess.DEVNULL, 
+                stderr=subprocess.DEVNULL,
+                env=my_env )
+            
             for p in inputs:
                 # Only for troubleshooting password show in clear text
                 # self.logger.info( f"makekeytab send args to stdin {p}" )
@@ -4060,8 +4069,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         time_start = time.time() # expressed in seconds since the epoch, in UTC
         try:
             self.logger.debug ( f"run ldapquery isMember FSP:ForeignSecurityPrincipals" )
-            self.logger.debug ( f"search_base={q.basedn}, search_scope={q.scope}, search_filter={filter}" )
-            self.logger.debug ( f"starting query" )
+            self.logger.debug ( f"starting query search_base={q.basedn}, search_scope={q.scope}, search_filter={filter}" )
             ldap3_status, ldap3_results, ldap3_response, ldap3_request = authinfo.conn.search( search_base=q.basedn, search_filter=filter, search_scope=q.scope )
             elapsed = time.time() - time_start # in seconds
             self.logger.debug(f"ldap search {q.basedn} {filter} take {elapsed} seconds" )
