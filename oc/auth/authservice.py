@@ -2216,11 +2216,26 @@ class ODExternalAuthProvider(ODAuthProviderBase):
                     self.logger.debug(f"posix account posixuser={posixuser}")
                     userinfo['posix'] = posixuser
                 else:
-                    self.logger.debug( f"userinfo response is not ok {response_userinfo.status_code} {response_userinfo.reason} {response_userinfo.content}")
-                    raise ExternalAuthError( message=f"userinfo returns failed {response_userinfo.status_code} {response_userinfo.reason} {response_userinfo.content}")
+                    self.logger.debug( f"userinfo response is not ok status_code={response_userinfo.status_code} reason={response_userinfo.reason} content={response_userinfo.content}")
+                    raise ExternalAuthError( message=f"userinfo returns failed status_code={response_userinfo.status_code} reason={response_userinfo.reason} content={response_userinfo.content}")
             else:
                 self.logger.debug( f"getuserinfo is not allowed for provider {self.name}")
+                # create an anonymous user
                 userinfo = {}
+                # set default values in userinfo
+                uid='anonymous'
+                userinfo['name'] = uid
+                userinfo['userid'] = str(uuid.uuid4())  # create a uniqu user id
+                anonymousPosix = AuthUser.getdefaultPosixAccount(
+                    uid=uid, 
+                    gid=uid, 
+                    cn=uid, 
+                    uidNumber=oc.od.settings.getballoon_uidNumber(),
+                    gidNumber=oc.od.settings.getballoon_gidNumber(),
+                    homeDirectory=oc.od.settings.getballoon_homedirectory(uid),
+                    loginShell=oc.od.settings.getballoon_loginShell(),
+                    description='abcdesktop anonymous account' )
+                userinfo['posix'] = anonymousPosix
         else:
             raise ExternalAuthError( message=f"session is not authorized {oauthsession.authorized}")
         
