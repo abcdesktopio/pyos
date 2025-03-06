@@ -1787,9 +1787,11 @@ class ODAuthManagerBase(object):
                 raise AuthenticationFailureError('Invalid authentication provider name')
             return None
         
+        self.logger.debug( f"getprovider from parameter name={name}")
         pdr = self.providers.get(name)
-        # pdr is an instance of ODAuthProviderBase
-        if pdr is None: 
+        
+        # pdr should be an instance of ODAuthProviderBase
+        if not isinstance( pdr, ODAuthProviderBase ): 
             if raise_error: 
                 raise AuthenticationFailureError( f"undefined authentication provider {name}")
             return None
