@@ -26,6 +26,7 @@ import datetime
 import re
 import threading
 import base64
+from requests.auth import HTTPBasicAuth
 from urllib.parse import urlparse
 from ldap import filter as ldap_filter
 import ldap3
@@ -2204,7 +2205,16 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         userinfo = None
         if oauthsession.authorized is True:
             if self.userinfo_auth is True :
-                response_userinfo = oauthsession.get(self.userinfo_url)
+
+                headers = None
+
+                # curl -X GET -H "Authorization: {authorization_header}" https://api.orange.com/formfilling/fr/v1/userinfo
+                if self.basic_auth is True:
+                    # auth_header = HTTPBasicAuth( self.client_id, self.client_secret)
+                    headers = {'Authorization': f"{oauthsession.token.get('token_type')} {oauthsession.token.get('access_token')}"}
+
+
+                response_userinfo = oauthsession.get( url=self.userinfo_url, headers=headers )
                 if isinstance(response_userinfo, requests.models.Response) and response_userinfo.ok is True :
                     jsondata = response_userinfo.content.decode(response_userinfo.encoding or self.encoding ) 
                     data = json.loads(jsondata)
