@@ -2216,9 +2216,10 @@ class ODExternalAuthProvider(ODAuthProviderBase):
                 userinfo['posix'] = posixuser
             else:
                 self.logger.debug( f"userinfo response is not ok {response_userinfo}")
+                raise ExternalAuthError( message=f"userinfo response failed {response_userinfo}")
         else:
-            self.logger.debug( f"userinfo_auth is {self.userinfo_auth} and oauthsession.authorized is {oauthsession.authorized}")   
-
+            pass
+        
         return userinfo
         
   
