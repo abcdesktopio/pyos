@@ -2202,23 +2202,27 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             raise ExternalAuthError( message='authinfo is an invalid token oauthsession object')
 
         userinfo = None
-        if self.userinfo_auth is True and oauthsession.authorized is True:
-            response_userinfo = oauthsession.get(self.userinfo_url)
-            if isinstance(response_userinfo, requests.models.Response) and response_userinfo.ok is True :
-                jsondata = response_userinfo.content.decode(response_userinfo.encoding or self.encoding ) 
-                data = json.loads(jsondata)
-                self.logger.debug( f"dump userinfo data={data}" )
-                userinfo = self.parseuserinfo( data )
-                # expecting to read posix account response format
-                self.logger.debug("expecting to read posix account response format")
-                posixuser = AuthUser.getPosixAccountfromlocalAccount( userinfo )
-                self.logger.debug(f"posix account posixuser={posixuser}")
-                userinfo['posix'] = posixuser
+        if oauthsession.authorized is True:
+            if self.userinfo_auth is True :
+                response_userinfo = oauthsession.get(self.userinfo_url)
+                if isinstance(response_userinfo, requests.models.Response) and response_userinfo.ok is True :
+                    jsondata = response_userinfo.content.decode(response_userinfo.encoding or self.encoding ) 
+                    data = json.loads(jsondata)
+                    self.logger.debug( f"dump userinfo data={data}" )
+                    userinfo = self.parseuserinfo( data )
+                    # expecting to read posix account response format
+                    self.logger.debug("expecting to read posix account response format")
+                    posixuser = AuthUser.getPosixAccountfromlocalAccount( userinfo )
+                    self.logger.debug(f"posix account posixuser={posixuser}")
+                    userinfo['posix'] = posixuser
+                else:
+                    self.logger.debug( f"userinfo response is not ok {response_userinfo.status_code} {response_userinfo.reason} {response_userinfo.content}")
+                    raise ExternalAuthError( message=f"userinfo returns failed {response_userinfo.status_code} {response_userinfo.reason} {response_userinfo.content}")
             else:
-                self.logger.debug( f"userinfo response is not ok {response_userinfo}")
-                raise ExternalAuthError( message=f"userinfo response failed {response_userinfo}")
+                self.logger.debug( f"getuserinfo is not allowed for provider {self.name}")
+                userinfo = {}
         else:
-            pass
+            raise ExternalAuthError( message=f"session is not authorized {oauthsession.authorized}")
         
         return userinfo
         
