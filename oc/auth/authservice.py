@@ -2214,6 +2214,10 @@ class ODExternalAuthProvider(ODAuthProviderBase):
                 posixuser = AuthUser.getPosixAccountfromlocalAccount( userinfo )
                 self.logger.debug(f"posix account posixuser={posixuser}")
                 userinfo['posix'] = posixuser
+            else:
+                self.logger.debug( f"userinfo response is not ok {response_userinfo}")
+        else:
+            self.logger.debug( f"userinfo_auth is {self.userinfo_auth} and oauthsession.authorized is {oauthsession.authorized}")   
 
         return userinfo
         
