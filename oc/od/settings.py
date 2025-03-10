@@ -152,10 +152,15 @@ def init_localaccount():
     global DEFAULT_GROUP_FILE
     global DEFAULT_SHADOW_FILE
     global DEFAULT_GSHADOW_FILE
-    DEFAULT_PASSWD_FILE  = loadfile('passwd')
-    DEFAULT_GROUP_FILE   = loadfile('group' )
-    DEFAULT_SHADOW_FILE  = loadfile('shadow')
-    DEFAULT_GSHADOW_FILE = loadfile('gshadow')
+
+    passwd_filename = gconfig.get('template_passwd_filename', 'passwd' )
+    group_filename = gconfig.get('template_group_filename', 'group' )
+    shadow_filename = gconfig.get('template_shadow_filename', 'shadow' )
+    gshadow_filename = gconfig.get('template_gshadow_filename', 'gshadow' )
+    DEFAULT_PASSWD_FILE  = loadfile(passwd_filename)
+    DEFAULT_GROUP_FILE   = loadfile(group_filename)
+    DEFAULT_SHADOW_FILE  = loadfile(shadow_filename)
+    DEFAULT_GSHADOW_FILE = loadfile(gshadow_filename)
 
 
 def init_coturn_webrtc():
