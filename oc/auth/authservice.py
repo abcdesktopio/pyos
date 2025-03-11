@@ -2236,6 +2236,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         else:
             raise ExternalAuthError( message=f"session is not authorized {oauthsession.authorized}")
         
+        self.logger.debug( f"userinfo={userinfo}")
         return userinfo
         
   
