@@ -24,12 +24,9 @@ import json
 import crypt
 import datetime
 import re
-import threading
-import base64
 from urllib.parse import urlparse
 from ldap import filter as ldap_filter
 import ldap3
-import hashlib
 
 #
 # from ldap3.utils.log import set_library_log_detail_level, get_detail_level_name, set_library_log_hide_sensitive_data, EXTENDED
@@ -1787,13 +1784,15 @@ class ODAuthManagerBase(object):
                 raise AuthenticationFailureError('Invalid authentication provider name')
             return None
         
+        # get provider from name
         pdr = self.providers.get(name)
-        # pdr is an instance of ODAuthProviderBase
-        if pdr is None: 
-            if raise_error: 
+        
+        # pdr should be an instance of ODAuthProviderBase
+        if not isinstance( pdr, ODAuthProviderBase ): 
+            # provider not found
+            self.logger.debug( f"failed getprovider from parameter name={name}")
+            if raise_error is True: 
                 raise AuthenticationFailureError( f"undefined authentication provider {name}")
-            return None
-
         return pdr
 
     def getclientdata(self):
@@ -2200,19 +2199,44 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             raise ExternalAuthError( message='authinfo is an invalid token oauthsession object')
 
         userinfo = None
-        if self.userinfo_auth is True and oauthsession.authorized is True:
-            response_userinfo = oauthsession.get(self.userinfo_url)
-            if isinstance(response_userinfo, requests.models.Response) and response_userinfo.ok is True :
-                jsondata = response_userinfo.content.decode(response_userinfo.encoding or self.encoding ) 
-                data = json.loads(jsondata)
-                self.logger.debug( f"dump userinfo data={data}" )
-                userinfo = self.parseuserinfo( data )
-                # expecting to read posix account response format
-                self.logger.debug("expecting to read posix account response format")
-                posixuser = AuthUser.getPosixAccountfromlocalAccount( userinfo )
-                self.logger.debug(f"posix account posixuser={posixuser}")
-                userinfo['posix'] = posixuser
-
+        if oauthsession.authorized is True:
+            if self.userinfo_auth is True :
+                response_userinfo = oauthsession.get( url=self.userinfo_url )
+                if isinstance(response_userinfo, requests.models.Response) and response_userinfo.ok is True :
+                    jsondata = response_userinfo.content.decode(response_userinfo.encoding or self.encoding ) 
+                    data = json.loads(jsondata)
+                    self.logger.debug( f"dump userinfo data={data}" )
+                    userinfo = self.parseuserinfo( data )
+                    # expecting to read posix account response format
+                    self.logger.debug("expecting to read posix account response format")
+                    posixuser = AuthUser.getPosixAccountfromlocalAccount( userinfo )
+                    self.logger.debug(f"posix account posixuser={posixuser}")
+                    userinfo['posix'] = posixuser
+                else:
+                    self.logger.debug( f"userinfo response is not ok status_code={response_userinfo.status_code} reason={response_userinfo.reason} content={response_userinfo.content}")
+                    raise ExternalAuthError( message=f"userinfo returns failed status_code={response_userinfo.status_code} reason={response_userinfo.reason} content={response_userinfo.content}")
+            else:
+                self.logger.debug( f"getuserinfo is not allowed for provider {self.name}")
+                # create an anonymous user
+                userinfo = {}
+                # set default values in userinfo
+                uid='anonymous'
+                userinfo['name'] = uid
+                userinfo['userid'] = str(uuid.uuid4())  # create a uniqu user id
+                anonymousPosix = AuthUser.getdefaultPosixAccount(
+                    uid=uid, 
+                    gid=uid, 
+                    cn=uid, 
+                    uidNumber=oc.od.settings.getballoon_uidNumber(),
+                    gidNumber=oc.od.settings.getballoon_gidNumber(),
+                    homeDirectory=oc.od.settings.getballoon_homedirectory(uid),
+                    loginShell=oc.od.settings.getballoon_loginShell(),
+                    description='abcdesktop anonymous account' )
+                userinfo['posix'] = anonymousPosix
+        else:
+            raise ExternalAuthError( message=f"session is not authorized {oauthsession.authorized}")
+        
+        self.logger.debug( f"userinfo={userinfo}")
         return userinfo
         
   
