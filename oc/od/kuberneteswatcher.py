@@ -96,9 +96,17 @@ class ODKubernetesWatcher:
                 self.logger.fatal( f"ODKubernetesWatcher will not die but the api server is not responding {type(e)}, sleeping for 60 s" )
                 time.sleep( 60 ) # wait a minute 
             
-            except Exception as e:
-                self.logger.info( f"{type(e)} {e}" )
+            except client.exceptions.ApiException as e:
+                self.logger.error( f"{type(e)} {e}" )
+                if e.status == 401:
+                    self.logger.fatal( f"exit loopforevent threading, this error is fatal" )
+                    # exit(-1)
+                    return
+                time.sleep( 60 ) # wait a minute to prevent log avalanche
 
+            except Exception as e:
+                self.logger.error( f"{type(e)} {e}" )
+                time.sleep( 60 ) # wait a minute to prevent log avalanche
                     
     def start(self):
         self.logger.debug('watcher thread is starting')
