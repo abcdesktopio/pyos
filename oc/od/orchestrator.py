@@ -771,69 +771,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #   https://stackoverflow.com/questions/54050504/running-connect-get-namespaced-pod-exec-using-kubernetes-client-corev1api-give
         #
         client.configuration.assert_hostname = False
+        self.name = 'kubernetes'
         self.kubeapi = client.CoreV1Api()
         self.namespace = oc.od.settings.namespace
         self.bConfigure = True
-        self.name = 'kubernetes'
-
-        # defined remapped tmp volume
-        # if app is a pod use a specifed path in /var/abcdesktop/pods
-        # if app id a docker container use an empty
-        # if oc.od.settings.desktopusepodasapp :
-        # volume_tmp =      { 'name': 'tmp', 'emptyDir': { 'sizeLimit': '8Gi' } }
-        # volume_tmp_path = { 'name': 'tmp', 'mountPath': '/tmp', 'subPathExpr': '$(POD_NAME)' }
-        # volumemount_tmp =  {'mountPath': '/tmp',       'name': 'tmp'} ]
-        # volumemount_tmp_path = {'mountPath': '/tmp',       'name': 'tmp', 'subPathExpr': '$(POD_NAME)'}
-        # self.volume
-        # no pods
-
-        self.default_volumes = {}
-        self.default_volumes_mount  = {}
-        
-        #
-        # POSIX shared memory requires that a tmpfs be mounted at /dev/shm. 
-        # The containers in a pod do not share their mount namespaces so we use volumes 
-        # to provide the same /dev/shm into each container in a pod. 
-        # read https://docs.openshift.com/container-platform/3.6/dev_guide/shared_memory.html
-        # Here is the information of a pod on the cluster, we can see that the size of /dev/shm is 64MB, and when writing data to the shared memory via dd, it will throw an exception when it reaches 64MB: “No space left on device”.
-        #
-        # $ dd if=/dev/zero of=/dev/shm/test
-        # dd: writing to '/dev/shm/test': No space left on device
-        # 131073+0 records in
-        # 131072+0 records out
-        # 67108864 bytes (67 MB, 64 MiB) copied, 0.386939 s, 173 MB/s
-
-        # 
-        shareProcessMemorySize = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemorySize', oc.od.settings.DEFAULT_SHM_SIZE)
-        self.default_volumes['shm']       = { 'name': 'shm', 'emptyDir': {  'medium': 'Memory', 'sizeLimit': shareProcessMemorySize } }
-        self.default_volumes_mount['shm'] = { 'name': 'shm', 'mountPath' : '/dev/shm' }
-
-        self.default_volumes['tmp']       = { 'name': 'tmp',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
-        self.default_volumes_mount['tmp'] = { 'name': 'tmp',  'mountPath': '/tmp' }
-
-        self.default_volumes['run']       = { 'name': 'run',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1M' } }
-        self.default_volumes_mount['run'] = { 'name': 'run',  'mountPath': '/var/run/desktop' }
-
-        self.default_volumes['log']       = { 'name': 'log',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
-        self.default_volumes_mount['log'] = { 'name': 'log',  'mountPath': '/var/log/desktop' }
-
-        self.default_volumes['rundbus']       = { 'name': 'rundbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
-        self.default_volumes_mount['rundbus'] = { 'name': 'rundbus',  'mountPath': '/var/run/dbus' }
-
-        self.default_volumes['runuser']       = { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } }
-        self.default_volumes_mount['runuser'] = { 'name': 'runuser',  'mountPath': '/run/user/' }
-
-        self.default_volumes['x11socket'] = { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } }
-        self.default_volumes_mount['x11socket'] = { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' }
-
-        self.default_volumes['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } }
-        self.default_volumes_mount['pulseaudiosocket'] = { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' }
-
-        self.default_volumes['cupsdsocket'] = { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
-        self.default_volumes_mount['cupsdsocket'] = { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
-
-        # self.logger.debug( f"ODOrchestratorKubernetes done configure={self.bConfigure}" )
-
+        self.default_volumes = oc.od.settings.desktop_pod.get('default_volumes', oc.od.settings.DEFAULT_VOLUMES )
+        self.default_volumes_mount = oc.od.settings.desktop_pod.get('default_volumes_mount', oc.od.settings.DEFAULT_VOLUMES_MOUNT)
 
     def close(self):
         #self.kupeapi.close()
@@ -1502,26 +1445,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         if volume_type in [ 'pod_desktop', 'ephemeral_container' ]:
             # add socket service 
-            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket' ]:
-                volumes[vol_name] = self.default_volumes[vol_name]
-                volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
-
             # add tmp run log to support readonly filesystem
-            for vol_name in [ 'tmp', 'run', 'log' ]:
-                volumes[vol_name] = self.default_volumes[vol_name]
-                volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
-
-            # add dbus
-            for vol_name in [ 'rundbus', 'runuser' ]:
-                volumes[vol_name] = self.default_volumes[vol_name]
-                volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+            # add dbus 'rundbus', 'runuser' 
+            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]:
+                if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
+                    volumes[vol_name] = self.default_volumes[vol_name]
+                    volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
 
         #
         # shm volume is shared between all container inside the desktop pod
         #
         if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ]:
-            volumes['shm'] = self.default_volumes['shm']
-            volumes_mount['shm'] = self.default_volumes_mount['shm']
+            if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
+                volumes['shm'] = self.default_volumes['shm']
+                volumes_mount['shm'] = self.default_volumes_mount['shm']
 
         #
         # mount localaccount secrets in desktop['secretslocalaccount'] eq: /etc/localaccount

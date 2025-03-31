@@ -554,6 +554,11 @@ class ODApps:
         self.logger.debug(locals())
         app = None
         assert isinstance(image_id, str),f"image has invalid type {type(image_id)}"
+
+        app = self.myglobal_list.get(image_id) 
+        if isinstance(app, dict):
+            return app
+
         # apps [DEBUG  ] 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' 
         # convert 'image_id': 'docker.io/abcdesktopio/2048-alpine.d:3.0' -> 'abcdesktopio/2048-alpine.d:3.0' 
         array_image_id = image_id.split('/')
@@ -561,7 +566,7 @@ class ODApps:
             image_id=f"{array_image_id[-2]}/{array_image_id[-1]}"
         self.logger.debug(f"filtered image_id={image_id}")
         # try to find by key
-        app = self.myglobal_list.get(image_id)
+        app = self.myglobal_list.get(image_id) 
         if isinstance(app, dict):
             return app
         
