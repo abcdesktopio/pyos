@@ -43,7 +43,29 @@ balloon_password  = 'lmdpocpetit'   # default password
 
 developer_instance = False          # developer specific params
 
-DEFAULT_SHM_SIZE = '64M' # default size of shared memeory 
+DEFAULT_VOLUMES = {
+    'shm': { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '512Mi' } },
+    'run': { 'name': 'run', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1M'    } },
+    'tmp': { 'name': 'tmp', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
+    'log': { 'name': 'log', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
+    'rundbus': { 'name': 'rundbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
+    'runuser': { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
+    'x11socket': { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } },
+    'pulseaudiosocket' :  { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } },
+    'cupsdsocket': { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
+}
+DEFAULT_VOLUMES_MOUNT = {
+    'shm': { 'name': 'shm', 'mountPath' : '/dev/shm' },
+    'run': { 'name': 'run',  'mountPath': '/var/run/desktop' },
+    'tmp': { 'name': 'tmp',  'mountPath': '/tmp' },
+    'log': { 'name': 'log',  'mountPath': '/var/log/desktop' },
+    'rundbus': { 'name': 'rundbus',  'mountPath': '/var/run/dbus' },
+    'runuser': { 'name': 'runuser',  'mountPath': '/run/user/' },
+    'x11socket': { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' },
+    'pulseaudiosocket':  { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' },
+    'cupsdsocket': { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
+}
+
 
 memconnectionstring = None  # memcache connection syting format 'server:port'
 services_http_request_denied = {} # deny http request 
