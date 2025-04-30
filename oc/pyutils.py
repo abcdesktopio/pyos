@@ -13,13 +13,12 @@
 
 import logging
 import importlib
-import pyclbr
+import inspect
 import pkgutil
 import functools
 import os
 import re
 import subprocess
-from string import Formatter
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +74,7 @@ def get_class(path, class_name=None):
     return getattr(importlib.import_module(path), class_name)
 
 
-def import_classes(package, module_name_filter=None, class_name_filter=None, base_class=None):
+def import_classes(package:str, module_name_filter:str=None, class_name_filter:str=None, base_class:type=None):
     classes = []
     path = importlib.import_module(package).__path__
     logger.debug( f"Loading module in directory {path}" )
@@ -86,16 +85,13 @@ def import_classes(package, module_name_filter=None, class_name_filter=None, bas
         module_name = '.'.join([package, name])
         logger.debug(f"Importing module '{module_name}'")
         module = importlib.import_module(module_name)       
-        for class_info in pyclbr.readmodule(module_name).values():
-   
-            if class_name_filter and not re.match(class_name_filter, class_info.name):
-                continue
 
-            class_ = getattr(module, class_info.name)
-            if base_class and not issubclass(class_, base_class): 
+        for class_name, class_info in inspect.getmembers(module, inspect.isclass):
+            if class_name_filter and not re.match(class_name_filter, class_info.__name__):
                 continue
-
-            classes.append(class_)                
+            if base_class and not issubclass(class_info, base_class): 
+                continue
+            classes.append(class_info)                
 
     return classes
 
