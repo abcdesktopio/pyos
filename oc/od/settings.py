@@ -511,7 +511,7 @@ def init_config_memcached():
     logger.debug( f"memcachedserver is read as {memcachedserver}" )
     memcachedipaddr = _resolv(memcachedserver)
     logger.debug( f"host {memcachedserver} resolved as {memcachedipaddr}")
-    memcachedport = gconfig.get('memcacheport', 11211)
+    memcachedport = gconfig.get('memcachedport', 11211)
     memconnectionstring = f"{memcachedserver}:{memcachedport}"
     logger.debug(f"memcachedserver is set to {memcachedserver}")
     logger.debug(f"memcached connection string is set to {memconnectionstring}")
