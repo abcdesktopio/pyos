@@ -2919,15 +2919,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         self.logger.debug('')
         executeclass = None
-        
+        selectedexecuteclassname = executeclassname
         # if executeclassname is set, read it
         if isinstance( executeclassname, str ):
             executeclass = oc.od.settings.executeclasses.get(executeclassname)
-
+        
         if not isinstance( executeclass, dict ):
             tagexecuteclassname = authinfo.get_labels().get('executeclassname','default')
             if isinstance( tagexecuteclassname, str ) and \
                isinstance( oc.od.settings.executeclasses.get(tagexecuteclassname), dict) :
+                    selectedexecuteclassname = tagexecuteclassname
                     executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname)
 
         if isinstance( executeclass, dict ):
@@ -2935,7 +2936,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 executeclass['nodeSelector'] = oc.od.settings.desktop.get('nodeselector')
 
         self.logger.debug(f"executeclass={executeclass}")
-        return executeclass
+        return (selectedexecuteclassname, executeclass)
+    
 
 
     def get_resources_for_container_type( self, currentcontainertype:str, executeclass:dict )->dict:
@@ -3149,7 +3151,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         dry_run = kwargs.get('dry_run')
 
         # get the execute class if user has a executeclassname tag
-        executeclasse = self.get_executeclasse( authinfo, userinfo )
+        (executeclassname, executeclasse) = self.get_executeclasse( authinfo, userinfo )
 
         # add a new VNC Password as kubernetes secret
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
@@ -3166,6 +3168,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
         env[ 'LOCALACCOUNT_PATH'] = oc.od.settings.desktop['secretslocalaccount']
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
+        env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
+        env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
         self.logger.debug('env created')
 
         # create labels for pod
@@ -4217,8 +4221,8 @@ class ODAppInstanceBase(object):
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
         # executeclassname can be None if executeclassname is not defined 
         # then assum this is the default executeclass
-        executeclass = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
-        self.logger.debug( f"executeclass={executeclass}")
+        (apply_executeclassname, executeclass) = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
+        self.logger.debug( f"requested executeclassname={executeclassname} apply executeclassname={apply_executeclassname} executeclass={executeclass}")
         resources = self.orchestrator.get_resources_for_container_type( self.type, executeclass )
         self.logger.debug( f"resources={resources}")
         return resources
@@ -5044,7 +5048,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         nodeSelector = {}
         executeclassname =  app.get('executeclassname')
         self.logger.debug( f"app name={app.get('name')} has executeclassname={executeclassname}")
-        executeclass = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
+        (executeclassname, executeclass) = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
         executeclass_nodeSelector = executeclass.get('nodeSelector',{}) or {}
         nodeSelector.update(executeclass_nodeSelector)
         self.logger.debug( f"nodeSelector for name={app.get('name')} is nodeSelector={nodeSelector}")
