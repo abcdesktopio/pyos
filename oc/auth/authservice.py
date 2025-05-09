@@ -1257,7 +1257,7 @@ class ODAuthTool(cherrypy.Tool):
 
 
     def metalogin(self, provider, manager=None, **arguments): 
-        """[metalogin] 
+        """ [metalogin]
             same as login but use meta directory to select user informations like DOMAIN\SAMAccountName 
             and Kerberos realm
         Args:
@@ -1280,8 +1280,6 @@ class ODAuthTool(cherrypy.Tool):
                 # run a login with the specified_provider 
                 return self.login( provider=specified_provider, manager=manager, **arguments)
         """
-
-
         # start metalogin check
         # managername and providername are hard coded
         # only one provider providername = 'metadirectory'
@@ -2022,7 +2020,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
 
     @staticmethod
     def safe_uid(uid:str,permit_dollar:bool=False)->str:
-        """safe_uid
+        """ safe_uid
             NAME_REGEX="^[a-z][-a-z0-9]*\$"
             The first letter needs to be a-z, but subsequent letters of the user names can be '-', a-z, or 0-9. 
             read the uid and remove unsupported chars
@@ -2032,6 +2030,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         Returns:
             str: safe uid 
         """
+        
         assert isinstance( uid, str), f"bad uid str is expected type {type(uid)}"
         
         lenuid = len(uid)
@@ -2061,7 +2060,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         return new_uid.lower()
 
     def getdefault_gid(self, userinfo , user):
-        """getdefault_gid
+        """ getdefault_gid
             return a default gid if user if not a posix account
 
         Args:
