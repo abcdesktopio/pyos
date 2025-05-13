@@ -21,7 +21,7 @@ import mergedeep
 import copy
 import requests
 import json
-import crypt
+from passlib.hash import pbkdf2_sha256
 import datetime
 import re
 from urllib.parse import urlparse
@@ -2120,7 +2120,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'loginShell': loginShell,
             'description': description,
             'homeDirectory': homeDirectory,
-            'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) )
+            'sha512': pbkdf2_sha256.hash( password )  # crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) )
         }
         return hashes
     
