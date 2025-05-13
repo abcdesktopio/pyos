@@ -1258,7 +1258,7 @@ class ODAuthTool(cherrypy.Tool):
 
     def metalogin(self, provider, manager=None, **arguments): 
         """ [metalogin]
-            same as login but use meta directory to select user informations like DOMAIN\SAMAccountName 
+            same as login but use meta directory to select user informations like DOMAIN \\ SAMAccountName 
             and Kerberos realm
         Args:
             provider_name ([str]): [provider name]
@@ -2021,8 +2021,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
     @staticmethod
     def safe_uid(uid:str,permit_dollar:bool=False)->str:
         """ safe_uid
-            NAME_REGEX="^[a-z][-a-z0-9]*\$"
-            The first letter needs to be a-z, but subsequent letters of the user names can be '-', a-z, or 0-9. 
+            The first letter needs to be a-z, 
+            but subsequent letters of the user names can be '-', a-z, or 0-9. 
             read the uid and remove unsupported chars
         Args:
             uid (str): uid value, can be a ldap cn
