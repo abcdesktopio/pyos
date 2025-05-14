@@ -54,4 +54,4 @@ jobs:
           build-args: |
             branch:${{ env.branch }}
           tags: |
-            ghcr.io/abcdesktopio/oc.pyos:${{ env.imagetag }}
+            ghcr.io/abcdesktopio/pyos:${{ env.imagetag }}
