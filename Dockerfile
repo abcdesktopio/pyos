@@ -53,4 +53,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 # copy ntlm_auth to oc/auth/ntlm/ntlm_auth
 RUN  cp /usr/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+# create log directory
+RUN mkdir -p /var/pyos/logs
 CMD [ "./od.py" ]
