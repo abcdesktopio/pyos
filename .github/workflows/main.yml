@@ -26,6 +26,9 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
+      - name: Perform Bandit Analysis
+        uses: PyCQA/bandit-action@v1
+        
       - name: create version
         run: | 
            ./mkversion.sh
