@@ -1347,9 +1347,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']}" )
         # mode is 644 -> rw-r--r--
         # Owing to JSON limitations, you must specify the mode in decimal notation.
-        # 644 in decimal equal to 420
+        # 420 in decimal equal to 644
+        # 288 in decimal equal to 440 -> r--r-----
         secretmountPath = oc.od.settings.desktop['secretslocalaccount']
-        volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
+        volumes[secret_auth_name] = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420 } }
         volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
         return (volumes, volumes_mount)
 
