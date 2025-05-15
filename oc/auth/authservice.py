@@ -21,7 +21,7 @@ import mergedeep
 import copy
 import requests
 import json
-from passlib.hash import pbkdf2_sha256
+import passlib.hash
 import datetime
 import re
 from urllib.parse import urlparse
@@ -2109,7 +2109,6 @@ class ODAuthProviderBase(ODRoleProviderBase):
             password = self.default_passwd_if_not_exist
         if not isinstance( homeDirectory, str ): 
             homeDirectory = oc.od.settings.getballoon_homedirectory(uid)
-        
         hashes = {  
             'uid'  : uid,
             'gid'  : gid,
@@ -2120,7 +2119,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'loginShell': loginShell,
             'description': description,
             'homeDirectory': homeDirectory,
-            'sha512': pbkdf2_sha256.hash( password )  # crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) )
+            'sha512': passlib.hash.sha512_crypt.using(rounds=5000).hash(password)
         }
         return hashes
     
