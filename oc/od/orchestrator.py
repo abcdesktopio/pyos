@@ -149,10 +149,6 @@ class ODOrchestratorBase(object):
         # webshell name is w-UUID
         self.webshellcontainernameprefix    = 'w'   # webshell container letter prefix w
         # name separtor only for human read 
-        self.rdpcontainernameprefix         = 'r'   # rdp container letter prefix r for xrdp
-        # 
-        self.x11overlaycontainernameprefix  = 'v'   # x11 overlay container letter prefix v for overlay
-        # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
 
         self.nameprefixdict = { 'graphical' : self.graphicalcontainernameprefix,
@@ -163,9 +159,7 @@ class ODOrchestratorBase(object):
                                 'filer'     : self.filercontainernameprefix,
                                 'init'      : self.initcontainernameprefix,
                                 'storage'   : self.storagecontainernameprefix,
-                                'ssh'       : self.sshcontainernameprefix,
-                                'rdp'       : self.rdpcontainernameprefix,
-                                'x11overlay' : self.x11overlaycontainernameprefix
+                                'ssh'       : self.sshcontainernameprefix
         }
         self.name                   = 'base'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
@@ -1341,21 +1335,44 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug( f"{userinfo.userid} abcdesktop secret has expired, found {len(localaccountsecretitems)} expecting 1" )
             raise Exception( f"Your secret has been deleted, found {len(localaccountsecretitems)}, please reload" )
 
-        secret_auth_name = list(mysecretdict.items())[0][0]
+        secret_auth_name = list(mysecretdict.keys())[0]
         assert isinstance(secret_auth_name,str), f"secret_auth_name is not a str {secret_auth_name}"
-
         self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']}" )
+
         # mode is 644 -> rw-r--r--
         # Owing to JSON limitations, you must specify the mode in decimal notation.
         # 420 in decimal equal to 644
         # 288 in decimal equal to 440 -> r--r-----
         secretmountPath = oc.od.settings.desktop['secretslocalaccount']
-        volumes[secret_auth_name] = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420 } }
-        volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+        volumes[secret_auth_name] = { 
+            'name': secret_auth_name, 
+            'secret': { 
+                'secretName': secret_auth_name, 
+                'items': [
+                    { 'key': 'passwd', 'path': 'passwd' },
+                    { 'key': 'group',  'path': 'group'  }
+                ], 
+                'defaultMode': 420 
+            } 
+        }
+        volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath': secretmountPath }
+
+        # same for shadow
+        shadowsecret_auth_name = secret_auth_name + 'shadow'
+        shadowsecretmountPath = oc.od.settings.desktop['secretslocalaccount'] + '.shadow'
+        volumes[shadowsecret_auth_name] = { 
+            'name': shadowsecret_auth_name, 
+            'secret': { 
+                'secretName': secret_auth_name, 
+                'items': [
+                    { 'key': 'shadow',  'path': 'shadow' },
+                    { 'key': 'gshadow', 'path': 'gshadow' }
+                ], 
+                'defaultMode': 288 
+            } 
+        }
+        volumes_mount[shadowsecret_auth_name] = { 'name': shadowsecret_auth_name, 'mountPath':  shadowsecretmountPath }
         return (volumes, volumes_mount)
-
-        
-
         '''
         This section code does the same but with one volume per file in [ 'passwd', 'group', 'shadow', 'gshadow' ]
         It build for example with a sample pod 
@@ -1385,7 +1402,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     - key: passwd
                       path: passwd
 
-        This section code doesn't work when we try to start an ephemeralContainer because ephemeralContainers don't support subpath
+        This section code doesn't work when we try to start an ephemeralContainer 
+        because ephemeralContainers don't support subpath
         source https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1EphemeralContainer.md
         The error code when you try to start an ephemeralContainer is 
         error "message":"Pod is invalid: spec.ephemeralContainers[0].volumeMounts[11].subPath
@@ -1405,11 +1423,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'name': volumename, 
                 'mountPath':  mountPath, 
                 'subPath': filesecret
-            }        
+            }     
 
-
-        return (volumes, volumes_mount)
-
+        We use a workaround by creating a symbolic links
+        - /etc/passwd -> /etc/localaccount/passwd    
+        - /etc/group -> /etc/localaccount/group
+        - /etc/shadow -> /etc/localaccount.shadow/shadow
+        - /etc/gshadow -> /etc/localaccount.shadow/gshadow
         '''
 
     def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
@@ -1816,6 +1836,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'shadow' : AuthUser.mkshadow(localaccount), 
             'group'  : AuthUser.mkgroup(localaccount),
             'gshadow': AuthUser.mkgshadow(localaccount), 
+            'passwd_newline' : AuthUser.mkpasswd_newline(localaccount), 
+            'shadow_newline' : AuthUser.mkshadow_newline(localaccount), 
+            'group_newline'  : AuthUser.mkgroup_newline(localaccount),
+            'gshadow_newline': AuthUser.mkgshadow_newline(localaccount), 
         }
         return mydict_config
             
@@ -2386,7 +2410,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Args:
             authinfo (_type_): _description_
             currentcontainertype (str): type of container must be defined in list
-            [ 'init', 'graphical', 'ssh', 'rdpgw', 'sound', 'printer', 'filter', 'storage' ]
+            [ 'init', 'graphical', 'ssh', 'sound', 'printer', 'filter', 'storage' ]
 
         Returns:
             bool: True if enable, else False
@@ -3393,6 +3417,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
         localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
+        # localaccount_volume_name = self.get_volumename( 'localaccount', userinfo )
+
         assert isinstance(localaccount_volume_name, str),  f"localaccount secret volume is not found"
         
         containers = {
@@ -3404,10 +3430,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                   # sound uses tmp, home, log volumes
             'ssh':      { 'list_volumeMounts':  list_volumeMounts },        # ssh uses default user volumes
             'filer':    { 'list_volumeMounts':  list_volumeMounts },        # filter uses default user volumes
-            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts }, # storage uses default user volumes
-            'rdp':      { 'list_volumeMounts':  [ pod_allvolumeMounts.get('x11socket') ]  } , # rdp uses default user volumes
-            'x11overlay':  { 'list_volumeMounts': [ pod_allvolumeMounts.get(localaccount_volume_name), 
-                                                    pod_allvolumeMounts.get('x11socket') ] } # x11overlay uses default user volumes
+            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts } # storage uses default user volumes
         }
 
         for currentcontainertype in containers.keys():

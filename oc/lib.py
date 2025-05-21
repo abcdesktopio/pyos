@@ -17,6 +17,7 @@ import string           # for randomStringwithDigitsAndSymbols
 import unicodedata      # for remove accent
 import uuid             # for uuid_digits 
 import json             # for try_to_read_json_entry
+import base64           # for base64
 
 # lib shared tools
 
@@ -33,11 +34,6 @@ def randomStringwithDigitsAndSymbols(stringLength=10):
     # alphabet = string.ascii_letters + string.digits + string.punctuation
     alphabet = string.ascii_letters + string.digits 
     return ''.join(secrets.choice(alphabet) for i in range(stringLength))
-
-
-def randomStringwithHexa(stringLength=10):
-    # password_characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(secrets.choice(string.hexdigits) for i in range(stringLength))
 
 def remove_accents(input_str):
     """[remove_accents]
@@ -74,7 +70,7 @@ def uuid_digits( ndigits:int=5)->str:
     local_uuid = digits[-ndigits:]
     return local_uuid
 
-def load_local_file( filename ):
+def load_local_file( filename:str ):
     """[load_local_file]
         load file utf-8 text data 
     Args:
@@ -110,6 +106,49 @@ def bytesTostr( b ):
     return b
 '''
 
+def create_svg_base64_content( name:str, width:int=64, height:int=64 )->str:
+    """create_svg_content
+        create a simple svg file with the name of the application
+    Args:
+        name (str): string to write in the svg file
+        width (int, optional): width of the svg file. Defaults to 64.
+        height (int, optional): height of the svg file. Defaults to 64. 
+    Returns:
+        str: svg file content
+    """
+    # create a simple svg file with thename of the application
+    x = 0
+    y = height/2
+    text_svg = f'\
+        <svg version="1.1" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">\
+            <rect width="100%" height="100%" fill="white"/>\
+            <text x="{x}" y="{y}" fill="black">{name}</text>\
+        </svg>'
+    # encode the svg file in base64
+    b64_text_svg = base64.b64encode(text_svg.encode('utf-8'))
+    # return the base64 encoded svg file use strip to remove the last '\n' character
+    return b64_text_svg.decode().strip()
+
+def safe_loadicon_base64_filename( iconfilename:str, name:str="default", width:int=32, height:int=32 ):
+    """loadiconfilename
+        load icon file name from config
+    Args:
+        iconfilename (str): icon file name
+    """
+    b64iconcontent = None
+    if not isinstance(iconfilename, str):
+        b64iconcontent = create_svg_base64_content( name=name, width=width, height=height )
+    else:
+        try:
+            f = open(iconfilename, 'rb')
+            # read the file content
+            b64iconcontent = base64.b64encode(f.read()).decode('utf-8')
+            f.close()
+        except Exception as e:
+            # print( f"Error loading icon file {iconfilename} : {e}" )
+            # create a simple svg file with the name of the application
+            b64iconcontent = create_svg_base64_content( name=name, width=width, height=height )    
+    return b64iconcontent
 
 def try_to_read_json_entry( key:str, myjson:str ):
     """try_to_read_json_entry
@@ -130,8 +169,6 @@ def try_to_read_json_entry( key:str, myjson:str ):
     except Exception as e:
         pass
     return str_return
-
-
 
 def fortunewheel( mylist:list )->list:
     """fortunewheel
