@@ -217,9 +217,6 @@ class ODOrchestratorBase(object):
     def getsecretuserinfo(self, authinfo, userinfo):
         raise NotImplementedError(f"{type(self)}.getsecretuserinfo")
 
-    def garbagecollector( self, timeout ):
-        raise NotImplementedError(f"{type(self)}.garbagecollector")
-
     def execwaitincontainer( self, desktop, command, timeout):
         raise NotImplementedError(f"{type(self)}.execwaitincontainer")
 
@@ -255,7 +252,7 @@ class ODOrchestratorBase(object):
              raise ValueError(f"invalid userinfo value {type(self)}")
 
         name = prefix + '-' + userinfo.get('userid')
-        normalize_name = oc.auth.namedlib.normalize_name( name )
+        normalize_name = oc.auth.namedlib.normalize_name_volunename(name)
         return normalize_name
 
     def user_connect_count(self, desktop:ODDesktop, timeout=10):
@@ -696,9 +693,6 @@ class ODOrchestrator(ODOrchestratorBase):
     def isgarbagable( self, container, expirein, force=False ):
         raise NotImplementedError(f"{type(self)}.isgarbagable")
 
-    def garbagecollector( self, expirein, force=False ):
-        raise NotImplementedError(f"{type(self)}.garbagecollector")
-
 @oc.logging.with_logger()
 class ODOrchestratorKubernetes(ODOrchestrator):
 
@@ -948,18 +942,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
                         self.logger.debug( f"adding secret type {mysecretdict[secret_name]['type']} to volume pod" )
                         secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_name]['type'] 
+
+                        normalizevolume_name = oc.auth.namedlib.normalize_name_volunename( secret_name )
                         # mode is 644 -> rw-r--r--
                         # Owing to JSON limitations, you must specify the mode in decimal notation.
                         # 644 in decimal equal to 420
-                        volumes[secret_name] = {
-                            'name':secret_name,
+                        volumes[normalizevolume_name] = {
+                            'name':normalizevolume_name,
                             'secret': {
                                 'secretName': secret_name,
                                 'defaultMode': 420
                             }
                         }
-                        volumes_mount[secret_name] = {
-                            'name':secret_name,
+                        volumes_mount[normalizevolume_name] = {
+                            'name':normalizevolume_name,
                             'mountPath':secretmountPath
                         }
 
@@ -1281,14 +1277,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # mode is 644 -> rw-r--r--
         # Owing to JSON limitations, you must specify the mode in decimal notation.
         # 644 in decimal equal to 420
-        volumes[secret_auth_name] = {
-            'name': secret_auth_name,
+        secret_auth_normalizevolume_name = oc.auth.namedlib.normalize_name_volunename( secret_auth_name )
+        volumes[secret_auth_normalizevolume_name] = {
+            'name': secret_auth_normalizevolume_name,
             'secret': { 
                 'secretName': secret_auth_name, 
                 'defaultMode':420 }
         }
-        volumes_mount[secret_auth_name] = {
-            'name':secret_auth_name, 
+        volumes_mount[secret_auth_normalizevolume_name] = {
+            'name':secret_auth_normalizevolume_name, 
             'mountPath': secretmountPath
         } 
         return (volumes, volumes_mount)
@@ -1344,8 +1341,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # 420 in decimal equal to 644
         # 288 in decimal equal to 440 -> r--r-----
         secretmountPath = oc.od.settings.desktop['secretslocalaccount']
-        volumes[secret_auth_name] = { 
-            'name': secret_auth_name, 
+        secret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( secret_auth_name )
+        volumes[secret_auth_localaccount_volume_name] = { 
+            'name': secret_auth_localaccount_volume_name, 
             'secret': { 
                 'secretName': secret_auth_name, 
                 'items': [
@@ -1355,13 +1353,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'defaultMode': 420 
             } 
         }
-        volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath': secretmountPath }
+        volumes_mount[secret_auth_localaccount_volume_name] = { 
+            'name': secret_auth_localaccount_volume_name, 
+            'mountPath': secretmountPath 
+        }
 
         # same for shadow
         shadowsecret_auth_name = secret_auth_name + 'shadow'
+        shadowsecret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( shadowsecret_auth_name )
         shadowsecretmountPath = oc.od.settings.desktop['secretslocalaccount'] + '.shadow'
-        volumes[shadowsecret_auth_name] = { 
-            'name': shadowsecret_auth_name, 
+        volumes[shadowsecret_auth_localaccount_volume_name] = { 
+            'name': shadowsecret_auth_localaccount_volume_name, 
             'secret': { 
                 'secretName': secret_auth_name, 
                 'items': [
@@ -1371,8 +1373,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'defaultMode': 288 
             } 
         }
-        volumes_mount[shadowsecret_auth_name] = { 'name': shadowsecret_auth_name, 'mountPath':  shadowsecretmountPath }
+        volumes_mount[shadowsecret_auth_localaccount_volume_name] = { 
+            'name': shadowsecret_auth_localaccount_volume_name, 
+            'mountPath': shadowsecretmountPath 
+        }
         return (volumes, volumes_mount)
+    
         '''
         This section code does the same but with one volume per file in [ 'passwd', 'group', 'shadow', 'gshadow' ]
         It build for example with a sample pod 
