@@ -21,7 +21,29 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODDesktop(object):
 
-    def __init__(self, nodehostname=None, hostname=None, name=None, desktop_id=None, ipAddr=None, status=None, container_id=None, container_name=None, vncPassword=None, fqdn=None, desktop_interfaces=None, websocketroute=None, websocketrouting=None, xauthkey=None, pulseaudio_cookie=None, broadcast_cookie=None, storage_container_id=None, labels=None, websockettcpport=None, uid=None, creation_timestamp=None  ):
+    def __init__(   self, 
+                    nodehostname=None, 
+                    hostname=None, 
+                    name=None, 
+                    desktop_id=None, 
+                    ipAddr=None, 
+                    status=None, 
+                    container_id=None, 
+                    container_name=None, 
+                    vncPassword=None, 
+                    fqdn=None, 
+                    desktop_interfaces=None, 
+                    websocketroute=None, 
+                    websocketrouting=None, 
+                    xauthkey=None, 
+                    pulseaudio_cookie=None, 
+                    broadcast_cookie=None, 
+                    storage_container_id=None, 
+                    labels=None, 
+                    websockettcpport=None, 
+                    uid=None, 
+                    creation_timestamp=None, 
+                    lastlogin_datetime=None ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
@@ -50,6 +72,7 @@ class ODDesktop(object):
         self._labels                = labels
         self._uid                   = uid
         self._creation_timestamp    = creation_timestamp
+        self._lastlogin_datetime    = lastlogin_datetime
 
     # id is the container id in docker mode
     # id is the pod id in kubernetes node
@@ -180,6 +203,10 @@ class ODDesktop(object):
     def websocketrouting(self, val):
         self._websocketrouting = val
 
+    @property
+    def lastlogin_datetime(self):
+        return self._lastlogin_datetime
+    
     def isRunning(self):
         return str(self._status).lower() == 'running'
 
@@ -210,6 +237,7 @@ class ODDesktop(object):
             'status':   self._status,
             'container_id' : self._container_id,
             'creation_timestamp': self._creation_timestamp,
+            'lastlogin_datetime': self._lastlogin_datetime,
             'nodehostname' : self._nodehostname,
             'vncPassword' : self._vncPassword,
             'hostname' : self._hostname,

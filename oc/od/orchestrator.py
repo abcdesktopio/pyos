@@ -3262,7 +3262,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('rules created')
 
         # new step
-        self.on_desktoplaunchprogress('b.Building data storage for your desktop')
+        # self.on_desktoplaunchprogress('b.Building data storage for your desktop')
+        self.on_desktoplaunchprogress('b.Searching for disks')
 
         # get secrets_requirement for 'graphical'
         currentcontainertype = 'graphical'
@@ -3885,8 +3886,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance(storage_container, V1ContainerStatus):
            storage_container_id = storage_container.container_id
 
-        
+        # read the creation timestamp from pod metadata        
         isoformat_creation_timestamp = self.read_pod_creation_timestamp( pod )
+        # read lastlogin datetime from pod annotations and convert to isoformat
+        isoformat_lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
+        if isinstance( isoformat_lastlogin_datetime, datetime.datetime ):
+            # convert to isoformat
+            isoformat_lastlogin_datetime = isoformat_lastlogin_datetime.isoformat()
+        else:
+            isoformat_lastlogin_datetime = None
+
+        # read the xauthkey from pod labels
         
         # Build the ODDesktop Object 
         myDesktop = oc.od.desktop.ODDesktop(
@@ -3909,7 +3919,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             storage_container_id = storage_container_id,
             labels = pod.metadata.labels,
             uid = pod.metadata.uid,
-            creation_timestamp = isoformat_creation_timestamp
+            creation_timestamp = isoformat_creation_timestamp,
+            lastlogin_datetime = isoformat_lastlogin_datetime
         )
         return myDesktop
 
