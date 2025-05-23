@@ -1438,7 +1438,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Args:
             authinfo ([type]): [description]
             userinfo (AuthUser): user data
-            volume_type ([str]): 'container_desktop' 'pod_desktop', 'pod_application', 'ephemeral_container'
+            volume_type ([str]): 'pod_desktop', 'pod_application', 'ephemeral_container'
             rules (dict, optional): [description]. Defaults to {}.
 
         Returns:
@@ -1468,7 +1468,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # add socket service 
             # add tmp run log to support readonly filesystem
             # add dbus 'rundbus', 'runuser' 
-            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]:
+            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket' ]:
+                if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
+                    volumes[vol_name] = self.default_volumes[vol_name]
+                    volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+
+        if volume_type in [ 'pod_desktop', 'pod_application',  'ephemeral_container' ] :
+            for vol_name in [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]:
                 if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
                     volumes[vol_name] = self.default_volumes[vol_name]
                     volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
@@ -1476,7 +1482,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # shm volume is shared between all container inside the desktop pod
         #
-        if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ]:
+        if volume_type in [ 'pod_desktop', 'ephemeral_container' ]:
             if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
                 volumes['shm'] = self.default_volumes['shm']
                 volumes_mount['shm'] = self.default_volumes_mount['shm']
