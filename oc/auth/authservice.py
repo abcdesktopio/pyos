@@ -21,12 +21,13 @@ import mergedeep
 import copy
 import requests
 import json
-import crypt
+import passlib.hash
 import datetime
 import re
 from urllib.parse import urlparse
 from ldap import filter as ldap_filter
 import ldap3
+import base64
 
 #
 # from ldap3.utils.log import set_library_log_detail_level, get_detail_level_name, set_library_log_hide_sensitive_data, EXTENDED
@@ -207,12 +208,21 @@ class AuthUser(dict):
         return defaultposixAccount
 
     @staticmethod
-    def mkpasswd( moustachedata ):  
+    def mkpasswd( moustachedata:dict )->str:
+        assert( isinstance(moustachedata, dict))
         passwd = chevron.render( oc.od.settings.DEFAULT_PASSWD_FILE, moustachedata )
+        return passwd
+    
+    @staticmethod
+    def mkpasswd_newline( moustachedata:dict )->str:
+        assert( isinstance(moustachedata, dict))
+        newchevronline = "{{ uid }}:x:{{ uidNumber }}:{{ gidNumber }}:{{ gecos }}:{{ homeDirectory }}:{{ loginShell }}"
+        passwd = chevron.render( newchevronline, moustachedata )
         return passwd
 
     @staticmethod
     def mksupplementalGroups(moustachedata:dict)->list:
+        assert( isinstance(moustachedata, dict))
         supplementalGroups = None
         groups = moustachedata.get('groups')
         if isinstance( groups, list ):
@@ -221,10 +231,19 @@ class AuthUser(dict):
                 supplementalGroups.append(group['gidNumber'])
         return supplementalGroups
 
-    
     @staticmethod
-    def mkgroup ( moustachedata ):  
+    def mkgroup ( moustachedata:dict )->str:  
+        assert( isinstance(moustachedata, dict))
         etcgroup = chevron.render( oc.od.settings.DEFAULT_GROUP_FILE,  moustachedata )
+        new_etc_group_lines = AuthUser.mkgroup_newline( moustachedata )
+        if len(new_etc_group_lines)>0:
+            etcgroup += f"\n{new_etc_group_lines}"
+        return etcgroup
+
+    @staticmethod
+    def mkgroup_newline ( moustachedata:dict )->str: 
+        assert( isinstance(moustachedata, dict))
+        new_etc_group_lines = ''
         groups = moustachedata.get('groups')
         logger.debug( f"add user groups {groups}" )
         if isinstance( groups, list ):
@@ -243,13 +262,29 @@ class AuthUser(dict):
                     for uid in uids[n::]:
                         newline += ',' + uid
                 logger.debug( f"new line for /etc/group:\n{newline}\n" )
-                etcgroup += '\n' + newline
-            etcgroup += '\n'
-        return etcgroup
+                new_etc_group_lines += newline + '\n'
+        return new_etc_group_lines
                     
     @staticmethod
-    def mkgshadow ( moustachedata ):  
+    def mkgshadow( moustachedata:dict )->str:
+        """mkgshadow
+            generate the gshadow file from the moustachedata
+            and the template file DEFAULT_GSHADOW_FILE  
+        
+        Args: moustachedata (dict): moustachedata
+        Returns: gshadow (str): gshadow file content
+        """
+        assert( isinstance(moustachedata, dict))
         gshadow = chevron.render( oc.od.settings.DEFAULT_GSHADOW_FILE,  moustachedata )
+        mkshadow_newline = AuthUser.mkgshadow_newline( moustachedata )
+        if len(mkshadow_newline)>0:
+            gshadow += f"\n{mkshadow_newline}"
+        return gshadow
+
+    @staticmethod 
+    def mkgshadow_newline( moustachedata:dict )->str:
+        assert( isinstance(moustachedata, dict))
+        new_etc_shadow_lines = ''
         groups = moustachedata.get('groups')
         if isinstance( groups, list ):
             for group in groups:
@@ -263,13 +298,18 @@ class AuthUser(dict):
                         newline += uids[0]
                         for uid in uids[1::]:
                             newline += ',' + uid
-                gshadow += '\n' + newline
-            gshadow += '\n'
-        return gshadow
+                new_etc_shadow_lines += newline + '\n'
+        return new_etc_shadow_lines
+    
+    @staticmethod
+    def mkshadow( moustachedata:dict )->str:  
+        return chevron.render( oc.od.settings.DEFAULT_SHADOW_FILE, moustachedata )
 
     @staticmethod
-    def mkshadow( moustachedata ):  
-        return chevron.render( oc.od.settings.DEFAULT_SHADOW_FILE, moustachedata )
+    def mkshadow_newline( moustachedata:dict )->str:  
+        shadow_newline = "{{ uid }}:{{ sha512 }}:19080:0:99999:7:::"
+        return chevron.render(shadow_newline, moustachedata)
+
 
     @staticmethod
     def to_static_dict( local_dict ):
@@ -1257,8 +1297,8 @@ class ODAuthTool(cherrypy.Tool):
 
 
     def metalogin(self, provider, manager=None, **arguments): 
-        """[metalogin] 
-            same as login but use meta directory to select user informations like DOMAIN\SAMAccountName 
+        """ [metalogin]
+            same as login but use meta directory to select user informations like DOMAIN \\ SAMAccountName 
             and Kerberos realm
         Args:
             provider_name ([str]): [provider name]
@@ -1280,8 +1320,6 @@ class ODAuthTool(cherrypy.Tool):
                 # run a login with the specified_provider 
                 return self.login( provider=specified_provider, manager=manager, **arguments)
         """
-
-
         # start metalogin check
         # managername and providername are hard coded
         # only one provider providername = 'metadirectory'
@@ -1935,6 +1973,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.manager = manager
         self.type = config.get('type', self.name)
         self.displayname = config.get('displayname',  self.name) 
+        self.icon = config.get('icon')
         self.caption = config.get('caption', self.displayname )
         policies = config.get('policies', {} )
         self.acls  = policies.get('acl', { 'permit': [ 'all' ] } ) 
@@ -1957,6 +1996,10 @@ class ODAuthProviderBase(ODRoleProviderBase):
         # for expliicc this should be memberOf
         # for external provider 
         self.memberof_attribut_name = config.get('memberof_attribut_name', '' )
+        self.icondata = oc.lib.safe_loadicon_base64_filename( self.icon )
+
+
+
 
     def getdisplaydescription( self ):
         return self.displayname
@@ -1986,7 +2029,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
         """
         clientdata = {  'name': self.name, 
                         'caption': self.caption, 
-                        'displayname': self.displayname
+                        'displayname': self.displayname,
+                        'icon': self.icon,
+                        'icondata': self.icondata
         }
         return clientdata
 
@@ -2022,9 +2067,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
 
     @staticmethod
     def safe_uid(uid:str,permit_dollar:bool=False)->str:
-        """safe_uid
-            NAME_REGEX="^[a-z][-a-z0-9]*\$"
-            The first letter needs to be a-z, but subsequent letters of the user names can be '-', a-z, or 0-9. 
+        """ safe_uid
+            The first letter needs to be a-z, 
+            but subsequent letters of the user names can be '-', a-z, or 0-9. 
             read the uid and remove unsupported chars
         Args:
             uid (str): uid value, can be a ldap cn
@@ -2032,6 +2077,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         Returns:
             str: safe uid 
         """
+        
         assert isinstance( uid, str), f"bad uid str is expected type {type(uid)}"
         
         lenuid = len(uid)
@@ -2061,7 +2107,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         return new_uid.lower()
 
     def getdefault_gid(self, userinfo , user):
-        """getdefault_gid
+        """ getdefault_gid
             return a default gid if user if not a posix account
 
         Args:
@@ -2110,7 +2156,6 @@ class ODAuthProviderBase(ODRoleProviderBase):
             password = self.default_passwd_if_not_exist
         if not isinstance( homeDirectory, str ): 
             homeDirectory = oc.od.settings.getballoon_homedirectory(uid)
-        
         hashes = {  
             'uid'  : uid,
             'gid'  : gid,
@@ -2121,7 +2166,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
             'loginShell': loginShell,
             'description': description,
             'homeDirectory': homeDirectory,
-            'sha512': crypt.crypt( password, crypt.mksalt(crypt.METHOD_SHA512) )
+            'sha512': passlib.hash.sha512_crypt.using(rounds=5000).hash(password)
         }
         return hashes
     

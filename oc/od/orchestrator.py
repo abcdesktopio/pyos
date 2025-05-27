@@ -149,10 +149,6 @@ class ODOrchestratorBase(object):
         # webshell name is w-UUID
         self.webshellcontainernameprefix    = 'w'   # webshell container letter prefix w
         # name separtor only for human read 
-        self.rdpcontainernameprefix         = 'r'   # rdp container letter prefix r for xrdp
-        # 
-        self.x11overlaycontainernameprefix  = 'v'   # x11 overlay container letter prefix v for overlay
-        # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
 
         self.nameprefixdict = { 'graphical' : self.graphicalcontainernameprefix,
@@ -163,9 +159,7 @@ class ODOrchestratorBase(object):
                                 'filer'     : self.filercontainernameprefix,
                                 'init'      : self.initcontainernameprefix,
                                 'storage'   : self.storagecontainernameprefix,
-                                'ssh'       : self.sshcontainernameprefix,
-                                'rdp'       : self.rdpcontainernameprefix,
-                                'x11overlay' : self.x11overlaycontainernameprefix
+                                'ssh'       : self.sshcontainernameprefix
         }
         self.name                   = 'base'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
@@ -223,9 +217,6 @@ class ODOrchestratorBase(object):
     def getsecretuserinfo(self, authinfo, userinfo):
         raise NotImplementedError(f"{type(self)}.getsecretuserinfo")
 
-    def garbagecollector( self, timeout ):
-        raise NotImplementedError(f"{type(self)}.garbagecollector")
-
     def execwaitincontainer( self, desktop, command, timeout):
         raise NotImplementedError(f"{type(self)}.execwaitincontainer")
 
@@ -261,7 +252,7 @@ class ODOrchestratorBase(object):
              raise ValueError(f"invalid userinfo value {type(self)}")
 
         name = prefix + '-' + userinfo.get('userid')
-        normalize_name = oc.auth.namedlib.normalize_name( name )
+        normalize_name = oc.auth.namedlib.normalize_name_volunename(name)
         return normalize_name
 
     def user_connect_count(self, desktop:ODDesktop, timeout=10):
@@ -316,37 +307,93 @@ class ODOrchestratorBase(object):
         """
         return {}
 
-    def waitForDesktopProcessReady(self, desktop, callback_notify):
+    def waitForDesktopProcessReady(self, desktop:ODDesktop, callback_notify):
         self.logger.debug('')
 
         nCountMax = 42
         # check if supervisor has stated all processs
+        # processes = [ 'startplasma-x11', 'plasma_session', 'kded5', 'ksmserver', 'kglobalaccel5', 'xembedsniproxy', 'kaccess', 'plasmashell', 'gmenudbusmenuproxy' ]
         nCount = 1
-        bListen = { 'graphical': False, 'spawner': False }
-        # loop
-        # wait for a listen dict { 'x11server': True, 'spawner': True }
+        servicesListening = oc.od.settings.desktop_pod['graphical'].get('waitfor_listeningservices', [ 'graphical', 'spawner' ] )
+        services = oc.od.settings.desktop_pod['graphical'].get('waitfor_services', [ 'xserver', 'novnc', 'spawner-service', 'plasmashell' ] )
+        processes = oc.od.settings.desktop_pod['graphical'].get('waitfor_processes', [ 'plasmashell', 'xfwm4', 'kded5', 'kglobalaccel5' ] )
+        bServiceStatus = {} 
+        bProcessStatus = {}
+        bServicesListening = {}
 
+        for service in services: bServiceStatus[service] = False
+        for service in servicesListening: bServicesListening[service] = False
+        for process in processes: bProcessStatus[process] = False
+
+        start_now = datetime.datetime.now()
+
+        #
+        # wait for service status ready
+        nServiceCount = 1
         while nCount < nCountMax:
+            for service in services: 
+                if not bServiceStatus[service] :
+                    callback_notify( f"c.Waiting desktop service {service} " )
+                    bServiceStatus[service] = self.waitForServiceReady( desktop, service_name=service )
+                    if bServiceStatus[service] is True:
+                        nServiceCount += 1
+                    # else:
+                    #    sleepfor = 1/len(services)
+                    #    time.sleep( sleepfor )
+                    # callback_notify( f"c.Waiting for desktop service {service} {nServiceCount}/{len(services)}" )
+            nCount += 1
+            if all( bServiceStatus.values() ):
+                self.logger.debug( f"desktop services {services} are ready" )  
+                callback_notify( f"c.Desktop services {services} are started" )                
+                break
+        
+        #
+        # wait for service status ready
+        nProcessCount = 1
+        nCount = 0
+        while nCount < nCountMax:
+            for process in processes: 
+                if not bProcessStatus[process] :
+                    callback_notify( f"c.Waiting desktop process {process} " )
+                    bProcessStatus[process] = self.waitForProcessReady( desktop, process_name=process )
+                    if bProcessStatus[process] is True:
+                        nProcessCount += 1
+                    #else:
+                    #    sleepfor = 1/nProcessCount
+                    #    time.sleep( sleepfor )
+                    # callback_notify( f"c.Waiting for desktop service {service} {nServiceCount}/{len(services)}" )
+            nCount += 1
+            if all( bProcessStatus.values() ):
+                self.logger.debug( f"desktop processes are ready" )  
+                callback_notify( f"c.Desktop processes are started" )                
+                break
+   
 
+        #
+        # wait for service listening
+        nCount = 1
+        while nCount < nCountMax:
             for service in ['graphical', 'spawner']: 
-                self.logger.debug( f"desktop services status bListen {bListen}" ) 
+                messageinfo = f"c.Waiting for a response from desktop {service}"
+                callback_notify(messageinfo)
                 # check if WebSockifyListening id listening on tcp port 6081
-                if bListen[service] is False:
-                    messageinfo = f"c.Waiting for desktop {service} service {nCount}/{nCountMax}"
-                    callback_notify(messageinfo)
-                    bListen[service] = self.waitForServiceListening( desktop, service=service)
-                    if bListen[service] is False:
-                        messageinfo = f"c.Desktop {service} service is not ready."
-                        time.sleep(1)
+                if bServicesListening[service] is False:
+                    bServicesListening[service] = self.waitForServiceListening( desktop, service=service, timeout=0)
+                    if bServicesListening[service] is False:
+                        messageinfo = f"c.Desktop {service} service is not listening."
+                        time.sleep(nCount/nCountMax)
             nCount += 1
             
-            if bListen['graphical'] is True and bListen['spawner'] is True:     
-                self.logger.debug( "desktop services are ready" )                  
-                callback_notify( f"c.Desktop services are running after {nCount} s" )              
+            if  all( bServicesListening.values() ):
+                self.logger.debug( "desktop services are ready" )        
+                end_now = datetime.datetime.now()   
+                diff_time = end_now - start_now
+                diff_time_seconds = diff_time.total_seconds()                
+                callback_notify( f"c.Desktop services are running after {diff_time_seconds}" )  
                 return True
         
         # Can not chack process status     
-        self.logger.warning( f"waitForDesktopProcessReady not ready services status:{bListen}" )
+        self.logger.warning( f"waitForDesktopProcessReady not ready services status:{bServicesListening}" )
         return False
 
 
@@ -392,6 +439,64 @@ class ODOrchestratorBase(object):
             return result.get('ExitCode') == 0
         else:
             return False
+
+    def waitForServiceReady(self, desktop:ODDesktop, service_name:str)-> bool:
+        """waitForServicePlasmaShell
+
+        Args:
+            desktop (ODDesktop): desktop object to waitForServiceListening
+        
+        Raises:
+            ValueError: invalid desktop object type, desktop is not a ODDesktop
+            ODAPIError: error in configuration file 'waitportbin' must be a string
+            ODAPIError: error in configuration file 'tcpport' must be a int
+
+        Returns:
+            bool: True the the service is up
+        """
+
+        self.logger.debug('')       
+        assert_type( desktop, ODDesktop)
+
+        # Note the same timeout value is used twice
+        # for the wait_port command and for the exec command  
+        command = [ "/usr/bin/supervisorctl", "status", service_name ] 
+        result = self.execwaitincontainer( desktop, command )
+        if isinstance(result, dict):
+            # self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
+            isserviceready = result.get('ExitCode') == 0
+            # self.logger.debug( f"isservice {service_name} ready={isserviceready}")
+            return isserviceready
+        return False
+
+    def waitForProcessReady(self, desktop:ODDesktop, process_name:str)-> bool:
+        """waitForServicePlasmaShell
+
+        Args:
+            desktop (ODDesktop): desktop object to waitForServiceListening
+        
+        Raises:
+            ValueError: invalid desktop object type, desktop is not a ODDesktop
+            ODAPIError: error in configuration file 'waitportbin' must be a string
+            ODAPIError: error in configuration file 'tcpport' must be a int
+
+        Returns:
+            bool: True the the service is up
+        """
+
+        self.logger.debug('')       
+        assert_type( desktop, ODDesktop)
+
+        # Note the same timeout value is used twice
+        # for the wait_port command and for the exec command  
+        command = [ "/usr/bin/pidof", process_name ] 
+        result = self.execwaitincontainer( desktop, command )
+        if isinstance(result, dict):
+            # self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
+            isprocessready = result.get('ExitCode') == 0
+            # self.logger.debug( f"isservice {service_name} ready={isserviceready}")
+            return isprocessready
+        return False
 
       
     def waitForServiceListening(self, desktop:ODDesktop, service:str, timeout:int=2)-> bool:
@@ -702,9 +807,6 @@ class ODOrchestrator(ODOrchestratorBase):
     def isgarbagable( self, container, expirein, force=False ):
         raise NotImplementedError(f"{type(self)}.isgarbagable")
 
-    def garbagecollector( self, expirein, force=False ):
-        raise NotImplementedError(f"{type(self)}.garbagecollector")
-
 @oc.logging.with_logger()
 class ODOrchestratorKubernetes(ODOrchestrator):
 
@@ -921,7 +1023,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance( secrets_requirement, list ):
             self.logger.debug( f"skipping secrets_requirement type={type(secrets_requirement)}, no secret to mount" ) 
         else:
-            for access_type in ['auth', 'ldif']:
+            # for access_type in ['auth', 'ldif']:
+            for access_type in ['auth']:
                 self.logger.debug( f"listing list_dict_secret_data access_type='{access_type}'" )
                 mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type=access_type )
             
@@ -954,18 +1057,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
                         self.logger.debug( f"adding secret type {mysecretdict[secret_name]['type']} to volume pod" )
                         secretmountPath = oc.od.settings.desktop['secretsrootdirectory'] + mysecretdict[secret_name]['type'] 
+
+                        normalizevolume_name = oc.auth.namedlib.normalize_name_volunename( secret_name )
                         # mode is 644 -> rw-r--r--
                         # Owing to JSON limitations, you must specify the mode in decimal notation.
                         # 644 in decimal equal to 420
-                        volumes[secret_name] = {
-                            'name':secret_name,
+                        volumes[normalizevolume_name] = {
+                            'name':normalizevolume_name,
                             'secret': {
                                 'secretName': secret_name,
                                 'defaultMode': 420
                             }
                         }
-                        volumes_mount[secret_name] = {
-                            'name':secret_name,
+                        volumes_mount[normalizevolume_name] = {
+                            'name':normalizevolume_name,
                             'mountPath':secretmountPath
                         }
 
@@ -1287,14 +1392,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # mode is 644 -> rw-r--r--
         # Owing to JSON limitations, you must specify the mode in decimal notation.
         # 644 in decimal equal to 420
-        volumes[secret_auth_name] = {
-            'name': secret_auth_name,
+        secret_auth_normalizevolume_name = oc.auth.namedlib.normalize_name_volunename( secret_auth_name )
+        volumes[secret_auth_normalizevolume_name] = {
+            'name': secret_auth_normalizevolume_name,
             'secret': { 
                 'secretName': secret_auth_name, 
                 'defaultMode':420 }
         }
-        volumes_mount[secret_auth_name] = {
-            'name':secret_auth_name, 
+        volumes_mount[secret_auth_normalizevolume_name] = {
+            'name':secret_auth_normalizevolume_name, 
             'mountPath': secretmountPath
         } 
         return (volumes, volumes_mount)
@@ -1341,20 +1447,53 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug( f"{userinfo.userid} abcdesktop secret has expired, found {len(localaccountsecretitems)} expecting 1" )
             raise Exception( f"Your secret has been deleted, found {len(localaccountsecretitems)}, please reload" )
 
-        secret_auth_name = list(mysecretdict.items())[0][0]
+        secret_auth_name = list(mysecretdict.keys())[0]
         assert isinstance(secret_auth_name,str), f"secret_auth_name is not a str {secret_auth_name}"
-
         self.logger.debug( f"adding secret type {mysecretdict[secret_auth_name]['type']}" )
+
         # mode is 644 -> rw-r--r--
         # Owing to JSON limitations, you must specify the mode in decimal notation.
-        # 644 in decimal equal to 420
+        # 420 in decimal equal to 644
+        # 288 in decimal equal to 440 -> r--r-----
         secretmountPath = oc.od.settings.desktop['secretslocalaccount']
-        volumes[secret_auth_name]       = { 'name': secret_auth_name, 'secret': { 'secretName': secret_auth_name, 'defaultMode': 420  } }
-        volumes_mount[secret_auth_name] = { 'name': secret_auth_name, 'mountPath':  secretmountPath }
+        secret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( secret_auth_name )
+        volumes[secret_auth_localaccount_volume_name] = { 
+            'name': secret_auth_localaccount_volume_name, 
+            'secret': { 
+                'secretName': secret_auth_name, 
+                'items': [
+                    { 'key': 'passwd', 'path': 'passwd' },
+                    { 'key': 'group',  'path': 'group'  }
+                ], 
+                'defaultMode': 420 
+            } 
+        }
+        volumes_mount[secret_auth_localaccount_volume_name] = { 
+            'name': secret_auth_localaccount_volume_name, 
+            'mountPath': secretmountPath 
+        }
+
+        # same for shadow
+        shadowsecret_auth_name = secret_auth_name + 'shadow'
+        shadowsecret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( shadowsecret_auth_name )
+        shadowsecretmountPath = oc.od.settings.desktop['secretslocalaccount'] + '.shadow'
+        volumes[shadowsecret_auth_localaccount_volume_name] = { 
+            'name': shadowsecret_auth_localaccount_volume_name, 
+            'secret': { 
+                'secretName': secret_auth_name, 
+                'items': [
+                    { 'key': 'shadow',  'path': 'shadow' },
+                    { 'key': 'gshadow', 'path': 'gshadow' }
+                ], 
+                'defaultMode': 288 
+            } 
+        }
+        volumes_mount[shadowsecret_auth_localaccount_volume_name] = { 
+            'name': shadowsecret_auth_localaccount_volume_name, 
+            'mountPath': shadowsecretmountPath 
+        }
         return (volumes, volumes_mount)
-
-        
-
+    
         '''
         This section code does the same but with one volume per file in [ 'passwd', 'group', 'shadow', 'gshadow' ]
         It build for example with a sample pod 
@@ -1384,7 +1523,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     - key: passwd
                       path: passwd
 
-        This section code doesn't work when we try to start an ephemeralContainer because ephemeralContainers don't support subpath
+        This section code doesn't work when we try to start an ephemeralContainer 
+        because ephemeralContainers don't support subpath
         source https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1EphemeralContainer.md
         The error code when you try to start an ephemeralContainer is 
         error "message":"Pod is invalid: spec.ephemeralContainers[0].volumeMounts[11].subPath
@@ -1404,11 +1544,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'name': volumename, 
                 'mountPath':  mountPath, 
                 'subPath': filesecret
-            }        
+            }     
 
-
-        return (volumes, volumes_mount)
-
+        We use a workaround by creating a symbolic links
+        - /etc/passwd -> /etc/localaccount/passwd    
+        - /etc/group -> /etc/localaccount/group
+        - /etc/shadow -> /etc/localaccount.shadow/shadow
+        - /etc/gshadow -> /etc/localaccount.shadow/gshadow
         '''
 
     def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
@@ -1417,7 +1559,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Args:
             authinfo ([type]): [description]
             userinfo (AuthUser): user data
-            volume_type ([str]): 'container_desktop' 'pod_desktop', 'pod_application', 'ephemeral_container'
+            volume_type ([str]): 'pod_desktop', 'pod_application', 'ephemeral_container'
             rules (dict, optional): [description]. Defaults to {}.
 
         Returns:
@@ -1447,7 +1589,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # add socket service 
             # add tmp run log to support readonly filesystem
             # add dbus 'rundbus', 'runuser' 
-            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]:
+            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket' ]:
+                if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
+                    volumes[vol_name] = self.default_volumes[vol_name]
+                    volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+
+        if volume_type in [ 'pod_desktop', 'pod_application',  'ephemeral_container' ] :
+            for vol_name in [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]:
                 if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
                     volumes[vol_name] = self.default_volumes[vol_name]
                     volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
@@ -1455,7 +1603,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # shm volume is shared between all container inside the desktop pod
         #
-        if volume_type in [ 'pod_desktop', 'container_desktop', 'ephemeral_container' ]:
+        if volume_type in [ 'pod_desktop', 'ephemeral_container' ]:
             if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
                 volumes['shm'] = self.default_volumes['shm']
                 volumes_mount['shm'] = self.default_volumes_mount['shm']
@@ -1815,6 +1963,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'shadow' : AuthUser.mkshadow(localaccount), 
             'group'  : AuthUser.mkgroup(localaccount),
             'gshadow': AuthUser.mkgshadow(localaccount), 
+            'passwd_newline' : AuthUser.mkpasswd_newline(localaccount), 
+            'shadow_newline' : AuthUser.mkshadow_newline(localaccount), 
+            'group_newline'  : AuthUser.mkgroup_newline(localaccount),
+            'gshadow_newline': AuthUser.mkgshadow_newline(localaccount), 
         }
         return mydict_config
             
@@ -2385,7 +2537,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Args:
             authinfo (_type_): _description_
             currentcontainertype (str): type of container must be defined in list
-            [ 'init', 'graphical', 'ssh', 'rdpgw', 'sound', 'printer', 'filter', 'storage' ]
+            [ 'init', 'graphical', 'ssh', 'sound', 'printer', 'filter', 'storage' ]
 
         Returns:
             bool: True if enable, else False
@@ -2919,15 +3071,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         self.logger.debug('')
         executeclass = None
-        
+        selectedexecuteclassname = executeclassname
         # if executeclassname is set, read it
         if isinstance( executeclassname, str ):
             executeclass = oc.od.settings.executeclasses.get(executeclassname)
-
+        
         if not isinstance( executeclass, dict ):
             tagexecuteclassname = authinfo.get_labels().get('executeclassname','default')
             if isinstance( tagexecuteclassname, str ) and \
                isinstance( oc.od.settings.executeclasses.get(tagexecuteclassname), dict) :
+                    selectedexecuteclassname = tagexecuteclassname
                     executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname)
 
         if isinstance( executeclass, dict ):
@@ -2935,7 +3088,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 executeclass['nodeSelector'] = oc.od.settings.desktop.get('nodeselector')
 
         self.logger.debug(f"executeclass={executeclass}")
-        return executeclass
+        return (selectedexecuteclassname, executeclass)
+    
 
 
     def get_resources_for_container_type( self, currentcontainertype:str, executeclass:dict )->dict:
@@ -3149,7 +3303,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         dry_run = kwargs.get('dry_run')
 
         # get the execute class if user has a executeclassname tag
-        executeclasse = self.get_executeclasse( authinfo, userinfo )
+        (executeclassname, executeclasse) = self.get_executeclasse( authinfo, userinfo )
 
         # add a new VNC Password as kubernetes secret
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
@@ -3166,6 +3320,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
         env[ 'LOCALACCOUNT_PATH'] = oc.od.settings.desktop['secretslocalaccount']
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
+        env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
+        env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
         self.logger.debug('env created')
 
         # create labels for pod
@@ -3233,7 +3389,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('rules created')
 
         # new step
-        self.on_desktoplaunchprogress('b.Building data storage for your desktop')
+        # self.on_desktoplaunchprogress('b.Building data storage for your desktop')
+        self.on_desktoplaunchprogress('b.Searching for disks')
 
         # get secrets_requirement for 'graphical'
         currentcontainertype = 'graphical'
@@ -3388,6 +3545,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
         localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
+        # localaccount_volume_name = self.get_volumename( 'localaccount', userinfo )
+
         assert isinstance(localaccount_volume_name, str),  f"localaccount secret volume is not found"
         
         containers = {
@@ -3399,10 +3558,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                                   # sound uses tmp, home, log volumes
             'ssh':      { 'list_volumeMounts':  list_volumeMounts },        # ssh uses default user volumes
             'filer':    { 'list_volumeMounts':  list_volumeMounts },        # filter uses default user volumes
-            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts }, # storage uses default user volumes
-            'rdp':      { 'list_volumeMounts':  [ pod_allvolumeMounts.get('x11socket') ]  } , # rdp uses default user volumes
-            'x11overlay':  { 'list_volumeMounts': [ pod_allvolumeMounts.get(localaccount_volume_name), 
-                                                    pod_allvolumeMounts.get('x11socket') ] } # x11overlay uses default user volumes
+            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts } # storage uses default user volumes
         }
 
         for currentcontainertype in containers.keys():
@@ -3857,8 +4013,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance(storage_container, V1ContainerStatus):
            storage_container_id = storage_container.container_id
 
-        
+        # read the creation timestamp from pod metadata        
         isoformat_creation_timestamp = self.read_pod_creation_timestamp( pod )
+        # read lastlogin datetime from pod annotations and convert to isoformat
+        isoformat_lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
+        if isinstance( isoformat_lastlogin_datetime, datetime.datetime ):
+            # convert to isoformat
+            isoformat_lastlogin_datetime = isoformat_lastlogin_datetime.isoformat()
+        else:
+            isoformat_lastlogin_datetime = None
+
+        # read the xauthkey from pod labels
         
         # Build the ODDesktop Object 
         myDesktop = oc.od.desktop.ODDesktop(
@@ -3881,7 +4046,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             storage_container_id = storage_container_id,
             labels = pod.metadata.labels,
             uid = pod.metadata.uid,
-            creation_timestamp = isoformat_creation_timestamp
+            creation_timestamp = isoformat_creation_timestamp,
+            lastlogin_datetime = isoformat_lastlogin_datetime
         )
         return myDesktop
 
@@ -4217,8 +4383,8 @@ class ODAppInstanceBase(object):
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
         # executeclassname can be None if executeclassname is not defined 
         # then assum this is the default executeclass
-        executeclass = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
-        self.logger.debug( f"executeclass={executeclass}")
+        (apply_executeclassname, executeclass) = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
+        self.logger.debug( f"requested executeclassname={executeclassname} apply executeclassname={apply_executeclassname} executeclass={executeclass}")
         resources = self.orchestrator.get_resources_for_container_type( self.type, executeclass )
         self.logger.debug( f"resources={resources}")
         return resources
@@ -5044,7 +5210,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         nodeSelector = {}
         executeclassname =  app.get('executeclassname')
         self.logger.debug( f"app name={app.get('name')} has executeclassname={executeclassname}")
-        executeclass = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
+        (executeclassname, executeclass) = self.orchestrator.get_executeclasse( authinfo, userinfo, executeclassname )
         executeclass_nodeSelector = executeclass.get('nodeSelector',{}) or {}
         nodeSelector.update(executeclass_nodeSelector)
         self.logger.debug( f"nodeSelector for name={app.get('name')} is nodeSelector={nodeSelector}")
@@ -5299,7 +5465,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'access_userid':    userinfo.userid,
             'access_username':  self.orchestrator.get_labelvalue(userinfo.name),
             'type':             self.type,
-            'uniquerunkey':     app.get('uniquerunkey')
+            'uniquerunkey':     app.get('uniquerunkey'),
+            'netpol/ocapplication': 'true'
         }
 
         myuuid = oc.lib.uuid_digits()

@@ -764,15 +764,6 @@ def getapp(authinfo:AuthInfo, name:str)->dict:
     #    raise ODError(message=f"Fatal error - Cannot find image associated to application {name}")
     return app
 
-""" 
-Deprecated
-def launch_app_in_process(orchestrator, app, appinstance, userargs):
-    cmd = [ app['path'],  app['args'], userargs ]
-    result = orchestrator.execininstance(appinstance, cmd)
-    if type(result) is not dict:
-        raise ODError(status=500, message= 'execininstance error result is not a dict')
-    return (cmd, result)
-"""
 
 def garbagecollector( expirein:int, nodename:str=None, force:bool=False ):
 
@@ -919,8 +910,10 @@ def notify_endpoint( url:str )->bool:
         apikey = oc.od.settings.controllers.get('ManagerController').get('apikey', [ None ])[0]
         if isinstance( apikey, str ) :
             headers={'X-API-Key': apikey }
+        logger.debug( f"notify_endpoint: url={url} headers={headers}" )
         response = requests.get(url, headers=headers )
         if isinstance( response, requests.models.Response ):
+            logger.debug( f"notify_endpoint: url={url} response.status_code={response.status_code} response.reason={response.reason}" )
             return response.ok
     except Exception as e:
         logger.error( e )
@@ -944,7 +937,11 @@ def notify_endpoints(pyos_endpoint_uri:str, pyos_endpoint_port:int, pyos_endpoin
         # overwrite pyos_endpoint_addresses value  
         pyos_endpoint_addresses = [ 'localhost' ]
     for pyos_endpoint_address in pyos_endpoint_addresses:
+        # build the url
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
+        logger.debug( f"notify_endpoints: url={url}" )
+        # create a thread for each pyos_endpoint_address and call buildapplist
+        # run notify_endpoint in a thread
         notify_thread = threading.Thread(target=notify_endpoint, kwargs={'url': url } )
         notify_thread.start()
 

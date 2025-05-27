@@ -47,6 +47,9 @@ def normalize_name(name:str, encoding:str='utf-8', tolower:bool=True)->str:
 def normalize_name_dnsname(name:str)->str:
     return normalize_name( name )[0:62]
 
+def normalize_name_volunename(name:str)->str:
+   return normalize_name( name )[0:63]
+
 def normalize_name_label(name:str)->str:
     return normalize_name(name)
 

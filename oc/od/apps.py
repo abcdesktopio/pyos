@@ -14,7 +14,6 @@
 
 import logging
 import oc.logging
-import base64
 import os
 import json
 import oc.od.acl
@@ -22,6 +21,7 @@ import threading
 import copy
 import oc.od.settings
 import pymongo
+import oc.lib
 
 logger = logging.getLogger(__name__)
 
@@ -115,14 +115,6 @@ class ODApps:
         # return the list of app images
         return app_images_collecion
 
-    def makeicon_from_scratch( self, name:str )->str:
-        # create a simple svg file with thename of the application
-        text_svg = f"<svg version=\"1.1\" viewBox=\"0 0 64 64\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><rect width=\"100%\" height=\"100%\" fill=\"white\"/><text x=\"0\" y=\"32\" fill=\"black\">{name}</text></svg>"
-        # encode the svg file in base64
-        b64_text_svg = base64.b64encode(text_svg.encode('utf-8'))
-        # return the base64 encoded svg file use strip to remove the last '\n' character
-        return b64_text_svg.decode().strip()
-
     def countApps(self):
         return len(self.myglobal_list)
 
@@ -133,9 +125,8 @@ class ODApps:
         return self.build_image_counter
 
     def cached_applist(self, bRefresh=False):
-        self.logger.debug('')
-
-        # if force refresh or myglobal_list is empty 
+        self.logger.debug(f"cached_applist bRefresh={bRefresh}")
+        # if bRefresh is True or myglobal_list is empty
         if bRefresh or len(self.myglobal_list) == 0:
             # Build the AppList
             mybuild_applist = self.build_applist()
@@ -448,7 +439,7 @@ class ODApps:
         # use name as icon if icon is not defined
         icon = labels.get('oc.icon', name )
         # use create a simple svg file as icondata if icondata is not defined
-        icondata = labels.get('oc.icondata', self.makeicon_from_scratch(name=name) )
+        icondata = labels.get('oc.icondata', oc.lib.create_svg_base64_content( name=name, width=64, height=64) )
 
         # safe load convert json data json
         usedefaultapplication = self.safe_load_label_json( imageid, labels, 'oc.usedefaultapplication',  default_value=False )

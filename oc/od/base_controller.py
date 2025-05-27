@@ -193,7 +193,7 @@ class BaseController(object):
           apikey = cherrypy.request.headers.get('X-API-Key') or cherrypy.request.headers.get('X-Api-Key')
           self.logger.debug( f"read http header apikey={apikey}" )
           for k in self.apikey:
-               self.logger.debug( f"compare apikey {k}={apikey}" )
+               # self.logger.debug( f"compare apikey {k}={apikey}" )
                bReturn = k == apikey
                if bReturn is True:
                     break 
