@@ -1023,7 +1023,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance( secrets_requirement, list ):
             self.logger.debug( f"skipping secrets_requirement type={type(secrets_requirement)}, no secret to mount" ) 
         else:
-            for access_type in ['auth', 'ldif']:
+            # for access_type in ['auth', 'ldif']:
+            for access_type in ['auth']:
                 self.logger.debug( f"listing list_dict_secret_data access_type='{access_type}'" )
                 mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type=access_type )
             
