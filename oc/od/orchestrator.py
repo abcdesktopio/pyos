@@ -307,37 +307,93 @@ class ODOrchestratorBase(object):
         """
         return {}
 
-    def waitForDesktopProcessReady(self, desktop, callback_notify):
+    def waitForDesktopProcessReady(self, desktop:ODDesktop, callback_notify):
         self.logger.debug('')
 
         nCountMax = 42
         # check if supervisor has stated all processs
+        # processes = [ 'startplasma-x11', 'plasma_session', 'kded5', 'ksmserver', 'kglobalaccel5', 'xembedsniproxy', 'kaccess', 'plasmashell', 'gmenudbusmenuproxy' ]
         nCount = 1
-        bListen = { 'graphical': False, 'spawner': False }
-        # loop
-        # wait for a listen dict { 'x11server': True, 'spawner': True }
+        servicesListening = oc.od.settings.desktop_pod['graphical'].get('waitfor_listeningservices', [ 'graphical', 'spawner' ] )
+        services = oc.od.settings.desktop_pod['graphical'].get('waitfor_services', [ 'xserver', 'novnc', 'spawner-service', 'plasmashell' ] )
+        processes = oc.od.settings.desktop_pod['graphical'].get('waitfor_processes', [ 'plasmashell', 'xfwm4', 'kded5', 'kglobalaccel5' ] )
+        bServiceStatus = {} 
+        bProcessStatus = {}
+        bServicesListening = {}
 
+        for service in services: bServiceStatus[service] = False
+        for service in servicesListening: bServicesListening[service] = False
+        for process in processes: bProcessStatus[process] = False
+
+        start_now = datetime.datetime.now()
+
+        #
+        # wait for service status ready
+        nServiceCount = 1
         while nCount < nCountMax:
+            for service in services: 
+                if not bServiceStatus[service] :
+                    callback_notify( f"c.Waiting desktop service {service} " )
+                    bServiceStatus[service] = self.waitForServiceReady( desktop, service_name=service )
+                    if bServiceStatus[service] is True:
+                        nServiceCount += 1
+                    # else:
+                    #    sleepfor = 1/len(services)
+                    #    time.sleep( sleepfor )
+                    # callback_notify( f"c.Waiting for desktop service {service} {nServiceCount}/{len(services)}" )
+            nCount += 1
+            if all( bServiceStatus.values() ):
+                self.logger.debug( f"desktop services {services} are ready" )  
+                callback_notify( f"c.Desktop services {services} are started" )                
+                break
+        
+        #
+        # wait for service status ready
+        nProcessCount = 1
+        nCount = 0
+        while nCount < nCountMax:
+            for process in processes: 
+                if not bProcessStatus[process] :
+                    callback_notify( f"c.Waiting desktop process {process} " )
+                    bProcessStatus[process] = self.waitForProcessReady( desktop, process_name=process )
+                    if bProcessStatus[process] is True:
+                        nProcessCount += 1
+                    #else:
+                    #    sleepfor = 1/nProcessCount
+                    #    time.sleep( sleepfor )
+                    # callback_notify( f"c.Waiting for desktop service {service} {nServiceCount}/{len(services)}" )
+            nCount += 1
+            if all( bProcessStatus.values() ):
+                self.logger.debug( f"desktop processes are ready" )  
+                callback_notify( f"c.Desktop processes are started" )                
+                break
+   
 
+        #
+        # wait for service listening
+        nCount = 1
+        while nCount < nCountMax:
             for service in ['graphical', 'spawner']: 
-                self.logger.debug( f"desktop services status bListen {bListen}" ) 
+                messageinfo = f"c.Waiting for a response from desktop {service}"
+                callback_notify(messageinfo)
                 # check if WebSockifyListening id listening on tcp port 6081
-                if bListen[service] is False:
-                    messageinfo = f"c.Waiting for desktop {service} service {nCount}/{nCountMax}"
-                    callback_notify(messageinfo)
-                    bListen[service] = self.waitForServiceListening( desktop, service=service)
-                    if bListen[service] is False:
-                        messageinfo = f"c.Desktop {service} service is not ready."
-                        time.sleep(1)
+                if bServicesListening[service] is False:
+                    bServicesListening[service] = self.waitForServiceListening( desktop, service=service, timeout=0)
+                    if bServicesListening[service] is False:
+                        messageinfo = f"c.Desktop {service} service is not listening."
+                        time.sleep(nCount/nCountMax)
             nCount += 1
             
-            if bListen['graphical'] is True and bListen['spawner'] is True:     
-                self.logger.debug( "desktop services are ready" )                  
-                callback_notify( f"c.Desktop services are running after {nCount} s" )              
+            if  all( bServicesListening.values() ):
+                self.logger.debug( "desktop services are ready" )        
+                end_now = datetime.datetime.now()   
+                diff_time = end_now - start_now
+                diff_time_seconds = diff_time.total_seconds()                
+                callback_notify( f"c.Desktop services are running after {diff_time_seconds}" )  
                 return True
         
         # Can not chack process status     
-        self.logger.warning( f"waitForDesktopProcessReady not ready services status:{bListen}" )
+        self.logger.warning( f"waitForDesktopProcessReady not ready services status:{bServicesListening}" )
         return False
 
 
@@ -383,6 +439,64 @@ class ODOrchestratorBase(object):
             return result.get('ExitCode') == 0
         else:
             return False
+
+    def waitForServiceReady(self, desktop:ODDesktop, service_name:str)-> bool:
+        """waitForServicePlasmaShell
+
+        Args:
+            desktop (ODDesktop): desktop object to waitForServiceListening
+        
+        Raises:
+            ValueError: invalid desktop object type, desktop is not a ODDesktop
+            ODAPIError: error in configuration file 'waitportbin' must be a string
+            ODAPIError: error in configuration file 'tcpport' must be a int
+
+        Returns:
+            bool: True the the service is up
+        """
+
+        self.logger.debug('')       
+        assert_type( desktop, ODDesktop)
+
+        # Note the same timeout value is used twice
+        # for the wait_port command and for the exec command  
+        command = [ "/usr/bin/supervisorctl", "status", service_name ] 
+        result = self.execwaitincontainer( desktop, command )
+        if isinstance(result, dict):
+            # self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
+            isserviceready = result.get('ExitCode') == 0
+            # self.logger.debug( f"isservice {service_name} ready={isserviceready}")
+            return isserviceready
+        return False
+
+    def waitForProcessReady(self, desktop:ODDesktop, process_name:str)-> bool:
+        """waitForServicePlasmaShell
+
+        Args:
+            desktop (ODDesktop): desktop object to waitForServiceListening
+        
+        Raises:
+            ValueError: invalid desktop object type, desktop is not a ODDesktop
+            ODAPIError: error in configuration file 'waitportbin' must be a string
+            ODAPIError: error in configuration file 'tcpport' must be a int
+
+        Returns:
+            bool: True the the service is up
+        """
+
+        self.logger.debug('')       
+        assert_type( desktop, ODDesktop)
+
+        # Note the same timeout value is used twice
+        # for the wait_port command and for the exec command  
+        command = [ "/usr/bin/pidof", process_name ] 
+        result = self.execwaitincontainer( desktop, command )
+        if isinstance(result, dict):
+            # self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
+            isprocessready = result.get('ExitCode') == 0
+            # self.logger.debug( f"isservice {service_name} ready={isserviceready}")
+            return isprocessready
+        return False
 
       
     def waitForServiceListening(self, desktop:ODDesktop, service:str, timeout:int=2)-> bool:
@@ -5350,7 +5464,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'access_userid':    userinfo.userid,
             'access_username':  self.orchestrator.get_labelvalue(userinfo.name),
             'type':             self.type,
-            'uniquerunkey':     app.get('uniquerunkey')
+            'uniquerunkey':     app.get('uniquerunkey'),
+            'netpol/ocapplication': 'true'
         }
 
         myuuid = oc.lib.uuid_digits()
