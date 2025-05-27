@@ -90,7 +90,7 @@ class ManagerController(BaseController):
         # disable trace log 
         cherrypy.response.notrace = True
         # True to force an application list refresh
-        oc.od.services.services.apps.cached_applist(True)
+        oc.od.services.services.apps.cached_applist(bRefresh=True)
         return oc.od.services.services.apps.get_json_applist(filter=True)
 
     # updateactivedirectorysite request is protected by is_permit_request()
