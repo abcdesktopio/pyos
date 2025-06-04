@@ -354,13 +354,13 @@ class ODOrchestratorBase(object):
         while nCount < nCountMax:
             for process in processes: 
                 if not bProcessStatus[process] :
-                    callback_notify( f"c.Waiting desktop process {process} " )
+                    callback_notify( f"c.Waiting desktop process {process}" )
                     bProcessStatus[process] = self.waitForProcessReady( desktop, process_name=process )
                     if bProcessStatus[process] is True:
                         nProcessCount += 1
-                    #else:
-                    #    sleepfor = 1/nProcessCount
-                    #    time.sleep( sleepfor )
+                    else:
+                        sleepfor = 1/nProcessCount
+                        time.sleep( sleepfor )
                     # callback_notify( f"c.Waiting for desktop service {service} {nServiceCount}/{len(services)}" )
             nCount += 1
             if all( bProcessStatus.values() ):
