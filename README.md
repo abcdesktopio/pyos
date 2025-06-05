@@ -2,7 +2,7 @@
 
 ## Default branch
 
-The default development branch is `main`. 
+The default development branch is `dev`. 
 
 
 ## To get more informations
