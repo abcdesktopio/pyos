@@ -166,7 +166,7 @@ class ODOrchestratorBase(object):
         self.x11servertype          = 'x11server'        
         self.pod_application        = 'pod_application'
         self.pod_application_pull   = 'pod_application_pull'
-        # self.endpoint_domain        = 'desktop'
+        self.endpoint_domain        = 'desktop'
         self.ephemeral_container    = 'ephemeral_container'
         self.abcdesktop_role_desktop = 'desktop'
 
@@ -3333,11 +3333,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'access_providertype': authinfo.providertype,
             'access_userid': userinfo.userid,
             'access_username': self.get_labelvalue(userinfo.name),
+            'domain': self.endpoint_domain,
             'netpol/ocuser': 'true',
             'xauthkey': env[ 'XAUTH_KEY' ], 
             'pulseaudio_cookie': env[ 'PULSEAUDIO_COOKIE' ],
             'broadcast_cookie': env[ 'BROADCAST_COOKIE' ]
-            # 'domain': self.endpoint_domain,
         }
         # add authinfo labels and env 
         # could also use downward-api https://kubernetes.io/docs/concepts/workloads/pods/downward-api/
@@ -3515,7 +3515,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'dnsPolicy' : dnspolicy,
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
-                # 'subdomain': self.endpoint_domain,
+                'subdomain': self.endpoint_domain,
                 'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list_pod_allvolumes,                    
                 'nodeSelector': executeclasse.get('nodeSelector'), 
