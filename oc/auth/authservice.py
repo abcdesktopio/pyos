@@ -2858,7 +2858,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             raise AuthenticationError('password can not be an empty string')
         # Maximum number of characters supported for plain-text bind-password config is 63
         if len(password) > LDAP_PASSWORD_MAX_LENGTH:
-            raise AuthenticationError('password length must be less than 64 characters')
+            raise AuthenticationError( f"password length must be less than {LDAP_PASSWORD_MAX_LENGTH} characters")
         
         if self.auth_only:
             raise AuthenticationError('auth_only is set to True, but ldap.bind need to complete auth')
