@@ -218,13 +218,13 @@ def init_config_stack():
     #   else use os.environ.get('POD_NAMESPACE')
     #   else use the default value 'abcdesktop'
     logger.debug( f"reading the current namespace defined" )
-    namespace = gconfig.get( 'namespace', os.environ.get('POD_NAMESPACE', namespace ) )
+    namespace = os.getenv('POD_NAMESPACE') or gconfig.get('namespace', namespace )
     logger.debug( f"use namespace={namespace}" )
     logger.debug( f"reading kubernetesdefaultsvcclusterlocal option in config file" )
     kubernetesdefaultsvcclusterlocal = gconfig.get('kubernetesdefaultsvcclusterlocal', 'svc.cluster.local')
     logger.debug( f"kubernetes default domain svc.cluster.local={kubernetesdefaultsvcclusterlocal}" )
     # kubernetes_default_domain should be by default abcdesktop.svc.cluster.local
-    kubernetes_default_domain = f"{namespace}.{kubernetesdefaultsvcclusterlocal}"
+    kubernetes_default_domain = gconfig.get('kubernetesdefaultabcdesktopsvcclusterlocal', f"{namespace}.{kubernetesdefaultsvcclusterlocal}" )
     logger.debug( f"abcdesktop domain={kubernetes_default_domain}" )
     # desktopdescription is used to display network page
     # by default desktopdescription is a dict of None values
@@ -505,16 +505,13 @@ def _resolv( fqdh:str )->str:
 
 def init_config_memcached():
     global memconnectionstring
-    # global kubernetes_default_domain
     # Build memcached memconnectionstring
-    memcachedserver = os.getenv('MEMCACHESERVER') or gconfig.get('memcacheserver', 'memcached'+ '.' + kubernetes_default_domain )
-
+    memcachedserver = os.getenv('MEMCACHESERVER') or gconfig.get('memcacheserver', 'memcached' )
     logger.debug( f"memcachedserver is read as {memcachedserver}" )
     memcachedipaddr = _resolv(memcachedserver)
-    logger.debug( f"host {memcachedserver} resolved as {memcachedipaddr}")
+    logger.debug(f"a simple check for memcache: host {memcachedserver} resolved as {memcachedipaddr}")
     memcachedport = gconfig.get('memcachedport', 11211)
     memconnectionstring = f"{memcachedserver}:{memcachedport}"
-    logger.debug(f"memcachedserver is set to {memcachedserver}")
     logger.debug(f"memcached connection string is set to {memconnectionstring}")
 
 
@@ -529,18 +526,16 @@ def get_mongodburl():
     Returns:
         MongoClientConfig : MongoClientConfig instance 
     """
-
     # read MONGODB_URL env var
     # 'mongodb://pyos:YWUwNDJhZTI3NjVjZDg4Zjhk@mongodb.abcdesktop.svc.cluster.local:30017'
-    mongodburl = os.getenv('MONGODB_URL') or gconfig.get('mongodburl',f"mongodb://mongodb.{kubernetes_default_domain}")
+    mongodburl = os.getenv('MONGODB_URL') or gconfig.get( 'mongodburl', 'mongodb://mongodb' )
     logger.debug( f"mongodburl is read as {mongodburl}" )
     parsedmongourl = urlparse( mongodburl )
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
     mongodbhostipaddr = _resolv(parsedmongourl.hostname)
-    logger.debug(f"host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
+    logger.debug(f"a simple check for mongodb: host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
     logger.debug(f"mongodburl is set to {mongodburl}")
     return mongodburl
-
 
 def init_controllers():
     """Define controlers access
@@ -752,9 +747,9 @@ def get_configuration_file_name():
     """get_configuration_file_name
 
     Returns:
-        str: name of the config file 'od.config' by default or read 'OD_CONFIG_PATH' os.environ
+        str: name of the config file 'od.config' by default or read 'OD_CONFIG_PATH' os.getenv
     """
-    configuration_file_name = os.environ.get('OD_CONFIG_PATH', 'od.config')
+    configuration_file_name = os.getenv('OD_CONFIG_PATH', 'od.config')
     return configuration_file_name
 
 def get_exit_on_error():
@@ -763,7 +758,7 @@ def get_exit_on_error():
     Returns:
         bool: 
     """
-    env_exit_on_error = os.environ.get('OD_EXIT_ON_ERROR', 'true')
+    env_exit_on_error = os.getenv('OD_EXIT_ON_ERROR', 'true')
     exit_on_error = bool(distutils.util.strtobool(env_exit_on_error))
     return exit_on_error
 
