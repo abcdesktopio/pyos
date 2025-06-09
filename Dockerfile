@@ -1,5 +1,5 @@
 FROM python:3
-WORKDIR /var/pyos
+
 # install dev lib 
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	wget \
@@ -40,7 +40,10 @@ RUN mkdir -p /usr/share/geolite2 && \
     wget https://git.io/GeoLite2-City.mmdb -P /usr/share/geolite2
 
 # install ntlm_auth
-COPY --from=ghcr.io/abcdesktopio/ntlm_auth_debian_bookworm:main /dist/*.deb /tmp
+# ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
+# support for linux_arm64 and linux_amd64
+# FROM python is a debian:bookworm image
+COPY --from=ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm /dist/*.deb /tmp
 RUN apt-get update && \
     apt-get install -y  --no-install-recommends /tmp/*.deb && \
     apt-get clean  && \
@@ -48,6 +51,7 @@ RUN apt-get update && \
 RUN echo /usr/lib/x86_64-linux-gnu/samba >> /etc/ld.so.conf.d/x86_64-linux-gnu.conf && /usr/sbin/ldconfig
 
 # install pyos
+WORKDIR /var/pyos
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
