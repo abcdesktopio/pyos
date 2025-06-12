@@ -3,36 +3,36 @@ FROM python:slim-bookworm
 # install dev lib 
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	wget \
-	libffi-dev   \
-	libkrb5-dev  \
+	libffi-dev \
+	libkrb5-dev \
         libsasl2-dev \ 
         libsasl2-dev \
         libldap2-dev \
 	libgeoip-dev \
-        libssl-dev   \
+        libssl-dev \
 	rustc \
     && apt-get clean            \
     && rm -rf /var/lib/apt/lists/*
 
 #  install kerberos libgss ldap
 RUN  apt-get update && apt-get install -y  --no-install-recommends  \
-	cntlm 			\
-	sasl2-bin 		\
-	libsasl2-2 		\
-	libsasl2-modules 	\
-	libsasl2-modules-gssapi-mit	\
-        krb5-user               \
-	krb5-config		\
- 	libnss3-tools           \
-        ldap-utils              \
-	libgssglue1		\
-	libgssrpc4		\
-	libgss3			\
-        libgssapi-krb5-2        \
-        libgssglue1		\
-	libnss3-tools	 	\
-	gss-ntlmssp		\
-    && apt-get clean            \
+	cntlm \
+	sasl2-bin \
+	libsasl2-2 \
+	libsasl2-modules \
+	libsasl2-modules-gssapi-mit \
+        krb5-user \
+	krb5-config \
+ 	libnss3-tools \
+        ldap-utils \
+	libgssglue1 \
+	libgssrpc4 \
+	libgss3	\
+        libgssapi-krb5-2 \
+        libgssglue1 \
+	libnss3-tools \
+	gss-ntlmssp \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
@@ -62,14 +62,16 @@ COPY . .
 
 # remove dev lib 
 RUN apt-get remove -y \
-	libffi-dev   \
-	libkrb5-dev  \
+	libffi-dev \
+	libkrb5-dev \
         libsasl2-dev \ 
         libsasl2-dev \
         libldap2-dev \
 	libgeoip-dev \
-        libssl-dev   \
-    && apt-get clean            \
+        libssl-dev \
+	rustc \
+        wget \
+    && apt-get clean \
     && apt autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
