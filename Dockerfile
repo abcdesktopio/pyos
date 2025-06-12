@@ -36,10 +36,12 @@ RUN  apt-get update && apt-get install -y  --no-install-recommends  \
     && apt-get clean            \
     && rm -rf /var/lib/apt/lists/*
 
+ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
+
 # GeoLite2
 RUN mkdir -p /usr/share/geolite2 && \
-    wget https://git.io/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
-    wget https://git.io/GeoLite2-City.mmdb -P /usr/share/geolite2
+    wget ${GEOLITE_URL}/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
+    wget ${GEOLITE_URL}/GeoLite2-City.mmdb -P /usr/share/geolite2
 
 # install ntlm_auth
 # ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
@@ -71,6 +73,7 @@ RUN apt-get remove -y \
         libgssapi-krb5-2 \
 	rustc \
     && apt-get clean            \
+    && apt autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 
