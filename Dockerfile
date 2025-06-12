@@ -1,4 +1,4 @@
-FROM slim-bookworm
+FROM python:slim-bookworm
 
 # install dev lib 
 RUN apt-get update && apt-get install -y --no-install-recommends \
