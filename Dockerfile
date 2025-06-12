@@ -1,4 +1,4 @@
-FROM python:3
+FROM slim-bookworm
 
 # install dev lib 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,7 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	libgeoip-dev \
         libssl-dev   \
         libgssapi-krb5-2 \
-	rustc  
+	rustc \
+    && apt-get clean            \
+    && rm -rf /var/lib/apt/lists/*
 
 #  install kerberos libgss ldap
 RUN  apt-get update && apt-get install -y  --no-install-recommends  \
@@ -43,6 +45,7 @@ RUN mkdir -p /usr/share/geolite2 && \
 # ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
 # support for linux_arm64 and linux_amd64
 # FROM python is a debian:bookworm image
+
 COPY --from=ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm /dist/*.deb /tmp
 RUN apt-get update && \
     apt-get install -y  --no-install-recommends /tmp/*.deb && \
@@ -55,6 +58,22 @@ WORKDIR /var/pyos
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+
+# remove dev lib 
+RUN apt-get remove -y \
+	libffi-dev   \
+	libkrb5-dev  \
+        libsasl2-dev \ 
+        libsasl2-dev \
+        libldap2-dev \
+	libgeoip-dev \
+        libssl-dev   \
+        libgssapi-krb5-2 \
+	rustc \
+    && apt-get clean            \
+    && rm -rf /var/lib/apt/lists/*
+
+
 # copy ntlm_auth to oc/auth/ntlm/ntlm_auth
 RUN  cp /usr/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
 # create log directory
