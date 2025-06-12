@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libldap2-dev \
 	libgeoip-dev \
         libssl-dev   \
-        libgssapi-krb5-2 \
 	rustc \
     && apt-get clean            \
     && rm -rf /var/lib/apt/lists/*
@@ -70,8 +69,6 @@ RUN apt-get remove -y \
         libldap2-dev \
 	libgeoip-dev \
         libssl-dev   \
-        libgssapi-krb5-2 \
-	rustc \
     && apt-get clean            \
     && apt autoremove -y \
     && rm -rf /var/lib/apt/lists/*
