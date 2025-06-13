@@ -59,9 +59,10 @@ RUN echo /usr/lib/x86_64-linux-gnu/samba >> /etc/ld.so.conf.d/x86_64-linux-gnu.c
 
 # install pyos
 WORKDIR /var/pyos
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# COPY requirements.txt ./
 COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
+
 
 # remove dev lib 
 RUN apt-get remove -y \
