@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 #  install kerberos libgss ldap
 RUN  apt-get update && apt-get install -y  --no-install-recommends  \
+	curl \
 	cntlm \
 	sasl2-bin \
 	libsasl2-2 \
