@@ -17,8 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean            \
     && rm -rf /var/lib/apt/lists/*
 
-#  install kerberos libgss ldap
+# install kerberos libgss ldap
+# we must install curl command line for pullapps bash script 
 RUN  apt-get update && apt-get install -y  --no-install-recommends  \
+	curl \
 	cntlm \
 	sasl2-bin \
 	libsasl2-2 \
