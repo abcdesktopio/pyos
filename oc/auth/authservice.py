@@ -1975,6 +1975,7 @@ class ODAuthProviderBase(ODRoleProviderBase):
         self.displayname = config.get('displayname',  self.name) 
         self.icon = config.get('icon')
         self.backgroundcolor = config.get('backgroundcolor')
+        self.textcolor = config.get('textcolor')
         self.caption = config.get('caption', self.displayname )
         policies = config.get('policies', {} )
         self.acls  = policies.get('acl', { 'permit': [ 'all' ] } ) 
@@ -2033,6 +2034,8 @@ class ODAuthProviderBase(ODRoleProviderBase):
                         'displayname': self.displayname,
                         'icon': self.icon,
                         'backgroundcolor': self.backgroundcolor,
+                        'textcolor': self.textcolor,
+                        'type': self.type,
                         'icondata': self.icondata
         }
         return clientdata
