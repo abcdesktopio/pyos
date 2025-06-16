@@ -1,4 +1,7 @@
-FROM python:slim-bookworm
+FROM python:3
+
+# upgrade
+RUN apt-get update && apt-get upgrade -y && apt-get clean  && rm -rf /var/lib/apt/lists/*
 
 # install dev lib 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 #  install kerberos libgss ldap
 RUN  apt-get update && apt-get install -y  --no-install-recommends  \
+	curl \
 	cntlm \
 	sasl2-bin \
 	libsasl2-2 \
@@ -56,9 +60,10 @@ RUN echo /usr/lib/x86_64-linux-gnu/samba >> /etc/ld.so.conf.d/x86_64-linux-gnu.c
 
 # install pyos
 WORKDIR /var/pyos
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# COPY requirements.txt ./
 COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
+
 
 # remove dev lib 
 RUN apt-get remove -y \
