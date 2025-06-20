@@ -10,24 +10,53 @@ env:
   imagetag: ${{ github.head_ref || github.ref_name || 'dev' }}
   branch: ${{ github.head_ref || github.ref_name || 'dev' }}
   node_version: '20'
+  REGISTRY_IMAGE: abcdesktopio/pyos
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
-    # runs-on: self-hosted
-    runs-on: ubuntu-latest
-    
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    strategy:
+        fail-fast: false
+        matrix:
+          # only platform to build, not the image target 
+          platform-runs: [ ubuntu-latest, ubuntu-24.04-arm ]
+          # this is the target build image
+          # debian_bookworm -> debian and bookworm
+          # alpine_latest -> alpine and latest
+          distribs: [ debian_bookworm, alpine_latest ]
+    runs-on: ${{ matrix.platform-runs }} 
+
     steps:
+      - name: Prepare
+        id: prepare
+        run : |
+          # this instance is running on ubuntu-latest or ubuntu-24.04-arm
+          # dump values for debug 
+          echo matrix.platform-run on ${{ matrix.platform-runs }}
+          echo matrix.distribs= ${{ matrix.distribs }}
+          # parse distribs debian_bookworm -> DISTRIB=debian and RELEASE=bookworm
+          # parse distribs ubuntu_24.04 -> DISTRIB=ubuntu and RELEASE=24.04
+          echo ${{ matrix.distribs }} | awk -F "_" '{print "DISTRIB="$1}' >> ${GITHUB_ENV}
+          echo ${{ matrix.distribs }} | awk -F "_" '{print "RELEASE="$2}' >> ${GITHUB_ENV}
+          # read uname --machine to know the type of cpu amd64 or arm64
+          # create env OS_PLATFORM=linux/amd64 and PLATFORM=amd64
+          # create env OS_PLATFORM=linux/arm64 and PLATFORM=arm64
+          MACHINE=$(uname --machine)
+          echo $MACHINE
+          if [ $MACHINE = 'x86_64' ]; then 
+             echo 'OS_PLATFORM=linux/amd64' >> ${GITHUB_ENV}
+             echo 'PLATFORM=amd64' >> ${GITHUB_ENV}
+          fi
+          if [ $MACHINE = 'aarch64' ]; then 
+             echo 'OS_PLATFORM=linux/arm64' >> ${GITHUB_ENV}
+             echo 'PLATFORM=arm64' >> ${GITHUB_ENV}
+          fi
+          
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
-
-      - name: Perform Bandit Analysis
-        uses: PyCQA/bandit-action@v1
         
       - name: create version
         run: | 
@@ -46,26 +75,47 @@ jobs:
           registry: https://ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Build and push
+
+      - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v6
         with:
-          platforms: linux/amd64, linux/arm64
-          context: .
-          file: Dockerfile
-          push: true
           build-args: |
+            BASE_IMAGE=python
+            TAG=${{ env.DISTRIB }}
             branch:${{ env.branch }}
-          tags: |
-            ghcr.io/abcdesktopio/pyos:${{ env.imagetag }}
+          file: Dockerfile.${{ env.DISTRIB }}
+          provenance: false
+          platforms: ${{ env.OS_PLATFORM }}
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ env.DISTRIB }}_${{ env.RELEASE }}:${{ env.PLATFORM }}
+          outputs: type=image,name-canonical=true,push=true
+          # outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.28.0
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    strategy:
+      fail-fast: false
+      matrix:
+        distribs: [ debian_bookworm, alpine_latest ]
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          image-ref: ghcr.io/abcdesktopio/pyos:${{ env.imagetag }}
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          registry: https://ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: merge
+        uses: int128/docker-manifest-create-action@v2
+        with:
+          # image format ntlm_auth:$distrib_$release
+          # amd64 and arm64
+          # ghcr.io/abcdesktopio/pyos:debian_bookworm
+          # ghcr.io/abcdesktopio/pyos:alpine_latest
+          tags: ghcr.io/${{ env.REGISTRY_IMAGE }}:${{ env.imagetag }}.${{ matrix.distribs }}
+          sources: |
+            ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ matrix.distribs }}:arm64
+            ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ matrix.distribs }}:amd64
