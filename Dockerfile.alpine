@@ -1,7 +1,5 @@
 FROM python:alpine
 
-
-
 ## install kerberos libgss ldap
 ## we must install curl command line for pullapps bash script 
 
