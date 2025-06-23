@@ -22,8 +22,6 @@ from typing_extensions import assert_type
 from oc.od.base_controller import BaseController
 import oc.od.composer
 import oc.od.services
-import oc.cherrypy
-import oc.logging
 
 from oc.od.services import services
 
@@ -74,6 +72,21 @@ class ManagerController(BaseController):
         # check if request is allowed, raise an exception if deny
         self.is_permit_request()
         return http_dump
+    
+    # pyosendpoints request is protected by is_permit_request()
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def pyosendpoints(self):
+        """[pyosendpoints]  
+            get all replicatinstance endpoints
+        Returns:
+            [json]: [list of all pyos instance endpoints]
+        """
+        # check if request is allowed, raise an exception if deny
+        self.is_permit_request()
+        replicats = oc.od.services.services.replicatinstance.get_endpoints()
+        return replicats
+
 
     # buildapplist request is protected by is_permit_request()
     @cherrypy.expose
