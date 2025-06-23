@@ -111,7 +111,7 @@ jobs:
       - name: merge
         uses: int128/docker-manifest-create-action@v2
         with:
-          # image format ntlm_auth:$distrib_$release
+          # image format pyos:$distrib_$release
           # amd64 and arm64
           # ghcr.io/abcdesktopio/pyos:debian_bookworm
           # ghcr.io/abcdesktopio/pyos:alpine_latest
