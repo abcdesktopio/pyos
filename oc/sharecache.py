@@ -48,6 +48,26 @@ class ODMemcachedSharecache(ODSharecacheBase):
             self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
             return None
 
+    def add(self, key, value, time=0 ):
+        try:
+            if self.createclient().add(str(key), str(value), time=time) != 0: 
+                self.logger.debug(f"set({key})->{value}") 
+                return True
+            self.logger.error(f"{self.connectionstring} failed, {key} {value} return failed")
+        except Exception as e:
+            self.logger.error(f"{self.connectionstring} failed, {key} {e}")
+        return False
+    
+    def append(self, key, value, time=0 ):
+        try:
+            if self.createclient().append(str(key), str(value), time=time) != 0: 
+                self.logger.debug(f"set({key})->{value}") 
+                return True
+            self.logger.error(f"{self.connectionstring} failed, {key} {value} return failed")
+        except Exception as e:
+            self.logger.error(f"{self.connectionstring} failed, {key} {e}")
+        return False
+
     def set(self, key, value, time=0 ):
         try:
             if self.createclient().set(str(key), str(value), time=time) != 0: 
@@ -68,5 +88,34 @@ class ODMemcachedSharecache(ODSharecacheBase):
 
         return False
 
+    def gets(self, key:str, time=0 )->tuple[any, any]:
+        """Gets the value for the key from memcached.
+        Args:
+            key (str): The key to get the value for.
+            time (int, optional): Not used in this implementation. Defaults to 0.
+        Returns:
+            str: The value for the key, or None if not found.
+        """
+        try:
+            value = self.createclient().gets(key)
+            # self.logger.debug(f"gets({key})->{value}")
+            return value
+        except Exception as e:
+            self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
+            return None, None
+
+    def cas(self, key, value )->bool:
+        # returns 
+        # - None if the key didn’t exist, 
+        # - False if it existed but had a different cas value
+        # - True if it existed and was changed.
+        try:
+            cas_status = self.createclient().cas(key, value)
+            return cas_status
+        except Exception as e:
+            self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
+            return None
+
     def createclient(self):
         return memcache.Client(servers=[self.connectionstring], socket_timeout=self.socket_timeout)
+    

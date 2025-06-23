@@ -13,15 +13,14 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-
+import os
 import logging
 from typing_extensions import assert_type
 import requests
 
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
-import oc.pyutils
-import oc.logging
+
 import oc.od.orchestrator
 
 from oc.od.services import services
@@ -29,6 +28,7 @@ from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthU
 from oc.od.error import ODError
 import oc.od.appinstancestatus
 import oc.od.desktop
+import oc.od.services
 import oc.od.tracking
 from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.rest import ApiException
@@ -920,7 +920,7 @@ def notify_endpoint( url:str )->bool:
     return False
 
 
-def notify_endpoints(pyos_endpoint_uri:str, pyos_endpoint_port:int, pyos_endpoint_addresses:str)->None:
+def notify_endpoints(pyos_endpoint_uri:str, pyos_endpoint_port:int, pyos_endpoint_addresses:list)->None:
     """notify_endpoints
         query endpoint '/API/manager/buildapplist' on a pyos instance
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
@@ -932,10 +932,7 @@ def notify_endpoints(pyos_endpoint_uri:str, pyos_endpoint_port:int, pyos_endpoin
         pyos_endpoint_addresses (str): endpoint address
         
     """
-    # if pyos is not running inside kubernetes pod  
-    if oc.od.settings.developer_instance is True:
-        # overwrite pyos_endpoint_addresses value  
-        pyos_endpoint_addresses = [ 'localhost' ]
+    assert isinstance( pyos_endpoint_addresses, list ), f"pyos_endpoint_addresses has invalid type {type(pyos_endpoint_addresses)}"
     for pyos_endpoint_address in pyos_endpoint_addresses:
         # build the url
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
@@ -952,20 +949,16 @@ def notity_pyos_buildapplist()->None:
         for all pyos pods instance 
 
     """
-    ## new Orchestrator Object
-    myOrchestrator = selectOrchestrator()
-    # list all pyos endpoints (port and address)
-    # listEndpointAddresses can return (None,None)
-    (pyos_endpoint_port, pyos_endpoint_addresses) = myOrchestrator.listEndpointAddresses( 'pyos' )
-    if isinstance(pyos_endpoint_port, int) and isinstance( pyos_endpoint_addresses, list ):
-        # create a thread for each pyos_endpoint_addresses and call buildapplist
-        notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
-    else:
-        # pyos account can't list listEndpointAddresses
-        # call buildapplist only for this pyos pod's instance
-        services.apps.cached_applist( bRefresh=True)
 
-    return myOrchestrator
+    # update local applist first 
+    # charity begins at home.
+    services.apps.cached_applist( bRefresh=True)
+
+    # notify ohers pyos instances to update their applist 
+    pyos_endpoint_port = os.environ.get('PYOS_ENDPOINT_PORT', '8000')
+    pyos_endpoint_addresses = oc.od.services.services.replicatinstance.get_endpoints()
+    # create thread for each pyos_endpoint_address and call buildapplist
+    notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
 
 
 

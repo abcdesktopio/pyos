@@ -11,7 +11,6 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 # 
-import os
 import time
 import random
 import logging
@@ -23,13 +22,14 @@ logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
 class ODReplicatInstance:
     
-    def __init__(self, keyname:str, envkeyname:str, memcache_connection_string:str ):
+    def __init__(self, keyname:str, endpoint:str, memcache_connection_string:str ):
         self.keyname = keyname
-        self.endpoint = os.environ.get(envkeyname, 'localhost' ) # localhost for developpement purposes
+        self.endpoint = endpoint
         self.memcache = oc.sharecache.ODMemcachedSharecache( memcache_connection_string )
    
     def register_endpoint(self)-> bool:
         nCount = 0
+        serialized_endpoints = ""
         addstatus = self.memcache.add(self.keyname, self.endpoint )
         while addstatus is False and nCount < 10:
             # Key already exists, we can assume a running replicat is already registered
@@ -51,6 +51,8 @@ class ODReplicatInstance:
                 time.sleep( random.randint(0, nCount) )  # Wait for random second before retrying
         if addstatus is False:
             self.logger.debug(f"Failed to register endpoint {self.endpoint} for key {self.keyname} nCount={nCount}")
+        else:
+            self.logger.debug(f"Registered endpoint {self.endpoint} for key {self.keyname} with value {serialized_endpoints}")
         return addstatus
         
 
@@ -84,4 +86,6 @@ class ODReplicatInstance:
                 addstatus = self.memcache.cas(self.keyname, new_value )
                 if addstatus is False:
                     self.logger.error(f"Failed to update key {self.keyname} with value {new_value}")
+        if addstatus is True:
+            self.logger.debug(f"Unregistered endpoint {self.endpoint} for key {self.keyname}")
         return addstatus

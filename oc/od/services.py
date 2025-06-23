@@ -1,9 +1,10 @@
+import os
 import logging
 import oc.od.settings as settings
 import oc.od.orchestrator
 import oc.od.kuberneteswatcher
 import oc.auth.authservice
-import oc.od.apps
+import oc.od.replicatinstance
 
 logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
@@ -21,7 +22,6 @@ class ODServices(object):
         self.locatorPublicInternet = None
         # self.webrtc = None
         self.kuberneteswatcher = None
-        # self.imagewatcher = None
         self.apps = None
         self.prelogin = None
         self.logmein = None
@@ -43,6 +43,7 @@ class ODServices(object):
         self.init_prelogin()
         self.init_logmein()
         self.init_fail2ban()
+        self.init_replicatinstance()
 
     def start(self):
         """start
@@ -58,6 +59,17 @@ class ODServices(object):
             stop threads 
                 * kuberneteswatcher
         """
+
+        if isinstance( self.replicatinstance, oc.od.replicatinstance.ODReplicatInstance):
+            try:
+                self.logger.debug( 'unregisteting host endpoint')
+                unregistered = self.replicatinstance.unregister_endpoint()  # unregister endpoint
+                self.logger.debug( f"unregister_endpoint() -> {unregistered}")
+            except Exception as e:
+                self.logger.error(e)
+        else:
+            self.logger.debug( 'self.replicatinstance is not defined')
+
         # stop thread imagewatcher if instance exists
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             try:
@@ -178,6 +190,16 @@ class ODServices(object):
     def init_datacache(self):
         import oc.sharecache
         self.sharecache = oc.sharecache.ODMemcachedSharecache(settings.memconnectionstring)
+
+    def init_replicatinstance(self):
+        """init_replicatinstance
+           create replicat instance to register the endpoint
+        """
+        self.replicatinstance = oc.od.replicatinstance.ODReplicatInstance( keyname='pyospodips', 
+                                                                           endpoint=os.environ.get('POD_IP', 'localhost'),
+                                                                           memcache_connection_string=settings.memconnectionstring )
+        # register the endpoint
+        self.replicatinstance.register_endpoint()
 
     def init_prelogin(self):
         import oc.auth.prelogin
