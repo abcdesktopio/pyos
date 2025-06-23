@@ -1,5 +1,7 @@
 FROM python:alpine
 
+LABEL org.opencontainers.image.description abcdesktop.pyos
+
 ## install kerberos libgss ldap
 ## we must install curl command line for pullapps bash script 
 
