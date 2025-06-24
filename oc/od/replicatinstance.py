@@ -86,6 +86,6 @@ class ODReplicatInstance:
                 addstatus = self.memcache.cas(self.keyname, new_value )
                 if addstatus is False:
                     self.logger.error(f"Failed to update key {self.keyname} with value {new_value}")
-        if addstatus is True:
-            self.logger.debug(f"Unregistered endpoint {self.endpoint} for key {self.keyname}")
+
+        self.logger.debug(f"Unregistered endpoint {self.endpoint} for key {self.keyname}")
         return addstatus
