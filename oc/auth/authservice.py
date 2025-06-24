@@ -236,12 +236,20 @@ class AuthUser(dict):
         assert( isinstance(moustachedata, dict))
         etcgroup = chevron.render( oc.od.settings.DEFAULT_GROUP_FILE,  moustachedata )
         new_etc_group_lines = AuthUser.mkgroup_newline( moustachedata )
-        if len(new_etc_group_lines)>0:
-            etcgroup += f"\n{new_etc_group_lines}"
+        if len( new_etc_group_lines ) > 0:
+            logger.debug( f"new line for /etc/group -> {new_etc_group_lines}\n" )
+            etcgroup += new_etc_group_lines
         return etcgroup
 
     @staticmethod
     def mkgroup_newline ( moustachedata:dict )->str: 
+        """
+        mkgroup_newline 
+            generate the group file from the moustachedata
+            and the template file DEFAULT_GROUP_FILE
+            Args: moustachedata (dict): moustachedata
+            Returns: group (str): group file content
+        """
         assert( isinstance(moustachedata, dict))
         new_etc_group_lines = ''
         groups = moustachedata.get('groups')
@@ -250,7 +258,7 @@ class AuthUser(dict):
             for group in groups:
                 newline = f"{group['cn']}:x:{group['gidNumber']}:"
                 uids = group.get('memberUid')
-                logger.debug( f"add user memberUid: {uids}" )
+                # logger.debug( f"add user memberUid: {uids}" )
                 if isinstance(uids, str):
                     newline += uids
                 if isinstance(uids, list) and len(uids) > 0:
@@ -261,7 +269,7 @@ class AuthUser(dict):
                         break
                     for uid in uids[n::]:
                         newline += ',' + uid
-                logger.debug( f"new line for /etc/group:\n{newline}\n" )
+                # logger.debug( f"new line for /etc/group:\n{newline}\n" )
                 new_etc_group_lines += newline + '\n'
         return new_etc_group_lines
                     
@@ -278,7 +286,8 @@ class AuthUser(dict):
         gshadow = chevron.render( oc.od.settings.DEFAULT_GSHADOW_FILE,  moustachedata )
         mkshadow_newline = AuthUser.mkgshadow_newline( moustachedata )
         if len(mkshadow_newline)>0:
-            gshadow += f"\n{mkshadow_newline}"
+            logger.debug( f"new line for /etc/gshadow -> {mkshadow_newline}\n" )
+            gshadow += mkshadow_newline
         return gshadow
 
     @staticmethod 
