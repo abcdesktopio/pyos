@@ -14,15 +14,11 @@
 
 import logging
 import cherrypy
-import datetime
 
-import oc.lib
-import oc.od.acl
 import oc.od.settings as settings
 
 import oc.od.composer 
 import oc.i18n
-import oc.auth.jwt
 import urllib
 
 from oc.od.services import services
@@ -68,8 +64,6 @@ class ComposerController(BaseController):
              raise cherrypy.HTTPError( status=400, message='ocrun error')
         return Results.success(result=result)
         
-       
-    
     def LocaleSettingsLanguage( self, user ):
         # add current locale from http Accept-Language to AuthUser 
         locale = oc.i18n.detectLocale(cherrypy.request.headers.get('Accept-Language'), oc.od.settings.supportedLocales)
