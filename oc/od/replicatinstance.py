@@ -55,7 +55,7 @@ class ODReplicatInstance:
         
     def get_endpoints(self)-> list:
         # Get the value for the key from memcached
-        value = self.memcache.get(self.keyname, None)
+        value = self.memcache.get(self.keyname)
         if value is None:
             # self.logger.debug(f"Failed to get value for key {self.keyname}")
             return None
