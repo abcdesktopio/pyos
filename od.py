@@ -204,15 +204,18 @@ class API(object):
 class ODCherryWatcher(plugins.SimplePlugin):
     """ signal thread to stop when cherrypy stop"""
     def start(self):
-        logger.debug( "ODCherryWatcher start events" )
-        oc.od.services.services.start()
+        if isinstance( oc.od.services.services, oc.od.services.ODServices ):
+            logger.debug( "ODCherryWatcher start events" )
+            oc.od.services.services.start()
 
     def stop(self):
         logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
-        oc.od.services.services.stop()
+        if isinstance( oc.od.services.services, oc.od.services.ODServices  ):
+            logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
+            oc.od.services.services.stop()
 
 def handler_SIGNAL( signal:str, **signum )->None:
-    logger.info(f"*** Received signal {signal}, stopping cherrypy engine and services {len(signum)}")
+    logger.warning(f"*** Received signal {signal}, stopping cherrypy engine and services {len(signum)}")
     # stop services
     oc.od.services.services.stop()
     # stop cherrypy engine
@@ -222,7 +225,6 @@ def handler_SIGQUIT( **signum ): handler_SIGNAL( 'SIGQUIT', **signum )
 def handler_SIGINT ( **signum ): handler_SIGNAL( 'SIGINT' , **signum )
 def handler_SIGTERM( **signum ): handler_SIGNAL( 'SIGTERM', **signum )
 def handler_SIGSTOP( **signum ): handler_SIGNAL( 'SIGSTOP', **signum )
-
 
 def run_server():
     logger.info("Starting cherrypy service...")
