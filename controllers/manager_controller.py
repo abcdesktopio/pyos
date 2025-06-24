@@ -115,7 +115,6 @@ class ManagerController(BaseController):
         cherrypy.response.notrace = True
         return oc.od.services.services.update_locator()
         
-
     # garbagecollector request is protected by is_permit_request()
     @cherrypy.expose
     @cherrypy.tools.json_out()
