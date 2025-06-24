@@ -23,43 +23,43 @@ class ODMessageInfoManager():
         self.memcache = oc.sharecache.ODMemcachedSharecache( connectionstring )
         self.memcacheclient = self.memcache.createclient()
         
-    def get(self, key):
+    def get(self, key:str):
         return self._get( key )
 
-    def _get(self, key):
+    def _get(self, key:str):
         return self.memcacheclient.get(str(key))
 
-    def _delete(self, key):        
+    def _delete(self, key:str):        
         try:
             return self.memcacheclient.delete(str(key))
         except Exception:
             pass
 
-    def delete(self, key):        
+    def delete(self, key:str):        
         self._delete( key )
         
-    def _set(self, key, value, time=60 ):
+    def _set(self, key:str, value:str, expire:int=60 ):
         try:
-            if self.memcacheclient.set(str(key), str(value), time) != 0: 
+            if self.memcacheclient.set(str(key), str(value), expire=expire) != 0: 
                 return True            
         except Exception as e:
             self.logger.error(e)                      
         return False
 
-    def set(self, key, value ):
+    def set(self, key:str, value:str ):
         return self._set(key, value )
 
-    def getqueue(self, key):
+    def getqueue(self, key:str):
         return ODMessageInfo( key, self.memcacheclient )
                 
-    def start(self, key, message=None):
+    def start(self, key:str, message=None):
         self._delete(key)        
         if message:
             self._set(key,message)
         return self.getqueue(key)
 
 
-    def push(self, key, message):
+    def push(self, key:str, message:str):
         try:
             self._set(key,message)
             return True
@@ -99,10 +99,10 @@ class ODMessageInfo( ODMessageInfoManager ):
     def delete(self):        
         return super().delete( self.key )
         
-    def set(self, value ):
+    def set(self, value:str ):
         return super().set( self.key, value )
         
-    def push(self, value):
+    def push(self, value:str):
         return super().push( self.key, value )
         
     def pop(self):
