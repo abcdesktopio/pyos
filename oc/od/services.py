@@ -183,11 +183,13 @@ class ODServices(object):
         """init_replicatinstance
            create replicat instance to register the endpoint
         """
+        endpoint=os.environ.get('POD_IP', 'localhost')
         self.replicatinstance = oc.od.replicatinstance.ODReplicatInstance( keyname='pyospodips', 
-                                                                           endpoint=os.environ.get('POD_IP', 'localhost'),
+                                                                           endpoint=endpoint,
                                                                            memcache_connection_string=settings.memconnectionstring )
         # register the endpoint
-        self.replicatinstance.register_endpoint()
+        isregistered = self.replicatinstance.register_endpoint()
+        logger.debug(f"register_endpoint( endpoint={endpoint} ) -> {isregistered}")
 
     def init_prelogin(self):
         import oc.auth.prelogin
