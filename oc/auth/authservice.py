@@ -1763,7 +1763,7 @@ class ODAuthManagerBase(object):
         for name,cfg in config.get('providers',{}).items():
             if not cfg.get('enabled', True): 
                 continue
-            self.logger.debug( "adding provider name {name}" )
+            self.logger.debug( f"adding provider name {name}" )
             provider = self.createprovider(name, cfg)
             try:
                 # add only instance ODAuthProviderBase or herited
