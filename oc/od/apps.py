@@ -127,16 +127,19 @@ class ODApps:
     def cached_applist(self, bRefresh=False):
         self.logger.debug(f"cached_applist bRefresh={bRefresh}")
         # if bRefresh is True or myglobal_list is empty
-        if bRefresh or len(self.myglobal_list) == 0:
+        if bRefresh is True or len(self.myglobal_list) == 0:
             # Build the AppList
             mybuild_applist = self.build_applist()
+            self.logger.debug(f"cached_applist mybuild_applist lock.acquiring")
             self.lock.acquire()
+            self.logger.debug(f"cached_applist mybuild_applist locked")
             try:
                 self.myglobal_list = mybuild_applist
             except Exception as e:
                 self.logger.error( e )
             finally:
                 self.lock.release()
+                self.logger.debug(f"cached_applist mybuild_applist released")
 
             #
             # Note: this section code has been remove for user dedicated userapplist
