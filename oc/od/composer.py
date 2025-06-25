@@ -1023,7 +1023,7 @@ def pull_application_image( json_images:dict, node:str=None ):
                     app['pulling'] = myOrchestrator.pullimage_on_all_nodes( app )
 
         # broadcast event to all pyos instance to sync applist object
-        ()
+        notity_pyos_buildapplist()
     else:
         raise ODError( status=400, message="failed to add json image format to collection")
     # updated with app['pulling'] = status
