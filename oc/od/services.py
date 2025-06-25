@@ -56,22 +56,22 @@ class ODServices(object):
 
     def stop( self):
         """stop
-            stop threads 
-                * kuberneteswatcher
+            - unregister_endpoint from replicatinstance
+            - stop threads kuberneteswatcher
         """
-
         if isinstance( self.replicatinstance, oc.od.replicatinstance.ODReplicatInstance):
+            # always use try/except 
             try:
-                self.logger.debug( 'unregisteting host endpoint')
                 unregistered = self.replicatinstance.unregister_endpoint()  # unregister endpoint
-                self.logger.debug( f"unregister_endpoint() -> {unregistered}")
+                self.logger.debug( f"unregistered endpoint -> {unregistered}")
             except Exception as e:
                 self.logger.error(e)
         else:
-            self.logger.debug( 'self.replicatinstance is not defined')
+            self.logger.debug( 'self.replicatinstance is not defined' )
 
         # stop thread imagewatcher if instance exists
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
+            # always use try/except 
             try:
                 self.logger.debug( 'kuberneteswatcher in stopping')
                 self.kuberneteswatcher.stop()
@@ -81,19 +81,7 @@ class ODServices(object):
         else:
             self.logger.debug( 'self.kuberneteswatcher is not defined')
 
-        '''
-        # stop thread imagewatcher if instance exists
-        if isinstance( self.apps, oc.od.apps.ODApps ):
-            try:
-                self.logger.debug( 'appswatcher stop')
-                self.apps.stop()
-                self.logger.debug( 'appswatcher stopped')
-            except Exception as e:
-                self.logger.error(e)
-        else:
-            self.logger.debug( 'self.apps is not defined')
-        '''
-        self.logger.debug('done')
+        self.logger.debug('done, this is the end')
 
 
     def init_fail2ban( self ):
@@ -195,11 +183,13 @@ class ODServices(object):
         """init_replicatinstance
            create replicat instance to register the endpoint
         """
+        endpoint=os.environ.get('POD_IP', 'localhost')
         self.replicatinstance = oc.od.replicatinstance.ODReplicatInstance( keyname='pyospodips', 
-                                                                           endpoint=os.environ.get('POD_IP', 'localhost'),
+                                                                           endpoint=endpoint,
                                                                            memcache_connection_string=settings.memconnectionstring )
         # register the endpoint
-        self.replicatinstance.register_endpoint()
+        isregistered = self.replicatinstance.register_endpoint()
+        logger.debug(f"register_endpoint( endpoint={endpoint} ) -> {isregistered}")
 
     def init_prelogin(self):
         import oc.auth.prelogin
@@ -230,32 +220,16 @@ class ODServices(object):
 # use services to access 
 services = ODServices()
 
-
 def init_infra():
     """init_infra
-
-       find configuration for kubernetes
+        Check kubernetes config 
+        find configuration for kubernetes
     """
-
     # Check kubernetes config 
     myOrchestrator = oc.od.orchestrator.ODOrchestratorKubernetes()
     if not myOrchestrator.is_configured():
         logger.fatal('Kubernetes config is not detected')
-        if settings.get_exit_on_error() is True:
-            exit(-1)
-        else:
-            return
-
-    # check if service account can call list_node
-    # pyos service account can have clusterRole or Role
-    if not myOrchestrator.is_list_node_enabled():
-        logger.warning('Kubernetes service account can NOT query list_node')
-        if isinstance( oc.od.settings.desktop.get('nodeselector'), dict ):
-            logger.warning('kubernetes service account can NOT query list_node and desktop.nodeselector is a dict')
-            logger.warning('prefetch images feature is disable')
-    else:
-        logger.debug('Kubernetes service account can query list_node')
-
+        exit(-1)
 
 def init():
     # init all services 
@@ -267,5 +241,5 @@ def init():
     # list images application
     services.init_applist()
 
-    # delete pods applications
+    # delete user pods thread
     services.init_kuberneteswatcher()

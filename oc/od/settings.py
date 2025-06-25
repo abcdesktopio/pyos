@@ -41,7 +41,6 @@ balloon_loginname = 'balloon'       # default login name
 balloon_shell     = '/bin/bash'     # default shell
 balloon_password  = 'lmdpocpetit'   # default password
 
-developer_instance = False          # developer specific params
 
 DEFAULT_VOLUMES = {
     'shm': { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '512Mi' } },
@@ -498,9 +497,7 @@ def _resolv( fqdh:str )->str:
     except socket.gaierror as err:
         logger.fatal(f"Cannot resolve hostname:{fqdh} {err}")
         logger.fatal(f"This is a fatal error, check coredns config or netpol")
-        exit_on_error = get_exit_on_error()
-        if exit_on_error is True:
-            sys.exit(-1)
+        sys.exit(-1)
     return ipaddr
 
 def init_config_memcached():
@@ -752,17 +749,6 @@ def get_configuration_file_name():
     configuration_file_name = os.getenv('OD_CONFIG_PATH', 'od.config')
     return configuration_file_name
 
-def get_exit_on_error():
-    """get_exit_on_error
-
-    Returns:
-        bool: 
-    """
-    env_exit_on_error = os.getenv('OD_EXIT_ON_ERROR', 'true')
-    exit_on_error = bool(distutils.util.strtobool(env_exit_on_error))
-    return exit_on_error
-
-
 def load_config():    
     global config
     global gconfig
@@ -792,12 +778,6 @@ def init():
 
     # load passwd, group, shadow file
     init_localaccount()
-
-    # developer specific config
-    # only to use for local pyos instance, 
-    # if developer_instance is set to True then pyos is not supposed to run inside kubernetes pod 
-    global developer_instance
-    developer_instance =  gconfig.get('developer_instance', False )
 
     # load execute classes
     init_executeclass()

@@ -48,7 +48,7 @@ class ODPrelogin:
         # self.logger.debug( self.mustache_data  )
 
 
-    def prelogin_verify( self, sessionid, userid ):
+    def prelogin_verify( self, sessionid:str, userid:str ):
         self.logger.debug( 'prelogin_verify starting' )
         if not isinstance(sessionid, str) or not isinstance(userid, str):
             self.logger.error( "prelogin_verify invalid sessionid or userid type" )
@@ -92,7 +92,7 @@ class ODPrelogin:
         self.memcacheclient = self.memcache.createclient()
         userid = userid.upper() # always cache data in upper case only 
         self.logger.info( f"prelogin_html setting key={sessionid} value={userid} timeout={self.maxprelogintimeout}" )
-        bset = self.memcacheclient.set( key=sessionid, val=userid, time=self.maxprelogintimeout )
+        bset = self.memcacheclient.set( key=sessionid, val=userid, expire=self.maxprelogintimeout )
         if not isinstance( bset, bool) or bset is False:
             self.logger.error( f"memcacheclient:set failed to set data key={sessionid} value={userid}" )
         html_data = chevron.render( self.mustache_data, prelogindict )

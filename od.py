@@ -20,6 +20,7 @@ import os
 import cherrypy # web framework 
 from cherrypy._cpdispatch import Dispatcher
 from cherrypy.process import plugins
+from cherrypy.process.plugins import SignalHandler
 
 import oc.logging
 import oc.cherrypy
@@ -197,26 +198,48 @@ class API(object):
     def healthz(self):
         # disable trace response in log
         cherrypy.response.notrace = True
-        # return OK i'm fine
         return "OK"  
     
     
 class ODCherryWatcher(plugins.SimplePlugin):
     """ signal thread to stop when cherrypy stop"""
     def start(self):
-        # logger.debug( "ODCherryWatcher start events" )
-        oc.od.services.services.start()
+        if isinstance( oc.od.services.services, oc.od.services.ODServices ):
+            logger.debug( "ODCherryWatcher start events" )
+            oc.od.services.services.start()
 
     def stop(self):
-        # logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
-        oc.od.services.services.stop()
+        logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
+        if isinstance( oc.od.services.services, oc.od.services.ODServices  ):
+            logger.debug("ODCherryWatcher is stopping. Stopping runnging thread")
+            oc.od.services.services.stop()
 
+def handler_SIGNAL( signal:str, **signum )->None:
+    logger.warning(f"*** Received signal {signal}, stopping cherrypy engine and services {len(signum)}")
+    # stop services
+    oc.od.services.services.stop()
+    # stop cherrypy engine
+    cherrypy.engine.exit()
+
+def handler_SIGQUIT( **signum ): handler_SIGNAL( 'SIGQUIT', **signum )
+def handler_SIGINT ( **signum ): handler_SIGNAL( 'SIGINT' , **signum )
+def handler_SIGTERM( **signum ): handler_SIGNAL( 'SIGTERM', **signum )
+def handler_SIGSTOP( **signum ): handler_SIGNAL( 'SIGSTOP', **signum )
 
 def run_server():
     logger.info("Starting cherrypy service...")
     # update config for cherrypy with the od.config file
     cherrypy.config.update(settings.get_configuration_file_name())
     logger.debug(f"cherrypy.config.update({settings.get_configuration_file_name()}) done")  
+
+    # signal handler 
+    signalhandler = SignalHandler(cherrypy.engine)
+    signalhandler.handlers['SIGTERM'] = handler_SIGTERM
+    signalhandler.handlers['SIGQUIT'] = handler_SIGQUIT
+    signalhandler.handlers['SIGINT'] = handler_SIGINT
+    # signalhandler.handlers['SIGSTOP'] = handler_SIGSTOP
+    signalhandler.subscribe()
+    
     # set auth tools
     cherrypy.tools.auth = services.services.auth
     # set /API
@@ -228,6 +251,7 @@ def run_server():
     cherrypy.engine.start()
     # infite loop
     logger.info("Waiting for requests.")
+
     cherrypy.engine.block()
 
 def main(argv):

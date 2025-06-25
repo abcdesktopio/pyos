@@ -62,10 +62,9 @@ class ManagerController(BaseController):
         # return http reqest content
         # http_dump = get_json( cherrypy.request.body )
 
-        http_dump = { 
-            'headers' : cherrypy.request.headers,
-            'remote'  : cherrypy.request.remote.__dict__,
-            'params'  : cherrypy.request.params
+        http_dump = {   'headers' : cherrypy.request.headers,
+                        'remote'  : cherrypy.request.remote.__dict__,
+                        'params'  : cherrypy.request.params
         }
         # log before is_permit_request
         self.logger.debug( http_dump )
@@ -115,7 +114,6 @@ class ManagerController(BaseController):
         cherrypy.response.notrace = True
         return oc.od.services.services.update_locator()
         
-
     # garbagecollector request is protected by is_permit_request()
     @cherrypy.expose
     @cherrypy.tools.json_out()

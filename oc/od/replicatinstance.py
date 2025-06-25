@@ -26,14 +26,14 @@ class ODReplicatInstance:
         self.keyname = keyname
         self.endpoint = endpoint
         self.memcache = oc.sharecache.ODMemcachedSharecache( memcache_connection_string )
+  
    
     def register_endpoint(self)-> bool:
         nCount = 0
-        serialized_endpoints = ""
         addstatus = self.memcache.add(self.keyname, self.endpoint )
         while addstatus is False and nCount < 10:
             # Key already exists, we can assume a running replicat is already registered
-            serialized_endpoints = self.memcache.gets( self.keyname )
+            serialized_endpoints, cas = self.memcache.gets( self.keyname )
 
             # Check if the endpoint is already registered
             if self.endpoint in serialized_endpoints.split('+'):
@@ -45,47 +45,50 @@ class ODReplicatInstance:
                 serialized_endpoints += '+' + self.endpoint
             else:
                 serialized_endpoints = self.endpoint
-            addstatus = self.memcache.cas(self.keyname, serialized_endpoints )
-            nCount += 1
+            addstatus = self.memcache.cas(self.keyname, serialized_endpoints, cas )
             if addstatus is False:
-                time.sleep( random.randint(0, nCount) )  # Wait for random second before retrying
+                time.sleep( random.randint(0, nCount) )  # Wait for a second before retrying
+                nCount += 1
         if addstatus is False:
-            self.logger.debug(f"Failed to register endpoint {self.endpoint} for key {self.keyname} nCount={nCount}")
-        else:
-            self.logger.debug(f"Registered endpoint {self.endpoint} for key {self.keyname} with value {serialized_endpoints}")
+            self.logger.error(f"Failed to register endpoint {self.endpoint} for key {self.keyname}")
         return addstatus
         
-
-    def get_endpoints(self, )-> list:
+    def get_endpoints(self)-> list:
         # Get the value for the key from memcached
         value = self.memcache.get(self.keyname)
         if value is None:
-            self.logger.debug(f"Failed to get value for key {self.keyname}")
+            # self.logger.debug(f"Failed to get value for key {self.keyname}")
             return None
         values = value.split('+')
         if len(values) == 0:
-            self.logger.debug(f"Failed to get value for key {self.keyname}, no values found")
+            # self.logger.debug(f"Failed to get value for key {self.keyname}, no values found")
             return None
         self.logger.debug(f"get_endpoints({self.keyname})->{values}")
         return values
     
-
-    
     def unregister_endpoint(self)-> bool:
         addstatus = False
-        serialized_endpoints= self.memcache.gets( self.keyname )
+        serialized_endpoints, cas= self.memcache.gets( self.keyname )
         if isinstance( serialized_endpoints, str ):
             endpoints = serialized_endpoints.split('+')
             new_endpoints = []
             for value in endpoints:
                 if value != self.endpoint:
                     new_endpoints.append( value )
+            
+            # check if we need to delete the key
+            if len(new_endpoints) == 0:
+                # We have removed the last endpoint, we can delete the key
+                addstatus = self.memcache.delete(self.keyname)
+                if addstatus is False:
+                    self.logger.error(f"Failed to delete key {self.keyname}")
+                return addstatus
+            
+            # check if we need to update the key
             if len(new_endpoints) < len(endpoints):
                 # We have removed an endpoint, we can update the key
                 new_value = '+'.join(new_endpoints)
-                addstatus = self.memcache.cas(self.keyname, new_value )
+                addstatus = self.memcache.cas(self.keyname, new_value, cas )
                 if addstatus is False:
                     self.logger.error(f"Failed to update key {self.keyname} with value {new_value}")
-        if addstatus is True:
-            self.logger.debug(f"Unregistered endpoint {self.endpoint} for key {self.keyname}")
         return addstatus
