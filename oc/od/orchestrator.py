@@ -2631,7 +2631,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( nodeselector, dict ):
             # convert dict as filter str
             label_selector = self.get_label_nodeselector()
-            self.logger.debug('list_node label_selector={label_selector}')
+            self.logger.debug( f"list_node label_selector={label_selector}")
 
             # Check if we can call list_node
             # if the pyos_service account has ClusterRole
