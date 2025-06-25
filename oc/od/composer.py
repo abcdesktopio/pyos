@@ -607,17 +607,24 @@ def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
     return myDesktop
 
 
-def sampledesktop(authinfo:AuthInfo, userinfo:AuthUser):
-
-    kwargs   = {}
-    myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, kwargs  )
-
+def dry_run_desktop(authinfo:AuthInfo, userinfo:AuthUser):
+    """dry_run_desktop
+        create a desktop with dry_run mode, this is used to test the desktop creation
+        without creating a pod or a container   
+    Args:
+        authinfo (AuthInfo): authentification data
+        userinfo (AuthUser): user data  
+    Returns:
+        [dict]: json dict with desktop information
+    """
+    myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, kwargs={}  )
+    myCreateDesktopArguments['dry_run'] = 'All'
+    
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()
-    myOrchestrator.desktoplaunchprogress = None
-    # dry_run
-    myCreateDesktopArguments['dry_run'] = 'All'
-    # Create the desktop                
+    myOrchestrator.desktoplaunchprogress = dry_run_on_desktoplaunchprogress_info
+
+    # Create the desktop dry_run             
     jsonDesktop = myOrchestrator.createdesktop( authinfo, userinfo, **myCreateDesktopArguments )
     return jsonDesktop
     
@@ -841,6 +848,11 @@ def on_desktoplaunchprogress_info(source, key, *args):
     services.messageinfo.push( services.auth.user.userid, message)
 
 
+def dry_run_on_desktoplaunchprogress_info(source, key, *args):
+    # nothing to do here
+    # this is a dry run call
+    pass
+
 def detach_container_from_network( id:str ):
     """detach_container_from_network
         execute a postpone command when container or desktop stop
@@ -911,7 +923,7 @@ def notify_endpoint( url:str )->bool:
         apikey = oc.od.settings.controllers.get('ManagerController').get('apikey', [ None ])[0]
         if isinstance( apikey, str ) :
             headers={'X-API-Key': apikey }
-        # logger.debug( f"notify_endpoint: url={url} headers={headers}" )
+            logger.debug( f"notify_endpoint: url={url} headers={headers}" )
         response = requests.get(url, headers=headers )
         if isinstance( response, requests.models.Response ):
             logger.debug( f"notify_endpoint: url={url} response.status_code={response.status_code} response.reason={response.reason}" )
@@ -957,7 +969,7 @@ def notity_pyos_buildapplist()->None:
 
     # update local applist first 
     # charity begins at home.
-    services.apps.cached_applist( bRefresh=True)
+    services.apps.cached_applist(bRefresh=True)
 
     # notify ohers pyos instances to update their applist 
     pyos_endpoint_port = os.environ.get('PYOS_ENDPOINT_PORT', '8000')
@@ -967,6 +979,8 @@ def notity_pyos_buildapplist()->None:
     # remove my self instance from the list of pyos_endpoint_addresses
     if services.replicatinstance.endpoint in pyos_endpoint_addresses:
         pyos_endpoint_addresses.remove( services.replicatinstance.endpoint )
+
+    logger.debug( f"notity_pyos_buildapplist: pyos_endpoint_addresses={pyos_endpoint_addresses}" )
     # create thread for each pyos_endpoint_address and call buildapplist
     notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
 
