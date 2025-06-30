@@ -32,16 +32,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run hadolint
+      - name: Run hadolint on debian Dockerfile
         uses: hadolint/hadolint-action@f988afea3da57ee48710a9795b6bb677cc901183
         with:
-          dockerfile: ./Dockerfile
+          dockerfile: ./Dockerfile.debian
           format: sarif
-          output-file: hadolint-results.sarif
+          output-file: hadolint-results.debian.sarif
           no-fail: true
 
       - name: Upload analysis results to GitHub
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: hadolint-results.sarif
+          sarif_file: hadolint-results.debian.sarif
+          wait-for-processing: true
+
+      - name: Run hadolint on alpine Dockerfile
+        uses: hadolint/hadolint-action@f988afea3da57ee48710a9795b6bb677cc901183
+        with:
+          dockerfile: ./Dockerfile.alpine
+          format: sarif
+          output-file: hadolint-results.alpine.sarif
+          no-fail: true
+
+      - name: Upload analysis results to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: hadolint-results.alpine.sarif
           wait-for-processing: true
