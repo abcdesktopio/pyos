@@ -3293,6 +3293,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         secretDockerConfigJson = oc.od.secret.ODSecretDockerConfigJson( namespace=self.namespace, kubeapi=self.kubeapi, secret_name=snaphostregistrysecretname )
         readdata = secretDockerConfigJson.read_alldata( None, None )
+        if not isinstance( readdata, dict ) or not isinstance( readdata.get('.dockerconfigjson'), dict):
+            self.logger.error( f"error in reading snapshot registry secret {snaphostregistrysecretname} data={readdata}" )
+            return None 
+        
         try: 
             dockerconfigjson_auths = readdata.get('.dockerconfigjson').get('auths')
             registry_name = list(dockerconfigjson_auths.keys())[0]
@@ -3311,7 +3315,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( f"error in reading snapshot registry secret {snaphostregistrysecretname} data={readdata} {e}")
             return None
         
-        self.logger.info( f"snapshot registry initialized {oc.od.settings.snaphost_registry}" )
+        self.logger.info( f"snapshot registry initialized registry={oc.od.settings.snaphost_registry.get('registry')}" )
     
     def get_snapshoted_image( self, authinfo:AuthInfo, userinfo:AuthUser, image:str)->str:
         """get_snapshoted_image
