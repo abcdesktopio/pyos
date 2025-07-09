@@ -231,11 +231,18 @@ def init_infra():
         logger.fatal('Kubernetes config is not detected')
         exit(-1)
 
+     # check if snap registry is configured
+    if isinstance( settings.desktop.get('snaphostregistrysecretname'), str ):
+        # read the snap registry secret name values to use snap feature
+        myOrchestrator.init_snapregistry()
+
+
 def init():
     # init all services 
     services.init()
     
     # init kubernetes 
+    # init snapregistry
     init_infra()
 
     # list images application
