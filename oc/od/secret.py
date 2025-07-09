@@ -258,6 +258,22 @@ class ODSecret():
             self.logger.info( f"{op} secret type={self.secret_type} name={mysecret.metadata.name} done" )
 
         return mysecret
+    
+
+
+
+class ODSecretDockerConfigJson( ODSecret ):
+    ''' Create a secret used for userinfo ldif '''
+    def __init__( self, namespace, kubeapi, prefix=None, secret_type='dockerconfigjson', secret_name=None ):
+        super().__init__( namespace, kubeapi, prefix, secret_type)
+        self.access_type='dockerconfigjson'
+        self.secret_type='kubernetes.io/dockerconfigjson'
+        self.secret_name=secret_name
+        # .dockerconfigjson is a json string
+        self.typeConverterValues = { '.dockerconfigjson': json.loads  }
+
+    def get_name(self, authinfo, userinfo):
+        return self.secret_name
 
 class ODSecretLDIF( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
@@ -290,6 +306,7 @@ class ODSecretCitrix( ODSecret ):
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='citrix' ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
         self.access_type='auth'
+
 class ODSecretRemoteFileSystemDriver( ODSecret ):
     """[class ODSecretRemoteFileSystemDriver]
         Create a secret used by for Remote File System driver 
