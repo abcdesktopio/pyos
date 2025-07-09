@@ -41,6 +41,15 @@ balloon_loginname = 'balloon'       # default login name
 balloon_shell     = '/bin/bash'     # default shell
 balloon_password  = 'lmdpocpetit'   # default password
 
+# default registry for snapshoted images dictionary or None 
+snaphost_registry = None
+# read by orchestrator then init_snapregistry is done if snaphost registry secret name is defined
+# oc.od.settings.snaphost_registry = {
+#                'registry': registry_name,
+#                'username': username,
+#                'password': password,
+#                'auth': auth,
+#                'email': email
 
 DEFAULT_VOLUMES = {
     'shm': { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '512Mi' } },
@@ -436,6 +445,9 @@ def init_desktop():
         if '.cache' not in desktop['directorytomemoryemptydir']:
             desktop['directorytomemoryemptydir'].append('.cache')
 
+    if isinstance( gconfig.get('desktop.snaphostregistrysecretname'), str ):
+        desktop['snaphostregistrysecretname'] = gconfig.get('desktop.snaphostregistrysecretname')
+
     init_balloon()
 
    
@@ -445,8 +457,9 @@ def init_menuconfig():
     global menuconfig
     menuconfig = gconfig.get('front.menuconfig', {  'settings': True, 
                                                     'appstore': True, 
-                                                    'screenshot':True, 
-                                                    'logout':   True, 
+                                                    'screenshot': True, 
+                                                    'logout': True, 
+                                                    'snaphsot': True,
                                                     'disconnect': True } )
 
 def init_geolocation():

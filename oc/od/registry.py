@@ -66,5 +66,6 @@ def list_registry_tags(image_name:str, registry:str=None, username:str=None, pas
         tags = list_dockerhub_tags(image_name, username, password)
     else:
         # Private registry
-        tags = list_registry_tags(image_name, registry, username, password)
+        tags = list_privateregistry_tags(image_name, registry, username, password)
+
     return tags
