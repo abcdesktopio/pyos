@@ -2,7 +2,7 @@
 import requests
 from requests.auth import HTTPBasicAuth
 
-def list_dockerhub_tags(image_name, username=None, password=None):
+def list_dockerhub_tags(image_name:str, username:str=None, password:str=None)-> list:
     """
     List tags from Docker Hub using the Docker Hub API (token-based authentication if credentials are provided).
 
@@ -36,7 +36,7 @@ def list_dockerhub_tags(image_name, username=None, password=None):
 
     return tags
 
-def list_privateregistry_tags(image_name, registry, username=None, password=None):
+def list_privateregistry_tags(image_name:str, registry:str, username:str=None, password:str=None, protocol:str='https'):
     """
     List tags from a private Docker Registry (v2) using Basic Auth if provided.
 
@@ -46,7 +46,12 @@ def list_privateregistry_tags(image_name, registry, username=None, password=None
     :param password: Optional password or token
     :return: List of tags or error message
     """
-    url = f"https://{registry}/v2/{image_name}/tags/list"
+
+    url = f"{registry}/v2/{image_name}/tags/list"
+    # Ensure the URL starts with the correct protocol
+    if not registry.startswith(('http://', 'https://')):
+        url = f"{protocol}://{url}" 
+
     auth = HTTPBasicAuth(username, password) if username and password else None
 
     try:
@@ -59,13 +64,12 @@ def list_privateregistry_tags(image_name, registry, username=None, password=None
         return f"Exception occurred: {e}"
 
 
-def list_registry_tags(image_name:str, registry:str=None, username:str=None, password:str=None):
+def list_registry_tags(image_name:str, registry:str=None, username:str=None, password:str=None, protocol:str='https') -> list:
     tags = None
     if not registry or registry == "docker.io":
         # Docker Hub
         tags = list_dockerhub_tags(image_name, username, password)
     else:
         # Private registry
-        tags = list_privateregistry_tags(image_name, registry, username, password)
-
+        tags = list_privateregistry_tags(image_name, registry, username, password, protocol)
     return tags
