@@ -88,7 +88,7 @@ jobs:
           provenance: false
           platforms: ${{ env.OS_PLATFORM }}
           labels: ${{ steps.meta.outputs.labels }}
-          tags: ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ env.DISTRIB }}_${{ env.RELEASE }}:${{ env.PLATFORM }}
+          tags: ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ env.DISTRIB }}_${{ env.RELEASE }}:${{ env.imagetag }}.${{ env.PLATFORM }}
           outputs: type=image,name-canonical=true,push=true
           # outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
@@ -118,5 +118,5 @@ jobs:
           # ghcr.io/abcdesktopio/pyos:alpine_latest
           tags: ghcr.io/${{ env.REGISTRY_IMAGE }}:${{ env.imagetag }}.${{ matrix.distribs }}
           sources: |
-            ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ matrix.distribs }}:arm64
-            ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ matrix.distribs }}:amd64
+            ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ matrix.distribs }}:${{ env.imagetag }}.arm64
+            ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ matrix.distribs }}:${{ env.imagetag }}.amd64
