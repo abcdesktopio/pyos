@@ -42,9 +42,10 @@ balloon_shell     = '/bin/bash'     # default shell
 balloon_password  = 'lmdpocpetit'   # default password
 
 # default registry for snapshoted images dictionary or None 
-snaphost_registry = None
-# read by orchestrator then init_snapregistry is done if snaphost registry secret name is defined
-# oc.od.settings.snaphost_registry = {
+snapshot_registry = None
+snapshot_registry_protocol = None  # default protocol for snapshot registry, like 'https' or 'http'
+# read by orchestrator then init_snapregistry is done if snapshot registry secret name is defined
+# oc.od.settings.snapshot_registry = {
 #                'registry': registry_name,
 #                'username': username,
 #                'password': password,
@@ -445,8 +446,10 @@ def init_desktop():
         if '.cache' not in desktop['directorytomemoryemptydir']:
             desktop['directorytomemoryemptydir'].append('.cache')
 
-    if isinstance( gconfig.get('desktop.snaphostregistrysecretname'), str ):
-        desktop['snaphostregistrysecretname'] = gconfig.get('desktop.snaphostregistrysecretname')
+    if isinstance( gconfig.get('desktop.snapshotregistrysecretname'), str ):
+        desktop['snapshotregistrysecretname'] = gconfig.get('desktop.snapshotregistrysecretname')
+    
+    desktop['snapshotregistryprotocol'] = gconfig.get('desktop.snapshotregistryprotocol', 'https' )
 
     init_balloon()
 
