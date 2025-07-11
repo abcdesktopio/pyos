@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.description abcdesktop.pyos
 ## we must install curl command line for pullapps bash script 
 
 RUN apk upgrade --no-cache && \
-    apk update --no-cache  && \
+    apk update && \
     apk add --no-cache \
  	wget \
 	curl \
