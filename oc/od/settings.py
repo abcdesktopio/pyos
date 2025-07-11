@@ -461,9 +461,11 @@ def init_menuconfig():
     menuconfig = gconfig.get('front.menuconfig', {  'settings': True, 
                                                     'appstore': True, 
                                                     'screenshot': True, 
-                                                    'logout': True, 
-                                                    'snaphsot': True,
+                                                    'logout': True,
                                                     'disconnect': True } )
+    # read desktop config
+    menuconfig['snapshot'] = desktop.get('snapshot',{}).get('enable', False)
+    logger.debug(f"menuconfig: {menuconfig}")
 
 def init_geolocation():
     global geolocation
