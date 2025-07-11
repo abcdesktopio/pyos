@@ -260,9 +260,7 @@ class ODSecret():
         return mysecret
     
 
-
-
-class ODSecretDockerConfigJson( ODSecret ):
+class ODSecretDockerConfigjson( ODSecret ):
     ''' Create a secret used for userinfo ldif '''
     def __init__( self, namespace, kubeapi, prefix=None, secret_type='dockerconfigjson', secret_name=None ):
         super().__init__( namespace, kubeapi, prefix, secret_type)
