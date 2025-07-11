@@ -231,9 +231,11 @@ def init_infra():
         logger.fatal('Kubernetes config is not detected')
         exit(-1)
 
-  
     # read the snap registry secret name values to use snap feature if available
     myOrchestrator.init_snapregistry()
+
+    # reload default menu config because new features amy be available
+    settings.init_menuconfig()
 
 
 def init():

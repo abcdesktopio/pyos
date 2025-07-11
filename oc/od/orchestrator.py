@@ -3367,7 +3367,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             image_name=image_no_tag, 
             registry=oc.od.settings.snapshot_registry.get('registry'),
             username=oc.od.settings.snapshot_registry.get('username'),
-            password=oc.od.settings.snapshot_registry.get('password')
+            password=oc.od.settings.snapshot_registry.get('password'),
+            protocol=oc.od.settings.snapshot_registry.get('protocol', 'https'),
         )
 
         if isinstance( snapshoted_tags, str ):
@@ -3672,7 +3673,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 resources=resources
             )
             # overwrite image value if a snapshoted image exists for this user
-            if oc.od.settings.desktop_pod[currentcontainertype].get('snapshoted_image') is True:
+            if oc.od.settings.desktop_pod.get('snaphost', {}).get('enable') is True:
                 snapshoted_image = self.get_snapshoted_image( authinfo, userinfo, image=graphical_container['image'] )
                 if isinstance( snapshoted_image, str ) and len(snapshoted_image) > 0:
                     # replace the image with the snapshoted image
