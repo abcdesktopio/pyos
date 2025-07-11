@@ -463,8 +463,8 @@ def init_menuconfig():
                                                     'screenshot': True, 
                                                     'logout': True,
                                                     'disconnect': True } )
-    # read desktop config
-    menuconfig['snapshot'] = desktop.get('snapshot',{}).get('enable', False)
+    # read desktop config 
+    menuconfig['snapshot'] = desktop_pod.get('snapshot',{}).get('enable', False)
     logger.debug(f"menuconfig: {menuconfig}")
 
 def init_geolocation():
