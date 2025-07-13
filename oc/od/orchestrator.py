@@ -1559,6 +1559,32 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         - /etc/gshadow -> /etc/localaccount.shadow/gshadow
         '''
 
+    def build_volumes_snapshot( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
+        """[build_volumes_snapshot]
+        """
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+
+        # snapshot_volume_name = self.get_volumename( 'snapshot', userinfo )
+        volumes = {}        # set empty volume dict by default
+        volumes_mount = {}  # set empty volume_mount dict by default
+        snapshot_volume_name = 'snapshot'
+        volumes[snapshot_volume_name] = { 
+            'name': snapshot_volume_name,
+            'hostPath': {
+                'path': oc.od.settings.snapshot_mountpath,
+                'type': 'Directory'
+            }
+        }
+        volumes_mount[snapshot_volume_name] = {
+            'name': snapshot_volume_name, 
+            'mountPath': oc.od.settings.snapshot_mountpath 
+        }
+        return (volumes, volumes_mount)
+
+
+
     def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         """[build_volumes]
 
@@ -1638,6 +1664,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.build_volumes_vnc(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
             volumes.update(vnc_volumes)
             volumes_mount.update(vnc_volumes_mount)
+
+            # check if snapshot is enabled for desktop pod
+            if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable', False) is True:
+                self.logger.debug( f"snaphost is enabled for desktop pod {volume_type} {userinfo.userid}" )
+                # add snaphost volumes
+
+                (snapshot_volumes, snapshot_volumes_mount) = \
+                    self.build_volumes_snapshot(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
+                volumes.update(snapshot_volumes)
+                volumes_mount.update(snapshot_volumes_mount)    
 
         #
         # mount secret in /var/secrets/abcdesktop
@@ -1882,7 +1918,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return False
     """
 
-    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None )->ODDesktop:
+    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None, snaphshot:bool=False  )->ODDesktop:
         """removedesktop
             remove kubernetes pod for a give user
             then remove kubernetes user's secrets and configmap
@@ -1916,6 +1952,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # removesecrets: remove secret 
             # removeconfigmap: remove config map
             myappinstance = ODAppInstanceKubernetesPod( self )
+
+            # if snaphshot is True: 
 
             removethreads =  [  
                 { 'fct':self.removePod, 'args': [ myPod ] },
@@ -3721,14 +3759,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # snaphot is a special container
         # it need some secrets env variables
         currentcontainertype = 'snapshot'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ) and \
-            oc.od.settings.desktop_pod['graphical'].get('snapshoted_image') is True:
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ) :
             snapshotenvlist = copy.deepcopy(envlist)
             for key in oc.od.settings.snapshot_registry.keys():
                 # add snapshot registry env variables
                 if key in [ 'registry', 'username', 'password' ]:
                     snapshotenvlist.append( { 'name': f'SNAPSHOT_REGISTRY_{key.upper()}', 'value': oc.od.settings.snapshot_registry.get(key) } )
-            snapshotenvlist.append( { 'name': 'SNAPSHOT_REGISTRY_PROTOCOL', 'value': oc.od.settings.desktop['snapshotregistryprotocol'] } ) # add snapshot registry protocol
+            snapshotenvlist.append( { 'name': 'SNAPSHOT_REGISTRY_PROTOCOL', 'value': oc.od.settings.desktop.get('snapshotregistryprotocol', 'https') } ) # add snapshot registry protocol
             # add snapshot registry secret name if defined
             snapshotenvlist.append( { 'name': 'SNAPSHOT_CONTAINER_NAME', 'value': graphical_container.get('name')  } )
             rewrited_image = self.rewriteregistry_image( graphical_container.get('image'), oc.od.settings.snapshot_registry.get('registry') )
