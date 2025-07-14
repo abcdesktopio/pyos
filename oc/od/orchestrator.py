@@ -1574,7 +1574,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'name': snapshot_volume_name,
             'hostPath': {
                 'path': oc.od.settings.snapshot_mountpath,
-                'type': 'Directory'
+                'type': oc.od.settings.snapshot_mounttype
             }
         }
         volumes_mount[snapshot_volume_name] = {
@@ -1664,16 +1664,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.build_volumes_vnc(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
             volumes.update(vnc_volumes)
             volumes_mount.update(vnc_volumes_mount)
-
-            # check if snapshot is enabled for desktop pod
-            if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable', False) is True:
-                self.logger.debug( f"snaphost is enabled for desktop pod {volume_type} {userinfo.userid}" )
-                # add snaphost volumes
-
-                (snapshot_volumes, snapshot_volumes_mount) = \
-                    self.build_volumes_snapshot(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
-                volumes.update(snapshot_volumes)
-                volumes_mount.update(snapshot_volumes_mount)    
 
         #
         # mount secret in /var/secrets/abcdesktop
@@ -3587,6 +3577,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug( f"volumeMounts={volumeMounts.values()}")
         self.logger.debug('volumes created')
 
+        # snaphot volumes
+        # check if snapshot is enabled for desktop pod
+        snapshot_volumes = None
+        snapshot_volumes_mount = None
+        if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable', False) is True:
+            # add snapshot volumes
+            (snapshot_volumes, snapshot_volumes_mount) = \
+                self.build_volumes_snapshot(authinfo, userinfo, 'snapshot', secrets_requirement, rules, **kwargs)
+
 
         self.logger.debug('websocketrouting creating')
         # check if we have to build X509 certificat
@@ -3668,6 +3667,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         hostname = oc.od.settings.desktop.get('hostname', pod_name)
 
+        # list_pod_allvolumes
+        if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True and isinstance(snapshot_volumes, dict)  : 
+            list_pod_allvolumes.append( snapshot_volumes.get('snapshot') ) 
+
         # define pod_manifest
         pod_manifest = {
             'apiVersion': 'v1',
@@ -3711,7 +3714,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 resources=resources
             )
             # overwrite image value if a snapshoted image exists for this user
-            if oc.od.settings.desktop_pod.get('snaphost', {}).get('enable') is True:
+            if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True:
                 snapshoted_image = self.get_snapshoted_image( authinfo, userinfo, image=graphical_container['image'] )
                 if isinstance( snapshoted_image, str ) and len(snapshoted_image) > 0:
                     # replace the image with the snapshoted image
@@ -3739,7 +3742,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'ssh':      { 'list_volumeMounts':  list_volumeMounts }, # ssh uses default user volumes
             'filer':    { 'list_volumeMounts':  list_volumeMounts }, # filter uses default user volumes
             'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts } # storage uses default user volumes
-            # 'snapshot': { 'list_volumeMounts':  []  } # snap uses tmp volume
         }
 
         for currentcontainertype in containers.keys():
@@ -3759,7 +3761,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # snaphot is a special container
         # it need some secrets env variables
         currentcontainertype = 'snapshot'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ) :
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ) and isinstance( snapshot_volumes_mount, dict):
             snapshotenvlist = copy.deepcopy(envlist)
             for key in oc.od.settings.snapshot_registry.keys():
                 # add snapshot registry env variables
@@ -3777,7 +3779,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 currentcontainertype=currentcontainertype, 
                 myuuid=myuuid,
                 envlist=snapshotenvlist,
-                list_volumeMounts=[]
+                list_volumeMounts=[ snapshot_volumes_mount.get('snapshot') ]
             )
             pod_manifest['spec']['containers'].append( new_container )
             self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")

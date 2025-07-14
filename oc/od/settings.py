@@ -42,6 +42,7 @@ balloon_password  = 'lmdpocpetit'   # default password
 
 # default registry for snapshoted images dictionary or None 
 snapshot_mountpath = None # default mount path for containerd on ubuntu 
+snapshot_mounttype = None
 snapshot_registry = None
 snapshot_registry_protocol = 'https'  # default protocol for snapshot registry, like 'https' or 'http'
 # read by orchestrator then init_snapregistry is done if snapshot registry secret name is defined
@@ -785,11 +786,12 @@ def load_config():
         logger.error(f"Failed to load configuration file {configpath} {e}")
         exit(-1)           
 
-
 def init_snapshot():
     global snapshot_mountpath
+    global snapshot_mounttype
     global snapshot_registry_protocol 
-    snapshot_mountpath = gconfig.get('desktop.snapshotmountpath', '/run/containerd/')
+    snapshot_mountpath = gconfig.get('desktop.snapshotmountpath', '/run/containerd/containerd.sock')
+    snapshot_mounttype = gconfig.get('desktop.snapshotmountpath', 'Socket')
     snapshot_registry_protocol = gconfig.get('desktop.snapshotregistryprotocol', 'https' )
 
 
