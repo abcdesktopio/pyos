@@ -36,7 +36,7 @@ def list_dockerhub_tags(image_name:str, username:str=None, password:str=None)-> 
 
     return tags
 
-def list_privateregistry_tags(image_name:str, registry:str, username:str=None, password:str=None, protocol:str='https'):
+def list_privateregistry_tags(image_name:str, registry:str, username:str=None, password:str=None, protocol:str='https', timeout:int=10):
     """
     List tags from a private Docker Registry (v2) using Basic Auth if provided.
 
@@ -55,11 +55,13 @@ def list_privateregistry_tags(image_name:str, registry:str, username:str=None, p
     auth = HTTPBasicAuth(username, password) if username and password else None
 
     try:
-        response = requests.get(url, auth=auth)
+        response = requests.get(url, auth=auth, timeout=timeout)
         if response.status_code == 200:
             return response.json().get("tags", [])
         else:
             return f"Error {response.status_code}: {response.text}"
+    except requests.exceptions.Timeout as e:
+        return f"Time out Exception occurred: {e}"
     except Exception as e:
         return f"Exception occurred: {e}"
 
