@@ -3199,11 +3199,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             bReturn = result.get( 'ExitCode', 1)
         return bReturn
 
-    def rewriteregistry_image( self, image:str, registry:str )->str:
+    def rewriteregistry_image( self, repository:str, image:str, registry:str )->str:
         """rewriteregistry_image
             rewrite the image with the registry
             if image is like 'registry.example.com/namespace/image:tag'
-            return 'newregistry.example.com/namespace/image'
+            return 'newregistry.example.com/{userid}/namespace/image:tag'
 
         Args:
             image (str): image name
@@ -3214,13 +3214,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         assert_type( image, str )
         assert_type( registry, str )
-        image_no_tag = image.split(':')[0] # remove tag if any
-        image_split = image_no_tag.split('/')
-        if len(image_split) > 2:
-            # image is like registry/repository/image
-            # remove registry part gets repository/image
-            image_no_tag = f"{image_split[1]}/{image_split[2]}"
-        rewrited_image = f"{registry}/{image_no_tag}"
+        registry_image_split = image.split('/')
+        image_name = registry_image_split[-1] # get the last part of the image
+        image_name_split = image_name.split(':')
+        image_name_no_tag = image_name_split[0] # image name without tag
+        tag = image_name_split[-1] # tag is the last part of the image name after ':'
+        if isinstance( tag, str ):
+            tag_split = tag.split('-')
+            if len(tag_split) > 1:
+                # if image has a tag endwith 'version-timestamp'
+                tag = tag_split[-1]
+                if tag.isnumeric():
+                    tag = '-'.join(tag_split[:-1])
+            
+        rewrited_image = f"{registry}/{repository}/{image_name_no_tag}:{tag}"
         return rewrited_image
 
     def addcontainertopod( self, authinfo:AuthInfo, userinfo:AuthUser, currentcontainertype:str, myuuid:str, envlist:list, list_volumeMounts:list, workingdir:str=None, command:str=None, resources:dict=None ):
@@ -3354,8 +3361,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         try: 
             dockerconfigjson_auths = readdata.get('.dockerconfigjson').get('auths')
             registry_name = list(dockerconfigjson_auths.keys())[0]
+            # build the oc.od.settings.snapshot_registry dict
             oc.od.settings.snapshot_registry = dockerconfigjson_auths.get(registry_name).copy() # copy the registry settings
             oc.od.settings.snapshot_registry['registry'] = registry_name # set the registry name
+            oc.od.settings.snapshot_registry['protocol'] = oc.od.settings.snapshot_registry_protocol # https in most cases
         except (KeyError, IndexError) as e:
             self.logger.error( f"error in reading snapshot registry secret {snapshotregistrysecretname} data={oc.od.settings.snapshot_registry} {e}")
             return None
@@ -3383,22 +3392,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance(oc.od.settings.snapshot_registry, dict):
             return None # no snapshot registry defined, return original image
         
-        image_no_tag = image.split(':')[0] # remove tag if any
-        image_split = image_no_tag.split('/')
-        if len(image_split) > 2:
-            # image is like registry/repository/image
-            # remove registry part gets repository/image
-            image_no_tag = f"{image_split[1]}/{image_split[2]}"
-
+        # transform image to a registry/image format
+        # 'ghcr.io/abcdesktopio/oc.user.ubuntu.sudo.24.04:4.1'
+        # to registy/{userid}/oc.user.ubuntu.sudo.24.04:4.1-{timestamp}
+        image_split = image.split('/')
+        image_name_only = image_split[-1] # get the last part of the image name
+        image_no_tag = image_name_only.split(':')[0] # remove tag if any
+        image_name = f"{userinfo.userid}/{image_no_tag}" # add userid to the image name'
+        
         # list current images 
         snapshoted_tags = oc.od.registry.list_registry_tags( 
-            image_name=image_no_tag, 
+            image_name=image_name, 
             registry=oc.od.settings.snapshot_registry.get('registry'),
             username=oc.od.settings.snapshot_registry.get('username'),
             password=oc.od.settings.snapshot_registry.get('password'),
-            protocol=oc.od.settings.snapshot_registry.get('protocol', 'https'),
+            protocol=oc.od.settings.snapshot_registry.get('protocol'),
         )
 
+        self.logger.debug( f"snapshoted_tags={snapshoted_tags} for image {image}" )
         if isinstance( snapshoted_tags, str ):
             self.logger.debug( snapshoted_tags )
             return None # error in listing tags, return original image
@@ -3408,16 +3419,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # if len(split_image) > 1:
         #    # image has a tag
         #    current_tag = split_image[:-1]
-
+        new_image = None # default image is None
         default_tag_timestamp = 0 # zero epoch timestamp
         if isinstance( snapshoted_tags, list ) and len(snapshoted_tags) > 0:
             self.logger.debug( f"found snapshoted tags {snapshoted_tags} for image {image}" )
             # find the latest snapshoted image for the user
             for tag in snapshoted_tags:
-                if isinstance( tag, str ) and tag.startswith( userinfo.userid + '-' ):
+                if isinstance( tag, str ):
                     splitted_tag = tag.split('-') # tag is like userid-timestamp
                     if len(splitted_tag) > 1:
-                        tag_timestamp = splitted_tag[1]
+                        tag_timestamp = splitted_tag[-1]
                     else:
                         self.logger.error( f"invalid tag {tag} for image {image}" )
                         continue
@@ -3433,7 +3444,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         default_tag_timestamp = tag_timestamp
                         # found a snapshoted image for the user with the latest timestamp
                         self.logger.debug( f"found a snapshoted image {image} with with the latest timestamp {tag}" )
-                    new_image = f"{oc.od.settings.snapshot_registry.get('registry')}/{image_no_tag}:{tag}"
+                        new_image = f"{oc.od.settings.snapshot_registry.get('registry')}/{userinfo.userid}/{image_no_tag}:{tag}"
         
         self.logger.info( f"snapshoted image found {new_image} for {userinfo.userid}" )
         return new_image
@@ -3770,7 +3781,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             snapshotenvlist.append( { 'name': 'SNAPSHOT_REGISTRY_PROTOCOL', 'value': oc.od.settings.desktop.get('snapshotregistryprotocol', 'https') } ) # add snapshot registry protocol
             # add snapshot registry secret name if defined
             snapshotenvlist.append( { 'name': 'SNAPSHOT_CONTAINER_NAME', 'value': graphical_container.get('name')  } )
-            rewrited_image = self.rewriteregistry_image( graphical_container.get('image'), oc.od.settings.snapshot_registry.get('registry') )
+            rewrited_image = self.rewriteregistry_image( repository=userinfo.userid, image=graphical_container.get('image'), registry=oc.od.settings.snapshot_registry.get('registry') )
             snapshotenvlist.append( { 'name': 'SNAPSHOT_CONTAINER_TARGET_IMAGE', 'value': rewrited_image } )
             snapshotenvlist.append( { 'name': 'SNAPSHOT_CONTAINER_SOURCE_IMAGE', 'value': graphical_container.get('image') } )
             new_container = self.addcontainertopod( 

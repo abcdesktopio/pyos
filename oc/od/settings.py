@@ -44,7 +44,7 @@ balloon_password  = 'lmdpocpetit'   # default password
 snapshot_mountpath = None # default mount path for containerd on ubuntu 
 snapshot_mounttype = None
 snapshot_registry = None
-snapshot_registry_protocol = 'https'  # default protocol for snapshot registry, like 'https' or 'http'
+snapshot_registry_protocol = None # default protocol for snapshot registry, like 'https' or 'http'
 # read by orchestrator then init_snapregistry is done if snapshot registry secret name is defined
 # oc.od.settings.snapshot_registry = {
 #                'registry': registry_name,
