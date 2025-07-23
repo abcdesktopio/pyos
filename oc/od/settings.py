@@ -1,7 +1,6 @@
 import os
 import socket
 import sys
-import distutils.util
 import logging
 
 from cherrypy.lib.reprconf import Config
@@ -42,8 +41,10 @@ balloon_shell     = '/bin/bash'     # default shell
 balloon_password  = 'lmdpocpetit'   # default password
 
 # default registry for snapshoted images dictionary or None 
+snapshot_mountpath = None # default mount path for containerd on ubuntu 
+snapshot_mounttype = None
 snapshot_registry = None
-snapshot_registry_protocol = None  # default protocol for snapshot registry, like 'https' or 'http'
+snapshot_registry_protocol = None # default protocol for snapshot registry, like 'https' or 'http'
 # read by orchestrator then init_snapregistry is done if snapshot registry secret name is defined
 # oc.od.settings.snapshot_registry = {
 #                'registry': registry_name,
@@ -51,6 +52,7 @@ snapshot_registry_protocol = None  # default protocol for snapshot registry, lik
 #                'password': password,
 #                'auth': auth,
 #                'email': email
+
 
 DEFAULT_VOLUMES = {
     'shm': { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '512Mi' } },
@@ -453,8 +455,6 @@ def init_desktop():
 
     init_balloon()
 
-   
-
 
 def init_menuconfig():
     global menuconfig
@@ -786,6 +786,14 @@ def load_config():
         logger.error(f"Failed to load configuration file {configpath} {e}")
         exit(-1)           
 
+def init_snapshot():
+    global snapshot_mountpath
+    global snapshot_mounttype
+    global snapshot_registry_protocol 
+    snapshot_mountpath = gconfig.get('desktop.snapshotmountpath', '/run/containerd/containerd.sock')
+    snapshot_mounttype = gconfig.get('desktop.snapshotmountpath', 'Socket')
+    snapshot_registry_protocol = gconfig.get('desktop.snapshotregistryprotocol', 'https' )
+
 
 def init():
     logger.debug('Init configuration start')
@@ -868,6 +876,9 @@ def init():
 
     # init_logmein
     init_logmein()
+
+    # init snapshot
+    init_snapshot()
 
     # init_controllers
     # use desktop
