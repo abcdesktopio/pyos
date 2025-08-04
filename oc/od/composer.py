@@ -233,7 +233,17 @@ def remove_container_byname(desktop_name: str, container_id:str):
 def get_desktop_resources_usage(desktop_name:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo )
+    return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo)
+
+def getephemeralcontainer_resources_usage(desktop_name:str, ephemeralcontainer_name:str):
+    myOrchestrator = selectOrchestrator()
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return myOrchestrator.getephemeralcontainer_resources_usage( authinfo, userinfo, ephemeralcontainer_name=ephemeralcontainer_name)
+
+def get_desktop_resources_usage(desktop_name:str):
+    myOrchestrator = selectOrchestrator()    
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo)
 
 
 def fakednsquery( userid ):

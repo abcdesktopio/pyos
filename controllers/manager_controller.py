@@ -513,7 +513,7 @@ class ManagerController(BaseController):
             if args[1]=="resources_usage":
                 # specify desktop
                 if len(args)==2 :
-                    # list container for a desktop
+                    # resources_usage for a desktop
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/resources_usage
                     resource = oc.od.composer.get_desktop_resources_usage(desktop_name)
                     return resource
@@ -535,6 +535,23 @@ class ManagerController(BaseController):
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id
                     container = oc.od.composer.describe_container( desktop_name, container=container_id )
                     return container
+                
+                if len(args)==4 and args[3]=="resources_usage":
+                    #
+                    # args[0] -> desktop_name
+                    # args[1] -> container
+                    # args[2] -> container_name or container_id
+                    # args[3] -> resources_usage
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
+                    ephemeralcontainer_name = args[2]
+                    if not isinstance( ephemeralcontainer_name, str):
+                        raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+                    self.logger.debug(f'get ephemeralcontainer resources usage for {desktop_name} {ephemeralcontainer_name}')
+                    # get ephemeralcontainer resources usage
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
+                    resource = oc.od.composer.getephemeralcontainer_resources_usage(desktop_name=desktop_name, ephemeralcontainer_name=ephemeralcontainer_name)
+                    return resource
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
 
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 

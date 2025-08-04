@@ -1735,6 +1735,34 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return result
 
+    def getephemeralcontainer_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, ephemeralcontainer_name:str ) -> dict:
+        resources_usage = { 'timestamp': time.time() }
+        cgroup_map = oc.od.settings.desktop['resources_usage_cgroup_map']
+        myPod = self.findPodByUser(authinfo, userinfo )
+
+        if not isinstance(ephemeralcontainer_name, str ):
+            self.logger.error( f"ephemeralcontainer_name is not a str, gets {type(ephemeralcontainer_name)}" )
+            return resources_usage
+
+        if isinstance(myPod, V1Pod ):
+            # delete this pod immediatly
+            myDesktop = self.pod2desktop( myPod, authinfo, userinfo )
+            for r in cgroup_map.keys():
+                command = [ 'cat',  cgroup_map.get(r) ]
+                myDesktop.container_name = ephemeralcontainer_name
+                # execwaitincontainer will use myDesktop.container_name
+                # to execute the command in the ephemeral container
+                self.logger.debug( f"execwaitincontainer in ephemeral container {ephemeralcontainer_name} command={command}")
+                result = self.execwaitincontainer( desktop=myDesktop, command=command)
+                if isinstance(result, dict):
+                    stdout = result.get('stdout')
+                    if isinstance( stdout, str):
+                        resources_usage[r] = stdout.strip()
+        return resources_usage
+    
+    def getpod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
+        pass
+
     def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
    
         resources_usage = { 'timestamp': time.time() }
