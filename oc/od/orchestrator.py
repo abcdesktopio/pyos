@@ -638,9 +638,6 @@ class ODOrchestrator(ODOrchestratorBase):
     def execwaitincontainer( self, desktop, command, timeout=1000):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
-    def execininstance( self, container_id, command):
-        raise NotImplementedError(f"{type(self)}.execininstance")
-
     def getappinstance( self, authinfo, userinfo, app ):        
         raise NotImplementedError(f"{type(self)}.getappinstance")
 
@@ -1684,8 +1681,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('volumes end')        
         return (volumes, volumes_mount)
 
-        
-    def execwaitincontainer( self, desktop:ODDesktop, command:list, timeout:int=5):
+
+    def _execwaitincontainer( self, pod_name:str, container_name:str, command:list, call_result:dict=None, key:str=None, timeout:int=5):
         """execwaitincontainer
             execwaitincontainer execute command in desktop
         Args:
@@ -1705,18 +1702,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # for more example
         #   
         try:            
+            self.logger.debug( f"_execwaitincontainer pod_name={pod_name} container_name={container_name} command={command} timeout={timeout}" )
             resp = stream(  self.kubeapi.connect_get_namespaced_pod_exec, 
-                            name=desktop.name, 
+                            name=pod_name, 
                             namespace=self.namespace, 
                             command=command,                                                                
-                            container=desktop.container_name,
+                            container=container_name,
                             stderr=True, stdin=False,
                             stdout=True, tty=False,
                             _preload_content=False, #  need a client object websocket           
             )
             resp.run_forever(timeout) # timeout in seconds
             err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
-            self.logger.debug( f"exec in desktop.name={desktop.name} container={desktop.container_name} command={command} return code {err}")
             respdict = yaml.safe_load(err)        
             result['stdout'] = resp.read_stdout()
             # should be like:
@@ -1733,11 +1730,23 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except Exception as e:
             self.logger.error( f"command exec failed {e}") 
 
+        if isinstance(key, str) and isinstance(call_result, dict):
+            call_result[key] = result
+            self.logger.debug( f"call_result[{key}]={call_result[key]}" ) 
+
+        return result
+        
+    def execwaitincontainer( self, desktop:ODDesktop, command:list, timeout:int=5):
+        assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
+        result = self._execwaitincontainer( pod_name=desktop.name,
+                                            container_name=desktop.container_name,
+                                            command=command,
+                                            timeout=timeout )
         return result
 
     def getephemeralcontainer_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, ephemeralcontainer_name:str ) -> dict:
         resources_usage = { 'timestamp': time.time() }
-        cgroup_map = oc.od.settings.desktop['resources_usage_cgroup_map']
+        cgroup_map = oc.od.settings.desktop['resources_usage_cgroup_map'].copy()
         myPod = self.findPodByUser(authinfo, userinfo )
 
         if not isinstance(ephemeralcontainer_name, str ):
@@ -1745,43 +1754,74 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return resources_usage
 
         if isinstance(myPod, V1Pod ):
-            # delete this pod immediatly
+            threads = {}
+            threads_results = {}
             myDesktop = self.pod2desktop( myPod, authinfo, userinfo )
             for r in cgroup_map.keys():
+                threads_results[r] = None
+
+            for r in cgroup_map.keys():
                 command = [ 'cat',  cgroup_map.get(r) ]
-                myDesktop.container_name = ephemeralcontainer_name
-                # execwaitincontainer will use myDesktop.container_name
-                # to execute the command in the ephemeral container
-                self.logger.debug( f"execwaitincontainer in ephemeral container {ephemeralcontainer_name} command={command}")
-                result = self.execwaitincontainer( desktop=myDesktop, command=command)
-                if isinstance(result, dict):
-                    stdout = result.get('stdout')
-                    if isinstance( stdout, str):
-                        resources_usage[r] = stdout.strip()
+                threads[r] = threading.Thread( 
+                                target=self._execwaitincontainer, 
+                                args=[ myDesktop.name, ephemeralcontainer_name, command, threads_results, r ] )
+                threads[r].start()
+
+            self.logger.debug( 'waiting for threads.join()')
+            for r in cgroup_map.keys():
+                threads[r].join()
+            self.logger.debug( f'threads_results={threads_results}' )    
+            for r in cgroup_map.keys():
+                try: 
+                    result = threads_results.get(r)
+                    if isinstance(result, dict):
+                        if result.get('ExitCode') != 0:
+                            self.logger.error( f"command {cgroup_map.get(r)} failed with ExitCode={result.get('ExitCode')}" )
+                            continue
+                        # get the stdout of the command
+                        stdout = result.get('stdout')
+                        if isinstance( stdout, str):
+                            resources_usage[r] = stdout.strip()
+                            # check if cgroup_version is 'cgroup v2'
+                            # if cgroup_version is 'cgroup v2', we need to parse the output
+                            # of cpuacct.usage and cpu.cfs_quota_us
+                            if oc.od.settings.cgroup_version == 'cgroup v2':
+                                if r == 'cpuacct.usage' :
+                                    # read the first list line of the output like
+                                    # usage_usec 43151084\nuser_usec 33631998\nsystem_usec 9519085\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0
+                                    rsplit = stdout.strip().split('\n')
+                                    if len(rsplit) > 0:
+                                        # get the first line
+                                        rsplit = rsplit[0].split()
+                                        if len(rsplit) > 1:
+                                            # get the second value
+                                            resources_usage[r] = rsplit[1]
+                                    else:
+                                        self.logger.error( f"stdout is empty {stdout}" )
+                                elif r == 'cpu.cfs_quota_us' :
+                                    # get the second value of line 
+                                    # passmax 100000
+                                    rsplit = stdout.strip().split()
+                                    if len(rsplit) > 1:
+                                        resources_usage[r] = int(rsplit[1])*1000 # convert to nanoseconds
+                                        resources_usage[r] = str( resources_usage[r])
+                                    else:
+                                        self.logger.error( f"stdout is empty {stdout}" )
+                except Exception as e:
+                    self.logger.error( f"error {e} in getdesktop_resources_usage for {r} with stdout={stdout}" )
+                    resources_usage[r] = None # default value because an error occurs
         return resources_usage
     
-    def getpod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
+    def getpod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str ) -> dict:
         pass
 
     def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
-   
         resources_usage = { 'timestamp': time.time() }
-        cgroup_map = oc.od.settings.desktop['resources_usage_cgroup_map']
         myPod = self.findPodByUser(authinfo, userinfo )
-
         if isinstance(myPod, V1Pod ):
-            # delete this pod immediatly
             myDesktop = self.pod2desktop( myPod, authinfo, userinfo )
-            for r in cgroup_map.keys():
-                command = [ 'cat',  cgroup_map.get(r)  ]
-                result = self.execwaitincontainer( desktop=myDesktop, command=command)
-                if isinstance(result, dict):
-                    stdout = result.get('stdout')
-                    if isinstance( stdout, str):
-                        resources_usage[r] = stdout.strip()
-
+            resources_usage = self.getephemeralcontainer_resources_usage( authinfo, userinfo, myDesktop.name, myDesktop.container_name )
         return resources_usage
-
 
     def removePod( self, myPod:V1Pod, propagation_policy:str='Foreground', grace_period_seconds:int=None) -> V1Pod:
         """_summary_
@@ -2521,58 +2561,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             appinstance = app_object.findRunningAppInstanceforUserandImage( authinfo, userinfo, app )
             if app_object.isinstance( appinstance ):
                 return appinstance
-
-    def execininstance( self, desktop:ODDesktop, command:str)->dict:
-        self.logger.debug('')
-        assert_type( desktop, ODDesktop)
-
-        result = { 'ExitCode': -1, 'stdout':None }
-        timeout=5
-        # calling exec and wait for response.
-        # exec_command = [
-        #    '/bin/sh',
-        #        '-c',
-        #        'echo This message goes to stderr >&2; echo This message goes to stdout']
-        # str connect_get_namespaced_pod_exec(name, namespace, command=command, container=container, stderr=stderr, stdin=stdin, stdout=stdout, tty=tty)     
-        #
-        # Todo
-        # read https://github.com/kubernetes-client/python/blob/master/examples/pod_exec.py
-        #   
-        # container_name = self.get
-        try:            
-            resp = stream(  self.kubeapi.connect_get_namespaced_pod_exec,
-                                name=desktop.name, 
-                                container=desktop.container_name, 
-                                namespace=self.namespace, 
-                                command=command,
-                                stderr=True, stdin=False,
-                                stdout=True, tty=False,
-                                _preload_content=False )
-            resp.run_forever(timeout=timeout) 
-            if resp.returncode is None:
-                # A None value indicates that the process hasn't terminated yet.
-                # do not wait 
-                result = { 'ExitCode': None, 'stdout': None, 'status': 'Success' }
-                resp.close()
-            else:
-                err = resp.read_channel(ERROR_CHANNEL, timeout=timeout)
-                pod_exec_result = yaml.safe_load(err)  
-                result['stdout'] = resp.read_stdout(timeout=timeout)
-                # should be like:
-                # {"metadata":{},"status":"Success"}
-                if isinstance(pod_exec_result, dict):
-                    if pod_exec_result.get('status') == 'Success':
-                        result['status'] = pod_exec_result.get('status')
-                        result['ExitCode'] = 0
-                    exit_code = pod_exec_result.get('ExitCode')
-                    if exit_code is not None:
-                        result['ExitCode'] = exit_code
-                resp.close()
-
-        except Exception as e:
-            self.logger.error( f"command exec failed {e}") 
-
-        return result
 
     """
     def read_configmap( self, name, entry ):
@@ -3800,12 +3788,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # snaphot is a special container
         # it need some secrets env variables
         currentcontainertype = 'snapshot'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ) and isinstance( snapshot_volumes_mount, dict):
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ) and \
+            isinstance( snapshot_volumes_mount, dict) and \
+            isinstance( oc.od.settings.snapshot_registry, dict) :
             snapshotenvlist = copy.deepcopy(envlist)
-            for key in oc.od.settings.snapshot_registry.keys():
-                # add snapshot registry env variables
-                if key in [ 'registry', 'username', 'password' ]:
-                    snapshotenvlist.append( { 'name': f'SNAPSHOT_REGISTRY_{key.upper()}', 'value': oc.od.settings.snapshot_registry.get(key) } )
+            for key in [ 'registry', 'username', 'password' ]:
+                snapshotenvlist.append( { 'name': f'SNAPSHOT_REGISTRY_{key.upper()}', 'value': oc.od.settings.snapshot_registry.get(key) } )
             snapshotenvlist.append( { 'name': 'SNAPSHOT_REGISTRY_PROTOCOL', 'value': oc.od.settings.desktop.get('snapshotregistryprotocol', 'https') } ) # add snapshot registry protocol
             # add snapshot registry secret name if defined
             snapshotenvlist.append( { 'name': 'SNAPSHOT_CONTAINER_NAME', 'value': graphical_container.get('name')  } )
