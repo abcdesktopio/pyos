@@ -1785,6 +1785,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                             # check if cgroup_version is 'cgroup v2'
                             # if cgroup_version is 'cgroup v2', we need to parse the output
                             # of cpuacct.usage and cpu.cfs_quota_us
+                            # in cgroup v2
+                            # 'cpuacct.usage':    '/sys/fs/cgroup/cpu.stat',
+                            # 'cpu.cfs_quota_us': '/sys/fs/cgroup/cpu.max'
                             if oc.od.settings.cgroup_version == 'cgroup v2':
                                 if r == 'cpuacct.usage' :
                                     # read the first list line of the output like
@@ -1794,19 +1797,32 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                         # get the first line
                                         rsplit = rsplit[0].split()
                                         if len(rsplit) > 1:
-                                            # get the second value
-                                            resources_usage[r] = rsplit[1]
+                                            # get the second value of line 
+                                            # usage_usec 43151084
+                                            # This prints a file with a value called usage_usec. 
+                                            # As with value returned by the cgroup v1 cpuacct.usage file, this value must be converted into a CPU usage percentage to be useful.
+                                            # With cgroup v2 the usage_usec value is measured in milliseconds, unlike the value returned by the cpuacct.usage file, which is in nanoseconds. 
+                                            # Convert the usage_usec value to nanoseconds by multiplying it by 1000, at which point it can be used in the same calculations returned by the cpuacct.usage file.
+                                            resources_usage[r] = str( int(rsplit[1]) * 1000 )
                                     else:
                                         self.logger.error( f"stdout is empty {stdout}" )
                                 elif r == 'cpu.cfs_quota_us' :
                                     # get the second value of line 
                                     # passmax 100000
+                                    # more /sys/fs/cgroup/cpu.max 
+                                    # 200000 1000000
+                                    # This command sets CPU time distribution controls so that all processes
+                                    # collectively in the file /sys/fs/cgroup/cpu.max on the CPU
+                                    # for only 0.2 seconds of every 1 second. 
                                     rsplit = stdout.strip().split()
-                                    if len(rsplit) > 1:
-                                        resources_usage[r] = int(rsplit[1])*1000 # convert to nanoseconds
-                                        resources_usage[r] = str( resources_usage[r])
-                                    else:
-                                        self.logger.error( f"stdout is empty {stdout}" )
+                                    if len(rsplit) > 0:
+                                        if len(rsplit) > 1:
+                                            resources_usage[r] = int(rsplit[0])*1000 # convert to nanoseconds
+                                            # resources_usage[r] = str( rsplit[0] )
+                                        elif len(rsplit) == 1:
+                                            pass # rsplit
+                                        else:
+                                            self.logger.error( f"stdout is empty {stdout}" )
                 except Exception as e:
                     self.logger.error( f"error {e} in getdesktop_resources_usage for {r} with stdout={stdout}" )
                     resources_usage[r] = None # default value because an error occurs
