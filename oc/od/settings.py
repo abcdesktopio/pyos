@@ -450,12 +450,13 @@ def init_desktop():
 
     init_balloon()
 
+    # apply cgroup memory and cpu 
     global cgroup_version
     cgroup_version = detect_cgroup_version()
+    logger.info( f"cgroup_version is {cgroup_version}" )
     if cgroup_version is None:
         logger.error("cgroup version is not detected, this is a fatal error")
         sys.exit(-1)
-
     if cgroup_version == 'cgroup v1':
         desktop['resources_usage_cgroup_map'] = gconfig.get(
             'desktop.resources_usage_cgroup_map', 
