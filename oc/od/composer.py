@@ -230,7 +230,7 @@ def remove_container_byname(desktop_name: str, container_id:str):
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
     return myOrchestrator.removeContainerApp(authinfo,userinfo,container_id=container_id)
 
-def get_pod_resources_usage(desktop_name:str, pod_name:str):
+def getpod_resources_usage(desktop_name:str, pod_name:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
     return myOrchestrator.getpod_resources_usage(authinfo,userinfo,pod_name=pod_name)
