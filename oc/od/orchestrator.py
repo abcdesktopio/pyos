@@ -1744,12 +1744,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                             timeout=timeout )
         return result
 
-    def getephemeralcontainer_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, ephemeralcontainer_name:str ) -> dict:
+    def get_container_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, ephemeralcontainer_name:str ) -> dict:
         ephemeralcontainerappinstance = ODAppInstanceKubernetesEphemeralContainer( self )
         return ephemeralcontainerappinstance.get_resources_usage( authinfo, userinfo, ephemeralcontainer_name )
        
     
-    def getpod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str ) -> dict:
+    def get_pod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str ) -> dict:
         podappinstance = ODAppInstanceKubernetesPod( self )
         return podappinstance.get_resources_usage( authinfo, userinfo, pod_name )
 
