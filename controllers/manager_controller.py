@@ -531,7 +531,7 @@ class ManagerController(BaseController):
                     if not isinstance( pod_name, str):
                         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
                     self.logger.debug(f'get pod resources usage for {desktop_name} {pod_name}')
-                    resource = oc.od.composer.getpod_resources_usage(desktop_name=desktop_name, pod_name=pod_name)
+                    resource = oc.od.composer.get_pod_resources_usage(desktop_name=desktop_name, pod_name=pod_name)
                     return resource
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
                 
@@ -566,7 +566,7 @@ class ManagerController(BaseController):
                     self.logger.debug(f'get ephemeralcontainer resources usage for {desktop_name} {ephemeralcontainer_name}')
                     # get ephemeralcontainer resources usage
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
-                    resource = oc.od.composer.getephemeralcontainer_resources_usage(desktop_name=desktop_name, ephemeralcontainer_name=ephemeralcontainer_name)
+                    resource = oc.od.composer.get_container_resources_usage(desktop_name=desktop_name, ephemeralcontainer_name=ephemeralcontainer_name)
                     return resource
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
 
