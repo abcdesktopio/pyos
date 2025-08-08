@@ -565,7 +565,8 @@ class ManagerController(BaseController):
                         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
                     self.logger.debug(f'get ephemeralcontainer resources usage for {desktop_name} {container_name}')
                     # get ephemeralcontainer resources usage
-                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
+                    # /API/manager/desktop
+                    # /hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
                     resource = oc.od.composer.get_container_resources_usage(desktop_name=desktop_name, container_name=container_name)
                     return resource
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage

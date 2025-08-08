@@ -5684,8 +5684,10 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         if isinstance( myPodList, V1PodList ) and len(myPodList.items) > 0 :
             # take only the first one, there is only one
             myPod = myPodList.items[0]
-            container_name = self.orchestrator.getfirstcontainerfromPod( myPod )
-            resources_usage = super().get_resources_usage( myPod=myPod, container_name=container_name)
+            firstcontainer = self.orchestrator.getfirstcontainerfromPod( myPod )
+            if isinstance( firstcontainer, V1Container ):
+                container_name = firstcontainer.name
+                resources_usage = super().get_resources_usage( myPod=myPod, container_name=container_name)
         return resources_usage
 
     def list_and_stop( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str )->bool:
