@@ -213,7 +213,7 @@ def stop_container_byname( desktop_name:str, container ):
 def list_container_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.listContainerApp(authinfo, userinfo)
+    return myOrchestrator.listContainerApps(authinfo, userinfo)
 
 def describe_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
@@ -235,10 +235,10 @@ def get_pod_resources_usage(desktop_name:str, pod_name:str):
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
     return myOrchestrator.get_pod_resources_usage(authinfo,userinfo,pod_name=pod_name)
 
-def get_container_resources_usage(desktop_name:str, ephemeralcontainer_name:str):
+def get_container_resources_usage(desktop_name:str, container_name:str):
     myOrchestrator = selectOrchestrator()
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.get_container_resources_usage( authinfo, userinfo, ephemeralcontainer_name=ephemeralcontainer_name)
+    return myOrchestrator.get_container_resources_usage( authinfo, userinfo, container_name=container_name)
 
 def get_desktop_resources_usage(desktop_name:str):
     myOrchestrator = selectOrchestrator()    
@@ -478,7 +478,7 @@ def getldifsecretuserinfo( authinfo, userinfo ):
     secretuserinfo = myOrchestrator.getldifsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
-def listContainerApp(authinfo, userinfo):
+def listContainerApps(authinfo, userinfo):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )     
