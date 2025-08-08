@@ -195,7 +195,7 @@ class ComposerController(BaseController):
     def listcontainer(self):
         self.logger.debug('')
         (auth, user ) = self.validate_env()
-        result = oc.od.composer.listContainerApp(auth, user)
+        result = oc.od.composer.listContainerApps(auth, user)
         return Results.success(result=result)
 
     @cherrypy.expose
