@@ -1744,9 +1744,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                             timeout=timeout )
         return result
 
-    def get_container_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, ephemeralcontainer_name:str ) -> dict:
+    def get_container_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, container_name:str ) -> dict:
         ephemeralcontainerappinstance = ODAppInstanceKubernetesEphemeralContainer( self )
-        return ephemeralcontainerappinstance.get_resources_usage( authinfo, userinfo, ephemeralcontainer_name )
+        return ephemeralcontainerappinstance.get_resources_usage( authinfo, userinfo, container_name )
        
     
     def get_pod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str ) -> dict:
@@ -1754,11 +1754,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return podappinstance.get_resources_usage( authinfo, userinfo, pod_name )
 
     def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
+        """
+
+        """
         resources_usage = { 'timestamp': time.time() }
         myPod = self.findPodByUser(authinfo, userinfo )
         if isinstance(myPod, V1Pod ):
+            # read the graphical container name
             container_name = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod )
+            # create an instance 
             appinstance = ODAppInstanceBase( self )
+            # read resources of the container name 
             resources_usage = appinstance.get_resources_usage( myPod, container_name )
         return resources_usage
 
@@ -5677,7 +5683,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         myPodList = self.orchestrator.kubeapi.list_namespaced_pod( self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
         if isinstance( myPodList, V1PodList ) and len(myPodList.items) > 0 :
             # take only the first one, there is only one
-            myPod = myPodList[0]
+            myPod = myPodList.items[0]
             container_name = self.orchestrator.getfirstcontainerfromPod( myPod )
             resources_usage = super().get_resources_usage( myPod=myPod, container_name=container_name)
         return resources_usage
