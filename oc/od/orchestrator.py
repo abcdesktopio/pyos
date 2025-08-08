@@ -4687,7 +4687,7 @@ class ODAppInstanceBase(object):
                                             # As with value returned by the cgroup v1 cpuacct.usage file, this value must be converted into a CPU usage percentage to be useful.
                                             # With cgroup v2 the usage_usec value is measured in milliseconds, unlike the value returned by the cpuacct.usage file, which is in nanoseconds. 
                                             # Convert the usage_usec value to nanoseconds by multiplying it by 1000, at which point it can be used in the same calculations returned by the cpuacct.usage file.
-                                            resources_usage[r] = rsplit[1] # str( int(rsplit[1]) * 1000 )
+                                            resources_usage[r] = str( int(rsplit[1]) * 1000 )
                                     else:
                                         self.logger.error( f"stdout is empty {stdout}" )
                                 elif r == 'cpu.cfs_quota_us' :
@@ -4701,10 +4701,10 @@ class ODAppInstanceBase(object):
                                     rsplit = stdout.strip().split()
                                     if len(rsplit) > 0:
                                         if len(rsplit) > 1:
-                                            resources_usage[r] = rsplit[0] #  int(rsplit[0])*1000 # convert to nanoseconds
+                                            resources_usage[r] = str( int(rsplit[0])*1000 ) # convert to nanoseconds
                                             # resources_usage[r] = str( rsplit[0] )
                                         elif len(rsplit) == 1:
-                                            pass # rsplit
+                                            resources_usage[r] = str( int(rsplit[0])*1000 )
                                         else:
                                             self.logger.error( f"stdout is empty {stdout}" )
                 except Exception as e:
