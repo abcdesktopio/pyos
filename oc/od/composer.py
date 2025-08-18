@@ -212,8 +212,10 @@ def stop_container_byname( desktop_name:str, container ):
 
 def list_container_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
-    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.listContainerApps(authinfo, userinfo)
+    (authinfo, userinfo, myDesktop) = myOrchestrator.find_userinfo_authinfo_desktop_by_desktop_name( name=desktop_name )
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
+       raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.listContainerApps(authinfo, userinfo, myDesktop, services.apps )
 
 def describe_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    

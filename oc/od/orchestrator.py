@@ -2422,7 +2422,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             count += len( myappinstance.list(authinfo, userinfo, myDesktop ) )
         return count
 
-    def listContainerApps( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, apps:ODApps ):
+    def listContainerApps( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, apps:ODApps=None ):
         """listContainerApps
 
         Args:
@@ -2437,7 +2437,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),   f"userinfo has invalid type {type(userinfo)}"
         assert isinstance(myDesktop, ODDesktop), f"myDesktop has invalid type {type(myDesktop)}"
-        assert isinstance(apps, ODApps), f"apps has invalid type {type(apps)}"
         self.logger.debug('')
         list_apps = []
         for appinstance in self.appinstance_classes.values() :
@@ -4408,6 +4407,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
         return (authinfo,userinfo)
 
+    def find_userinfo_authinfo_desktop_by_desktop_name( self, name:str )->tuple:
+        """find_userinfo_authinfo_by_desktop_name
+
+        Args:
+            name (str): name of pod
+
+        Returns:
+            tuple: (authinfo,userinfo)
+        """
+        self.logger.debug('')
+        assert isinstance(name, str), f"name has invalid type {type(str)}"
+        authinfo = None
+        userinfo = None
+        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name )
+        if isinstance( myPod, V1Pod ) :  
+            (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
+            myDesktop = self.pod2desktop( pod=myPod )
+        return (authinfo,userinfo,myDesktop)
+
     def describe_desktop_byname( self, name:str )->dict:
         """describe_desktop_byname
 
@@ -5302,13 +5320,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                             if isinstance( c.state, V1ContainerState ):
                                 if isinstance(c.state.terminated, V1ContainerStateTerminated ):
                                     appinstancestatus.message = 'Terminated'
-                                    data = {   
-                                        'message':  'Application is terminated', 
-                                        'name':     app.get('name'),
-                                        'icondata': app.get('icondata'),
-                                        'icon':     app.get('icon'),
-                                        'image':    app.get('id'),
-                                        'launch':   app.get('launch')
+                                    data = {'message':  'Application is terminated', 
+                                            'name':     app.get('name'),
+                                            'icondata': app.get('icondata'),
+                                            'icon':     app.get('icon'),
+                                            'image':    app.get('id'),
+                                            'launch':   app.get('launch')
                                     }
                                     # report error to the user 
                                     self.orchestrator.notify_user( myDesktop, 'container', data )
@@ -5524,7 +5541,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         self.logger.debug( f"nodeSelector for name={app.get('name')} is nodeSelector={nodeSelector}")
         return nodeSelector
 
-    def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps=None ):
+    def list( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None ):
         self.logger.debug('')
 
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
