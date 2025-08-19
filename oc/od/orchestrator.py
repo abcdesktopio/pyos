@@ -4437,6 +4437,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         self.logger.debug('')
         assert isinstance(name, str), f"name has invalid type {type(str)}"
+        # Looking at the source code for core_v1_api.py. 
+        # The method calls accept a kwarg named _preload_content.
+        # Setting the argument _preload_content to False instructs the method to return the urllib3.HTTPResponse object instead of a processed str. 
+        # You can then work directly with the data, which cooperates with json.loads().
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace, name=name, _preload_content=False)
         if isinstance( myPod, urllib3.response.HTTPResponse ) :  
             myPod = json.loads( myPod.data )
