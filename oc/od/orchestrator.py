@@ -4414,12 +4414,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             name (str): name of pod
 
         Returns:
-            tuple: (authinfo,userinfo)
+            tuple: (authinfo,userinfo,myDesktop)
         """
         self.logger.debug('')
         assert isinstance(name, str), f"name has invalid type {type(str)}"
-        authinfo = None
-        userinfo = None
+        authinfo  = None # default returns value
+        userinfo  = None # default returns value
+        myDesktop = None # default returns value
         myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name )
         if isinstance( myPod, V1Pod ) :  
             (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
