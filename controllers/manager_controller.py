@@ -502,7 +502,7 @@ class ManagerController(BaseController):
         desktop_name = args[0]
         if not isinstance( desktop_name, str):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
-
+        
         if len(args)==1:
             # get information for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
@@ -583,6 +583,7 @@ class ManagerController(BaseController):
         desktop_name = args[0]
         if not isinstance( desktop_name, str):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+                                    
         if len(args)==1:
             # delete a desktop
             # DELETE /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
@@ -590,11 +591,11 @@ class ManagerController(BaseController):
             return delete_desktop
 
         # use a specify desktop
-        if len(args)==3 and args[1]=="container":
+        if len(args)==3 and args[1] in [ "container", "pod" ] :
             # delete a container for a desktop
             # /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/7f77381f778b1214c780762185a2a345ed00cfd1022f18cbd37902af041aff40
             container_id = args[2]
-            oc.od.composer.stop_container_byname( desktop_name, container=container_id )
+            stopped_container = oc.od.composer.stop_container_byname( desktop_name, container=container_id )
             oc.od.composer.remove_container_byname( desktop_name, container=container_id )
             return container_id
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request') 
