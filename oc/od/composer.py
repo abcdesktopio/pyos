@@ -245,7 +245,7 @@ def describe_desktop_byname( desktop_name:str ):
 def describe_application_byname( desktop_name:str, app_name:str ):
     myOrchestrator = selectOrchestrator()
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    description = myOrchestrator.describe_application( authinfo, userinfo, desktop_name, app_name )
+    description = myOrchestrator.describe_application( authinfo, userinfo, desktop_name, app_name, services.apps )
     return description
 
 def remove_container_byname(desktop_name:str, container:str):

@@ -2527,13 +2527,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             stop_result = myappinstance.stop(pod_name, app_name)
         return stop_result
 
-    def describe_application( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->dict:
+    def describe_application( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str, apps:ODApps)->dict:
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         assert isinstance(app_name, str), f"app_name has invalid type {type(app_name)}"
         app_description = None
         myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            app_description = myappinstance.describe(pod_name, app_name)
+            app_description = myappinstance.describe(pod_name, app_name, apps)
         return app_description
 
     def removeContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->bool:
@@ -4946,6 +4946,32 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return resources_usage
 
 
+    def to_dict( self, myPod:V1Pod, c_spec:V1EphemeralContainer,  c_status:V1ContainerStatus, phase:str, apps:ODApps )->dict:
+        # convert an ephemeralcontainers container to json by filter entries
+        app = {}
+        if isinstance(apps, ODApps):
+            app = apps.find_app_by_id( c_status.image ) or {}
+
+        mycontainer = {}
+        mycontainer['podname']  = myPod.metadata.name
+        mycontainer['id']       = c_status.name
+        mycontainer['short_id'] = c_status.container_id
+        mycontainer['status']   = c_status.ready
+        mycontainer['image']    = c_status.image
+        mycontainer['oc.path']  = c_spec.command
+        mycontainer['nodehostname'] = myPod.spec.node_name
+        mycontainer['architecture'] = app.get('architecture')
+        mycontainer['os']           = app.get('os')
+        mycontainer['oc.icondata']  = app.get('icondata')
+        mycontainer['oc.args']      = app.get('args')
+        mycontainer['oc.icon']      = app.get('icon')
+        mycontainer['oc.launch']    = app.get('launch')
+        mycontainer['oc.displayname'] = app.get('displayname')
+        mycontainer['runtime']        = 'kubernetes'
+        mycontainer['type']           = self.type
+        mycontainer['status']         = phase
+        return mycontainer
+
     def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None )->list:
         self.logger.debug('')
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
@@ -4954,41 +4980,18 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(phase_filter, list),     f"phase_filter has invalid type {type(phase_filter)}"
 
         result = []
-        pod_ephemeralcontainers =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
-        if not isinstance(pod_ephemeralcontainers, V1Pod ):
+        myPod =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
+        if not isinstance(myPod, V1Pod ):
             raise ValueError( 'Invalid read_namespaced_pod_ephemeralcontainers')
 
-        if isinstance(pod_ephemeralcontainers.spec.ephemeral_containers, list):
-            for c_spec in pod_ephemeralcontainers.spec.ephemeral_containers:
-                app = {}
-                c_status = self.get_status( pod_ephemeralcontainers, c_spec.name )
+        if isinstance(myPod.spec.ephemeral_containers, list):
+            for c_spec in myPod.spec.ephemeral_containers:
+                c_status = self.get_status( myPod, c_spec.name )
                 if isinstance( c_status, V1ContainerStatus ):
                     phase = self.get_phase( c_status )
                     if phase in phase_filter:
-                        if isinstance(apps, ODApps):
-                            app = apps.find_app_by_id( c_status.image ) or {}
-
                         # convert an ephemeralcontainers container to json by filter entries
-                        mycontainer = {}
-                        mycontainer['podname']  = myDesktop.id
-                        mycontainer['id']       = c_status.name # myPod.metadata.uid
-                        mycontainer['short_id'] = c_status.container_id
-                        mycontainer['status']   = c_status.ready
-                        mycontainer['image']    = c_status.image
-                        mycontainer['oc.path']  = c_spec.command
-                        mycontainer['nodehostname'] = myDesktop.nodehostname
-                        mycontainer['architecture'] = app.get('architecture')
-                        mycontainer['os']           = app.get('os')
-                        mycontainer['oc.icondata']  = app.get('icondata')
-                        mycontainer['oc.args']      = app.get('args')
-                        mycontainer['oc.icon']      = app.get('icon')
-                        mycontainer['oc.launch']    = app.get('launch')
-                        # mycontainer['oc.displayname'] = c_status.name
-                        mycontainer['oc.displayname'] = app.get('displayname')
-                        mycontainer['runtime']        = 'kubernetes'
-                        mycontainer['type']           = 'ephemeralcontainer'
-                        mycontainer['status']         = phase
-
+                        mycontainer = self.to_dict( myPod, c_spec, c_status, phase, apps )
                         # add the object to the result array
                         result.append( mycontainer )
 
@@ -5507,17 +5510,20 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
     return appinstancestatus
     """
         
-    def describe( self, pod_name:str, app_name:str ):
+    def describe( self, pod_name:str, app_name:str, apps:ODApps ):
         description = None
-        pod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=pod_name)
-        if  isinstance( pod, V1Pod ) and \
-            isinstance( pod.spec, V1PodSpec ) and \
-            isinstance( pod.spec.ephemeral_containers, list):
-                for c in pod.spec.ephemeral_containers:
-                    if isinstance( c, V1EphemeralContainer ) :
-                        if c.name == app_name:
-                            description = c.to_dict()
-                            break
+        myPod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=pod_name)
+        if  isinstance( myPod, V1Pod ) and \
+            isinstance( myPod.spec, V1PodSpec ) and \
+            isinstance( myPod.spec.ephemeral_containers, list):
+                for c in myPod.spec.ephemeral_containers:
+                    if c.name == app_name:
+                        if isinstance( c, V1EphemeralContainer ) :
+                            c_status = self.get_status( myPod, c.name )
+                            if isinstance( c_status, V1ContainerStatus ):
+                                phase = self.get_phase( c_status )
+                                description = self.to_dict( myPod, c, c_status, phase, apps )
+                                break
         return description
 
     def findRunningAppInstanceforUserandImage( self, authinfo:AuthInfo, userinfo:AuthUser, app):
@@ -5589,8 +5595,14 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         nodeSelector = oc.od.settings.desktop_pod.get(self.type, {}).get('nodeSelector',{})
         return nodeSelector
     
-    def describe( self, pod_name:str, app_name:str ):
-        return self.orchestrator.describe_pod_byname( app_name )
+    def describe( self, pod_name:str, app_name:str, apps:ODApps ):
+        description = {}
+        myPod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=app_name)
+        if isinstance( myPod, V1Pod ):
+            if isinstance( myPod.spec.containers, list):
+                if isinstance( myPod.spec.containers[0], V1Container ):
+                    description = self.to_dict( myPod, apps )
+        return description
     
     def get_appnodeSelector( self, authinfo:AuthInfo, userinfo:AuthUser,  app:dict ):
         """get_appnodeSelector
@@ -5611,6 +5623,37 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         nodeSelector.update(executeclass_nodeSelector)
         self.logger.debug( f"nodeSelector for name={app.get('name')} is nodeSelector={nodeSelector}")
         return nodeSelector
+    
+
+    def to_dict( self, myPod:V1Pod, apps:ODApps )->dict:
+        mycontainer = {}
+        assert isinstance(myPod, V1Pod), f"myPod has invalid type {type(myPod)}"
+
+        app = {}
+        if isinstance(apps, ODApps):
+            if isinstance( myPod.spec.containers, list):
+                if isinstance( myPod.spec.containers[0], V1Container ):
+                    app = apps.find_app_by_id( myPod.spec.containers[0].image ) or {}
+
+        # convert a container to json by filter entries
+        mycontainer['podname']  = myPod.metadata.name
+        mycontainer['id']       = myPod.metadata.name # myPod.metadata.uid
+        mycontainer['short_id'] = myPod.metadata.name
+        mycontainer['status']   = myPod.status.phase
+        mycontainer['image']    = myPod.spec.containers[0].image
+        mycontainer['oc.path']  = myPod.spec.containers[0].command
+        mycontainer['nodehostname'] = myPod.spec.node_name
+        mycontainer['architecture'] = app.get('architecture')
+        mycontainer['os']           = app.get('os')
+        mycontainer['oc.icondata']  = app.get('icondata')
+        mycontainer['oc.args']      = app.get('args')
+        mycontainer['oc.icon']      = app.get('icon')
+        mycontainer['oc.launch']    = app.get('launch')
+        mycontainer['oc.displayname'] = app.get('displayname')
+        mycontainer['runtime']      = 'kubernetes'
+        mycontainer['type']         = self.type
+        mycontainer['status']       = myPod.status.phase
+        return mycontainer
 
     def list( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None ):
         self.logger.debug('')
@@ -5637,33 +5680,10 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     if isinstance( myPod.metadata.deletion_timestamp, datetime.datetime ):
                         phase = 'Terminating'
 
-                    app = {}
-                    if isinstance(apps, ODApps):
-                        if isinstance( myPod.spec.containers, list):
-                            if isinstance( myPod.spec.containers[0], V1Container ):
-                                app = apps.find_app_by_id( myPod.spec.containers[0].image ) or {}
-
                     mycontainer = {}
                     if phase in phase_filter:
-                        #
-                        # convert a container to json by filter entries
-                        mycontainer['podname']  = myPod.metadata.name
-                        mycontainer['id']       = myPod.metadata.name # myPod.metadata.uid
-                        mycontainer['short_id'] = myPod.metadata.name
-                        mycontainer['status']   = myPod.status.phase
-                        mycontainer['image']    = myPod.spec.containers[0].image
-                        mycontainer['oc.path']  = myPod.spec.containers[0].command
-                        mycontainer['nodehostname'] = myPod.spec.node_name
-                        mycontainer['architecture'] = app.get('architecture')
-                        mycontainer['os']           = app.get('os')
-                        mycontainer['oc.icondata']  = app.get('icondata')
-                        mycontainer['oc.args']      = app.get('args')
-                        mycontainer['oc.icon']      = app.get('icon')
-                        mycontainer['oc.launch']    = app.get('launch')
-                        mycontainer['oc.displayname'] = app.get('displayname')
-                        mycontainer['runtime']      = 'kubernetes'
-                        mycontainer['type']         = self.type
-                        mycontainer['status']       = phase
+                        # convert myPod to dict with icon 
+                        mycontainer = self.to_dict( myPod, apps )
                         # add the object to the result array
                         result.append( mycontainer )
         except ApiException as e:
