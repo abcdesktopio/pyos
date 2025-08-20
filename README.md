@@ -1,8 +1,5 @@
 # pyos
 
-## Default branch
-
-The default development branch is `main`. 
 
 
 ## To get more informations
