@@ -1,6 +1,6 @@
 FROM python:3
 
-LABEL org.opencontainers.image.description abcdesktop.pyos
+LABEL org.opencontainers.image.description=abcdesktop.pyos
 
 # upgrade
 RUN apt-get update && apt-get upgrade -y && apt-get clean  && rm -rf /var/lib/apt/lists/*
@@ -55,7 +55,7 @@ RUN mkdir -p /usr/share/geolite2 && \
 
 COPY --from=ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm /dist/*.deb /tmp
 RUN apt-get update && \
-    apt-get install -y  --no-install-recommends /tmp/*.deb && \
+    apt-get install -y --allow-downgrades /tmp/*.deb && \
     apt-get clean  && \
     rm -rf /var/lib/apt/lists/* 
 RUN echo /usr/lib/x86_64-linux-gnu/samba >> /etc/ld.so.conf.d/x86_64-linux-gnu.conf && /usr/sbin/ldconfig

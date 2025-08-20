@@ -42,8 +42,8 @@ balloon_password  = 'lmdpocpetit'   # default password
 
 # default registry for snapshoted images dictionary or None 
 snapshot_mountpath = None # default mount path for containerd on ubuntu 
-snapshot_mounttype = None
-snapshot_registry = None
+snapshot_mounttype = None # should be 'Socket'
+snapshot_registry = None  # keep it as None use by init_snapregistry() 
 snapshot_registry_protocol = None # default protocol for snapshot registry, like 'https' or 'http'
 # read by orchestrator then init_snapregistry is done if snapshot registry secret name is defined
 # oc.od.settings.snapshot_registry = {
@@ -53,6 +53,7 @@ snapshot_registry_protocol = None # default protocol for snapshot registry, like
 #                'auth': auth,
 #                'email': email
 
+cgroup_version = None # cgroup version used by the system, can be 'cgroup v1' or 'cgroup v2'
 
 DEFAULT_VOLUMES = {
     'shm': { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '512Mi' } },
@@ -396,13 +397,7 @@ def init_desktop():
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
-    desktop['resources_usage_cgroup_map'] = gconfig.get('desktop.resources_usage_cgroup_map', 
-        {   'memory.usage_in_bytes': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
-            'memory.limit_in_bytes': '/sys/fs/cgroup/memory/memory.limit_in_bytes',
-            'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage',
-            'cpu.cfs_quota_us': '/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us'
-        } 
-    )
+   
     desktop['hostname'] = gconfig.get('desktop.hostname')
     desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
     # features_permissions
@@ -455,6 +450,31 @@ def init_desktop():
 
     init_balloon()
 
+    # apply cgroup memory and cpu 
+    global cgroup_version
+    cgroup_version = detect_cgroup_version()
+    logger.info( f"cgroup_version is {cgroup_version}" )
+    if cgroup_version is None:
+        logger.error("cgroup version is not detected, this is a fatal error")
+        sys.exit(-1)
+    if cgroup_version == 'cgroup v1':
+        desktop['resources_usage_cgroup_map'] = gconfig.get(
+            'desktop.resources_usage_cgroup_map', 
+            {   'memory.usage_in_bytes': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
+                'memory.limit_in_bytes': '/sys/fs/cgroup/memory/memory.limit_in_bytes',
+                'cpuacct.usage':    '/sys/fs/cgroup/cpu/cpuacct.usage',
+                'cpu.cfs_quota_us': '/sys/fs/cgroup/cpuacct/cpu.cfs_quota_us'
+            } 
+        )
+    if cgroup_version == 'cgroup v2':
+        desktop['resources_usage_cgroup_map'] = gconfig.get(
+            'desktop.resources_usage_cgroup_map', 
+            {   'memory.usage_in_bytes': '/sys/fs/cgroup/memory.current',
+                'memory.limit_in_bytes': '/sys/fs/cgroup/memory.max',
+                'cpuacct.usage':    '/sys/fs/cgroup/cpu.stat',
+                'cpu.cfs_quota_us': '/sys/fs/cgroup/cpu.max'
+            } 
+        )
 
 def init_menuconfig():
     global menuconfig
@@ -791,10 +811,25 @@ def init_snapshot():
     global snapshot_mounttype
     global snapshot_registry_protocol 
     snapshot_mountpath = gconfig.get('desktop.snapshotmountpath', '/run/containerd/containerd.sock')
-    snapshot_mounttype = gconfig.get('desktop.snapshotmountpath', 'Socket')
+    snapshot_mounttype = gconfig.get('desktop.snapshotmounttype', 'Socket')
     snapshot_registry_protocol = gconfig.get('desktop.snapshotregistryprotocol', 'https' )
 
+def detect_cgroup_version():
+    """detect_cgroup_version
+       Detect the cgroup version used by the system.
+       Returns: string indicating the cgroup version ('cgroup v1' or 'cgroup v2').
+    """
+    # read source https://faun.pub/migrating-from-cgroup-v1-to-v2-in-kubernetes-what-you-need-to-know-gke-eks-and-beyond-c0784085043b
+    # to get more information about cgroup v1 and v2
+    cgroup2_path = "/sys/fs/cgroup"
 
+    # In cgroup v2, the file 'cgroup.controllers' exists in /sys/fs/cgroup
+    # Its presence indicates a unified cgroup v2 hierarchy
+    if os.path.isfile(os.path.join(cgroup2_path, "cgroup.controllers")):
+        return "cgroup v2"
+    else:
+        return "cgroup v1"
+   
 def init():
     logger.debug('Init configuration start')
 

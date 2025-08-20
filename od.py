@@ -48,6 +48,9 @@ def api_handle_error():
     
     if hasattr( ex, 'code' ):   
         status = ex.code
+    elif hasattr( ex, 'status' ):   
+        status = ex.status
+
     for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
         if hasattr( ex, m ):
             message = getattr( ex, m )
@@ -189,7 +192,7 @@ class API(object):
             json_file = open('version.json')
             data = json.load(json_file)
             json_file.close()
-        except Exception as e:
+        except Exception as e:  
             logger.error( e )
         return data
 

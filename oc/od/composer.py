@@ -30,6 +30,8 @@ import oc.od.appinstancestatus
 import oc.od.desktop
 import oc.od.services
 import oc.od.tracking
+
+# type need for garbage collector
 from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.rest import ApiException
 
@@ -203,37 +205,65 @@ def runwebhook( c, messageinfo=None ):
 def remove_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
     return removedesktop( authinfo, userinfo )
 
-def stop_container_byname( desktop_name:str, container ):
+def stop_container_byname( desktop_name:str, container:str )->bool:
     myOrchestrator = selectOrchestrator()  
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.stopContainerApp( authinfo, userinfo, container )
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.stopContainerApp( authinfo, userinfo, desktop_name, container )
 
 def list_container_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
-    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.listContainerApp(authinfo, userinfo)
+    (authinfo, userinfo, myDesktop) = myOrchestrator.find_userinfo_authinfo_desktop_by_desktop_name( name=desktop_name )
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
+        raise ODError( status=404, message='desktop not found')
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.listContainerApps(authinfo, userinfo, myDesktop, services.apps )
 
 def describe_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
-    pod = myOrchestrator.describe_desktop_byname( desktop_name )
-    return pod
+    myPod = myOrchestrator.describe_desktop_byname( desktop_name )
+    if not isinstance( myPod, dict ):
+        raise ODError( status=404, message='desktop not found')
+    return myPod
 
 def describe_container_byname( desktop_name:str , container_id:str ):
     myOrchestrator = selectOrchestrator()    
     container = myOrchestrator.describe_container( desktop_name, container_id )
     return container
 
-def remove_container_byname(desktop_name: str, container_id:str):
+def remove_container_byname(desktop_name:str, container:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.removeContainerApp(authinfo,userinfo,container_id=container_id)
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.removeContainerApp(authinfo,userinfo,desktop_name,container)
+
+def get_pod_resources_usage(desktop_name:str, pod_name:str):
+    myOrchestrator = selectOrchestrator()    
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.get_pod_resources_usage(authinfo,userinfo,pod_name=pod_name)
+
+def get_container_resources_usage(desktop_name:str, container_name:str):
+    myOrchestrator = selectOrchestrator()
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.get_container_resources_usage( authinfo, userinfo, container_name=container_name)
 
 def get_desktop_resources_usage(desktop_name:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
-    return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo )
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo)
 
 
 def fakednsquery( userid ):
@@ -378,7 +408,7 @@ def finddesktop( authinfo, userinfo  ):
     return myDesktop
 
 
-def prepareressources( authinfo, userinfo ):
+def prepareressources( authinfo: AuthInfo, userinfo: AuthUser ):
     """prepareressources for user from authinfo
         call Orchestrator.prepareressources
 
@@ -390,7 +420,7 @@ def prepareressources( authinfo, userinfo ):
     myOrchestrator.prepareressources( authinfo=authinfo, userinfo=userinfo )
     
 
-def stopContainerApp(auth, user, podname, containerid):
+def stopContainerApp(authinfo: AuthInfo, userinfo: AuthUser, podname:str, containerid:str):
     """stop container application if the container belongs to the user 
     Args:
         authinfo (AuthInfo): authentification data
@@ -406,15 +436,15 @@ def stopContainerApp(auth, user, podname, containerid):
     logger.info('stopcontainer' )
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
-    myDesktop = myOrchestrator.findDesktopByUser( auth, user )
+    myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
     if not isinstance( myDesktop, oc.od.desktop.ODDesktop):
        raise ODError(status=404,message='stopcontainer::findDesktopByUser not found')
 
-    if not myOrchestrator.isPodBelongToUser( auth, user, podname ):
-        services.fail2ban.fail_login( user.userid )
+    if not myOrchestrator.isPodBelongToUser( authinfo, userinfo, podname ):
+        services.fail2ban.fail_login( userinfo.userid )
         raise ODError( status=401, message='stopcontainer::invalid user')
 
-    result = myOrchestrator.stopContainerApp( auth, user, podname, containerid )
+    result = myOrchestrator.stopContainerApp( authinfo, userinfo, podname, containerid )
     return result
 
 
@@ -468,7 +498,7 @@ def getldifsecretuserinfo( authinfo, userinfo ):
     secretuserinfo = myOrchestrator.getldifsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
-def listContainerApp(authinfo, userinfo):
+def listContainerApps(authinfo, userinfo):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )     

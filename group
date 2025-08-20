@@ -47,8 +47,9 @@ input:x:107:
 sgx:x:108:
 kvm:x:109:
 render:x:110:
-balloon:x:4096:
+_ssh:x:111:
+rdma:x:112:
+polkitd:x:999:
 nogroup:x:65534:
-render:x:110:
 ssh:x:4095:
 {{ gid }}:x:{{ gidNumber }}:{{ uid }}

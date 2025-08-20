@@ -16,6 +16,7 @@
 
 class ODError(Exception):
     def __init__(self, status:int=500, message:str=None ):
+        self.status = status
         super().__init__(message)
 
 class ODResourceNotFound(ODError):

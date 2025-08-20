@@ -426,7 +426,7 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         return json_put
 
-    def handle_image_DELETE( self, image ):
+    def handle_image_DELETE( self, image:str )->str:
         self.logger.debug('')
 
         # image can be an sha_id or an repotag
@@ -447,7 +447,7 @@ class ManagerController(BaseController):
         cherrypy.response.status = 404
         return "Not found"
         
-    def handle_image_PATCH( self, image=None, json_images=None ):
+    def handle_image_PATCH( self, image:str=None, json_images=None ):
         self.logger.debug('')
         # image can be an sha_id or an repotag
         # it is always a str type
@@ -502,7 +502,7 @@ class ManagerController(BaseController):
         desktop_name = args[0]
         if not isinstance( desktop_name, str):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
-
+        
         if len(args)==1:
             # get information for a desktop
             # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
@@ -513,10 +513,27 @@ class ManagerController(BaseController):
             if args[1]=="resources_usage":
                 # specify desktop
                 if len(args)==2 :
-                    # list container for a desktop
+                    # resources_usage for a desktop
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/resources_usage
                     resource = oc.od.composer.get_desktop_resources_usage(desktop_name)
                     return resource
+                
+            if args[1]=="pod":
+                # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/pod/pod_id/resources_usage
+                 if len(args)==4 and args[3]=="resources_usage":
+                    #
+                    # args[0] -> desktop_name
+                    # args[1] -> pod
+                    # args[2] -> pod_name or pod_id
+                    # args[3] -> resources_usage
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/pod/pod_id/resources_usage
+                    pod_name = args[2]
+                    if not isinstance( pod_name, str):
+                        raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+                    self.logger.debug(f'get pod resources usage for {desktop_name} {pod_name}')
+                    resource = oc.od.composer.get_pod_resources_usage(desktop_name=desktop_name, pod_name=pod_name)
+                    return resource
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
                 
             if args[1]=="container":
                 # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container
@@ -535,6 +552,24 @@ class ManagerController(BaseController):
                     # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id
                     container = oc.od.composer.describe_container( desktop_name, container=container_id )
                     return container
+                
+                if len(args)==4 and args[3]=="resources_usage":
+                    #
+                    # args[0] -> desktop_name
+                    # args[1] -> container
+                    # args[2] -> container_name or container_id
+                    # args[3] -> resources_usage
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
+                    container_name = args[2]
+                    if not isinstance( container_name, str):
+                        raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+                    self.logger.debug(f'get ephemeralcontainer resources usage for {desktop_name} {container_name}')
+                    # get ephemeralcontainer resources usage
+                    # /API/manager/desktop
+                    # /hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
+                    resource = oc.od.composer.get_container_resources_usage(desktop_name=desktop_name, container_name=container_name)
+                    return resource
+                    # /API/manager/desktop/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/container_id/resources_usage
 
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
@@ -548,6 +583,7 @@ class ManagerController(BaseController):
         desktop_name = args[0]
         if not isinstance( desktop_name, str):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
+                                    
         if len(args)==1:
             # delete a desktop
             # DELETE /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773
@@ -555,12 +591,11 @@ class ManagerController(BaseController):
             return delete_desktop
 
         # use a specify desktop
-        if len(args)==3 and args[1]=="container":
+        if len(args)==3 and args[1] in [ "container", "pod" ] :
             # delete a container for a desktop
             # /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/7f77381f778b1214c780762185a2a345ed00cfd1022f18cbd37902af041aff40
             container_id = args[2]
-            oc.od.composer.stop_container_byname( desktop_name, container=container_id )
-            oc.od.composer.remove_container_byname( desktop_name, container=container_id )
+            stopped_container = oc.od.composer.stop_container_byname( desktop_name, container=container_id )
             return container_id
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request') 
 
