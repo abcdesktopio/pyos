@@ -5101,7 +5101,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
 
 
-    def create(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
+    def create(self, myDesktop:ODDesktop, app, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
         self.logger.debug('')
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
@@ -5344,7 +5344,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
        
         self.logger.debug(f"w.stream kubeapi.list_namespaced_event done")
         """
-        
+        ephemeral_container_statuses_found = False
         pod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=pod_name)
         if  isinstance( pod, V1Pod ) and \
             isinstance( pod.status, V1PodStatus ) and \
@@ -5352,6 +5352,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 for c in pod.status.ephemeral_container_statuses:
                     if isinstance( c, V1ContainerStatus ) :
                         if c.name == app_container_name:
+                            ephemeral_container_statuses_found = True
                             self.logger.debug( f"{app_container_name} is found in ephemeral_container_statuses {c}")
                             if isinstance( c.state, V1ContainerState ):
                                 if isinstance(c.state.terminated, V1ContainerStateTerminated ):
@@ -5370,6 +5371,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                 elif isinstance(c.state.waiting, V1ContainerStateWaiting):
                                     appinstancestatus.message = c.state.waiting.reason
                             break
+
+        # if not ephemeral_container_statuses_found :
+
 
         self.logger.debug(f"create done {appinstancestatus}")
         return appinstancestatus

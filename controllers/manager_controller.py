@@ -426,7 +426,7 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         return json_put
 
-    def handle_image_DELETE( self, image ):
+    def handle_image_DELETE( self, image:str )->str:
         self.logger.debug('')
 
         # image can be an sha_id or an repotag
@@ -447,7 +447,7 @@ class ManagerController(BaseController):
         cherrypy.response.status = 404
         return "Not found"
         
-    def handle_image_PATCH( self, image=None, json_images=None ):
+    def handle_image_PATCH( self, image:str=None, json_images=None ):
         self.logger.debug('')
         # image can be an sha_id or an repotag
         # it is always a str type
@@ -596,7 +596,6 @@ class ManagerController(BaseController):
             # /API/manager/desktops/hermes-8a49ca1a-fcc6-4b7b-960f-5a27debd4773/container/7f77381f778b1214c780762185a2a345ed00cfd1022f18cbd37902af041aff40
             container_id = args[2]
             stopped_container = oc.od.composer.stop_container_byname( desktop_name, container=container_id )
-            oc.od.composer.remove_container_byname( desktop_name, container=container_id )
             return container_id
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request') 
 

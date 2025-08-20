@@ -46,10 +46,11 @@ def api_handle_error():
     status = 500
     message = None
     
-    # if hasattr( ex, 'code' ):   
-    #     status = ex.code
-    if hasattr( ex, 'status' ):   
+    if hasattr( ex, 'code' ):   
+        status = ex.code
+    elif hasattr( ex, 'status' ):   
         status = ex.status
+
     for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
         if hasattr( ex, m ):
             message = getattr( ex, m )

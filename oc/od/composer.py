@@ -237,12 +237,12 @@ def describe_container_byname( desktop_name:str , container_id:str ):
     container = myOrchestrator.describe_container( desktop_name, container_id )
     return container
 
-def remove_container_byname(desktop_name: str, container:str):
+def remove_container_byname(desktop_name:str, container:str):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
     if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
         raise ODError( status=404, message='desktop not found')
-    return myOrchestrator.removeContainerApp(authinfo,userinfo,container_id=container)
+    return myOrchestrator.removeContainerApp(authinfo,userinfo,desktop_name,container)
 
 def get_pod_resources_usage(desktop_name:str, pod_name:str):
     myOrchestrator = selectOrchestrator()    
