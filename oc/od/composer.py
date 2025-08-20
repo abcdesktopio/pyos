@@ -225,6 +225,16 @@ def list_container_byname( desktop_name:str ):
         raise ODError( status=404, message='desktop not found')
     return myOrchestrator.listContainerApps(authinfo, userinfo, myDesktop, services.apps )
 
+
+def list_applications_by_name_and_type( desktop_name:str, type_of_application:str ):
+    myOrchestrator = selectOrchestrator()    
+    (authinfo, userinfo, myDesktop) = myOrchestrator.find_userinfo_authinfo_desktop_by_desktop_name( name=desktop_name )
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
+        raise ODError( status=404, message='desktop not found')
+    if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
+        raise ODError( status=404, message='desktop not found')
+    return myOrchestrator.list_application_by_type_of_application(authinfo, userinfo, myDesktop, type_of_application, services.apps )
+
 def describe_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
     myPod = myOrchestrator.describe_desktop_byname( desktop_name )
@@ -232,10 +242,11 @@ def describe_desktop_byname( desktop_name:str ):
         raise ODError( status=404, message='desktop not found')
     return myPod
 
-def describe_container_byname( desktop_name:str , container_id:str ):
-    myOrchestrator = selectOrchestrator()    
-    container = myOrchestrator.describe_container( desktop_name, container_id )
-    return container
+def describe_application_byname( desktop_name:str, app_name:str ):
+    myOrchestrator = selectOrchestrator()
+    (authinfo, userinfo) = myOrchestrator.find_userinfo_authinfo_by_desktop_name( name=desktop_name )
+    description = myOrchestrator.describe_application( authinfo, userinfo, desktop_name, app_name )
+    return description
 
 def remove_container_byname(desktop_name:str, container:str):
     myOrchestrator = selectOrchestrator()    
@@ -420,7 +431,7 @@ def prepareressources( authinfo: AuthInfo, userinfo: AuthUser ):
     myOrchestrator.prepareressources( authinfo=authinfo, userinfo=userinfo )
     
 
-def stopContainerApp(authinfo: AuthInfo, userinfo: AuthUser, podname:str, containerid:str):
+def stopContainerApp(authinfo: AuthInfo, userinfo: AuthUser, podname:str, app_name:str):
     """stop container application if the container belongs to the user 
     Args:
         authinfo (AuthInfo): authentification data
@@ -444,7 +455,7 @@ def stopContainerApp(authinfo: AuthInfo, userinfo: AuthUser, podname:str, contai
         services.fail2ban.fail_login( userinfo.userid )
         raise ODError( status=401, message='stopcontainer::invalid user')
 
-    result = myOrchestrator.stopContainerApp( authinfo, userinfo, podname, containerid )
+    result = myOrchestrator.stopContainerApp( authinfo, userinfo, podname, app_name )
     return result
 
 

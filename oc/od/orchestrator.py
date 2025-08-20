@@ -638,9 +638,6 @@ class ODOrchestrator(ODOrchestratorBase):
     def execwaitincontainer( self, desktop, command, timeout=1000):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
-    def getappinstance( self, authinfo, userinfo, app ):        
-        raise NotImplementedError(f"{type(self)}.getappinstance")
-
     def get_auth_env_dict( self, authinfo, userinfo  ):
         return {}
 
@@ -2423,6 +2420,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             count += len( myappinstance.list(authinfo, userinfo, myDesktop ) )
         return count
 
+
+    def list_application_by_type_of_application( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, application_type:str, apps:ODApps=None ):
+        assert isinstance(authinfo, AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),   f"userinfo has invalid type {type(userinfo)}"
+        assert isinstance(myDesktop, ODDesktop), f"myDesktop has invalid type {type(myDesktop)}"
+        self.logger.debug('')
+        list_apps = []
+        if application_type == self.pod_application :
+            myappinstance = ODAppInstanceKubernetesPod( self )
+            list_apps += myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=self.all_phases_status, apps=apps)
+        if application_type == self.ephemeral_container :
+            myappinstance = ODAppInstanceKubernetesEphemeralContainer( self )
+            list_apps += myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=self.all_phases_status, apps=apps)
+        return list_apps
+
     def listContainerApps( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, apps:ODApps=None ):
         """listContainerApps
 
@@ -2491,40 +2503,41 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return myappinstance
 
-    def logContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
+    def logContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         log_app = None
-        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
+        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            log_app = myappinstance.logContainerApp(pod_name, containerid)
+            log_app = myappinstance.logContainerApp(pod_name, app_name)
         return log_app
 
-    def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
+    def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         env_result = None
-        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
+        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            env_result = myappinstance.envContainerApp(authinfo, userinfo, pod_name, containerid)
+            env_result = myappinstance.envContainerApp(authinfo, userinfo, pod_name, app_name)
         return env_result
 
-    def stopContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str)->bool:
+    def stopContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->bool:
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         stop_result = None
-        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, containerid)
+        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            stop_result = myappinstance.stop(pod_name, containerid)
+            stop_result = myappinstance.stop(pod_name, app_name)
         return stop_result
 
-    def removeContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
-        return self.stopContainerApp( authinfo, userinfo, pod_name, containerid)
+    def describe_application( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->dict:
+        assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
+        assert isinstance(app_name, str), f"app_name has invalid type {type(app_name)}"
+        app_description = None
+        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
+        if isinstance( myappinstance, ODAppInstanceBase ):
+            app_description = myappinstance.describe(pod_name, app_name)
+        return app_description
 
-    def getappinstance( self, authinfo, userinfo, app ):    
-        self.logger.debug('')
-        for app_class in self.appinstance_classes.values():
-            app_object = app_class( orchestrator=self )
-            appinstance = app_object.findRunningAppInstanceforUserandImage( authinfo, userinfo, app )
-            if app_object.isinstance( appinstance ):
-                return appinstance
+    def removeContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->bool:
+        return self.stopContainerApp( authinfo, userinfo, pod_name, app_name)
 
     """
     def read_configmap( self, name, entry ):
@@ -4452,8 +4465,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # not found
             pass
         return (authinfo,userinfo,myDesktop)
-
+    
     def describe_desktop_byname( self, name:str )->dict:
+        return self.describe_pod_byname( name )
+
+    def describe_pod_byname( self, name:str )->dict:
         """describe_desktop_byname
 
         Args:
@@ -5491,6 +5507,18 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
     return appinstancestatus
     """
         
+    def describe( self, pod_name:str, app_name:str ):
+        description = None
+        pod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=pod_name)
+        if  isinstance( pod, V1Pod ) and \
+            isinstance( pod.spec, V1PodSpec ) and \
+            isinstance( pod.spec.ephemeral_containers, list):
+                for c in pod.spec.ephemeral_containers:
+                    if isinstance( c, V1EphemeralContainer ) :
+                        if c.name == app_name:
+                            description = c.to_dict()
+                            break
+        return description
 
     def findRunningAppInstanceforUserandImage( self, authinfo:AuthInfo, userinfo:AuthUser, app):
         self.logger.debug('')
@@ -5560,6 +5588,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         """
         nodeSelector = oc.od.settings.desktop_pod.get(self.type, {}).get('nodeSelector',{})
         return nodeSelector
+    
+    def describe( self, pod_name:str, app_name:str ):
+        return self.orchestrator.describe_pod_byname( app_name )
     
     def get_appnodeSelector( self, authinfo:AuthInfo, userinfo:AuthUser,  app:dict ):
         """get_appnodeSelector
