@@ -5073,17 +5073,15 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             # event_object.involved_object.field_path = "spec.ephemeralContainers{" + container_name + "}"
 
 
-            if isinstance( event_object.involved_object.field_path, str ):
-                if event_object.involved_object.field_path != field_path:
-                    # this event is not for this thread
-                    # self.logger.debug(f"event_object.involved_object.field_path = {event_object.involved_object.field_path} expecting field_path = {field_path}")
-                    # w.stop()
-                    continue
-            else:
-                # event_object.involved_object.field_path is not a string
-                # skip this event
+            if not isinstance( event_object.involved_object.field_path, str ):
                 continue
 
+            if event_object.involved_object.field_path != field_path:
+                # this event is not for this thread
+                # self.logger.debug(f"event_object.involved_object.field_path = {event_object.involved_object.field_path} expecting field_path = {field_path}")
+                # w.stop()
+                continue
+        
             # self.logger.debug( f"event_object.involved_object.field_path = {event_object.involved_object.field_path}" )
             
             if event_object.type == 'Warning':  # event Warning
@@ -5106,6 +5104,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         data['name'] =  event_object.reason
                         data['message'] = event_object.message
                         self.orchestrator.notify_user( myDesktop, 'container', data )
+                        w.stop()
                 elif event_object.reason == 'Started':
                     w.stop()
                 elif event_object.reason == 'Created':
@@ -5245,7 +5244,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         appinstancestatus.message = "Application" # default message 
 
         # create a thread to watch for pulling event 
-        # self.create_thread_to_watch_for_pulling_event( myDesktop, pod_name, app_container_name, app )
+        # 
+        # 
+        self.create_thread_to_watch_for_pulling_event( myDesktop, pod_name, app_container_name, app )
         # start
         data = {    'message':  app.get('name'), 
                     'name':     app.get('name'),
@@ -5731,7 +5732,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             self.logger.error( e )
         return strlogs
 
-    def stop( self, pod_name, container_name:None )->bool:
+    def stop( self, pod_name:str, container_name:str=None )->bool:
         '''get the user's containerid stdout and stderr'''
         result = None
         propagation_policy = 'Foreground'
