@@ -410,7 +410,8 @@ def init_desktop():
     desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
     desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 300 )
     desktop['K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS', 300 )
-    
+    desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS'] = gconfig.get('K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS', 2 )    
+    desktop['K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS'] = gconfig.get('K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS', 5 )    
 
     if not isinstance(desktop['nodeselector'], dict):
         logger.error( f"nodeselector must be a dict or None, get {type(desktop['nodeselector'])}" )
