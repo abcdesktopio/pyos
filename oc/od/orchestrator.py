@@ -4789,9 +4789,8 @@ class ODAppInstanceBase(object):
             if event_received['pulled'] is still False
         '''
         assert isinstance(event_received, dict), f"event_received has invalid type {type(event_received)}"
-        assert isinstance(myDesktop,    ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
-        assert isinstance(data,        dict),       f"data has invalid type {type(data)}"
-        self.logger.debug( '')
+        assert isinstance(myDesktop, ODDesktop), f"desktop has invalid type {type(myDesktop)}"
+        assert isinstance(data, dict), f"data has invalid type {type(data)}"
         notify_thread=threading.Thread(target=self.notify_user_application_pulled, args=[myDesktop, data,  event_received] )
         notify_thread.start()
         return notify_thread
@@ -4803,9 +4802,9 @@ class ODAppInstanceBase(object):
             if event_received['pulled'] is still False
         '''
         assert isinstance(event_received, dict), f"event_received has invalid type {type(event_received)}"
-        assert isinstance(myDesktop,    ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
-        assert isinstance(data,        dict),       f"data has invalid type {type(data)}"
-        self.logger.debug( '')
+        assert isinstance(myDesktop, ODDesktop), f"desktop has invalid type {type(myDesktop)}"
+        assert isinstance(data, dict), f"data has invalid type {type(data)}"
+        self.logger.debug('')
         self.logger.debug( f'event_received={event_received} before sleep for {oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS']}' )
         time.sleep( oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS'] )
         if event_received.get('pulled') is False:
@@ -5155,8 +5154,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                         self.orchestrator.notify_user( myDesktop, 'container', data )
                                     
                                     if isinstance(c.state.terminated, V1ContainerStateTerminated ):
-                                        data['message'] =  c.state.terminated.reason
-                                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                                        if c.state.terminated.reason != 'Completed':
+                                            data['message'] =  c.state.terminated.reason
+                                            self.orchestrator.notify_user( myDesktop, 'container', data )
 
                                     '''
                                         elif isinstance(c.state.running, V1ContainerStateRunning ):
@@ -5255,22 +5255,22 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     # event_object.first_timestamp
                     # self.orchestrator.notify_user( myDesktop, 'container', data )
                     self.create_thread_to_notify_user_application_pulled( myDesktop, data, event_received )
-                    w.stop()
                     continue
-                
+
                 elif event_object.reason == 'Pulled':
                     event_received['pulled'] = True # for the thread notify_user_application_pulled
                     if event_received.get('pulling.notify_user') is True:
                         data['name'] =  event_object.reason
                         data['message'] = event_object.message
                         self.orchestrator.notify_user( myDesktop, 'container', data )
+                    w.stop()
                     continue
     
                 elif event_object.reason == 'Started':
                     # always stop the watch on Started event
                     w.stop()
                     continue
-                
+
                 elif event_object.reason == 'Created':
                     pass # nothing to do
                 
