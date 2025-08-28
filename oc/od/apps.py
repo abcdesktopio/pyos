@@ -43,7 +43,7 @@ class ODApps:
             'keyword',      'uniquerunkey',     'cat',          'args',         'execmode',
             'showinview',   'displayname',      'mimetype',     'path',         'desktopfile',
             'sha_id',       'created',          'executablefilename',           'os',     
-            'secrets_requirement', 'architecture']
+            'secrets_requirement', 'architecture', 'wm_class',   'fileextensions', 'legacyfileextensions']
         
         # define private attributs keep
         self.private_attr_list  = [ 'acl',  'rules', 'securityContext' ]
@@ -431,7 +431,8 @@ class ODApps:
             name = self.get_command_container_str( command_container )
         
         # read the labels 'oc.launch' or 'oc.wm_class' as launch
-        launch = labels.get('oc.launch') or labels.get('oc.wm_class') or name
+        launch = labels.get('oc.launch')
+        wm_class = labels.get('oc.wm_class')
 
         # read the labels 'oc.path' as path
         path = labels.get('oc.path')
@@ -477,6 +478,7 @@ class ODApps:
                 'rules':        rules,
                 'acl':          acl,
                 'launch':       launch,
+                'wm_class':     wm_class,
                 'name':         name,
                 'icon':         icon,
                 'icondata' :    icondata,
