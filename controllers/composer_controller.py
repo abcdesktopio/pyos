@@ -83,6 +83,20 @@ class ComposerController(BaseController):
         self.logger.debug('launchdesktop:_launchdesktop')
         result = self._launchdesktop(auth, user, cherrypy.request.json)
         return result
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_in()
+    @cherrypy.tools.json_out()
+    def list_applications_by_phase(self):
+        (auth, user ) = self.validate_env()
+        args = cherrypy.request.json
+        if type(args) is not dict:
+            return cherrypy.HTTPError( status=400, message='invalid args parameters')
+        phase = args.get('phase')
+        if type(phase) is not str or phase not in ['Running', 'Terminated', 'Waiting', 'Completed', 'Succeeded']:
+            return cherrypy.HTTPError( status=400, message='invalid args parameters')
+        result = oc.od.composer.list_applications_by_phase(auth, user, phase)
+        return result
 
     @cherrypy.expose
     @cherrypy.tools.json_out()

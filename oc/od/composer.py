@@ -225,7 +225,6 @@ def list_container_byname( desktop_name:str ):
         raise ODError( status=404, message='desktop not found')
     return myOrchestrator.listContainerApps(authinfo, userinfo, myDesktop, services.apps )
 
-
 def list_applications_by_name_and_type( desktop_name:str, type_of_application:str ):
     myOrchestrator = selectOrchestrator()    
     (authinfo, userinfo, myDesktop) = myOrchestrator.find_userinfo_authinfo_desktop_by_desktop_name( name=desktop_name )
@@ -233,7 +232,7 @@ def list_applications_by_name_and_type( desktop_name:str, type_of_application:st
         raise ODError( status=404, message='desktop not found')
     if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
         raise ODError( status=404, message='desktop not found')
-    return myOrchestrator.list_application_by_type_of_application(authinfo, userinfo, myDesktop, type_of_application, services.apps )
+    return myOrchestrator.list_application_by_type_of_application(authinfo, userinfo, myDesktop, [ type_of_application ] , services.apps )
 
 def describe_desktop_byname( desktop_name:str ):
     myOrchestrator = selectOrchestrator()    
@@ -417,6 +416,17 @@ def finddesktop( authinfo, userinfo  ):
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
     myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo)     
     return myDesktop
+
+
+def list_applications_by_phase( authinfo:AuthInfo, userinfo:AuthUser, phase:str )->list:
+    # phase can be [ 'Running', 'Terminated', 'Waiting', 'Completed', 'Succeeded']
+    myOrchestrator = selectOrchestrator() # new Orchestrator Object    
+    myDesktop = myOrchestrator.findDesktopByUser(authinfo, userinfo)
+    if not isinstance( myDesktop, oc.od.desktop.ODDesktop) :
+        raise ODError( status=404, message='desktop not found')
+    # list all type of application
+    list_of_type_of_application = [ myOrchestrator.pod_application, myOrchestrator.ephemeral_container ]
+    return myOrchestrator.list_application_by_type_of_application(authinfo, userinfo, myDesktop, list_of_type_of_application, services.apps, [ phase ] )
 
 
 def prepareressources( authinfo: AuthInfo, userinfo: AuthUser ):
