@@ -716,26 +716,6 @@ def openapp( auth, user={}, kwargs={} ):
         if running_user_applications_counter > max_app_counter:
             raise ODError( status=400, message=f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
 
-    """
-    Deprecated
-    # Check if the image is has the uniquerunkey Label set
-    if app.get('uniquerunkey'):
-        logger.debug(f"app {appname} has an uniqu key property set" )
-        appinstance = myOrchestrator.getappinstance(auth, user, app )            
-        if myOrchestrator.is_instance_app( appinstance ):
-            logger.debug('Another container with the same uniquerunkey %s is running for userid %s', app.get('uniquerunkey'), user.userid)
-            cmd,result = launch_app_in_process(myOrchestrator, app, appinstance, userargs)
-            services.accounting.accountex('container', 'reused')
-            services.accounting.accountex('image', app['name'] )
-            return {    'container_id': appinstance.id,
-                        'cmd': cmd,
-                        'stdout': result['stdout']
-            }
-    
-    logger.debug( 'no application instance %s is running, create a new one', str(appname) )                  
-    services.accounting.accountex('api', 'openapp')
-    """
-
     appinstancestatus = myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
     if not isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus ):
         raise ODError( status=500, message=f"Failed to run application createappinstance return {type(appinstancestatus)}")

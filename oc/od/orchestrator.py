@@ -632,9 +632,6 @@ class ODOrchestrator(ODOrchestratorBase):
     def removedesktop(self, authinfo, userinfo, args={}):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
-    def is_instance_app( self, appinstance ):
-        raise NotImplementedError(f"{type(self)}.is_instance_app")
-
     def execwaitincontainer( self, desktop, command, timeout=1000):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
@@ -2392,14 +2389,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     
         # self.logger.debug(f"filldictcontextvalue return fillvalue={fillvalue}")
         return fillvalue
-
-
-
-    def is_instance_app( self, appinstance ):
-        for app in self.appinstance_classes.values():
-            if app(self).isinstance( appinstance ):
-                return True
-        return False
 
     def countRunningAppforUser( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop)->int:
         """countRunningAppforUser
@@ -4216,7 +4205,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         continue
                     # read ips
                     ips = interface.get('ips')
-                    if  not isinstance( ips, list ): 
+                    if not isinstance( ips, list ): 
                         continue
                     # read mac
                     mac = interface.get('mac')
@@ -4530,9 +4519,6 @@ class ODAppInstanceBase(object):
     def findRunningAppInstanceforUserandImage( self, authinfo, userinfo, app):
         raise NotImplementedError(f"{type(self)}.build_volumes")
 
-    @staticmethod
-    def isinstance( app ):
-        raise NotImplementedError( "isinstance")
 
     def get_DISPLAY( self, desktop_ip_addr:str='' ):
         raise NotImplementedError('get_DISPLAY')
@@ -4824,13 +4810,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
     def __init__(self, orchestrator):
         super().__init__(orchestrator)
         self.type = self.orchestrator.ephemeral_container
-
-    @staticmethod
-    def isinstance( ephemeralcontainer ):
-        bReturn =   isinstance( ephemeralcontainer, V1Pod ) or \
-                    isinstance( ephemeralcontainer, V1ContainerState ) or \
-                    isinstance( ephemeralcontainer, V1ContainerStatus )
-        return bReturn
 
     def get_DISPLAY(  self, desktop_ip_addr:str=None ):
         return ':0.0'
@@ -5673,18 +5652,13 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         super().__init__(orchestrator)
         self.type = self.orchestrator.pod_application
 
-    @staticmethod
-    def isinstance( pod:V1Pod ):
-        bReturn =  isinstance( pod, V1Pod )
-        return bReturn
-
-    def get_DISPLAY( self, desktop_ip_addr:str ):
+    def get_DISPLAY( self, desktop_ip_addr:str )->str:
         return desktop_ip_addr + ':0'
     
-    def get_PULSE_SERVER( self, desktop_ip_addr:str ):
+    def get_PULSE_SERVER( self, desktop_ip_addr:str )->str:
         return desktop_ip_addr + ':' + str(DEFAULT_PULSE_TCP_PORT)
 
-    def get_CUPS_SERVER( self, desktop_ip_addr:str ):
+    def get_CUPS_SERVER( self, desktop_ip_addr:str )->str:
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
 
     def get_nodeSelector( self ):
