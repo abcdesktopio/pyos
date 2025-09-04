@@ -74,12 +74,6 @@ class CoreController(BaseController):
             id = tipsinfoconfig
         elif provider == 'welcomeinfo':
             id = welcomeinfoconfig
-        elif provider == 'webrtc.configuration':
-            id = oc.od.settings.webrtc.get('rtc_configuration')
-        elif provider == 'webrtc.rtc_constraints':
-            id = oc.od.settings.webrtc.get('rtc_constraints')
-        elif provider == 'webrtc.enable':
-            id = oc.od.settings.webrtc.get('enable')
         elif provider == 'features_permissions_executeclasses' :
             if 'read' in oc.od.settings.desktop.get('features_permissions',[]):
                 id = oc.od.settings.executeclasses

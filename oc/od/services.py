@@ -20,7 +20,6 @@ class ODServices(object):
         self.jwtdesktop = None
         self.keymanager = None
         self.locatorPublicInternet = None
-        # self.webrtc = None
         self.kuberneteswatcher = None
         self.apps = None
         self.prelogin = None
@@ -39,7 +38,6 @@ class ODServices(object):
         self.init_jwtdesktop()
         self.init_locator()
         self.init_keymanager()
-        # self.init_webrtc()
         self.init_prelogin()
         self.init_logmein()
         self.init_fail2ban()
@@ -90,18 +88,8 @@ class ODServices(object):
             mongodburl=settings.mongodburl, 
             fail2banconfig=settings.fail2banconfig 
         )
-        # self.fail2ban.test()
+        
 
-    '''
-    def init_webrtc(self):
-        """init parameters to the janus webrtc gateway
-        """
-        self.logger.info('')
-        import oc.od.janus
-        if settings.webrtc_enable :
-            self.webrtc = oc.od.janus.ODJanusCluster( settings.webrtc_server )
-    '''
-    
     def init_keymanager(self):
         """[decode arg params query string in metappli mode ]
         """

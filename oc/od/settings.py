@@ -120,20 +120,11 @@ default_host_url_is_securised = False  # is default_host_url securized https
 # public host 
 websocketrouting = None
 dock = {}  # Web dock JSON config
-
 internaldns = { 'subdomain': None, 'domain': None, 'secret': None }
 
 jwt_config_user = None
 jwt_config_desktop = None
 
-#
-# default webrtc config
-webrtc = { 
-    'enable': False, 
-    'rtc_configuration': {},
-    'rtc_constraints': {},
-    'coturn': {}    
-}
 
 def getballoon_loginname()->str:     
     return balloon_loginname
@@ -195,16 +186,6 @@ def init_localaccount():
     DEFAULT_GROUP_FILE   = loadfile(group_filename)
     DEFAULT_SHADOW_FILE  = loadfile(shadow_filename)
     DEFAULT_GSHADOW_FILE = loadfile(gshadow_filename)
-
-
-def init_coturn_webrtc():
-    """Read webrtc configuration file
-    """
-    global webrtc
-    webrtc['enable'] = gconfig.get('webrtc.enable', False )
-    webrtc['coturn'] = gconfig.get('webrtc.coturn', {} )
-    webrtc['rtc_configuration'] = gconfig.get('webrtc.rtc_configuration', { 'iceServers': [] } )
-    webrtc['rtc_constraints'] = gconfig.get('webrtc.rtc_constraints', { 'video': False, 'audio': False } )
 
    
 def init_tipsinfo():
@@ -900,9 +881,6 @@ def init():
 
     # init locales vars
     init_locales()
-
-    # init coturn webrtc
-    init_coturn_webrtc()
 
     # init jira bugtracker
     init_jira()
