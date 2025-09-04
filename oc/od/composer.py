@@ -591,11 +591,6 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
     env.update( { 'ABCDESKTOP_PROVIDERNAME':  authinfo.get('provider')} )
     env.update( { 'ABCDESKTOP_PROVIDERTYPE':  authinfo.get('providertype')} )
 
-    # 
-    # if oc.od.webrtc.is_coturn_enable() is True:
-    #    ice_server = oc.od.webrtc.coturn_iceserver( userinfo.userid + '_abcdesktop', format='env' )
-    #    env.update( { 'TURN_SERVER': ice_server } )
-
     return env
 
 def createDesktopArguments( authinfo, userinfo, args ):
@@ -974,10 +969,10 @@ def notify_endpoint( url:str )->bool:
         apikey = oc.od.settings.controllers.get('ManagerController').get('apikey', [ None ])[0]
         if isinstance( apikey, str ) :
             headers={'X-API-Key': apikey }
-            logger.debug( f"notify_endpoint: url={url} headers={headers}" )
+            # logger.debug( f"notify_endpoint: url={url} headers={headers}" )
         response = requests.get(url, headers=headers )
         if isinstance( response, requests.models.Response ):
-            logger.debug( f"notify_endpoint: url={url} response.status_code={response.status_code} response.reason={response.reason}" )
+            # logger.debug( f"notify_endpoint: url={url} response.status_code={response.status_code} response.reason={response.reason}" )
             return response.ok
     except requests.exceptions.ConnectTimeout:
         logger.error( f"notify_endpoint: url={url} ConnectTimeout, pod seems to be down" )
