@@ -43,7 +43,7 @@ class ODApps:
             'keyword',      'uniquerunkey',     'cat',          'args',         'execmode',
             'showinview',   'displayname',      'mimetype',     'path',         'desktopfile',
             'sha_id',       'created',          'executablefilename',           'os',     
-            'secrets_requirement', 'architecture']
+            'secrets_requirement', 'architecture', 'wm_class',   'fileextensions', 'legacyfileextensions']
         
         # define private attributs keep
         self.private_attr_list  = [ 'acl',  'rules', 'securityContext' ]
@@ -430,13 +430,13 @@ class ODApps:
         if not isinstance(name,str) :
             name = self.get_command_container_str( command_container )
         
-        # read the labels 'oc.launch' or 'oc.wm_class' as launch
-        launch = labels.get('oc.launch') or labels.get('oc.wm_class') or name
+        # read the labels 'oc.launch' as launch or name
+        launch = labels.get('oc.launch', name) # launch can be None use name as fallback
+        # read the labels 'oc.wm_class' as wm_class
+        wm_class = labels.get('oc.wm_class') # wm_class can be None
+        path = labels.get('oc.path') # read the labels 'oc.path' as path
 
-        # read the labels 'oc.path' as path
-        path = labels.get('oc.path')
-
-        self.logger.debug( f"image {name} path={path} cmd={cmd} args={command_container_args}")
+        self.logger.debug( f"image {name} launch={launch} path={path} cmd={cmd} args={command_container_args}")
 
         # read oc specific value
         # use name as icon if icon is not defined
@@ -477,6 +477,7 @@ class ODApps:
                 'rules':        rules,
                 'acl':          acl,
                 'launch':       launch,
+                'wm_class':     wm_class,
                 'name':         name,
                 'icon':         icon,
                 'icondata' :    icondata,
@@ -506,7 +507,7 @@ class ODApps:
 
         return myapp
  
-    def add_json_image_to_collection( self, json_image:str ):
+    def add_json_image_to_collection( self, json_image:str )->list|None:
         applist = None
         # if json image is a list add each image in list
         if isinstance( json_image, list ):
@@ -575,7 +576,17 @@ class ODApps:
                 break
         return app
 
-    def find_app_by_key(self, key_value:str, key='name')->dict:
+    def find_app_by_key(self, key_value:str, key:str='name')->dict:
+        """find_app_by_key
+            return None if app is not found
+        Args:
+            key_value (str): value of the key
+            key (str, optional): key to search. Defaults to 'name'. 
+                can be 'name', 'launch', 'path', 'executablefilename', 'mimetype'
+        Returns:
+            dict: app dict
+        """
+        self.logger.debug(locals())
         app=None
         assert isinstance(key, str),f"key has invalid type {type(key)}"
         for app in self.myglobal_list.items():
