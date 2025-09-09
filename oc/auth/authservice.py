@@ -1057,7 +1057,7 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         network = condition.get('network')
-        if isinstance(network, str ) or isinstance(network, list ) :
+        if isinstance(network, (str, list) ) :
             ipsource = getclientipaddr()
             # self.logger.debug( f"network rules ipsource={ipsource}" )
             result = isinNetwork( ipsource, network )
@@ -1065,7 +1065,7 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         network = condition.get('network-x-forwarded-for')
-        if isinstance(network, str ) or isinstance(network, list ) :
+        if isinstance(network, (str, list) ) :
             # getclientxforwardedfor_listip return a list of all ip addr
             # self.logger.debug(f"condition network-x-forwarded-for start" )
             ipsources = getclientxforwardedfor_listip()
@@ -1075,7 +1075,7 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         network = condition.get('network-x-real-ip')
-        if isinstance(network, str ) or isinstance(network, list ) :
+        if isinstance(network, (str, list) ) :
             # getclientreal_ip return single ip addr
             ipsource = getclientreal_ip()
             result = isinNetwork( ipsource, network )
@@ -1083,7 +1083,7 @@ class ODAuthTool(cherrypy.Tool):
                 compiled_result = True
 
         network = condition.get('network-client-ip')
-        if isinstance(network, str ) or isinstance(network, list ) :
+        if isinstance(network, (str, list) ) :
             ipsource = getclientipaddr()
             result = isinNetwork( ipsource, network )
             if result == condition.get( 'expected'):

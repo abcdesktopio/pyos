@@ -54,7 +54,7 @@ def api_handle_error():
     for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
         if hasattr( ex, m ):
             message = getattr( ex, m )
-            if isinstance( message, list) or isinstance( message, tuple):
+            if isinstance( message, (list,tuple) ):
                 message = message[0]
             if isinstance( message, str) and len(message) > 0:
                 break

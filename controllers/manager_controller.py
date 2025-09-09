@@ -406,9 +406,9 @@ class ManagerController(BaseController):
         self.logger.debug('')
         json_put = None
         # node can be None or str
-        if isinstance( node, str ) or node is  None : 
+        if isinstance( node, str ) or node is None : 
             # json_images can be list or dict
-            if isinstance( json_images, list ) or isinstance( json_images, dict ) :
+            if isinstance( json_images, (list, dict)) :
                 json_put = oc.od.composer.pull_application_image( json_images, node=node )
             else:
                 raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
@@ -418,13 +418,13 @@ class ManagerController(BaseController):
 
     def handle_image_POST( self, json_images ):
         self.logger.debug('')
-        json_put = None
+        json_post = None
         # json_images can be list or dict
-        if isinstance( json_images, list ) or isinstance( json_images, dict ) :
-            json_put = oc.od.composer.add_application_image( json_images )
+        if isinstance( json_images, (list, dict)) :
+            json_post = oc.od.composer.add_application_image( json_images )
         else:
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
-        return json_put
+        return json_post
 
     def handle_image_DELETE( self, image:str )->str:
         self.logger.debug('')
@@ -608,8 +608,6 @@ class ManagerController(BaseController):
             return app_name
         raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request') 
 
- 
-
     def handle_ban_GET( self, collection:str, args:tuple ):
         self.logger.debug('')
         assert_type( collection, str )
@@ -631,7 +629,6 @@ class ManagerController(BaseController):
         else:
             raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
      
-
     def handle_ban_POST( self, collection:str, args:tuple ):
         self.logger.debug('')
         # handle POST request to ban 
@@ -648,7 +645,6 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400, message=ban)
         return ban
 
-
     def handle_ban_DELETE( self, collection, args ):
         self.logger.debug('')
         # handle DELETE request to ban 
@@ -663,7 +659,6 @@ class ManagerController(BaseController):
            ban = services.fail2ban.unban( args[0], collection_name=collection)
            return ban
         raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
-
 
     @cherrypy.expose
     @cherrypy.tools.json_out()

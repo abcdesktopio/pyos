@@ -40,8 +40,8 @@ class ODMessageInfoManager():
         
     def _set(self, key:str, value:str, expire:int=60 ):
         try:
-            if self.memcacheclient.set(str(key), str(value), expire=expire) != 0: 
-                return True            
+            self.memcacheclient.set(str(key), str(value), expire=expire, noreply=True)
+            return True   
         except Exception as e:
             self.logger.error(e)                      
         return False
