@@ -292,7 +292,7 @@ class ODApps:
                 self.logger.error( 'skipping bad data in secrets_requirement')
         return mylist
 
-    def build_applist(self):
+    def build_applist(self)->dict:
         self.logger.debug('')
         mydict = {}
         apps = self.list_app_images()
@@ -303,7 +303,7 @@ class ODApps:
                     mydict[ myapp['id'] ] = myapp
         return mydict
 
-    def get_json_applist(self, filter=True):
+    def get_json_applist(self, filter=True)->dict:
         #
         # a = json_util.dumps(self.myglobal_list)
         # json_sanitized = json.loads(a)
@@ -316,7 +316,7 @@ class ODApps:
                     del app['_id']
         return myapplist
 
-    def get_json_app( self, image_id, filter=True):
+    def get_json_app( self, image_id:str, filter=True)->dict:
         myapp = None
         app=self.find_app_by_id( image_id )
         if isinstance(app, dict):
@@ -335,16 +335,16 @@ class ODApps:
         name = os.path.basename(p)
         return name
 
-    def json_imagetoapp( self, json_image):
+    def json_imagetoapp( self, json_image:dict )->dict:
         """[json_imagetoapp]
             return an abcdesktop image object from a json image format
             to get json image format run command
 
-            $ crictl  inspecti abcdesktopio/2048.d:dev > cri_2048.json
-            $ curl -X PUT -H 'Content-Type: text/javascript' http://ABCDESKTOP/API/manager/image -d @cri_2048.json
+            $ crictl inspecti abcdesktopio/2048.d:dev > cri_2048.json
+            $ curl -X POST -H 'Content-Type: text/javascript' http://ABCDESKTOP/API/manager/image -d @cri_2048.json
 
             $ docker inspect abcdesktopio/2048.d:dev > docker_2048.json
-            $ curl -X PUT -H 'Content-Type: text/javascript' http://ABCDESKTOP/API/manager/image -d @docker_2048.json
+            $ curl -X POST -H 'Content-Type: text/javascript' http://ABCDESKTOP/API/manager/image -d @docker_2048.json
 
             return None if failed
         Args:
