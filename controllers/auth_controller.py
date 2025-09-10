@@ -418,11 +418,12 @@ class AuthController(BaseController):
         # if http request has services.prelogin.http_attribut
         # use services.prelogin.http_attribut value has userid
         # overwrite userid parameter
+        # we trust only the http header value
         if isinstance( services.prelogin.http_attribut, str):
             http_userid = cherrypy.request.headers.get(services.prelogin.http_attribut)
             self.logger.debug( f"read http attribut http_userid={http_userid}")
             if isinstance( http_userid, str ):
-                # overwrite userid with http header value
+                # always overwrite userid with http header value
                 userid = http_userid
 
         if not isinstance(userid, str) or len(userid) == 0:
