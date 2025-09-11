@@ -96,6 +96,11 @@ class ODPrelogin:
         # do not delete key, to permit reload from user's web browser
         # delete occurs in expired timeout value
         # self.memcacheclient.delete( key=sessionid, noreply=True )
+
+        if not isinstance( cacheduserid, str) or len(cacheduserid) == 0:
+            self.logger.info( f"prelogin_verify no cached data for key={sessionid}" )
+            return False
+
         self.logger.debug( f"prelogin_verify compare in uppercase {cacheduserid}=={userid}" )
         return userid.upper() == cacheduserid.upper()
 
