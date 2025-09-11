@@ -199,16 +199,14 @@ class ManagerController(BaseController):
         elif cherrypy.request.method == 'DELETE':
             return self.handle_datastore_DELETE( args )
     
-    def handle_datastore_GET( self, args ):
+    def handle_datastore_GET( self, args:list ):
         self.logger.debug('')
         if 'read' not in self.database_acl and 'get' not in self.database_acl :
             raise cherrypy.HTTPError( status=400, message="'get' is denied, add 'get' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get' ] } ")
    
         if not isinstance( args, tuple):
             raise cherrypy.HTTPError( status=400, message='invalid request')
-        #if len(args)<2:
-        #    raise cherrypy.HTTPError( status=400, message='invalid request')
-
+        
         value = None
 
         if len(args)==0:
@@ -262,9 +260,9 @@ class ManagerController(BaseController):
             databasename = args[0]
             collectionname = args[1]
             if args[2] != 'after' :
-                raise cherrypy.HTTPError( status=400, message="invalid request first filter must equal to 'after' ")
+                raise cherrypy.HTTPError( status=400, message="invalid request first filter must equal to 'after'")
             if args[4] != 'before' :
-                raise cherrypy.HTTPError( status=400, message="invalid request second filter must equal to 'before' ")
+                raise cherrypy.HTTPError( status=400, message="invalid request second filter must equal to 'before'")
 
             try:
                 # default format is "%Y-%m-%d %H:%M:%S" 
@@ -285,7 +283,7 @@ class ManagerController(BaseController):
         services.datastore.stringify( value )
         return value
 
-    def handle_datastore_PUT( self, args ):
+    def handle_datastore_PUT( self, args:list )->bool:
         self.logger.debug('')
         if 'write' not in self.database_acl and 'put' not in self.database_acl :
             raise cherrypy.HTTPError( status=400, message="put is denied, add 'put' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get', 'put' ] }")
@@ -308,9 +306,8 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError( status=400, message='set_document_value_in_collection failed')
         
     
-    def handle_datastore_DELETE( self, args ):
+    def handle_datastore_DELETE( self, args:list ):
         self.logger.debug('')
-     
         if 'delete' not in self.database_acl :
             raise cherrypy.HTTPError( status=400, message="delete is denied, add 'delete' in ManagerController properties 'ManagerController': { 'database_acl': [ 'get', 'delete' ] }")
         if not isinstance( args, tuple):
@@ -349,22 +346,22 @@ class ManagerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
-    def images( self ):
+    def images( self )->str:
         self.is_permit_request()
         if   cherrypy.request.method == 'GET':
-            return self.handle_images_GET( )
+            return self.handle_images_GET()
         elif cherrypy.request.method == 'DELETE':
             return self.handle_images_DELETE()
         else:
             raise cherrypy.HTTPError(status=400)        
 
-    def handle_images_DELETE( self ):
+    def handle_images_DELETE( self )->str:
         self.logger.debug('')
         images_deleted = oc.od.composer.del_application_all_images()
         cherrypy.response.status = 200
         return images_deleted
 
-    def handle_images_GET( self ):
+    def handle_images_GET( self )->str:
         self.logger.debug('')
         # this is a list request
         return oc.od.services.services.apps.get_json_applist()
@@ -385,7 +382,7 @@ class ManagerController(BaseController):
         elif cherrypy.request.method == 'PATCH':
             return self.handle_image_PATCH( image=image, json_images=cherrypy.request.json )
 
-    def handle_image_GET( self, image ):
+    def handle_image_GET( self, image:str=None )->dict:
         self.logger.debug('')
         if image is None:
             # this is a list request
@@ -402,7 +399,7 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
 
 
-    def handle_image_PUT( self, json_images, node:str=None ):
+    def handle_image_PUT( self, json_images, node:str=None )->str:
         self.logger.debug('')
         json_put = None
         # node can be None or str
@@ -416,7 +413,7 @@ class ManagerController(BaseController):
             raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         return json_put
 
-    def handle_image_POST( self, json_images ):
+    def handle_image_POST( self, json_images:list|dict )->str:
         self.logger.debug('')
         json_post = None
         # json_images can be list or dict
@@ -436,7 +433,6 @@ class ManagerController(BaseController):
 
         if image == '*':
             images_deleted = oc.od.composer.del_application_all_images()
-            cherrypy.response.status = 200
             return images_deleted
 
         del_images = oc.od.composer.del_application_image( image )
@@ -447,7 +443,7 @@ class ManagerController(BaseController):
         cherrypy.response.status = 404
         return "Not found"
         
-    def handle_image_PATCH( self, image:str=None, json_images=None ):
+    def handle_image_PATCH( self, image:str|None=None, json_images:dict|list=None )->str:
         self.logger.debug('')
         # image can be an sha_id or an repotag
         # it is always a str type

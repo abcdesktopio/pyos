@@ -41,7 +41,7 @@ class CoreController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
-    def getkeyinfo(self):
+    def getkeyinfo(self)->dict:
         """ Return the key id if key is set in configuration file
             Return the client id for OAuth
             Return True is active direcotry configucation provider is set
@@ -80,7 +80,7 @@ class CoreController(BaseController):
         return { 'id': id, 'callbackurl': callbackurl }
 
 
-    def handler_messageinfo_json(self, messageinfo):
+    def handler_messageinfo_json(self, messageinfo)->bytes:
         cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
         data = Results.success(message=messageinfo)
         # convert data as str
@@ -88,7 +88,7 @@ class CoreController(BaseController):
         # encode with charset=utf-8
         return result_str.encode('utf-8')
 
-    def handler_messageinfo_text(self, messageinfo):
+    def handler_messageinfo_text(self, messageinfo)->bytes:
         cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=utf-8'
         cherrypy.response.headers[ 'Cache-Control'] = 'no-cache, private'
         result_str = messageinfo + '\n'
@@ -97,11 +97,14 @@ class CoreController(BaseController):
 
     @cherrypy.expose
     @cherrypy.tools.json_in()
-    def getmessageinfo(self):     
-        (_, user ) = self.validate_env()
-        message = services.messageinfo.popflush(user.userid)
-        routecontenttype = {
-            'text/plain':  self.handler_messageinfo_text,
-            'application/json': self.handler_messageinfo_json 
-        }
-        return self.getlambdaroute( routecontenttype, defaultcontenttype='application/json' )( message )
+    def getmessageinfo(self)->bytes:
+        lambdaroute = b'' # default return empty string
+        # route content type to handler
+        routecontenttype = { 'text/plain': self.handler_messageinfo_text, 'application/json': self.handler_messageinfo_json }
+        try:
+            (_, user ) = self.validate_env()
+            message = services.messageinfo.popflush(user.userid)
+            lambdaroute = self.getlambdaroute( routecontenttype, defaultcontenttype='application/json' )( message )
+        except Exception as e:
+            self.logger.error( f"getmessageinfo error {e}" )
+        return lambdaroute
