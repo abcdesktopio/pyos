@@ -466,6 +466,10 @@ class ODApps:
         else:
             executablefilename = self.get_command_container_str( command_container )
 
+        desktopfile = labels.get('oc.desktopfileoverwrited', labels.get('oc.desktopfile') )
+
+        # check that we have the minimum data to create an application
+        # sha_id, launch, name, icon, imageid
         if all([sha_id, launch, name, icon, imageid]):
             myapp = {
                 'cmd':          command_container,
