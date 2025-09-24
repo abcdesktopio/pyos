@@ -798,7 +798,7 @@ def getapp(authinfo:AuthInfo, name:str)->dict:
     return app
 
 
-def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snaphot:bool=False )->dict:
+def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snapshot:bool=False )->dict:
 
     """garbagecollector
 
@@ -835,7 +835,7 @@ def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snaphot
                         # fake an authinfo object
                         (authinfo,userinfo) = myOrchestrator.extract_userinfo_authinfo_from_pod(pod)
                         # remove desktop
-                        myDesktop = myOrchestrator.removedesktop( authinfo, userinfo, pod, snaphot=snaphot )
+                        myDesktop = myOrchestrator.removedesktop( authinfo, userinfo, pod, snapshot=snapshot )
                         removed_desktop = isinstance( myDesktop, ODDesktop)
                         if removed_desktop is True:
                             oc.od.tracking.addstopnewentryindesktophistory(authinfo, userinfo, myDesktop, isgarbaged=True )
@@ -952,7 +952,7 @@ def notify_endpoint( url:str )->bool:
             # logger.debug( f"notify_endpoint: url={url} headers={headers}" )
         response = requests.get(url, headers=headers )
         if isinstance( response, requests.models.Response ):
-            # logger.debug( f"notify_endpoint: url={url} response.status_code={response.status_code} response.reason={response.reason}" )
+            logger.debug( f"notify_endpoint: url={url} response.status_code={response.status_code} response.reason={response.reason}" )
             return response.ok
     except requests.exceptions.ConnectTimeout:
         logger.error( f"notify_endpoint: url={url} ConnectTimeout, pod seems to be down" )
@@ -979,7 +979,7 @@ def notify_endpoints(pyos_endpoint_uri:str, pyos_endpoint_port:int, pyos_endpoin
     for pyos_endpoint_address in pyos_endpoint_addresses:
         # build the url
         url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
-        # logger.debug( f"notify_endpoints: url={url}" )
+        logger.debug( f"notify_endpoints: url={url}" )
         # create a thread for each pyos_endpoint_address and call buildapplist
         # run notify_endpoint in a thread
         notify_thread = threading.Thread(target=notify_endpoint, kwargs={ 'url': url } )

@@ -3574,7 +3574,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug( f"volumeMounts={volumeMounts.values()}")
         self.logger.debug('volumes created')
 
-        # snaphot volumes
+        # snapshot volumes
         # check if snapshot is enabled for desktop pod
         snapshot_volumes = None
         snapshot_volumes_mount = None
@@ -3755,7 +3755,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
 
         # add snapshot container if enabled
-        # snaphot is a special container
+        # snasphot is a special container
         # it need some secrets env variables
         currentcontainertype = 'snapshot'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ) and \
