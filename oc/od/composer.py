@@ -798,7 +798,7 @@ def getapp(authinfo:AuthInfo, name:str)->dict:
     return app
 
 
-def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snaphot:bool=False )->dict:
+def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snapshot:bool=False )->dict:
 
     """garbagecollector
 
@@ -835,7 +835,7 @@ def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snaphot
                         # fake an authinfo object
                         (authinfo,userinfo) = myOrchestrator.extract_userinfo_authinfo_from_pod(pod)
                         # remove desktop
-                        myDesktop = myOrchestrator.removedesktop( authinfo, userinfo, pod, snaphot=snaphot )
+                        myDesktop = myOrchestrator.removedesktop( authinfo, userinfo, pod, snapshot=snapshot )
                         removed_desktop = isinstance( myDesktop, ODDesktop)
                         if removed_desktop is True:
                             oc.od.tracking.addstopnewentryindesktophistory(authinfo, userinfo, myDesktop, isgarbaged=True )
