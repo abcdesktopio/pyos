@@ -13,9 +13,11 @@ RUN apk upgrade --no-cache && \
 	cntlm \
 	krb5 \
 	krb5-libs \
-	libgsasl \
-	samba-winbind-clients
-# gss-ntlmssp krb5-user krb5-config sasl2-bin
+	libgsasl
+#	samba-winbind-clients
+#   gss-ntlmssp 
+#   krb5-user 
+#   krb5-config sasl2-bin
 
 
 ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
