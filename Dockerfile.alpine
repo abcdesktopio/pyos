@@ -43,7 +43,9 @@ RUN apk add --no-cache \
 	geoip-dev \
 	openldap-dev
 
-COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/lib /usr/lib
 
 # install pyos in /var/pyos
 WORKDIR /var/pyos
