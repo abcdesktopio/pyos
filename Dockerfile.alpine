@@ -39,11 +39,12 @@ RUN apk add --no-cache \
 	py3-ldap \
 	py3-ldap-pyc \
     py3-python-gssapi-pyc \
-    samba-libs \
     py3-python-gssapi \
     krb5-dev \
 	geoip-dev \
 	openldap-dev
+
+#   samba-libs \
 
 RUN mkdir /dist
 # COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
