@@ -25,7 +25,7 @@ jobs:
           # debian_bookworm -> debian and bookworm
           # alpine_latest -> alpine and latest
           # distribs: [ debian_bookworm, alpine_latest ]
-          distribs: [ alpine_latest ]
+          distribs: [ ubuntu_24.04, alpine_latest ]
     runs-on: ${{ matrix.platform-runs }} 
 
     steps:
