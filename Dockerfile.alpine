@@ -54,7 +54,7 @@ COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/
 COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/packages/main/*/ /dist
 COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/.abuild/*.pub /etc/apk/keys
 # RUN ls -la /dist && apk add /dist/*.apk
-RUN apk add --repositories-file=/dev/null /dist/*.apk
+RUN apk update  && apk add --no-cache --repositories-file=/dev/null /dist/*.apk
 
 
 # install pyos in /var/pyos
