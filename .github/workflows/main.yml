@@ -102,7 +102,7 @@ jobs:
       fail-fast: false
       matrix:
         # distribs: [ debian_bookworm, alpine_latest ]
-        distribs: [ alpine_latest ]
+        distribs: [ ubuntu_24.04, alpine_latest ]
     steps:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
