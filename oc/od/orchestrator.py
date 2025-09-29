@@ -3060,10 +3060,36 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
         vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
         if not isinstance( vnc_secret_password, V1Secret ):
-            raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
+            raise ODAPIError( f"crebuildinitcommandate vnc kubernetes secret {plaintext_vnc_password} failed" )
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
 
 
+    def buildinitcommand(self, authinfo:AuthInfo, userinfo:AuthUser, list_pod_allvolumes:list, list_pod_allvolumeMounts:list )-> list :
+        """buildinitcommand
+            buildinitcommand to fix volume ownership
+            chevronWithUserInfo to replace {} values
+
+        Args:
+            authinfo (AuthInfo): AuthInfo
+            userinfo (AuthUser): AuthUser
+            list_pod_allvolumes (list): list of volumes
+            list_pod_allvolumeMounts (list): list of volumeMounts
+
+        Returns:
+            list: init command list of str
+        """
+        chevron_command_list = None # default return value
+        self.logger.debug('buildinitcommand to fix volume ownership')
+        # default_command_list = [ 'sh', '-c',  'chown {{ uidNumber }}:{{ gidNumber }} ~ || true' ] 
+        command_list = oc.od.settings.desktop_pod.get('init', {} ).get('command')
+        if isinstance( command_list, list ):
+            chevron_command_list = self.chevronWithUserInfo( command_list, authinfo, userinfo )
+        return chevron_command_list
+
+    '''
+    previous version of buildinitcommand
+    2024-05-29
+    2024-06-03 : revert to simple version   
     def buildinitcommand(self, authinfo:AuthInfo, userinfo:AuthUser, list_pod_allvolumes:list, list_pod_allvolumeMounts:list )-> list :
         """buildinitcommand
             buildinitcommand to fix volume ownership
@@ -3101,6 +3127,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         command_list[-1] = command
         chevron_command_list = self.chevronWithUserInfo( command_list, authinfo, userinfo )
         return chevron_command_list
+    '''
+
 
     def getPodIPAddress( self, pod_name:str )->str:
         """getPodIPAddress
