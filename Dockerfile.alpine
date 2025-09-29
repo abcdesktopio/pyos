@@ -1,6 +1,6 @@
 FROM python:alpine
 
-LABEL org.opencontainers.image.description abcdesktop.pyos
+LABEL org.opencontainers.image.description=abcdesktop.pyos
 
 ## install kerberos libgss ldap
 ## we must install curl command line for pullapps bash script 
@@ -13,9 +13,11 @@ RUN apk upgrade --no-cache && \
 	cntlm \
 	krb5 \
 	krb5-libs \
-	libgsasl \
-	samba-winbind-clients
-# gss-ntlmssp krb5-user krb5-config sasl2-bin
+	libgsasl
+#	samba-winbind-clients
+#   gss-ntlmssp 
+#   krb5-user 
+#   krb5-config sasl2-bin
 
 
 ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
@@ -36,14 +38,24 @@ RUN apk add --no-cache \
 	musl-dev \
 	py3-ldap \
 	py3-ldap-pyc \
-        py3-python-gssapi-pyc \
-        samba-libs \
-        py3-python-gssapi \
-        krb5-dev \
+    py3-python-gssapi-pyc \
+    py3-python-gssapi \
+    krb5-dev \
 	geoip-dev \
 	openldap-dev
 
-COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+#   samba-libs \
+
+RUN mkdir /dist
+# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/lib /usr/lib
+# /root/packages/main/x86_64 or /root/packages/main/arm_64
+COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/packages/main/*/ /dist
+COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/.abuild/*.pub /etc/apk/keys
+# RUN ls -la /dist && apk add /dist/*.apk
+RUN apk update  && apk add --no-cache /dist/*.apk
+
 
 # install pyos in /var/pyos
 WORKDIR /var/pyos
