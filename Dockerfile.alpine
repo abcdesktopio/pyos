@@ -8,21 +8,16 @@ LABEL org.opencontainers.image.description=abcdesktop.pyos
 RUN apk upgrade --no-cache && \
     apk update --no-cache  && \
     apk add --no-cache \
+    "libssl3>3.5.4" \
  	wget \
 	curl \
 	cntlm \
 	krb5 \
 	krb5-libs \
 	libgsasl
-#	samba-winbind-clients
-#   gss-ntlmssp 
-#   krb5-user 
-#   krb5-config sasl2-bin
-
-
-ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
 
 # GeoLite2
+ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
 RUN mkdir -p /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-City.mmdb -P /usr/share/geolite2
@@ -44,7 +39,6 @@ RUN apk add --no-cache \
 	geoip-dev \
 	openldap-dev
 
-#   samba-libs \
 
 RUN mkdir /dist
 # COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
