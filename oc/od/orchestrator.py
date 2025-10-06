@@ -5967,8 +5967,6 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'launch':   app.get('launch')
         }
 
-        phase = 'Unknown'
-        started_counter = 0 
         w = watch.Watch()                 
         for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
                                 namespace=self.orchestrator.namespace, 
@@ -5986,7 +5984,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             if not isinstance( pod_event, V1Pod ): continue
             if not isinstance( pod_event.status, V1PodStatus ): continue
 
-            expected_containers_len = len( pod_event.spec.containers ) + len( pod_event.spec.init_containers )
+            # expected_containers_len = len( pod_event.spec.containers ) + len( pod_event.spec.init_containers )
 
             # self.logger.debug( f"pod_event.status.phase={pod_event.status.phase} pod_event.status.reason={pod_event.status.reason}")
             #
@@ -6250,22 +6248,6 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         
         if not isinstance(pod, V1Pod ):
             raise ValueError( f"Invalid create_namespaced_pod type return {type(pod)} V1Pod is expecting")
-    
-        started_counter = 0 
-        expected_containers_len = len( pod.spec.containers ) + len( pod.spec.init_containers )
-
-        # data for notify_user
-        '''
-        data = { 
-            'id': app_pod_name,
-            'message': app.get('name'), 
-            'name': app_pod_name,
-            'icondata': app.get('icondata'),
-            'icon': app.get('icon'),
-            'image': app.get('id'),
-            'launch': app.get('launch')
-        }
-        '''
 
         if oc.od.settings.desktop_pod.get( self.type, {} ).get('show_event_notification', True):
             # create a thread to watch for pulling event of an ephemeral container
