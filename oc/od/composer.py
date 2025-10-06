@@ -630,7 +630,6 @@ def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
     myOrchestrator.desktoplaunchprogress += on_desktoplaunchprogress_info
 
     # Create the desktop                
-    logger.debug('createdesktop:Orchestrator.createdesktop')
     myDesktop = myOrchestrator.createdesktop(   userinfo=userinfo, 
                                                 authinfo=authinfo,  
                                                 **myCreateDesktopArguments )

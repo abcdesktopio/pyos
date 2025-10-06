@@ -237,7 +237,7 @@ class AuthUser(dict):
         etcgroup = chevron.render( oc.od.settings.DEFAULT_GROUP_FILE,  moustachedata )
         new_etc_group_lines = AuthUser.mkgroup_newline( moustachedata )
         if len( new_etc_group_lines ) > 0:
-            logger.debug( f"new line for /etc/group -> {new_etc_group_lines}\n" )
+            # logger.debug( f"new line for /etc/group -> {new_etc_group_lines}\n" )
             etcgroup += new_etc_group_lines
         return etcgroup
 
@@ -286,7 +286,7 @@ class AuthUser(dict):
         gshadow = chevron.render( oc.od.settings.DEFAULT_GSHADOW_FILE,  moustachedata )
         mkshadow_newline = AuthUser.mkgshadow_newline( moustachedata )
         if len(mkshadow_newline)>0:
-            logger.debug( f"new line for /etc/gshadow -> {mkshadow_newline}\n" )
+            # logger.debug( f"new line for /etc/gshadow -> {mkshadow_newline}\n" )
             gshadow += mkshadow_newline
         return gshadow
 
