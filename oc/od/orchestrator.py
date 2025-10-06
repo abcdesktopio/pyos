@@ -5088,7 +5088,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return watch_thread
 
 
-    def create_thread_to_watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict, request_started_at:datetime )->threading.Thread:
+    def create_thread_to_watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->threading.Thread:
         '''
             create a thread to watch for pulling event of an ephemeral container
             if a pulling event is received, notify the user that the application is being pulled
@@ -5104,11 +5104,11 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             threading.Thread: thread object
         '''
         self.logger.debug( '')
-        watch_thread=threading.Thread(target=self.watch_for_end_of_pod_initializing, args=[myDesktop, pod_name, app_container_name, app, request_started_at] )
+        watch_thread=threading.Thread(target=self.watch_for_end_of_pod_initializing, args=[myDesktop, pod_name, app_container_name, app] )
         watch_thread.start()
         return watch_thread
 
-    def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict, request_started_at:datetime )->None:
+    def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->None:
         self.logger.debug('')
         """
         current_datetime = datetime.datetime.now( datetime.timezone.utc )
@@ -5160,6 +5160,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             self.orchestrator.notify_user( myDesktop, 'container', data )
         except Exception as e:
             self.logger.error( e )  
+        self.logger.debug('end of watch_for_end_of_pod_initializing')
 
 
     def watch_for_pulling_event( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->None:
@@ -5327,8 +5328,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
         # self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
 
-        request_started_at = datetime.datetime.now( datetime.timezone.utc )
-
         app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + \
                             '-' + app['name'] + '-' + oc.lib.uuid_digits()
         self.logger.debug( f"app_container_name={app_container_name}" )
@@ -5462,8 +5461,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                 elif isinstance(c.state.waiting, V1ContainerStateWaiting):
                                     appinstancestatus.message = c.state.waiting.reason
                             break
-        
-        self.create_thread_to_watch_for_end_of_pod_initializing(myDesktop, pod_name, app_container_name, app, request_started_at)
+        if oc.od.settings.desktop_pod.get( self.type, {} ).get('show_event_notification', True):
+            self.create_thread_to_watch_for_end_of_pod_initializing(myDesktop, pod_name, app_container_name, app )
+
         self.logger.debug(f"create done {appinstancestatus}")
         return appinstancestatus
         
