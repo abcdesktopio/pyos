@@ -10,18 +10,13 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-
 import logging
 import cherrypy		
 import json
-
-import oc.od.janus
 import oc.od.tracker
 import oc.logging
-import oc.lib
 
-from oc.od.settings import tipsinfoconfig, desktop, menuconfig, welcomeinfoconfig
-from oc.od.janus import ODJanusCluster
+import oc.od.settings
 from oc.cherrypy import Results
 from oc.od.services import services 
 from oc.od.base_controller import BaseController
@@ -61,19 +56,19 @@ class CoreController(BaseController):
         callbackurl = None  # reserved for futur usage 
          
         if provider == 'colors' :
-            id = desktop.get('defaultbackgroundcolors')
+            id = oc.od.settings.desktop.get('defaultbackgroundcolors')
         elif provider == 'menuconfig':    
-            id = menuconfig
+            id = oc.od.settings.menuconfig
         elif provider == 'geolocation':    
             id = oc.od.settings.geolocation
-        elif provider == 'tracker' :
-            id = oc.od.tracker.jiraclient().isenable()
         elif provider == 'zoom':
             id = oc.od.settings.desktop.get('zoom')
         elif provider == 'tipsinfo':
-            id = tipsinfoconfig
+            id = oc.od.settings.tipsinfoconfig
         elif provider == 'welcomeinfo':
-            id = welcomeinfoconfig
+            id = oc.od.settings.welcomeinfoconfig
+        elif provider == 'imagenotificationconfig':
+            id = oc.od.settings.imagenotificationconfig
         elif provider == 'features_permissions_executeclasses' :
             if 'read' in oc.od.settings.desktop.get('features_permissions',[]):
                 id = oc.od.settings.executeclasses

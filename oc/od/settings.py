@@ -24,6 +24,7 @@ mongodblist = []
 authmanagers = {}  # auth manager dict 
 controllers  = {}  # controllers dict 
 menuconfig   = {}  # default menu config
+imagenotificationconfig = {}  # default notification config
 geolocation  = None  # default geolocation 
 fakedns      = {}
 executeclasses = {}
@@ -469,6 +470,14 @@ def init_menuconfig():
     menuconfig['snapshot'] = desktop_pod.get('snapshot',{}).get('enable', False)
     logger.debug(f"menuconfig: {menuconfig}")
 
+
+def init_imagenotificationconfig():
+    global imagenotificationconfig
+    imagenotificationconfig = gconfig.get(
+        'front.imagenotification', { 'ephemeral_container' : True, 'pod_appliction' : True } )
+    logger.debug(f"imagenotificationconfig: {imagenotificationconfig}")
+
+
 def init_geolocation():
     global geolocation
     # geolocation config
@@ -827,6 +836,9 @@ def init():
 
     # load default menu config
     init_menuconfig()
+
+    # load default imagenotification config
+    init_imagenotificationconfig()
 
     # init tipsinfo config
     init_tipsinfo()
