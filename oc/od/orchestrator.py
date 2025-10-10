@@ -360,7 +360,7 @@ class ODOrchestratorBase(object):
         while nCount < nCountMax:
             for process in processes: 
                 if not bProcessStatus[process] :
-                    callback_notify( f"c.Waiting desktop process {process}" )
+                    callback_notify( f"c.Waiting for desktop process {process}" )
                     bProcessStatus[process] = self.waitForProcessReady( desktop, process_name=process )
                     if bProcessStatus[process] is True:
                         nProcessCount += 1
@@ -5110,14 +5110,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
     def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->None:
         self.logger.debug('')
-        """
-        current_datetime = datetime.datetime.now( datetime.timezone.utc )
-        delta_seconds = (current_datetime - request_started_at).total_seconds()
-        wait_time = oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS'] - delta_seconds
-        if wait_time > 0:
-            self.logger.debug( f"wait for {wait_time} seconds before checking if notifying the user that the application has started" )
-            time.sleep( wait_time )
-        """    
+          
         # default message data
         data = {    'message':  app.get('name'), 
                     'name':     app.get('name'),
@@ -5154,10 +5147,24 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                         self.orchestrator.notify_user( myDesktop, 'container', data )
                                 break
         except ApiException as e:
-            self.logger.error( e )
-            data['message'] =  str(e)
-            # report error to the user 
-            self.orchestrator.notify_user( myDesktop, 'container', data )
+            if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
+                # Handshake status 200 OK 
+                # -+-+- 
+                # {'audit-id': '5b6c78ce-4412-48e4-b58d-d96e5186f416', 
+                # 'cache-control': 'no-cache, private', 
+                # 'content-type': 'application/json', 
+                # 'x-kubernetes-pf-flowschema-uid': 'b63302af-83ee-4663-8bc2-f188e4236cf7', 
+                # 'x-kubernetes-pf-prioritylevel-uid': '9a4a998a-bb63-4f75-b75a-cedd6a81f010', 
+                # 'date': 'Wed, 08 Oct 2025 15:01:34 GMT', 
+                # 'transfer-encoding': 'chunked'} 
+                # -+-+- None
+                self.logger.error( f"ApiException {e} is ignored because it is a known issue with some kubernetes versions" )
+            else:
+                self.logger.error( e )
+                data['reason'] = 'Error'
+                data['message'] =  str(e)
+                # report error to the user 
+                self.orchestrator.notify_user( myDesktop, 'container', data )
         except Exception as e:
             self.logger.error( e )  
         self.logger.debug('end of watch_for_end_of_pod_initializing')
@@ -5224,7 +5231,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         self.logger.debug(f"event object is not a CoreV1Event")
                         continue # safe type test event object is a CoreV1Event
                     
-                    self.logger.debug(f"****** {event_object.type} reason={event_object.reason} message={event_object.message}")
+                    self.logger.debug(f"****** type={event_object.type} reason={event_object.reason} message={event_object.message}")
 
                     if not isinstance (event_object.involved_object, V1ObjectReference ):
                         self.logger.debug(f"event_object.involved_object is not a V1ObjectReference")
@@ -5241,12 +5248,14 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                             self.orchestrator.notify_user( myDesktop, 'container', data )
                     elif event_object.reason == 'Started':
                         # always stop the watch on Started event
-                        if dict_state_exec_only_once.get( event_object.reason, False ) is False:
-                            dict_state_exec_only_once[ event_object.reason ] = True
-                            self.orchestrator.notify_user( myDesktop, 'container', data )
+                        # if dict_state_exec_only_once.get( event_object.reason, False ) is False:
+                        # dict_state_exec_only_once[ event_object.reason ] = True
+                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        continue_reading_events = False
                         w.stop()
                     else:       
-                        self.logger.debug(f"stop because {event_object.reason}")  
+                        self.logger.debug(f"stop because {event_object.reason}")
+                        continue_reading_events = False
                         w.stop()
                         continue
             except ApiException as e:
@@ -5255,8 +5264,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             except Exception as e:
                 continue_reading_events = False
                 self.logger.error( f"Exception {e}" )
-            self.logger.debug('thread_to_watch_for_pulling_event end')
 
+            self.logger.debug("read_namespaced_pod_ephemeralcontainers to get the status of the ephemeral container")
             try:
                 pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
                 if  isinstance( pod, V1Pod ) and \
@@ -5286,12 +5295,14 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                     break
             except ApiException as e:
                 self.logger.error( e )
+                data['reason'] = 'Error'
                 data['message'] =  str(e)
                 continue_reading_events = False
                 self.orchestrator.notify_user( myDesktop, 'container', data )
             except Exception as e:
                 continue_reading_events = False
                 self.logger.error( e )  
+
         self.logger.debug('thread_to_watch_for_pulling_event end')
 
 
@@ -5387,6 +5398,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # Ephemeral container not added to pod #1859
         # https://github.com/kubernetes-client/python/issues/1859
         #
+        image_pull_policy = oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent')
         ephemeralcontainer = V1EphemeralContainer(  
             name=app_container_name,
             security_context=securitycontext,
@@ -5395,7 +5407,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             command=app.get('cmd'),
             args=app.get('args'),
             target_container_name=myDesktop.container_name,
-            image_pull_policy=oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
+            image_pull_policy=image_pull_policy,
             volume_mounts = list_volumeMounts,
             working_dir = workingDir
         )
@@ -5426,9 +5438,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
         
-        if oc.od.settings.desktop_pod.get( self.type, {} ).get('show_event_notification', True):
-            # create a thread to watch for pulling event of an ephemeral container
-            self.create_thread_to_watch_for_pulling_event( myDesktop, pod_name, app_container_name, app )
+        # if oc.od.settings.imagenotificationconfig.get( self.type ):
+        # create a thread to watch for pulling event of an ephemeral container
+        self.create_thread_to_watch_for_pulling_event( myDesktop, pod_name, app_container_name, app )
         
         data = {    'message':  app.get('name'), 
                     'name':     app.get('name'),
@@ -5461,8 +5473,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                 elif isinstance(c.state.waiting, V1ContainerStateWaiting):
                                     appinstancestatus.message = c.state.waiting.reason
                             break
-        if oc.od.settings.desktop_pod.get( self.type, {} ).get('show_event_notification', True):
-            self.create_thread_to_watch_for_end_of_pod_initializing(myDesktop, pod_name, app_container_name, app )
+
+        # if oc.od.settings.imagenotificationconfig.get( self.type ):
+        self.create_thread_to_watch_for_end_of_pod_initializing(myDesktop, pod_name, app_container_name, app )
 
         self.logger.debug(f"create done {appinstancestatus}")
         return appinstancestatus
@@ -6088,9 +6101,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     self.orchestrator.notify_user( myDesktop, 'container', data )
 
                 elif event_object.reason == 'Started': 
-                    # w.stop()
-                    continue
-                    
+                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    w.stop()
                 elif event_object.reason in [ 'Scheduled', 'Created' ]:
                     self.orchestrator.notify_user( myDesktop, 'container', data )
                 else:
@@ -6198,10 +6210,10 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'apiVersion': 'v1',
             'kind': 'Pod',
             'metadata': {
-                'name':         app_pod_name,
-                'namespace':    self.orchestrator.namespace,
-                'labels':       labels,
-                'annotations':  annotations
+                'name': app_pod_name,
+                'namespace': self.orchestrator.namespace,
+                'labels': labels,
+                'annotations': annotations
             },
             'spec': {
                 'terminationGracePeriodSeconds': 0,  # Time to wait before moving from a TERM signal to the pod's main process to a KILL signal.
@@ -6215,7 +6227,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'tolerations': oc.od.settings.desktop_pod.get('tolerations'),
                 'imagePullSecrets': imagePullSecrets,
                 'containers': [ {   
-                    'imagePullPolicy':  oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
+                    'imagePullPolicy': oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
                     'image': app['id'],
                     'name': app_pod_name,
                     'command': command,
@@ -6249,10 +6261,10 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         if not isinstance(pod, V1Pod ):
             raise ValueError( f"Invalid create_namespaced_pod type return {type(pod)} V1Pod is expecting")
 
-        if oc.od.settings.desktop_pod.get( self.type, {} ).get('show_event_notification', True):
-            # create a thread to watch for pulling event of an ephemeral container
-            self.create_thread_to_watch_for_pulling_event( myDesktop, app_pod_name, app )
-            self.create_thread_to_watch_for_end_of_pod_initializing( myDesktop, app_pod_name, app )
+        # if oc.od.settings.imagenotificationconfig.get( self.type ):
+        # create a thread to watch for pulling event of an ephemeral container
+        self.create_thread_to_watch_for_pulling_event( myDesktop, app_pod_name, app )
+        self.create_thread_to_watch_for_end_of_pod_initializing( myDesktop, app_pod_name, app )
 
         pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=app_pod_name)
         phase = 'Unknown'
