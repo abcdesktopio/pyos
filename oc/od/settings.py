@@ -474,7 +474,7 @@ def init_menuconfig():
 def init_imagenotificationconfig():
     global imagenotificationconfig
     imagenotificationconfig = gconfig.get(
-        'front.imagenotification', { 'ephemeral_container' : True, 'pod_appliction' : True } )
+        'front.imagenotification', { 'ephemeral_container' : True, 'pod_application' : True } )
     logger.debug(f"imagenotificationconfig: {imagenotificationconfig}")
 
 
