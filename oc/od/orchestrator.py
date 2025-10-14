@@ -6095,18 +6095,16 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 if event_object.reason == 'Pulling':
                     data['message'] =  f"{event_object.reason} {app.get('name')}, please wait"             
                     self.orchestrator.notify_user( myDesktop, 'container', data )
-
                 elif event_object.reason == 'Pulled':
                     self.logger.debug( f"Event Pulled received")
                     self.orchestrator.notify_user( myDesktop, 'container', data )
-
                 elif event_object.reason == 'Started': 
                     self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
                 elif event_object.reason in [ 'Scheduled', 'Created' ]:
                     self.orchestrator.notify_user( myDesktop, 'container', data )
                 else:
-                    data['message'] =  f"{event_object.reason} {event_object.message}"
+                    data['message'] = f"{event_object.reason} {event_object.message}"
                     self.orchestrator.notify_user( myDesktop, 'container', data )
                     self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
                     w.stop()
