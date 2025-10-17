@@ -211,6 +211,7 @@ class BaseController(object):
           is_api_filter = self.apifilter() # Check if the controller has an apikey filter 
           is_ip_filter = self.ipfilter() # Check if the controller has an ip filter
           # if both filters are set, at least one must match
+          # self.logger.debug( f"is_api_filter={is_api_filter}, is_ip_filter={is_ip_filter}" )
           if not is_api_filter and not is_ip_filter:
                self.raise_http_error_message( '403.1 - Execute access forbidden' )
 
