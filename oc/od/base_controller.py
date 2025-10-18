@@ -208,17 +208,12 @@ class BaseController(object):
           if not self.enable :
                self.raise_http_error_message( '403.10 - Invalid configuration' )
 
-          # Check if the controller has an apikey filter 
-          # if set it must match to the apikey list entries
-          if not self.apifilter():
-               # 403 -  rejected.
+          is_api_filter = self.apifilter() # Check if the controller has an apikey filter 
+          is_ip_filter = self.ipfilter() # Check if the controller has an ip filter
+          # if both filters are set, at least one must match
+          # self.logger.debug( f"is_api_filter={is_api_filter}, is_ip_filter={is_ip_filter}" )
+          if not is_api_filter and not is_ip_filter:
                self.raise_http_error_message( '403.1 - Execute access forbidden' )
-
-          # Check if the controller has an ip filter 
-          # if set it must match to the ip network entries
-          if not self.ipfilter():
-               # 403.6 - IP address rejected.
-               self.raise_http_error_message( '403.6 - IP address rejected' )
 
           if isinstance( self.requestsallowed, dict ):
                # read the request path

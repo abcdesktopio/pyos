@@ -1918,7 +1918,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return False
     """
 
-    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None, snaphshot:bool=False  )->ODDesktop:
+    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None, snapshot:bool=False  )->ODDesktop:
         """removedesktop
             remove kubernetes pod for a give user
             then remove kubernetes user's secrets and configmap
@@ -1952,8 +1952,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # removesecrets: remove secret 
             # removeconfigmap: remove config map
             myappinstance = ODAppInstanceKubernetesPod( self )
-
-            # if snaphshot is True: 
 
             removethreads =  [  
                 { 'fct':self.removePod, 'args': [ myPod ] },
