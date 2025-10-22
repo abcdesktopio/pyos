@@ -168,6 +168,7 @@ class ODVolumePersistentVolumeClaim(ODVolumeBase):
         self._name = 'pvc-' + name
         self.mountPath = mountPath 
         self.claimName = claimName
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
 
     def is_mountable(self):
          return all( [self.claimName, self.mountPath] )
@@ -177,13 +178,14 @@ class ODVolumePersistentVolumeClaim(ODVolumeBase):
 class ODVolumeNFS(ODVolumeBase):    
     def __init__(self, name, server, path, mountPath, readOnly=True ):        
         super().__init__()      
-        self._fstype        = 'nfs'                 
-        self._type          = 'nfs'    
-        self._name          = 'nfs-' + name
-        self.server= server
-        self.path    = path
-        self.mountPath   = mountPath 
-        self.readOnly   = readOnly
+        self._fstype = 'nfs'                 
+        self._type = 'nfs'    
+        self._name = 'nfs-' + name
+        self.server = server
+        self.path = path
+        self.mountPath = mountPath 
+        self.readOnly = readOnly
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
           
     def is_mountable(self):
          return all( [self.server, self.path, self.mountPath ] )
@@ -206,18 +208,19 @@ class ODVolumeActiveDirectory(ODVolumeHostPath):
             'userid':'alex'
         '''
         # add homedir for Active Directory                
-        self._name                  = 'activedirectory-' + name    
-        self.sAMAccountName         = userinfo.get('sAMAccountName')
-        self.domainlogin            = self.sAMAccountName
-        self.domainpassword         = None
-        self.domain                 = authinfo.data.get('domain')
+        self._name = 'activedirectory-' + name
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
+        self.sAMAccountName = userinfo.get('sAMAccountName')
+        self.domainlogin = self.sAMAccountName
+        self.domainpassword = None
+        self.domain = authinfo.data.get('domain')
         
         # if claim is defined
         if type(authinfo.get('claims')) is dict:
-            self.domainpassword         = authinfo.claims.get('password')
+            self.domainpassword = authinfo.claims.get('password')
         
-        self.mountOptions           = None
-        self._containertarget       = None
+        self.mountOptions = None
+        self._containertarget = None
         
 
     @property
@@ -236,6 +239,7 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
         self._fstype = 'cifs'
         self._type = 'flexvol'
         self._name = f"{self._type}-{self._fstype}-{name}"
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
         self.homeDrive = homeDrive
         self.networkPath = networkPath
         self.mountOptions = mountOptions
@@ -266,6 +270,7 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
         self._fstype = 'webdav'
         self._type = 'flexvol'
         self._name = f"{self._type}-{self._fstype}-{name}"
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
         self.networkPath = url
         self._containertarget = os.path.join( authinfo.get_localaccount().get['homeDirectory'], entry )
         self.mountOptions = mountOptions

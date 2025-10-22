@@ -1237,6 +1237,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount = {}  # set empty volume_mount dict by default
         self.on_desktoplaunchprogress('Building home dir data storage')
         volume_home_name = self.get_volumename( 'home', userinfo )
+        self.logger.debug( f"volume_home_name is {volume_home_name}" )
 
         # homedirectorytype is by default None 
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']

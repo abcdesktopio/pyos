@@ -58,8 +58,7 @@ class ODPersistentVolumeClaim():
         name = self.prefix + authinfo.provider + self.separator + userinfo.userid
         if isinstance(suffix, str):
              name = name + self.separator + suffix
-        name = name.lower()
-        name = oc.auth.namedlib.normalize_name_dnsname(name)     
+        name = oc.auth.namedlib.normalize_name_volunename( name )
         return name
 
     def get_labels( self, authinfo:AuthInfo, userinfo:AuthUser )->dict:
