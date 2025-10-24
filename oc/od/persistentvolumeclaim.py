@@ -55,10 +55,13 @@ class ODPersistentVolumeClaim():
     def get_name( self, authinfo:AuthInfo, userinfo:AuthUser, suffix:str=None )->str:   
         assert_type( authinfo, AuthInfo)
         assert_type( userinfo, AuthUser)
-        name = self.prefix + authinfo.provider + self.separator + userinfo.userid
+        lower_provider = authinfo.provider.lower()
+        lower_userid = userinfo.userid.lower()
+        name = f"{self.prefix}{lower_provider}{self.separator}{lower_userid}"
         if isinstance(suffix, str):
-             name = name + self.separator + suffix
+            name = f"{name}{self.separator}{suffix}"
         name = oc.auth.namedlib.normalize_name_volunename( name )
+        self.logger.debug( f"name={name}" )
         return name
 
     def get_labels( self, authinfo:AuthInfo, userinfo:AuthUser )->dict:
@@ -434,6 +437,10 @@ class ODPersistentVolumeClaim():
         if not isinstance(pvc_metadata.get('name'), str):
             pvc_metadata['name'] = self.get_pvc_name(  authinfo, userinfo, suffix )
 
+        # force pvc name to lower case
+        self.logger.debug( f"force pvc name to lower case before create name={pvc_metadata['name']}" )
+        pvc_metadata['name'] = pvc_metadata['name'].lower()
+
         if not isinstance(pvc_metadata.get('labels'), dict):
             pvc_metadata['labels'] = {}
         # add always user labes to the pvc
@@ -460,7 +467,7 @@ class ODPersistentVolumeClaim():
             assert_type( pvc.metadata, V1ObjectMeta )
             self.logger.debug( f"pvc has been found name={pvc.metadata.name}" )
             return pvc
-        self.logger.debug ( f"create {body}")
+        self.logger.debug ( f"create_namespaced_persistent_volume_claim dump {body}")
         pvc = self.kubeapi.create_namespaced_persistent_volume_claim( namespace=self.namespace, body=body )
         return pvc
 
