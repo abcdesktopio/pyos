@@ -257,7 +257,8 @@ class ODOrchestratorBase(object):
         if not isinstance(userinfo, oc.auth.authservice.AuthUser):
              raise ValueError(f"invalid userinfo value {type(self)}")
 
-        name = prefix + '-' + userinfo.get('userid')
+        lower_userid = userinfo.get('userid').lower()
+        name = f"{prefix}-{lower_userid}"
         normalize_name = oc.auth.namedlib.normalize_name_volunename(name)
         return normalize_name
 
