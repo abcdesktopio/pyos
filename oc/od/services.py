@@ -4,7 +4,6 @@ import oc.od.settings as settings
 import oc.od.orchestrator
 import oc.od.kuberneteswatcher
 import oc.auth.authservice
-import oc.od.replicatinstance
 
 logger = logging.getLogger(__name__)
 @oc.logging.with_logger()
@@ -41,8 +40,7 @@ class ODServices(object):
         self.init_prelogin()
         self.init_logmein()
         self.init_fail2ban()
-        self.init_replicatinstance()
-
+        
     def start(self):
         """start
             start threads 
@@ -52,20 +50,10 @@ class ODServices(object):
             self.kuberneteswatcher.start()
 
 
-    def stop( self):
-        """stop
-            - unregister_endpoint from replicatinstance
-            - stop threads kuberneteswatcher
-        """
-        if isinstance( self.replicatinstance, oc.od.replicatinstance.ODReplicatInstance):
-            # always use try/except 
-            try:
-                unregistered = self.replicatinstance.unregister_endpoint()  # unregister endpoint
-                self.logger.debug( f"unregistered endpoint -> {unregistered}")
-            except Exception as e:
-                self.logger.error(e)
-        else:
-            self.logger.debug( 'self.replicatinstance is not defined' )
+    def stop(self):
+        '''
+            stop services threads
+        '''
 
         # stop thread imagewatcher if instance exists
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
@@ -167,22 +155,9 @@ class ODServices(object):
         import oc.sharecache
         self.sharecache = oc.sharecache.ODMemcachedSharecache(settings.memconnectionstring)
 
-    def init_replicatinstance(self):
-        """init_replicatinstance
-           create replicat instance to register the endpoint
-        """
-        endpoint=os.environ.get('POD_IP', 'localhost')
-        self.replicatinstance = oc.od.replicatinstance.ODReplicatInstance( keyname='pyospodips', 
-                                                                           endpoint=endpoint,
-                                                                           memcache_connection_string=settings.memconnectionstring )
-        # register the endpoint
-        isregistered = self.replicatinstance.register_endpoint()
-        logger.debug(f"register_endpoint( endpoint={endpoint} ) -> {isregistered}")
-
     def init_prelogin(self):
         import oc.auth.prelogin
-        self.prelogin = oc.auth.prelogin.ODPrelogin(    config=settings.prelogin,
-                                                        memcache_connection_string=settings.memconnectionstring )
+        self.prelogin = oc.auth.prelogin.ODPrelogin( config=settings.prelogin, memcache_connection_string=settings.memconnectionstring )
 
     def init_logmein(self):
         import oc.auth.logmein

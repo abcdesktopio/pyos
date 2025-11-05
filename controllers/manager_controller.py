@@ -71,21 +71,6 @@ class ManagerController(BaseController):
         # check if request is allowed, raise an exception if deny
         self.is_permit_request()
         return http_dump
-    
-    # pyosendpoints request is protected by is_permit_request()
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def pyosendpoints(self):
-        """[pyosendpoints]  
-            get all replicatinstance endpoints
-        Returns:
-            [json]: [list of all pyos instance endpoints]
-        """
-        # check if request is allowed, raise an exception if deny
-        self.is_permit_request()
-        replicats = oc.od.services.services.replicatinstance.get_endpoints()
-        return replicats
-
 
     # buildapplist request is protected by is_permit_request()
     @cherrypy.expose
@@ -406,7 +391,7 @@ class ManagerController(BaseController):
         if isinstance( node, str ) or node is None : 
             # json_images can be list or dict
             if isinstance( json_images, (list, dict)) :
-                json_put = oc.od.composer.pull_application_image( json_images, node=node )
+                json_put = oc.od.composer.add_application_image( json_images )
             else:
                 raise cherrypy.HTTPError(status=400, message='Invalid parameters Bad Request')
         else:

@@ -931,60 +931,6 @@ def listAllSecretsByUser(authinfo:AuthInfo, userinfo:AuthUser )->list:
     return secrets_type_list
 
 
-def notify_endpoint( url:str )->bool:
-    """notify_endpoint
-        call url endpoint 
-        if apikey is set add as http header
-
-    Args:
-        url (str): url
-        endpoint (str): endpoint address
-
-    Returns:
-        bool: http response.ok
-    """
-    try:
-        headers = None
-        apikey = oc.od.settings.controllers.get('ManagerController').get('apikey', [ None ])[0]
-        if isinstance( apikey, str ) :
-            headers={'X-API-Key': apikey }
-            # logger.debug( f"notify_endpoint: url={url} headers={headers}" )
-        response = requests.get(url, headers=headers )
-        if isinstance( response, requests.models.Response ):
-            logger.debug( f"notify_endpoint: url={url} response.status_code={response.status_code} response.reason={response.reason}" )
-            return response.ok
-    except requests.exceptions.ConnectTimeout:
-        logger.error( f"notify_endpoint: url={url} ConnectTimeout, pod seems to be down" )
-        # services.replicatinstance.unregister_endpoint( endpoint )
-    except Exception as e:
-        logger.error( e )
-    return False
-
-
-def notify_endpoints(pyos_endpoint_uri:str, pyos_endpoint_port:int, pyos_endpoint_addresses:list)->None:
-    """notify_endpoints
-        query endpoint '/API/manager/buildapplist' on a pyos instance
-        url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
-        if pyos is running in developer mode, only call localhost as pyos_endpoint_addresses
-        all call run as thread
-    Args:
-        pyos_endpoint_uri (str): uri endpoint
-        pyos_endpoint_port (int): tcp port 
-        pyos_endpoint_addresses (str): endpoint address
-        
-    """
-    assert isinstance( pyos_endpoint_addresses, list ), f"pyos_endpoint_addresses has invalid type {type(pyos_endpoint_addresses)}"
-
-    for pyos_endpoint_address in pyos_endpoint_addresses:
-        # build the url
-        url = f"http://{pyos_endpoint_address}:{pyos_endpoint_port}{pyos_endpoint_uri}"
-        logger.debug( f"notify_endpoints: url={url}" )
-        # create a thread for each pyos_endpoint_address and call buildapplist
-        # run notify_endpoint in a thread
-        notify_thread = threading.Thread(target=notify_endpoint, kwargs={ 'url': url } )
-        notify_thread.start()
-
-
 def notity_pyos_buildapplist()->None:
     """notity_pyos_buildapplist
         query endpoint '/API/manager/buildapplist'
@@ -996,18 +942,8 @@ def notity_pyos_buildapplist()->None:
     # charity begins at home.
     services.apps.cached_applist(bRefresh=True)
 
-    # notify ohers pyos instances to update their applist 
-    pyos_endpoint_port = os.environ.get('PYOS_ENDPOINT_PORT', '8000')
-    pyos_endpoint_addresses = oc.od.services.services.replicatinstance.get_endpoints().copy()
-
-    # no need to notify myself
-    # remove my self instance from the list of pyos_endpoint_addresses
-    if services.replicatinstance.endpoint in pyos_endpoint_addresses:
-        pyos_endpoint_addresses.remove( services.replicatinstance.endpoint )
-
-    logger.debug( f"notity_pyos_buildapplist: pyos_endpoint_addresses={pyos_endpoint_addresses}" )
-    # create thread for each pyos_endpoint_address and call buildapplist
-    notify_endpoints('/API/manager/buildapplist', pyos_endpoint_port, pyos_endpoint_addresses)
+    # notify ohers pyos instances to update their applist
+    # this section code is removed 
 
 
 
