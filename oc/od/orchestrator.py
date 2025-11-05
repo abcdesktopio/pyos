@@ -876,8 +876,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.kubeapi = client.CoreV1Api()
         self.namespace = oc.od.settings.namespace
         self.bConfigure = True
-        self.default_volumes = oc.od.settings.desktop_pod.get('default_volumes', oc.od.settings.DEFAULT_VOLUMES )
-        self.default_volumes_mount = oc.od.settings.desktop_pod.get('default_volumes_mount', oc.od.settings.DEFAULT_VOLUMES_MOUNT)
 
     def close(self):
         #self.kupeapi.close()
@@ -1611,28 +1609,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # volume shared between all container inside the desktop pod
         #
-        if volume_type in [ 'pod_desktop', 'ephemeral_container' ]:
+        if volume_type == 'pod_desktop':
             # add socket service 
             # add tmp run log to support readonly filesystem
             # add dbus 'rundbus', 'runuser' 
-            for vol_name in [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket' ]:
-                if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
-                    volumes[vol_name] = self.default_volumes[vol_name]
-                    volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+            for vol_name in oc.od.settings.desktop_pod.get('graphical', {}).get('volumes', []):
+                volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
+                volumes_mount[vol_name] =  oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
 
-        if volume_type in [ 'pod_desktop', 'pod_application',  'ephemeral_container' ] :
-            for vol_name in [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]:
-                if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
-                    volumes[vol_name] = self.default_volumes[vol_name]
-                    volumes_mount[vol_name] = self.default_volumes_mount[vol_name]
+        if volume_type == 'ephemeral_container':
+            for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
+                volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
+                volumes_mount[vol_name] =  oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
 
-        #
-        # shm volume is shared between all container inside the desktop pod
-        #
-        if volume_type in [ 'pod_desktop', 'ephemeral_container' ]:
-            if isinstance( self.default_volumes.get(vol_name), dict) and isinstance( self.default_volumes_mount.get(vol_name), dict) :
-                volumes['shm'] = self.default_volumes['shm']
-                volumes_mount['shm'] = self.default_volumes_mount['shm']
+        if volume_type == 'pod_application':
+            for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
+                volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
+                volumes_mount[vol_name] =  oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
+
 
         #
         # mount localaccount secrets in desktop['secretslocalaccount'] eq: /etc/localaccount

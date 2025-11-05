@@ -55,36 +55,8 @@ snapshot_registry_protocol = None # default protocol for snapshot registry, like
 #                'email': email
 
 cgroup_version = None # cgroup version used by the system, can be 'cgroup v1' or 'cgroup v2'
-
-DEFAULT_VOLUMES = {
-    'shm': { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '512Mi' } },
-    'run': { 'name': 'run', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1M'    } },
-    'tmp': { 'name': 'tmp', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
-    'log': { 'name': 'log', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
-    'rundbus': { 'name': 'rundbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
-    'runuser': { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
-    'x11socket': { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } },
-    'pulseaudiosocket' :  { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } },
-    'cupsdsocket': { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
-}
-DEFAULT_VOLUMES_MOUNT = {
-    'shm': { 'name': 'shm', 'mountPath' : '/dev/shm' },
-    'run': { 'name': 'run',  'mountPath': '/var/run/desktop' },
-    'tmp': { 'name': 'tmp',  'mountPath': '/tmp' },
-    'log': { 'name': 'log',  'mountPath': '/var/log/desktop' },
-    'rundbus': { 'name': 'rundbus',  'mountPath': '/var/run/dbus' },
-    'runuser': { 'name': 'runuser',  'mountPath': '/run/user/' },
-    'x11socket': { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' },
-    'pulseaudiosocket':  { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' },
-    'cupsdsocket': { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
-}
-
-
 memconnectionstring = None  # memcache connection syting format 'server:port'
 services_http_request_denied = {} # deny http request 
-
-jira = None             # Jira tracker configuration 
-
 tipsinfoconfig = {}
 welcomeinfoconfig = {}
 desktopdescription = {} # define a network interface name mapping 
@@ -223,10 +195,6 @@ def init_config_stack():
     # desktopdescription is used to display network page
     # by default desktopdescription is a dict of None values
     desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
-
-def init_jira():
-    global jira 
-    jira = gconfig.get('jira', {})
 
 def init_defaulthostfqdn():
     """init_defaulthostfqdn
@@ -379,7 +347,13 @@ def init_desktop():
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
-   
+    desktop['default_volumes_for_pod_desktop_and_ephemeral_container'] = gconfig.get(
+        'desktop.default_volumes_for_pod_desktop_and_ephemeral_container',
+        [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket','tmp', 'run', 'log', 'rundbus', 'runuser' ] )
+    desktop['default_volumes_for_pod_application'] = gconfig.get(
+        'desktop.default_volumes_for_pod_application',
+        [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ] )
+
     desktop['hostname'] = gconfig.get('desktop.hostname')
     desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
     # features_permissions
@@ -893,9 +867,6 @@ def init():
 
     # init locales vars
     init_locales()
-
-    # init jira bugtracker
-    init_jira()
 
     # init prelogin
     init_prelogin()
