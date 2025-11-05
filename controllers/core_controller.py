@@ -13,7 +13,6 @@
 import logging
 import cherrypy		
 import json
-import oc.od.tracker
 import oc.logging
 
 import oc.od.settings
