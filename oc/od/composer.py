@@ -946,51 +946,6 @@ def notity_pyos_buildapplist()->None:
     # this section code is removed 
 
 
-
-def pull_application_image( json_images:dict, node:str=None ):
-    """pull_application_image
-
-    Args:
-        json_images (str): list of json image
-
-    Returns:
-        json: _description_
-    """
-    logger.debug('')
-
-    # add entry from mongodb
-    logger.debug('add json_image to collection start')
-    json_put = oc.od.services.services.apps.add_json_image_to_collection( json_images )
-    logger.debug(f"json_put type is {type(json_put)}")
-    pulling = False
-    if isinstance( json_put, dict ) or isinstance( json_put, list ):
-        logger.debug('add json_image to collection done')
-        # new Orchestrator Object
-        myOrchestrator = selectOrchestrator()
-
-        if isinstance(node,str):
-            # if there is only one image
-            if isinstance( json_put, dict ):
-                json_put['pulling'] = myOrchestrator.pullimage( json_put, node )
-            elif isinstance( json_put, list ) and len(json_put)>0:
-                for app in json_put:
-                    app['pulling'] = myOrchestrator.pullimage( app, node )
-        else:
-            # if there is only one image
-            if isinstance( json_put, dict ):
-                json_put['pulling'] = myOrchestrator.pullimage_on_all_nodes( json_put )
-            elif isinstance( json_put, list ) and len(json_put)>0:
-                for app in json_put:
-                    app['pulling'] = myOrchestrator.pullimage_on_all_nodes( app )
-
-        # broadcast event to all pyos instance to sync applist object
-        notity_pyos_buildapplist()
-    else:
-        raise ODError( status=400, message="failed to add json image format to collection")
-    # updated with app['pulling'] = status
-    return json_put
-
-
 def add_application_image( json_images ):
     """add_application_image
 
