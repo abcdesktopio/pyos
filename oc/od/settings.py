@@ -347,13 +347,7 @@ def init_desktop():
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
-    desktop['default_volumes_for_pod_desktop_and_ephemeral_container'] = gconfig.get(
-        'desktop.default_volumes_for_pod_desktop_and_ephemeral_container',
-        [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket','tmp', 'run', 'log', 'rundbus', 'runuser' ] )
-    desktop['default_volumes_for_pod_application'] = gconfig.get(
-        'desktop.default_volumes_for_pod_application',
-        [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ] )
-
+    
     desktop['hostname'] = gconfig.get('desktop.hostname')
     desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
     # features_permissions
@@ -404,6 +398,40 @@ def init_desktop():
         desktop['snapshotregistrysecretname'] = gconfig.get('desktop.snapshotregistrysecretname')
     
     desktop['snapshotregistryprotocol'] = gconfig.get('desktop.snapshotregistryprotocol', 'https' )
+
+
+    # fix volume values if missing for compatibility
+    if not isinstance ( desktop_pod.get('default_volumes'), dict ):
+        desktop_pod['default_volumes'] =  {
+            'shm': { 'name': 'shm', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '512Mi' } },
+            'run': { 'name': 'run', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '1M'    } },
+            'tmp': { 'name': 'tmp', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
+            'log': { 'name': 'log', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
+            'rundbus': { 'name': 'rundbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
+            'runuser': { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
+            'x11socket': { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } },
+            'pulseaudiosocket' :  { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } },
+            'cupsdsocket': { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
+        }
+    if not isinstance ( desktop_pod.get('default_volumes_mount'), dict ):
+        desktop_pod['default_volumes_mount'] = {
+            'shm': { 'name': 'shm', 'mountPath' : '/dev/shm' },
+            'run': { 'name': 'run',  'mountPath': '/var/run/desktop' },
+            'tmp': { 'name': 'tmp',  'mountPath': '/tmp' },
+            'log': { 'name': 'log',  'mountPath': '/var/log/desktop' },
+            'rundbus': { 'name': 'rundbus',  'mountPath': '/var/run/dbus' },
+            'runuser': { 'name': 'runuser',  'mountPath': '/run/user/' },
+            'x11socket': { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' },
+            'pulseaudiosocket':  { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' },
+            'cupsdsocket': { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
+        }
+    if not isinstance ( desktop_pod.get('graphical', {}).get('volumes') , list ):
+        desktop_pod['graphical']['volumes'] = [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
+    if not isinstance ( desktop_pod.get('ephemeral_container', {}).get('volumes') , list ):
+        # ephemeral container use the same volumes as graphical pod
+        desktop_pod['ephemeral_container']['volumes'] = desktop_pod['graphical']['volumes']
+    if not isinstance ( desktop_pod.get('pod_application', {}).get('volumes') , list ):
+        desktop_pod['graphical']['volumes'] = [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
 
     init_balloon()
 
