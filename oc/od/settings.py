@@ -472,13 +472,11 @@ def init_menuconfig():
     menuconfig['snapshot'] = desktop_pod.get('snapshot',{}).get('enable', False)
     logger.debug(f"menuconfig: {menuconfig}")
 
-
 def init_imagenotificationconfig():
     global imagenotificationconfig
     imagenotificationconfig = gconfig.get(
         'front.imagenotification', { 'ephemeral_container' : True, 'pod_application' : True } )
     logger.debug(f"imagenotificationconfig: {imagenotificationconfig}")
-
 
 def init_geolocation():
     global geolocation
@@ -550,13 +548,13 @@ def get_mongodburl():
             or from config file
                 - config('mongodburl')
         parse mongodburl to resolv hostmane
-        exit if error
+        exit if resolv hostname error
     Returns:
         MongoClientConfig : MongoClientConfig instance 
     """
     # read MONGODB_URL env var
     # 'mongodb://pyos:YWUwNDJhZTI3NjVjZDg4Zjhk@mongodb.abcdesktop.svc.cluster.local:30017'
-    mongodburl = os.getenv('MONGODB_URL') or gconfig.get( 'mongodburl', 'mongodb://mongodb' )
+    mongodburl = os.getenv('MONGODB_URL') or gconfig.get( 'mongodburl' )
     logger.debug( f"mongodburl is read as {mongodburl}" )
     parsedmongourl = urlparse( mongodburl )
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
