@@ -554,7 +554,7 @@ def get_mongodburl():
     """
     # read MONGODB_URL env var
     # 'mongodb://pyos:YWUwNDJhZTI3NjVjZDg4Zjhk@mongodb.abcdesktop.svc.cluster.local:30017'
-    mongodburl = os.getenv('MONGODB_URL') or gconfig.get( 'mongodburl', 'mongodb://mongodb' )
+    mongodburl = os.getenv('MONGODB_URL') or gconfig.get( 'mongodburl' )
     logger.debug( f"mongodburl is read as {mongodburl}" )
     parsedmongourl = urlparse( mongodburl )
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
