@@ -51,7 +51,10 @@ RUN apk add --no-cache \
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
-RUN pip install --no-cache-dir -r requirements.txt
+# install upgrade pip
+# install requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # remove dev package
 # should better use a builder instance
