@@ -25,7 +25,6 @@ import oc.lib
 
 logger = logging.getLogger(__name__)
 
-
 @oc.logging.with_logger()
 class ODApps:
 
@@ -124,7 +123,7 @@ class ODApps:
     def getBuild_image_counter(self):
         return self.build_image_counter
 
-    def cached_applist(self, bRefresh=False):
+    def cached_applist(self, bRefresh:bool=False):
         self.logger.debug(f"cached_applist bRefresh={bRefresh}")
         # if bRefresh is True or myglobal_list is empty
         if bRefresh is True or len(self.myglobal_list) == 0:
