@@ -430,7 +430,7 @@ def init_desktop():
         logger.debug(f"fixing desktop.pod.graphical.volumes config {desktop_pod['graphical']['volumes']}")
     if not isinstance ( desktop_pod.get('ephemeral_container', {}).get('volumes') , list ):
         # ephemeral container use the same volumes as graphical pod
-        desktop_pod['ephemeral_container']['volumes'] = desktop_pod['graphical']['volumes']
+        desktop_pod['ephemeral_container']['volumes'] = [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
         logger.debug(f"fixing desktop.pod.ephemeral_container.volumes config {desktop_pod['ephemeral_container']['volumes']}")
     if not isinstance ( desktop_pod.get('pod_application', {}).get('volumes') , list ):
         desktop_pod['pod_application']['volumes'] = [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
