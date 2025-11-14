@@ -22,11 +22,6 @@ RUN mkdir -p /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-City.mmdb -P /usr/share/geolite2
 
-# install ntlm_auth
-# ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
-# support for linux_arm64 and linux_amd64
-# FROM python is a debian:bookworm image
-
 RUN apk add --no-cache \
 	krb5-dev \
 	gcc \
@@ -39,16 +34,18 @@ RUN apk add --no-cache \
 	geoip-dev \
 	openldap-dev
 
-
-RUN mkdir /dist
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
-COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/lib /usr/lib
-# /root/packages/main/x86_64 or /root/packages/main/arm_64
-COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/packages/main/*/ /dist
-COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/.abuild/*.pub /etc/apk/keys
-# RUN ls -la /dist && apk add /dist/*.apk
-RUN apk update  && apk add --no-cache /dist/*.apk
+##################
+# Commented for alpine no install ntlm_auth / samba support 
+# use ubuntu image to get SSO features
+# - ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
+# - support for linux_arm64 and linux_amd64
+# FROM python is a debian:bookworm image
+# RUN mkdir /dist
+# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
+# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/packages/main/*/ /dist
+# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/.abuild/*.pub /etc/apk/keys
+# RUN apk update  && apk add --no-cache /dist/*.apk
+##################
 
 
 # install pyos in /var/pyos
