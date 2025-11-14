@@ -14,6 +14,7 @@ RUN apk upgrade --no-cache && \
 	krb5 \
 	krb5-libs \
 	libgsasl 
+
 #   gss-ntlmssp 
 #   krb5-user 
 #   krb5-config sasl2-bin
@@ -37,39 +38,43 @@ RUN apk add --no-cache \
 	musl-dev \
 	py3-ldap \
 	py3-ldap-pyc \
-        py3-python-gssapi-pyc \
-        py3-python-gssapi \
-        krb5-dev \
+    py3-python-gssapi-pyc \
+    py3-python-gssapi \
+    krb5-dev \
 	geoip-dev \
 	openldap-dev
 
-
+##################
+# Commented for alpine no install ntlm_auth / samba support 
+# use ubuntu image to get SSO features
+# - ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
+# - support for linux_arm64 and linux_amd64
+# FROM python is a debian:bookworm image
 # RUN mkdir /dist
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /aports/main/samba/src/samba-*/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
 # COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/lib /usr/lib
-# /root/packages/main/x86_64 or /root/packages/main/arm_64
 # COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/packages/main/*/ /dist
 # COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/.abuild/*.pub /etc/apk/keys
-# RUN ls -la /dist && apk add /dist/*.apk
 # RUN apk update  && apk add --no-cache /dist/*.apk
-
+##################
 
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
-RUN pip install --no-cache-dir -r requirements.txt
+# install upgrade pip
+# install requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # remove dev package
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
 	krb5-dev \
-        gcc \
-        musl-dev \
-        krb5-dev \
-        geoip-dev \
-        openldap-dev
+    gcc \
+    musl-dev \
+    krb5-dev \
+    geoip-dev \
+    openldap-dev
 
 # create log directory
 RUN mkdir -p /var/pyos/logs
