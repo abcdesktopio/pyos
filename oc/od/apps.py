@@ -47,7 +47,8 @@ class ODApps:
         
         # define private attributs keep
         self.private_attr_list  = [ 'acl',  'rules', 'securityContext' ]
-        self.thead_event = None
+        self.thread_event = threading.Event()
+        self.watcher_thread = None
 
         # img path
         self.img_path = '/img/app/'
@@ -681,3 +682,90 @@ class ODApps:
             app = userappdict.get( application_key )
 
         return app # can be None if not found
+    
+    #
+    # MongoDB Change Stream handlers
+    #
+    def on_mongo_insert(self, full_doc):
+        """
+        full_doc: complete document as returned by MongoDB
+        """
+        self.logger.info(f"[ODApps] Insert detected for {full_doc.get('id')}")
+
+        # Refresh internal cache
+        self.cached_applist(bRefresh=True)
+
+
+    def on_mongo_update(self, full_doc, updated_fields):
+        """
+        updated_fields: dict containing only the modified fields
+        """
+        self.logger.info(f"[ODApps] Update detected for {full_doc.get('id')}, changes={updated_fields}")
+
+        # Refresh internal cache
+        self.cached_applist(bRefresh=True)
+
+
+    def on_mongo_delete(self, deleted_id):
+        self.logger.info(f"[ODApps] Delete detected for id={deleted_id}")
+
+        # Refresh internal cache
+        self.cached_applist(bRefresh=True)
+
+
+    def _mongo_watch_loop(self):
+        """
+        MongoDB watcher thread.
+        Watches the 'image' collection.
+        """
+        collection = self.get_collection(self.image_collection_name)
+
+        self.logger.info("[ODApps] Starting MongoDB Change Stream...")
+
+        try:
+            with collection.watch(full_document='updateLookup') as stream:
+                for change in stream:
+                    if self.thread_event.is_set():
+                        break
+
+                    op = change["operationType"]
+                    full_doc = change.get("fullDocument")
+
+                    # HANDLERS
+                    if op == "insert":
+                        self.on_mongo_insert(full_doc)
+
+                    elif op == "update":
+                        updated = change["updateDescription"]["updatedFields"]
+                        self.on_mongo_update(full_doc, updated)
+
+                    elif op == "delete":
+                        deleted_id = change["documentKey"]["_id"]
+                        self.on_mongo_delete(deleted_id)
+
+        except Exception as e:
+            self.logger.error(f"[ODApps] Change Stream Error: {e}")
+            # restart loop (same design as ODKubernetesWatcher)
+            if not self.thread_event.is_set():
+                time.sleep(2)
+                self._mongo_watch_loop()
+
+
+    def start_mongo_watcher(self):
+        if self.watcher_thread and self.watcher_thread.is_alive():
+            return
+
+        self.thread_event.clear()
+        self.watcher_thread = threading.Thread(
+            target=self._mongo_watch_loop,
+            daemon=True
+        )
+        self.watcher_thread.start()
+        self.logger.info("[ODApps] MongoDB watcher started")
+
+
+    def stop_mongo_watcher(self):
+        self.thread_event.set()
+        if self.watcher_thread:
+            self.watcher_thread.join()
+        self.logger.info("[ODApps] MongoDB watcher stopped")
