@@ -11,3 +11,8 @@ logs/
 
 # abcdesktop svg cache
 *.svg
+
+.env
+Makefile.mk
+src/
+test/
