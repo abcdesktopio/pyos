@@ -175,7 +175,6 @@ class MongoFormatter(logging.Formatter):
                 doc[k] = None
         return doc
 
-
 class MongoHandler(logging.Handler):
     def __init__(self, address, port, database, collection, login=None, password=None, mapping={
             'created': { 'field':'created' }, 
