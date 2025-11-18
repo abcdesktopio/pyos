@@ -957,7 +957,7 @@ def add_application_image( json_images ):
     """
     # add entry from mongodb
     json_put =  oc.od.services.services.apps.add_json_image_to_collection( json_images )
-    notity_pyos_buildapplist()
+    # notity_pyos_buildapplist()
     return json_put
 
 
@@ -973,12 +973,12 @@ def del_application_image( image:str )->list:
     images = []
     deleted_image = oc.od.services.services.apps.del_image( image )
     if deleted_image is True:
-        notity_pyos_buildapplist()
+        # notity_pyos_buildapplist()
         images.append( image )
     return images
 
 def del_application_all_images():
     # remove entry from mongodb
     images = oc.od.services.services.apps.del_all_images()
-    notity_pyos_buildapplist()
+    # notity_pyos_buildapplist()
     return images

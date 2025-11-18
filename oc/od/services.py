@@ -44,8 +44,16 @@ class ODServices(object):
     def start(self):
         """start
             start threads 
+                * apps mongo change stream watcher
                 * kuberneteswatcher
         """
+        if isinstance(self.apps, oc.od.apps.ODApps):
+            try:
+                self.apps.start_mongo_watcher()
+                self.logger.info("MongoDB watcher started")
+            except Exception as e:
+                self.logger.error(f"Error while starting MongoDB watcher: {e}")
+
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             self.kuberneteswatcher.start()
 
@@ -53,7 +61,16 @@ class ODServices(object):
     def stop(self):
         '''
             stop services threads
+                * apps mongo change stream watcher
+                * kuberneteswatcher
         '''
+        if isinstance(self.apps, oc.od.apps.ODApps):
+            try:
+                self.apps.stop_mongo_watcher()
+                self.logger.info("MongoDB watcher stopped")
+            except Exception as e:
+                self.logger.error(f"Error while stopping MongoDB watcher: {e}")
+
 
         # stop thread imagewatcher if instance exists
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
