@@ -715,8 +715,8 @@ def loadfile(filename:str)->str:
     f.close()
     return data
 
-def make_b64data_from_iconfile(filename):
-    """make_b64data_from_iconfile
+def read_b64data_from_iconfile( filename:str )->str:
+    """read_b64data_from_iconfile
         load file data and encode in b64
     Args:
         filename (str): filename to encode
@@ -725,8 +725,7 @@ def make_b64data_from_iconfile(filename):
         str: encoded content file
     """
     strencode = None
-    img_path = 'img/app/'
-    filepath = os.path.normpath( img_path + filename )
+    filepath = os.path.normpath( filename )
     try:
         f = open(filepath, 'r')
         file_data = f.read()
@@ -739,9 +738,14 @@ def make_b64data_from_iconfile(filename):
       
 
 def init_dock():
+    """init_dock
+       load dock config from config file
+       load icon file and encode in base64 format for web transmission 
+    """
     logger.debug('')
     global dock
     dock = gconfig.get('dock', {})
+    img_path = gconfig.get('dock.img_path',  os.path.join('img', 'app') )
     for key in dock.keys():
         logger.debug( f"loading dock entry {key}")
         if not isinstance( dock[key], dict ):
@@ -751,7 +755,8 @@ def init_dock():
         filename = dock[key].get('icon')
         if isinstance(filename, str):
             # load the icon file as base64 format
-            dock[key]['icondata'] = make_b64data_from_iconfile( filename )
+            opened_filename = os.path.join(img_path, filename)
+            dock[key]['icondata'] = read_b64data_from_iconfile( opened_filename )
         else:
             logger.error(f"bad dock entry dock[{key}]['icon']={type(filename)} is must be a str (filename)")
 
@@ -768,6 +773,11 @@ def init_executeclass():
 
 
 def get_default_appdict():
+    """get_default_appdict
+       return a default appdict structure
+    Returns:
+        dict: default appdict
+    """    
     return dock
 
 
@@ -780,7 +790,11 @@ def get_configuration_file_name():
     configuration_file_name = os.getenv('OD_CONFIG_PATH', 'od.config')
     return configuration_file_name
 
-def load_config():    
+def load_config():
+    """load_config
+       load configuration file 'od.config'
+       set global config and gconfig
+    """
     global config
     global gconfig
 
@@ -800,6 +814,9 @@ def load_config():
         exit(-1)           
 
 def init_snapshot():
+    """init_snapshot
+       read snapshot config
+    """
     global snapshot_mountpath
     global snapshot_mounttype
     global snapshot_registry_protocol 
@@ -824,6 +841,10 @@ def detect_cgroup_version():
         return "cgroup v1"
    
 def init():
+    """init
+       main init function
+       load all configuration
+    """
     logger.debug('Init configuration start')
 
     # load config file od.config
