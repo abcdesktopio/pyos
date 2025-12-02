@@ -3665,8 +3665,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.on_desktoplaunchprogress(f"b.Watching for events" )
         self.logger.debug('watch list_namespaced_event pod creating' )
         pulled_counter = 0 
-        started_counter = 0 
-        expected_containers_len = len( pod.spec.containers ) + + len( pod.spec.init_containers )
+        started_counter = 0
+        expected_containers_len = 0
+        if isinstance( pod.spec.init_containers, list ):
+            expected_containers_len += len( pod.spec.init_containers )
+        if isinstance( pod.spec.containers, list ):
+            expected_containers_len += len( pod.spec.containers )
+
         # self.logger.debug( f"expected_containers_len={expected_containers_len}")
 
         # watch list_namespaced_event
