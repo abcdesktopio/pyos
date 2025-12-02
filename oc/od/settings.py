@@ -745,6 +745,7 @@ def init_dock():
     logger.debug('')
     global dock
     dock = gconfig.get('dock', {})
+    # img_path is img/app by default
     img_path = gconfig.get('dock.img_path',  os.path.join('img', 'app') )
     for key in dock.keys():
         logger.debug( f"loading dock entry {key}")
