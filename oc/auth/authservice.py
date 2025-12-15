@@ -211,13 +211,19 @@ class AuthUser(dict):
     def mkpasswd( moustachedata:dict )->str:
         assert( isinstance(moustachedata, dict))
         passwd = chevron.render( oc.od.settings.DEFAULT_PASSWD_FILE, moustachedata )
+        passwd += '\n'
         return passwd
     
     @staticmethod
     def mkpasswd_newline( moustachedata:dict )->str:
         assert( isinstance(moustachedata, dict))
-        newchevronline = "{{ uid }}:x:{{ uidNumber }}:{{ gidNumber }}:{{ gecos }}:{{ homeDirectory }}:{{ loginShell }}"
-        passwd = chevron.render( newchevronline, moustachedata )
+        uid = moustachedata.get('uid')
+        uidNumber = moustachedata.get('uidNumber')
+        gidNumber = moustachedata.get('gidNumber')
+        gecos = moustachedata.get('gecos')
+        homeDirectory = moustachedata.get('homeDirectory')
+        loginShell = moustachedata.get('loginShell')
+        passwd = f"{ uid }:x:{ uidNumber }:{ gidNumber }:{ gecos }:{ homeDirectory }:{ loginShell }\n"
         return passwd
 
     @staticmethod
@@ -251,7 +257,15 @@ class AuthUser(dict):
             Returns: group (str): group file content
         """
         assert( isinstance(moustachedata, dict))
-        new_etc_group_lines = ''
+        new_etc_group_lines = '' # empty default string
+
+        gid = moustachedata.get('gid')
+        gidNumber = moustachedata.get('gidNumber')
+        uid = moustachedata.get('uid')
+        # add a group for the current user
+        if isinstance( gid, str) and isinstance( gidNumber, int): #  and isinstance( uid, str):
+            new_etc_group_lines = f"{ gid }:x:{ gidNumber }:\n"
+
         groups = moustachedata.get('groups')
         logger.debug( f"add user groups {groups}" )
         if isinstance( groups, list ):
@@ -288,6 +302,7 @@ class AuthUser(dict):
         if len(mkshadow_newline)>0:
             # logger.debug( f"new line for /etc/gshadow -> {mkshadow_newline}\n" )
             gshadow += mkshadow_newline
+            gshadow += '\n'
         return gshadow
 
     @staticmethod 
@@ -308,16 +323,20 @@ class AuthUser(dict):
                         for uid in uids[1::]:
                             newline += ',' + uid
                 new_etc_shadow_lines += newline + '\n'
-        return new_etc_shadow_lines
+        return new_etc_shadow_lines + '\n'
     
     @staticmethod
     def mkshadow( moustachedata:dict )->str:  
-        return chevron.render( oc.od.settings.DEFAULT_SHADOW_FILE, moustachedata )
+        line_mkshadow = chevron.render( oc.od.settings.DEFAULT_SHADOW_FILE, moustachedata )
+        line_mkshadow += '\n'
+        return line_mkshadow
 
     @staticmethod
     def mkshadow_newline( moustachedata:dict )->str:  
-        shadow_newline = "{{ uid }}:{{ sha512 }}:19080:0:99999:7:::"
-        return chevron.render(shadow_newline, moustachedata)
+        shadow_template_newline = "{{ uid }}:{{ sha512 }}:19080:0:99999:7:::"
+        shadow_newline = chevron.render(shadow_template_newline, moustachedata)
+        shadow_newline += '\n'
+        return shadow_newline
 
 
     @staticmethod

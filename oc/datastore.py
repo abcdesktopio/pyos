@@ -54,6 +54,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         if isinstance(databasename, str ):
             # url = f"{self.mongodburl}/{databasename}?directConnection=true&replicaSet=rs0&authSource={databasename}"
             url = f"{self.mongodburl}/{databasename}?replicaSet=rs0&authSource={databasename}"
+            # url = f"{self.mongodburl}/{databasename}?authSource={databasename}"
         else:
             url = self.mongodburl
         return url

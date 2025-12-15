@@ -169,7 +169,7 @@ class ODOrchestratorBase(object):
         self.x11servertype          = 'x11server'        
         self.pod_application        = 'pod_application'
         self.pod_application_pull   = 'pod_application_pull'
-        self.endpoint_domain        = 'desktop'
+        # self.endpoint_domain        = 'desktop' # change to remove desktop coredns entry
         self.ephemeral_container    = 'ephemeral_container'
         self.abcdesktop_role_desktop = 'desktop'
 
@@ -1235,9 +1235,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
         self.on_desktoplaunchprogress('Building home dir data storage')
-        volume_home_name = self.get_volumename( 'home', userinfo )
-        self.logger.debug( f"volume_home_name is {volume_home_name}" )
-
+        volume_home_name = 'home'
         # homedirectorytype is by default None 
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']
         self.logger.debug(f"homedirectorytype is {homedirectorytype}")
@@ -1425,8 +1423,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             localaccount_name = list( mysecretdict.keys() )[0] # should be only one, get the first one
         return localaccount_name
 
+    """
+    def build_volumes_extrausers( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
+        self.logger.debug('')
+        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
+        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
+        volumes = {}        # set empty volume dict by default
+        volumes_mount = {}  # set empty volume_mount dict by default
+    """
 
-    def build_volumes_localaccount( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
+    def build_volumes_localaccount( self, authinfo:AuthInfo, userinfo:AuthUser ):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1451,8 +1457,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # mode is 644 -> rw-r--r--
         # Owing to JSON limitations, you must specify the mode in decimal notation.
-        # 420 in decimal equal to 644
-        # 288 in decimal equal to 440 -> r--r-----
+        # 420 in decimal equal to 644 -> rw-r--r-- value for passwd and group
+        # 640 in decimal equal to 416 -> rw-r----- value for shadow and gshadow   
         secretmountPath = oc.od.settings.desktop['secretslocalaccount']
         secret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( secret_auth_name )
         volumes[secret_auth_localaccount_volume_name] = { 
@@ -1460,10 +1466,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'secret': { 
                 'secretName': secret_auth_name, 
                 'items': [
-                    { 'key': 'passwd', 'path': 'passwd' },
-                    { 'key': 'group',  'path': 'group'  }
-                ], 
-                'defaultMode': 420 
+                    { 'key': 'passwd', 'path': 'passwd', 'mode': 420 },
+                    { 'key': 'group', 'path': 'group', 'mode': 420   },
+                    { 'key': 'shadow', 'path': 'shadow', 'mode': 416  },
+                    { 'key': 'gshadow','path': 'gshadow', 'mode': 416  }
+                ]
             } 
         }
         volumes_mount[secret_auth_localaccount_volume_name] = { 
@@ -1471,25 +1478,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'mountPath': secretmountPath 
         }
 
-        # same for shadow
-        shadowsecret_auth_name = secret_auth_name + 'shadow'
-        shadowsecret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( shadowsecret_auth_name )
-        shadowsecretmountPath = oc.od.settings.desktop['secretslocalaccount'] + '.shadow'
-        volumes[shadowsecret_auth_localaccount_volume_name] = { 
-            'name': shadowsecret_auth_localaccount_volume_name, 
-            'secret': { 
-                'secretName': secret_auth_name, 
-                'items': [
-                    { 'key': 'shadow',  'path': 'shadow' },
-                    { 'key': 'gshadow', 'path': 'gshadow' }
-                ], 
-                'defaultMode': 288 
-            } 
-        }
-        volumes_mount[shadowsecret_auth_localaccount_volume_name] = { 
-            'name': shadowsecret_auth_localaccount_volume_name, 
-            'mountPath': shadowsecretmountPath 
-        }
         return (volumes, volumes_mount)
     
         '''
@@ -1625,36 +1613,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if volume_type == 'pod_application':
             for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
                 volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
-                volumes_mount[vol_name] =  oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
-
-
-        #
-        # mount localaccount secrets in desktop['secretslocalaccount'] eq: /etc/localaccount
-        # desktop['secretslocalaccount'] SHOULD NOT use the namepace  
-        # do not hard code the abcdesktop because oc.user container image use a symbolic link to 
-        # - /etc/passwd -> desktop['secretslocalaccount']/passwd 
-        # - /etc/shadow -> desktop['secretslocalaccount']/shadow 
-        # - /etc/group  -> desktop['secretslocalaccount']/group 
-        # - /etc/gshadow -> desktop['secretslocalaccount']/gshadow 
-        # files are linked to desktop['secretslocalaccount']
-        #
-        if volume_type in [ 'pod_desktop', 'pod_application',  'ephemeral_container' ] :
-            (localaccount_volumes, localaccount_volumes_mount) = \
-                self.build_volumes_localaccount(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
-            volumes.update( localaccount_volumes )
-            volumes_mount.update( localaccount_volumes_mount )
+                volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
 
         #
         # mount vnc secret in /var/secrets/abcdesktop
-        # always add vnc secret for 'pod_desktop'
-        if volume_type in [ 'pod_desktop'  ] :
+        # always add vnc secret for the grapical container only type pod_desktop
+        #
+        if volume_type == 'pod_desktop' :
             (vnc_volumes, vnc_volumes_mount) = \
                 self.build_volumes_vnc(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
             volumes.update(vnc_volumes)
             volumes_mount.update(vnc_volumes_mount)
 
         #
-        # mount secret in /var/secrets/abcdesktop
+        # mount other secrets in /var/secrets/abcdesktop
         #
         (secret_volumes, secret_volumes_mount) = \
             self.build_volumes_secrets(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
@@ -1997,14 +1969,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     def preparelocalaccount( self, localaccount:dict )->dict:
         assert isinstance(localaccount, dict),f"invalid localaccount type {type(localaccount)}"    
         mydict_config = { 
-            'passwd' : AuthUser.mkpasswd(localaccount), 
-            'shadow' : AuthUser.mkshadow(localaccount), 
-            'group'  : AuthUser.mkgroup(localaccount),
-            'gshadow': AuthUser.mkgshadow(localaccount), 
-            'passwd_newline' : AuthUser.mkpasswd_newline(localaccount), 
-            'shadow_newline' : AuthUser.mkshadow_newline(localaccount), 
-            'group_newline'  : AuthUser.mkgroup_newline(localaccount),
-            'gshadow_newline': AuthUser.mkgshadow_newline(localaccount), 
+            # 'passwd' : AuthUser.mkpasswd(localaccount), 
+            # 'shadow' : AuthUser.mkshadow(localaccount), 
+            # 'group'  : AuthUser.mkgroup(localaccount),
+            # 'gshadow': AuthUser.mkgshadow(localaccount), 
+            # '\n' fix the \ No newline at end of file issue
+            # passwd file need a final newline 
+            'passwd' : AuthUser.mkpasswd_newline(localaccount), 
+            'shadow' : AuthUser.mkshadow_newline(localaccount), 
+            'group'  : AuthUser.mkgroup_newline(localaccount),
+            'gshadow': AuthUser.mkgshadow_newline(localaccount), 
         }
         return mydict_config
             
@@ -2051,11 +2025,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('create oc.od.secret.ODSecretLDIF created')
 
         # create files as secret 
-        # - /etc/passwd 
-        # - /etc/shadow 
-        # - /etc/group 
-        # - /etc/gshadow
-        # files will be set as link in build_volumes
+        # - passwd 
+        # - shadow 
+        # - group 
+        # - gshadow
+        # files will be store in /var/lib/extrausers in the desktop container
         localaccount_data = authinfo.get_localaccount()
         # localaccount_data is a dict like
         # { 'uid': 'fry', 'gid': 'fry', 'gecos': [], 'groups': None, 'uidNumber': 2042, 'gidNumber': 12042, 'loginShell': '/bin/bash', 'description': 'Human', 'homeDirectory': '/home/fry', 'sha512': '$6$wliVSqROUCodfRsM$...oiyyvAmJl1'}
@@ -3113,7 +3087,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
 
 
-    def buildinitcommand(self, authinfo:AuthInfo, userinfo:AuthUser, list_pod_allvolumes:list, list_pod_allvolumeMounts:list )-> list :
+    def buildinitcommand(self, authinfo:AuthInfo, userinfo:AuthUser )-> list :
         """buildinitcommand
             buildinitcommand to fix volume ownership
             chevronWithUserInfo to replace {} values
@@ -3128,33 +3102,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             list: init command list of str
         """
         self.logger.debug('buildinitcommand to fix volume ownership')
-        # assert_type( list_pod_allvolumes, list)
-        # assert_type( list_pod_allvolumeMounts, list)
-        # default_command_list = [ 'sh', '-c',  'chown {{ uidNumber }}:{{ gidNumber }} ~ || true' ] 
         chevron_command_list = [] # empty list
         command_list = oc.od.settings.desktop_pod.get('init', {} ).get('command')
         if isinstance( command_list, list ):
             chevron_command_list = self.chevronWithUserInfo( command_list, authinfo, userinfo )
         return chevron_command_list
-        '''
-        chown_command = 'chown {{ uidNumber }}:{{ gidNumber }}'
-        # the command to update is the last_element in the list
-        command = command_list[-1] + ' '
-        for volume in list_pod_allvolumes:
-            assert_type( volume, dict )
-            if volume.get('persistentVolumeClaim'):
-                volume_name = volume.get('name')
-                assert_type( volume_name, str )
-                for volumemount in list_pod_allvolumeMounts:
-                    assert_type( volumemount, dict )
-                    if volumemount.get('name') == volume_name:
-                        mountPath = volumemount.get('mountPath')
-                        volume_chown_command = f" && {chown_command} {mountPath} || true"
-                        command = command + volume_chown_command
-        command_list[-1] = command
-        chevron_command_list = self.chevronWithUserInfo( command_list, authinfo, userinfo )
-        return chevron_command_list
-        '''
+       
 
     def getPodIPAddress( self, pod_name:str )->str:
         """getPodIPAddress
@@ -3283,7 +3236,25 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         self.logger.info( f"snapshoted image found {new_image} for {userinfo.userid}" )
         return new_image
-        
+
+    def get_volumemountlistfromcontainertype( self, volumemount:dict, currentcontainertype:str )-> dict:
+        """get_volumemountlistfromcontainertype
+            return the list of volumeMounts for a container type
+        Args:
+            volumemount (dict): volumemount dict
+            currentcontainertype (str): type of container
+        Returns:
+            list: list of volumeMount dict
+        """        
+        assert_type( volumemount, dict )
+        assert_type( currentcontainertype, str )
+        volumemountlist = {}
+        for volumeMount_name in oc.od.settings.desktop_pod.get( currentcontainertype, {}).get('volumes', []):
+            if isinstance( volumemount.get( volumeMount_name ), dict ):
+                volumemountlist[ volumeMount_name ] = volumemount.get( volumeMount_name )
+            else:
+                self.logger.warning( f"volumeMount {volumeMount_name} not found for container type {currentcontainertype}" )
+        return volumemountlist
 
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)-> ODDesktop :
         """createdesktop
@@ -3323,7 +3294,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'USER' ] = userinfo.userid         # add USER
         env[ 'LOGNAME' ] = userinfo.userid      # add LOGNAME 
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
-        env[ 'LOCALACCOUNT_PATH'] = oc.od.settings.desktop['secretslocalaccount']
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
         env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
         env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
@@ -3338,7 +3308,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'access_providertype': authinfo.providertype,
             'access_userid': userinfo.userid,
             'access_username': self.get_labelvalue(userinfo.name),
-            'domain': self.endpoint_domain,
+            # 'domain': self.endpoint_domain,
             'netpol/ocuser': 'true',
             'xauthkey': env[ 'XAUTH_KEY' ], 
             'pulseaudio_cookie': env[ 'PULSEAUDIO_COOKIE' ],
@@ -3413,7 +3383,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # all volumes and secrets
         (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=['all'], rules=rules,  **kwargs)
-        list_pod_allvolumes = list( pod_allvolumes.values() )
         list_pod_allvolumeMounts = list( pod_allvolumeMounts.values() )
 
         # graphical volumes
@@ -3462,8 +3431,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         initContainers = []
         currentcontainertype = 'init'
         if self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            # build the init command 
-            command = self.buildinitcommand( authinfo, userinfo, list_pod_allvolumes, list_pod_allvolumeMounts )
+            # build the init command to fix volume ownership
+            command = self.buildinitcommand( authinfo, userinfo )
+            # get volumeMounts for init container
+            list_containervolumeMounts = self.get_volumemountlistfromcontainertype( pod_allvolumeMounts, currentcontainertype )
+            # get init_localaccount_volumes and init_localaccount_volumes_mount
+            (init_localaccount_volumes, init_localaccount_volumes_mount) = self.build_volumes_localaccount(authinfo, userinfo )
+            # add init_localaccount_volumes to pod volumes
+            pod_allvolumes.update( init_localaccount_volumes )
+            # add init_localaccount_volumes_mount to init container
+            list_containervolumeMounts.update( init_localaccount_volumes_mount )
+
             if len(command) > 0: # if the command line is requested by configuration file 
                 init_container = self.addcontainertopod( 
                     authinfo=authinfo, 
@@ -3472,7 +3450,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     command=command,
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=list_pod_allvolumeMounts
+                    list_volumeMounts=list( list_containervolumeMounts.values() )
                 )
                 initContainers.append( init_container )
                 self.logger.debug( f"pod container added {currentcontainertype}" )
@@ -3504,19 +3482,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 label_value = str( oc.od.settings.desktop_pod[currentcontainertype].get('tcpport','enabled') )
                 labels.update( { label_servicename: label_value } )
 
-        specssecurityContext = self.updateSecurityContextWithUserInfo( 
-            currentcontainertype='spec', 
-            authinfo=authinfo, 
-            userinfo=userinfo )
+        specssecurityContext = self.updateSecurityContextWithUserInfo( currentcontainertype='spec', authinfo=authinfo, userinfo=userinfo )
 
         # give the give pull secret for the desktop pod
         imagePullSecrets = self.giveme_an_imagePullSecrets()
 
         hostname = oc.od.settings.desktop.get('hostname', pod_name)
 
-        # list_pod_allvolumes
         if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True and isinstance(snapshot_volumes, dict) : 
-            list_pod_allvolumes.append( snapshot_volumes.get('snapshot') ) 
+            pod_allvolumes.update( snapshot_volumes.get('snapshot') ) 
 
         # define pod_manifest
         pod_manifest = {
@@ -3531,12 +3505,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             },
             'spec': {
                 'hostname': hostname,
+                # 'subdomain': self.endpoint_domain, # set pod subdomain to have a FQDN for the pod 
                 'dnsPolicy' : dnspolicy,
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
-                'subdomain': self.endpoint_domain,
                 'shareProcessNamespace': shareProcessNamespace,
-                'volumes': list_pod_allvolumes,                    
+                'volumes': list( pod_allvolumes.values() ),                    
                 'nodeSelector': executeclasse.get('nodeSelector'), 
                 'initContainers': initContainers,
                 'imagePullSecrets': imagePullSecrets,
@@ -3579,27 +3553,31 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         assert isinstance(localaccount_volume_name, str),  f"localaccount secret volume is not found"
         
-        containers = {
-            'printer':  { 'list_volumeMounts':  [ pod_allvolumeMounts.get('tmp') ] }, # printer uses tmp volume
-            'sound':    { 'list_volumeMounts':  [ pod_allvolumeMounts.get(localaccount_volume_name), 
-                                                  pod_allvolumeMounts.get('tmp'), 
-                                                  pod_allvolumeMounts.get('home'), 
-                                                  pod_allvolumeMounts.get('log') ] },
-                                                  # sound uses tmp, home, log volumes
-            'ssh':      { 'list_volumeMounts':  list_volumeMounts }, # ssh uses default user volumes
-            'filer':    { 'list_volumeMounts':  list_volumeMounts }, # filter uses default user volumes
-            'storage':  { 'list_volumeMounts':  list_pod_allvolumeMounts } # storage uses default user volumes
-        }
-
-        for currentcontainertype in containers.keys():
+        containers_list = [ 'printer', 'sound', 'ssh', 'filer' ]
+        
+        for currentcontainertype in containers_list:
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                list_containervolumeMounts = self.get_volumemountlistfromcontainertype( pod_allvolumeMounts, currentcontainertype )
                 new_container = self.addcontainertopod( 
                     authinfo=authinfo, 
                     userinfo=userinfo, 
                     currentcontainertype=currentcontainertype, 
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=containers[currentcontainertype].get('list_volumeMounts')
+                    list_volumeMounts=list( list_containervolumeMounts.values() )
+                )
+                pod_manifest['spec']['containers'].append( new_container )
+                self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
+
+        currentcontainertype = 'storage'
+        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+                new_container = self.addcontainertopod( 
+                    authinfo=authinfo, 
+                    userinfo=userinfo, 
+                    currentcontainertype=currentcontainertype, 
+                    myuuid=myuuid,
+                    envlist=envlist,
+                    list_volumeMounts=list_pod_allvolumeMounts
                 )
                 pod_manifest['spec']['containers'].append( new_container )
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
@@ -3671,8 +3649,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             expected_containers_len += len( pod.spec.init_containers )
         if isinstance( pod.spec.containers, list ):
             expected_containers_len += len( pod.spec.containers )
-
-        # self.logger.debug( f"expected_containers_len={expected_containers_len}")
 
         # watch list_namespaced_event
         w = watch.Watch()
@@ -5203,7 +5179,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         envlist = self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
         # add EXECUTION CONTEXT env var inside the container
-        envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RUNTIME',   'value': self.type} )
+        envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RUNTIME', 'value': self.type} )
         resources = self.orchestrator.read_pod_resources(myDesktop.name)
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RESOURCES', 'value': json.dumps(resources) } )
 
@@ -5986,15 +5962,6 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             rules=rules,
             **kwargs)
 
-        list_volumeBinds = list( volumeBinds.values() )
-        list_volumeMounts = list( volumeMounts.values() )
-        self.logger.debug( f"list volume binds pod desktop {list_volumeBinds}")
-        self.logger.debug( f"list volume mounts pod desktop {list_volumeMounts}")
-
-        # apply network rules
-        # network_config = self.applyappinstancerules_network( authinfo, rules )
-        # apply homedir rules
-        # homedir_disabled = self.applyappinstancerules_homedir( authinfo, rules )
         envlist = self.get_env_for_appinstance( myDesktop, app, authinfo, userinfo, userargs, **kwargs )
 
         command = [ '/composer/appli-docker-entrypoint.sh' ]
@@ -6027,11 +5994,22 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         affinity = self.get_affinity( authinfo, userinfo, app, myDesktop )
 
         # init container for the pod apps 
-        # to fix ownership of the homedir like desktop does
         initContainers = []
         currentcontainertype = 'init'
-        init_command = self.orchestrator.buildinitcommand( authinfo, userinfo, list_volumeBinds, list_volumeMounts )
+        # build the init command 
+        init_command = self.orchestrator.buildinitcommand( authinfo, userinfo )
+        # init_command can be a str or a list
         if len(init_command) > 0:
+            # get volumeMounts for init container
+            init_volumeMounts =  volumeMounts.copy()
+            # get init_localaccount_volumes and init_localaccount_volumes_mount
+            (init_localaccount_volumes, init_localaccount_volumes_mount) = self.orchestrator.build_volumes_localaccount(authinfo, userinfo )
+            # add init_localaccount_volumes to pod volumes
+            volumeBinds.update( init_localaccount_volumes )
+            # add init_localaccount_volumes_mount to init container 
+            # and only for init container to prevent user access to localaccount files
+            init_volumeMounts.update( init_localaccount_volumes_mount )
+            
             init_container = self.orchestrator.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
@@ -6039,12 +6017,13 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 command=init_command,
                 myuuid=myuuid,
                 envlist=envlist,
-                list_volumeMounts=list_volumeMounts
+                list_volumeMounts=list( init_volumeMounts.values() )
             )
             initContainers.append( init_container )
             self.logger.debug( f"pod container added {currentcontainertype}" )
         else:
-            self.logger.debug(f"skipping init command={init_command}")
+            self.logger.debug( f"skipping {currentcontainertype} init command={init_command}" )
+
 
         imagePullSecrets = self.orchestrator.giveme_an_imagePullSecrets()
 
@@ -6068,7 +6047,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'securityContext': securitycontext,
                 'affinity': affinity,
                 'automountServiceAccountToken': False,  # disable service account inside pod
-                'volumes': list_volumeBinds,
+                'volumes': list( volumeBinds.values() ),
                 'nodeSelector': nodeSelector,
                 'initContainers': initContainers,
                 'tolerations': oc.od.settings.desktop_pod.get('tolerations'),
@@ -6079,7 +6058,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     'name': app_pod_name,
                     'command': command,
                     'env': envlist,
-                    'volumeMounts': list_volumeMounts,
+                    'volumeMounts': list( volumeMounts.values() ),
                     'resources': resources,
                     'workingDir' : workingDir
                 } ]

@@ -746,6 +746,11 @@ class ODApps:
                 if self.thread_event.is_set():
                     break
 
+                # The $changeStream stage is only supported on replica sets
+                if e.code == 40573:
+                    self.thread_event.set()
+                    break
+
                 if e.code == 18 :
                     # Authentication failed
                     # it's time to die

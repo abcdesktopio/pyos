@@ -322,7 +322,7 @@ def init_desktop():
 
     # default secret path
     desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
-    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/etc/localaccount')
+    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/lib/extrausers')
     desktop['zoom']                     = gconfig.get('desktop.zoom', 1)
     desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
@@ -767,7 +767,7 @@ def init_executeclass():
 
     executeclasses = gconfig.get('executeclasses', {} )
     if not isinstance( executeclasses.get('default'), dict ):
-        default_executeclass =  { 'nodeSelector' : None, 'resources': None } # no limits
+        default_executeclass =  { 'description': 'default description', 'nodeSelector' : None, 'resources': None } # no limits
         logger.error('something wrong in the config file no default executeclass has been defined ')
         logger.error(f"fixing default execute class {default_executeclass}")
         executeclasses['default'] = default_executeclass
