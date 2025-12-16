@@ -322,7 +322,7 @@ def init_desktop():
 
     # default secret path
     desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
-    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/lib/extrausers')
+    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/secrets/abcdesktop/extrausers')
     desktop['zoom']                     = gconfig.get('desktop.zoom', 1)
     desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
