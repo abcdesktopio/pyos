@@ -2308,6 +2308,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
                     uidNumber=oc.od.settings.getballoon_uidNumber(),
                     gidNumber=oc.od.settings.getballoon_gidNumber(),
                     homeDirectory=oc.od.settings.getballoon_homedirectory(uid),
+                    gecos='anonymous user',
                     loginShell=oc.od.settings.getballoon_loginShell(),
                     description='abcdesktop anonymous account' )
                 userinfo['posix'] = anonymousPosix
@@ -2417,6 +2418,7 @@ class ODImplicitAuthProvider(ODAuthProviderBase):
             gidNumber=oc.od.settings.getballoon_gidNumber(),
             homeDirectory=oc.od.settings.getballoon_homedirectory(uid),
             loginShell=oc.od.settings.getballoon_loginShell(),
+            gecos='anonymous user',
             description='abcdesktop anonymous account' )
         userinfo['posix'] = anonymousPosix
         return userinfo
