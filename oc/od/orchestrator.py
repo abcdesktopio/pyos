@@ -169,7 +169,6 @@ class ODOrchestratorBase(object):
         self.x11servertype          = 'x11server'        
         self.pod_application        = 'pod_application'
         self.pod_application_pull   = 'pod_application_pull'
-        # self.endpoint_domain        = 'desktop' # change to remove desktop coredns entry
         self.ephemeral_container    = 'ephemeral_container'
         self.abcdesktop_role_desktop = 'desktop'
 
@@ -956,10 +955,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [str]: [name of the user pod]
         """
-        userid = userinfo.userid
-        if authinfo.provider == 'anonymous':
-            userid = 'anonymous'
-        return oc.auth.namedlib.normalize_name_dnsname( userid + self.containernameseparator + pod_sufix)[0:252]       
+        posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+        podname = posixuser.get('uid') + self.containernameseparator + pod_sufix
+        return oc.auth.namedlib.normalize_name_dnsname( podname )[0:252]
  
     def get_labelvalue( self, label_value:str)->str:
         """[get_labelvalue]
@@ -3285,15 +3283,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
 
         # create ENV var for pod 
-        # XAUTH key
         self.logger.debug('env creating')
+        posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
         env[ 'XAUTH_KEY' ] = self.generate_xauthkey() # generate XAUTH_KEY
         env[ 'PULSEAUDIO_COOKIE' ] = self.generate_pulseaudiocookie()   # generate PULSEAUDIO cookie
         env[ 'BROADCAST_COOKIE' ] = self.generate_broadcastcookie()     # generate BROADCAST cookie 
-        env[ 'HOME'] = self.get_user_homedirectory(authinfo, userinfo)  # read HOME DIR 
-        env[ 'USER' ] = userinfo.userid         # add USER
-        env[ 'LOGNAME' ] = userinfo.userid      # add LOGNAME 
-        env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
+        env[ 'HOME' ] = posixuser.get('homeDirectory')  # read HOME DIR 
+        env[ 'USER' ] = posixuser.get('uid') # read uid
+        env[ 'USERNAME' ] = posixuser.get('uid') # read uid
+        env[ 'LOGNAME' ] = posixuser.get('uid') # read uid
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
         env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
         env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
@@ -3308,7 +3306,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'access_providertype': authinfo.providertype,
             'access_userid': userinfo.userid,
             'access_username': self.get_labelvalue(userinfo.name),
-            # 'domain': self.endpoint_domain,
             'netpol/ocuser': 'true',
             'xauthkey': env[ 'XAUTH_KEY' ], 
             'pulseaudio_cookie': env[ 'PULSEAUDIO_COOKIE' ],
@@ -3505,7 +3502,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             },
             'spec': {
                 'hostname': hostname,
-                # 'subdomain': self.endpoint_domain, # set pod subdomain to have a FQDN for the pod 
                 'dnsPolicy' : dnspolicy,
                 'dnsConfig' : dnsconfig,
                 'automountServiceAccountToken': False,  # disable service account inside pod
