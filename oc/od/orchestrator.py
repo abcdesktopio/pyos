@@ -216,9 +216,6 @@ class ODOrchestratorBase(object):
     def removedesktop(self, authinfo, userinfo, args={}):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
-    def get_auth_env_dict( self, authinfo, userinfo ):
-        raise NotImplementedError(f"{type(self)}.get_auth_env_dict")
-
     def getsecretuserinfo(self, authinfo, userinfo):
         raise NotImplementedError(f"{type(self)}.getsecretuserinfo")
 
@@ -630,9 +627,6 @@ class ODOrchestrator(ODOrchestratorBase):
 
     def execwaitincontainer( self, desktop, command, timeout=1000):
         raise NotImplementedError(f"{type(self)}.removedesktop")
-
-    def get_auth_env_dict( self, authinfo, userinfo  ):
-        return {}
 
     @staticmethod
     def applyappinstancerules_homedir( authinfo, rules ):
@@ -2290,25 +2284,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.error( f"ApiException: {e}" )
     
         return secret_dict
-
-    def get_auth_env_dict( self, authinfo:AuthInfo, userinfo:AuthUser )->dict:
-        """get_auth_env_dict
-
-        Args:
-            authinfo (AuthInfo): _description_
-            userinfo (AuthUser): _description_
-
-        Returns:
-            dict: return a dict without secret name, merge all data 
-        """
-        self.logger.debug('')
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
-        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type='auth')
-        raw_secrets = {}
-        for key in dict_secret.keys():
-            raw_secrets.update( dict_secret[key] )
-        return raw_secrets
 
 
     def filldictcontextvalue( self, authinfo:AuthInfo, userinfo:AuthUser, desktop:ODDesktop, network_config:str, network_name=None, appinstance_id=None ):
