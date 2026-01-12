@@ -746,6 +746,11 @@ class ODApps:
                 if self.thread_event.is_set():
                     break
 
+                # If the exception has no code, we cannot handle it
+                if hasattr(e, 'code') is False:
+                    self.thread_event.set()
+                    break 
+
                 # The $changeStream stage is only supported on replica sets
                 if e.code == 40573:
                     self.thread_event.set()
