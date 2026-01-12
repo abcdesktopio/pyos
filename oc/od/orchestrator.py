@@ -5958,12 +5958,14 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
 
         imagePullSecrets = self.orchestrator.giveme_an_imagePullSecrets()
+        runtimeClassName = oc.od.settings.desktop.pod.get('spec', {}).get('runtimeClassName')
 
         # update envlist
         # add EXECUTION CONTEXT env var inside the container
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RUNTIME',   'value': self.type} )
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RESOURCES', 'value': json.dumps(resources) } )
-
+        envlist.append( { 'name': 'ABCDESKTOP_RUNTIME_CLASSNAME', 'value': runtimeClassName } )
+        
         pod_manifest = {
             'apiVersion': 'v1',
             'kind': 'Pod',
@@ -5984,6 +5986,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'initContainers': initContainers,
                 'tolerations': oc.od.settings.desktop_pod.get('tolerations'),
                 'imagePullSecrets': imagePullSecrets,
+                'runtimeClassName': runtimeClassName,
                 'containers': [ {   
                     'imagePullPolicy': oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
                     'image': app['id'],
