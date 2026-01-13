@@ -761,6 +761,7 @@ class ODApps:
                     # it's time to die
                     self.thread_event.set()
                     break
+        self.logger.info("MongoDB Change Stream watcher thread exiting...")
 
     def start_mongo_watcher(self):
         if self.watcher_thread and self.watcher_thread.is_alive():
@@ -777,6 +778,8 @@ class ODApps:
 
     def stop_mongo_watcher(self):
         self.thread_event.set()
-        if self.watcher_thread:
-            self.watcher_thread.join()
+        if isinstance(self.watcher_thread, threading.Thread):
+            if self.watcher_thread.is_alive():
+                self.logger.debug("MongoDB watcher_thread.join()...")
+                self.watcher_thread.join()
         self.logger.info("MongoDB watcher stopped")
