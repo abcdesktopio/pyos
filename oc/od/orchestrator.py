@@ -2550,15 +2550,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return label_selector
 
-    def get_label_nodeselector( self )->str:
-        """get_label_nodeselector
-            convert a dict filter as string
-        Returns:
-            str: nodeselector str label filter
-        """
-        label_selector = self.labelfilter2str( oc.od.settings.desktop.get('nodeselector') )
-        return label_selector
-
     def alwaysgetPosixAccountUser(self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict :
         """alwaysgetPosixAccountUser
 
@@ -2849,8 +2840,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return a dict like { 
                 'nodeSelector':None, 
                 'resources':{
-                'requests':{'memory':"256Mi",'cpu':"100m"},
-                'limits':  {'memory':"1Gi",'cpu':"1000m"} 
+                    'requests':{'memory':"256Mi",'cpu':"100m"},
+                    'limits':  {'memory':"1Gi",'cpu':"1000m"}
+                },
+                'runtimeClassName' : None
             } 
 
 
@@ -2867,18 +2860,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         selectedexecuteclassname = executeclassname
         # if executeclassname is set, read it
         if isinstance( executeclassname, str ):
-            executeclass = oc.od.settings.executeclasses.get(executeclassname)
+            executeclass = oc.od.settings.executeclasses.get(executeclassname).copy()
         
         if not isinstance( executeclass, dict ):
             tagexecuteclassname = authinfo.get_labels().get('executeclassname','default')
             if isinstance( tagexecuteclassname, str ) and \
                isinstance( oc.od.settings.executeclasses.get(tagexecuteclassname), dict) :
                     selectedexecuteclassname = tagexecuteclassname
-                    executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname)
+                    executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname).copy()
 
         if isinstance( executeclass, dict ):
             if executeclass.get('nodeSelector') is None:
                 executeclass['nodeSelector'] = oc.od.settings.desktop.get('nodeselector')
+
+        # remove description key
+        if executeclass.get('description') is not None:
+            del executeclass['description']
 
         self.logger.debug(f"executeclass={executeclass}")
         return (selectedexecuteclassname, executeclass)
@@ -2891,10 +2888,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype_ressources = oc.od.settings.desktop_pod[currentcontainertype].get('resources')
         if isinstance( currentcontainertype_ressources, dict ):
             resources.update(currentcontainertype_ressources)
-
-        executeclass_ressources = executeclass.get('resources')
-        if isinstance( executeclass_ressources, dict ):
-            resources.update(executeclass_ressources)
  
         self.logger.debug(f"get_resources_for_container_type {currentcontainertype} return {resources}")
         return resources
@@ -3254,6 +3247,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
         env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
         env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
+        env[ 'ABCDESKTOP_RUNTIME_CLASSNAME' ] = executeclasse.get('runtimeClassName','')
         self.logger.debug('env created')
 
         # create labels for pod
@@ -3450,19 +3444,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list( pod_allvolumes.values() ),                    
-                'nodeSelector': executeclasse.get('nodeSelector'), 
                 'initContainers': initContainers,
                 'imagePullSecrets': imagePullSecrets,
                 'securityContext': specssecurityContext,
                 'tolerations': tolerations,
-                'containers': []
+                'containers': [],
+                **executeclasse
             }
         }
 
         # Add graphical servives 
         currentcontainertype='graphical'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            resources=executeclasse.get('resources') 
             graphical_container = self.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
@@ -3471,7 +3464,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 envlist=envlist,
                 workingdir=env['HOME'],
                 list_volumeMounts=list( graphical_volumeMounts.values() ),
-                resources=resources
             )
             # overwrite image value if a snapshoted image exists for this user
             if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True:
@@ -5419,16 +5411,6 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
     def get_CUPS_SERVER( self, desktop_ip_addr:str )->str:
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
-
-    def get_nodeSelector( self ):
-        """get_nodeSelector
-
-        Returns:
-            dict: dict of nodeSelector for self.type 
-
-        """
-        nodeSelector = oc.od.settings.desktop_pod.get(self.type, {}).get('nodeSelector',{})
-        return nodeSelector
     
     def describe( self, pod_name:str, app_name:str, apps:ODApps ):
         description = {}
@@ -5958,7 +5940,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
 
         imagePullSecrets = self.orchestrator.giveme_an_imagePullSecrets()
-        runtimeClassName = oc.od.settings.desktop.pod.get('spec', {}).get('runtimeClassName')
+        runtimeClassName = oc.od.settings.desktop.pod.get(self, {}).get('runtimeClassName')
 
         # update envlist
         # add EXECUTION CONTEXT env var inside the container
