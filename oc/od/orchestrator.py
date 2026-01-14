@@ -3179,6 +3179,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # get the execute class if user has a executeclassname tag
         executeclasse = self.get_executeclasse( authinfo, userinfo )
 
+        # get runtimeClassName
+        runtimeClassName = oc.od.settings.desktop_pod.get('spec',{}).get('runtimeClassName')
+        env['ABCDESKTOP_RUNTIME_CLASSNAME'] = runtimeClassName
+
         # add a new VNC Password as kubernetes secret
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
 
@@ -3217,6 +3221,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_LABEL_NAME + k.lower()
             env[ abcdesktopvarenvname ] = v
             labels[k] = v
+
         # add enabled services in env dict 
         for currentcontainertype in self.nameprefixdict.keys() :
             if self.isenablecontainerinpod( authinfo, currentcontainertype ):
@@ -3276,6 +3281,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         kwargs['shareProcessNamespace'] = shareProcessNamespace
         shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
         kwargs['shareProcessMemory'] = shareProcessMemory
+        
 
         # all volumes and secrets
         (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=['all'], rules=rules,  **kwargs)
@@ -3397,6 +3403,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'containers': []
             }
         }
+
+        if isinstance( runtimeClassName, str):
+            pod_manifest['spec']['runtimeClassName'] = runtimeClassName
 
         # Add graphical servives 
         currentcontainertype='graphical'
