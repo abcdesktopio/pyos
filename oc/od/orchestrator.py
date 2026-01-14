@@ -3181,7 +3181,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # get runtimeClassName
         runtimeClassName = oc.od.settings.desktop_pod.get('spec',{}).get('runtimeClassName')
-        env['ABCDESKTOP_RUNTIME_CLASSNAME'] = runtimeClassName
 
         # add a new VNC Password as kubernetes secret
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
@@ -3198,6 +3197,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'USERNAME' ] = userinfo.userid     # add USERNAME 
         env[ 'LOCALACCOUNT_PATH'] = oc.od.settings.desktop['secretslocalaccount']
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
+        env[ 'ABCDESKTOP_RUNTIME_CLASSNAME' ] = runtimeClassName
         self.logger.debug('env created')
 
         # create labels for pod
