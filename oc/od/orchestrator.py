@@ -2834,6 +2834,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             ownerReferences.append( ownerReference )
         return ownerReferences   
 
+    def get_executeclasse_for_pod_spec( self, executeclass:dict )->dict:
+        if not isinstance( executeclass, dict ):
+            return executeclass
+
+        # remove description key
+        if executeclass.get('description') is not None:
+            del executeclass['description']
+
+        # remove containers key
+        if executeclass.get('containers') is not None: 
+            del executeclass['containers']
+        
+        return executeclass
+        
+        
     def get_executeclasse( self, authinfo:AuthInfo, userinfo:AuthUser, executeclassname:str=None)->dict:
         """get_executeclasse
 
@@ -2873,22 +2888,30 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if executeclass.get('nodeSelector') is None:
                 executeclass['nodeSelector'] = oc.od.settings.desktop.get('nodeselector')
 
-        # remove description key
-        if executeclass.get('description') is not None:
-            del executeclass['description']
-
         self.logger.debug(f"executeclass={executeclass}")
         return (selectedexecuteclassname, executeclass)
     
 
 
     def get_resources_for_container_type( self, currentcontainertype:str, executeclass:dict )->dict:
+        """get_resources_for_container_type
+            return the resources dict for a container type from executeclass and desktop settings
+        Args:
+            currentcontainertype (str): type of container
+            executeclass (dict): executeclass dict
+        Returns:
+            dict: resources dict
+        """
         self.logger.debug('')
-        resources = {} # resource is a always a dict 
+        # rescources is always a dict 
+        resources = {}
+        # read desktop settings resources from executeclass
+        if isinstance( executeclass, dict ):
+            resources = executeclass.get('containers',{}).get(currentcontainertype,{}).get('resources',{})
+        # read desktop settings resources
         currentcontainertype_ressources = oc.od.settings.desktop_pod[currentcontainertype].get('resources')
         if isinstance( currentcontainertype_ressources, dict ):
             resources.update(currentcontainertype_ressources)
- 
         self.logger.debug(f"get_resources_for_container_type {currentcontainertype} return {resources}")
         return resources
 
@@ -2982,14 +3005,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         rewrited_image = f"{registry}/{repository}/{image_name_no_tag}:{tag}"
         return rewrited_image
 
-    def addcontainertopod( self, authinfo:AuthInfo, userinfo:AuthUser, currentcontainertype:str, myuuid:str, envlist:list, list_volumeMounts:list, workingdir:str=None, command:str=None, resources:dict=None ):
+    def addcontainertopod( self, authinfo:AuthInfo, userinfo:AuthUser, currentcontainertype:str, myuuid:str, envlist:list, list_volumeMounts:list, workingdir:str=None, command:str=None, executeclass:dict={} )->dict:
         assert_type( authinfo, AuthInfo)
         assert_type( userinfo, AuthUser)
         assert_type( currentcontainertype, str)
         assert_type( myuuid, str)
         assert_type( list_volumeMounts, list )
 
-        container_resources = resources or oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('resources')
+        container_resources = self.get_resources_for_container_type( currentcontainertype, executeclass )
 
         self.logger.debug( f"pod container adding {currentcontainertype} to {myuuid}" )
         securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
@@ -3228,6 +3251,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # get the execute class if user has a executeclassname tag
         (executeclassname, executeclasse) = self.get_executeclasse( authinfo, userinfo )
+        executeclasse_for_pod_spec = self.get_executeclasse_for_pod_spec( executeclasse )
 
         # add a new VNC Password as kubernetes secret
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
@@ -3449,7 +3473,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'securityContext': specssecurityContext,
                 'tolerations': tolerations,
                 'containers': [],
-                **executeclasse
+                **executeclasse_for_pod_spec
             }
         }
 
@@ -3464,6 +3488,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 envlist=envlist,
                 workingdir=env['HOME'],
                 list_volumeMounts=list( graphical_volumeMounts.values() ),
+                executeclass=executeclasse
             )
             # overwrite image value if a snapshoted image exists for this user
             if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True:
@@ -5147,7 +5172,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # Ephemeral container not added to pod #1859
         # https://github.com/kubernetes-client/python/issues/1859
         #
-        image_pull_policy = oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent')
+        image_pull_policy = oc.od.settings.desktop_pod[self.type].get('imagePullPolicy')
         ephemeralcontainer = V1EphemeralContainer(  
             name=app_container_name,
             security_context=securitycontext,
@@ -5940,7 +5965,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
 
         imagePullSecrets = self.orchestrator.giveme_an_imagePullSecrets()
-        runtimeClassName = oc.od.settings.desktop.pod.get(self, {}).get('runtimeClassName')
+        runtimeClassName = app.get('runtimeClassName') or oc.od.settings.desktop_pod.get(self.type, {}).get('runtimeClassName')
 
         # update envlist
         # add EXECUTION CONTEXT env var inside the container
