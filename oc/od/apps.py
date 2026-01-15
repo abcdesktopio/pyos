@@ -43,7 +43,8 @@ class ODApps:
             'keyword',      'uniquerunkey',     'cat',          'args',         'execmode',
             'showinview',   'displayname',      'mimetype',     'path',         'desktopfile',
             'sha_id',       'created',          'executablefilename',           'os',     
-            'secrets_requirement', 'architecture', 'wm_class',   'fileextensions', 'legacyfileextensions']
+            'secrets_requirement',  'architecture',             'wm_class', 
+            'fileextensions',       'legacyfileextensions',     'runtimeClassName' ]
         
         # define private attributs keep
         self.private_attr_list  = [ 'acl',  'rules', 'securityContext' ]
@@ -491,7 +492,8 @@ class ODApps:
                 'showinview':   labels.get('oc.showinview'),
                 'displayname':  labels.get('oc.displayname', name),
                 'desktopfile':  desktopfile,
-                'executeclassname':     labels.get('oc.executeclassname'),
+                'executeclassname':    labels.get('oc.executeclassname'),
+                'runtimeClassName':    labels.get('oc.runtimeClassName'),
                 'executablefilename':   executablefilename,
                 'usedefaultapplication': usedefaultapplication,
                 'mimetype':             self.labeltoList( labels.get('oc.mimetype') ),
@@ -721,10 +723,13 @@ class ODApps:
         while self.thread_event.is_set() is False:
             try:
                 with collection.watch(full_document='updateLookup') as stream:
-                    for change in stream:
-                        if self.thread_event.is_set():
-                            break
+                    if self.thread_event.is_set():
+                        break
 
+                    for change in stream:
+                        if not( isinstance(change, dict) ):
+                            continue
+                        
                         op = change["operationType"]
                         full_doc = change.get("fullDocument")
 
@@ -744,27 +749,33 @@ class ODApps:
                 self.logger.error(f"Change Stream Error: {e}")
                 
                 if self.thread_event.is_set():
-                    break
+                    self.logger.info("MongoDB Change Stream watcher thread exited.")
+                    return
+       
 
                 # If the exception has no code, we cannot handle it
                 if hasattr(e, 'code') is False:
                     self.thread_event.set()
-                    break 
+                    self.logger.info("MongoDB Change Stream watcher thread exited.")
+                    return 
 
                 # The $changeStream stage is only supported on replica sets
                 if e.code == 40573:
                     self.thread_event.set()
-                    break
+                    self.logger.info("MongoDB Change Stream watcher thread exited.")
+                    return
 
                 if e.code == 18 :
                     # Authentication failed
                     # it's time to die
                     self.thread_event.set()
-                    break
-        self.logger.info("MongoDB Change Stream watcher thread exiting...")
+                    self.logger.info("MongoDB Change Stream watcher thread exited.")
+                    return 
+                
+        self.logger.info("MongoDB Change Stream watcher thread exited.")
 
     def start_mongo_watcher(self):
-        if self.watcher_thread and self.watcher_thread.is_alive():
+        if isinstance(self.watcher_thread, threading.Thread) and self.watcher_thread.is_alive():
             return
 
         self.thread_event.clear()
@@ -782,4 +793,8 @@ class ODApps:
             if self.watcher_thread.is_alive():
                 self.logger.debug("MongoDB watcher_thread.join()...")
                 self.watcher_thread.join()
+            else:
+                self.logger.debug("MongoDB watcher_thread is not alive.")
+        else:
+            self.logger.debug("MongoDB watcher_thread is not a thread.")
         self.logger.info("MongoDB watcher stopped")
