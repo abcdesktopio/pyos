@@ -216,9 +216,6 @@ class ODOrchestratorBase(object):
     def removedesktop(self, authinfo, userinfo, args={}):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
-    def get_auth_env_dict( self, authinfo, userinfo ):
-        raise NotImplementedError(f"{type(self)}.get_auth_env_dict")
-
     def getsecretuserinfo(self, authinfo, userinfo):
         raise NotImplementedError(f"{type(self)}.getsecretuserinfo")
 
@@ -339,14 +336,10 @@ class ODOrchestratorBase(object):
         while nCount < nCountMax:
             for service in services: 
                 if not bServiceStatus[service] :
-                    callback_notify( f"c.Waiting desktop service {service} " )
+                    callback_notify( f"c.Waiting desktop service {service}" )
                     bServiceStatus[service] = self.waitForServiceReady( desktop, service_name=service )
                     if bServiceStatus[service] is True:
                         nServiceCount += 1
-                    # else:
-                    #    sleepfor = 1/len(services)
-                    #    time.sleep( sleepfor )
-                    # callback_notify( f"c.Waiting for desktop service {service} {nServiceCount}/{len(services)}" )
             nCount += 1
             if all( bServiceStatus.values() ):
                 self.logger.debug( f"desktop services {services} are ready" )  
@@ -354,7 +347,7 @@ class ODOrchestratorBase(object):
                 break
         
         #
-        # wait for service status ready
+        # wait for proces status ready
         nProcessCount = 1
         nCount = 0
         while nCount < nCountMax:
@@ -634,9 +627,6 @@ class ODOrchestrator(ODOrchestratorBase):
 
     def execwaitincontainer( self, desktop, command, timeout=1000):
         raise NotImplementedError(f"{type(self)}.removedesktop")
-
-    def get_auth_env_dict( self, authinfo, userinfo  ):
-        return {}
 
     @staticmethod
     def applyappinstancerules_homedir( authinfo, rules ):
@@ -1421,14 +1411,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             localaccount_name = list( mysecretdict.keys() )[0] # should be only one, get the first one
         return localaccount_name
 
-    """
-    def build_volumes_extrausers( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
-        self.logger.debug('')
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
-        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        volumes = {}        # set empty volume dict by default
-        volumes_mount = {}  # set empty volume_mount dict by default
-    """
 
     def build_volumes_localaccount( self, authinfo:AuthInfo, userinfo:AuthUser ):
         self.logger.debug('')
@@ -1537,14 +1519,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         - /etc/gshadow -> /etc/localaccount.shadow/gshadow
         '''
 
-    def build_volumes_snapshot( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
+    def build_volumes_snapshot( self ):
         """[build_volumes_snapshot]
         """
         self.logger.debug('')
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
-        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-
-        # snapshot_volume_name = self.get_volumename( 'snapshot', userinfo )
+        
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
         snapshot_volume_name = 'snapshot'
@@ -1596,12 +1575,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # volume shared between all container inside the desktop pod
         #
         if volume_type == 'pod_desktop':
-            # add socket service 
-            # add tmp run log to support readonly filesystem
-            # add dbus 'rundbus', 'runuser' 
             for vol_name in oc.od.settings.desktop_pod.get('graphical', {}).get('volumes', []):
                 volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
-                volumes_mount[vol_name] =  oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
+                volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
 
         if volume_type == 'ephemeral_container':
             for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
@@ -1612,6 +1588,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
                 volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
                 volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
+
 
         #
         # mount vnc secret in /var/secrets/abcdesktop
@@ -1630,7 +1607,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.build_volumes_secrets(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
         volumes.update(secret_volumes)
         volumes_mount.update(secret_volumes_mount)
-
 
         #
         # mount voulumes from rules
@@ -2309,25 +2285,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     
         return secret_dict
 
-    def get_auth_env_dict( self, authinfo:AuthInfo, userinfo:AuthUser )->dict:
-        """get_auth_env_dict
-
-        Args:
-            authinfo (AuthInfo): _description_
-            userinfo (AuthUser): _description_
-
-        Returns:
-            dict: return a dict without secret name, merge all data 
-        """
-        self.logger.debug('')
-        assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
-        assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type='auth')
-        raw_secrets = {}
-        for key in dict_secret.keys():
-            raw_secrets.update( dict_secret[key] )
-        return raw_secrets
-
 
     def filldictcontextvalue( self, authinfo:AuthInfo, userinfo:AuthUser, desktop:ODDesktop, network_config:str, network_name=None, appinstance_id=None ):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -2591,15 +2548,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         elif isinstance(labelfilter, str ):
             label_selector = labelfilter
 
-        return label_selector
-
-    def get_label_nodeselector( self )->str:
-        """get_label_nodeselector
-            convert a dict filter as string
-        Returns:
-            str: nodeselector str label filter
-        """
-        label_selector = self.labelfilter2str( oc.od.settings.desktop.get('nodeselector') )
         return label_selector
 
     def alwaysgetPosixAccountUser(self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict :
@@ -2886,14 +2834,32 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             ownerReferences.append( ownerReference )
         return ownerReferences   
 
+    def get_executeclasse_for_pod_spec( self, executeclass:dict )->dict:
+        if not isinstance( executeclass, dict ):
+            return executeclass
+
+        executeclasse_for_pod_spec = executeclass.copy()
+        # remove description key
+        if executeclasse_for_pod_spec.get('description') is not None:
+            del executeclasse_for_pod_spec['description']
+
+        # remove containers key
+        if executeclasse_for_pod_spec.get('containers') is not None: 
+            del executeclasse_for_pod_spec['containers']
+        
+        return executeclasse_for_pod_spec
+        
+        
     def get_executeclasse( self, authinfo:AuthInfo, userinfo:AuthUser, executeclassname:str=None)->dict:
         """get_executeclasse
 
             return a dict like { 
                 'nodeSelector':None, 
                 'resources':{
-                'requests':{'memory':"256Mi",'cpu':"100m"},
-                'limits':  {'memory':"1Gi",'cpu':"1000m"} 
+                    'requests':{'memory':"256Mi",'cpu':"100m"},
+                    'limits':  {'memory':"1Gi",'cpu':"1000m"}
+                },
+                'runtimeClassName' : None
             } 
 
 
@@ -2910,14 +2876,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         selectedexecuteclassname = executeclassname
         # if executeclassname is set, read it
         if isinstance( executeclassname, str ):
-            executeclass = oc.od.settings.executeclasses.get(executeclassname)
+            executeclass = oc.od.settings.executeclasses.get(executeclassname).copy()
         
         if not isinstance( executeclass, dict ):
             tagexecuteclassname = authinfo.get_labels().get('executeclassname','default')
             if isinstance( tagexecuteclassname, str ) and \
                isinstance( oc.od.settings.executeclasses.get(tagexecuteclassname), dict) :
                     selectedexecuteclassname = tagexecuteclassname
-                    executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname)
+                    executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname).copy()
 
         if isinstance( executeclass, dict ):
             if executeclass.get('nodeSelector') is None:
@@ -2929,16 +2895,24 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
     def get_resources_for_container_type( self, currentcontainertype:str, executeclass:dict )->dict:
-        self.logger.debug('')
-        resources = {} # resource is a always a dict 
+        """get_resources_for_container_type
+            return the resources dict for a container type from executeclass and desktop settings
+        Args:
+            currentcontainertype (str): type of container
+            executeclass (dict): executeclass dict
+        Returns:
+            dict: resources dict
+        """
+        self.logger.debug(locals())
+        # rescources is always a dict 
+        resources = {}
+        # read desktop settings resources from executeclass
+        if isinstance( executeclass, dict ):
+            resources = executeclass.get('containers',{}).get(currentcontainertype,{}).get('resources',{})
+        # read desktop settings resources
         currentcontainertype_ressources = oc.od.settings.desktop_pod[currentcontainertype].get('resources')
         if isinstance( currentcontainertype_ressources, dict ):
             resources.update(currentcontainertype_ressources)
-
-        executeclass_ressources = executeclass.get('resources')
-        if isinstance( executeclass_ressources, dict ):
-            resources.update(executeclass_ressources)
- 
         self.logger.debug(f"get_resources_for_container_type {currentcontainertype} return {resources}")
         return resources
 
@@ -3032,14 +3006,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         rewrited_image = f"{registry}/{repository}/{image_name_no_tag}:{tag}"
         return rewrited_image
 
-    def addcontainertopod( self, authinfo:AuthInfo, userinfo:AuthUser, currentcontainertype:str, myuuid:str, envlist:list, list_volumeMounts:list, workingdir:str=None, command:str=None, resources:dict=None ):
+    def addcontainertopod( self, authinfo:AuthInfo, userinfo:AuthUser, currentcontainertype:str, myuuid:str, envlist:list, list_volumeMounts:list, workingdir:str=None, command:str=None, executeclass:dict={} )->dict:
         assert_type( authinfo, AuthInfo)
         assert_type( userinfo, AuthUser)
         assert_type( currentcontainertype, str)
         assert_type( myuuid, str)
         assert_type( list_volumeMounts, list )
 
-        container_resources = resources or oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('resources')
+        container_resources = self.get_resources_for_container_type( currentcontainertype, executeclass )
 
         self.logger.debug( f"pod container adding {currentcontainertype} to {myuuid}" )
         securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
@@ -3278,13 +3252,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # get the execute class if user has a executeclassname tag
         (executeclassname, executeclasse) = self.get_executeclasse( authinfo, userinfo )
+        executeclasse_for_pod_spec = self.get_executeclasse_for_pod_spec( executeclasse )
+        self.logger.debug(f"executeclassname={executeclassname} executeclasse_for_pod_spec={executeclasse_for_pod_spec}")
 
         # add a new VNC Password as kubernetes secret
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
 
+        # get posix account user
+        posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+
         # create ENV var for pod 
         self.logger.debug('env creating')
-        posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
         env[ 'XAUTH_KEY' ] = self.generate_xauthkey() # generate XAUTH_KEY
         env[ 'PULSEAUDIO_COOKIE' ] = self.generate_pulseaudiocookie()   # generate PULSEAUDIO cookie
         env[ 'BROADCAST_COOKIE' ] = self.generate_broadcastcookie()     # generate BROADCAST cookie 
@@ -3295,6 +3273,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
         env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
         env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
+        env[ 'ABCDESKTOP_RUNTIME_CLASSNAME' ] = executeclasse.get('runtimeClassName','')
         self.logger.debug('env created')
 
         # create labels for pod
@@ -3309,7 +3288,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'netpol/ocuser': 'true',
             'xauthkey': env[ 'XAUTH_KEY' ], 
             'pulseaudio_cookie': env[ 'PULSEAUDIO_COOKIE' ],
-            'broadcast_cookie': env[ 'BROADCAST_COOKIE' ]
+            'broadcast_cookie': env[ 'BROADCAST_COOKIE' ],
+            'type': self.x11servertype
         }
         # add authinfo labels and env 
         # could also use downward-api https://kubernetes.io/docs/concepts/workloads/pods/downward-api/
@@ -3322,20 +3302,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_SERVICE_NAME + currentcontainertype
                 env[ abcdesktopvarenvname ] = 'enabled'
-        # create a desktop
-        # set value as default type x11servertype
-        labels['type'] = self.x11servertype
-        kwargs['type'] = self.x11servertype
         self.logger.debug('labels created')
 
         # create pod name
         # pod uuid suffix
         myuuid = oc.lib.uuid_digits()
         pod_name = self.get_podname( authinfo, userinfo, myuuid ) 
-        self.logger.debug( f"pod name is {pod_name}" )
 
         self.logger.debug('envlist creating')
-        posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
         # replace  'UID' : '{{ uidNumber }}' by value 
         # expanded chevron value to the user value
         ODOrchestratorKubernetes.expandchevron_envdict( env, posixuser )
@@ -3362,31 +3336,22 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # new step
         # self.on_desktoplaunchprogress('b.Building data storage for your desktop')
-        self.on_desktoplaunchprogress('b.Searching for disks')
+        self.on_desktoplaunchprogress('b.Searching for storage volumes')
 
         # get secrets_requirement for 'graphical'
         currentcontainertype = 'graphical'
-        secrets_requirement = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('secrets_requirement')
-        self.logger.debug(f"secrets_requirement={secrets_requirement} for currentcontainertype={currentcontainertype}")
-
+        graphical_secrets_requirement = oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('secrets_requirement')     
         # ownerReferences = self.get_ownerReferences(mysecretdict)
 
         self.logger.debug('volumes creating')
         shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
         tolerations = oc.od.settings.desktop_pod.get('spec',{}).get('tolerations')
-        kwargs['shareProcessNamespace'] = shareProcessNamespace
-        shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
-        kwargs['shareProcessMemory'] = shareProcessMemory
 
         # all volumes and secrets
         (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=['all'], rules=rules,  **kwargs)
-        list_pod_allvolumeMounts = list( pod_allvolumeMounts.values() )
 
         # graphical volumes
-        (volumes, volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=secrets_requirement, rules=rules,  **kwargs)
-        list_volumeMounts = list( volumeMounts.values() )
-        self.logger.debug( f"volumes={volumes.values()}" )
-        self.logger.debug( f"volumeMounts={volumeMounts.values()}")
+        ( _, graphical_volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=graphical_secrets_requirement, rules=rules,  **kwargs)
         self.logger.debug('volumes created')
 
         # snapshot volumes
@@ -3394,9 +3359,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         snapshot_volumes = None
         snapshot_volumes_mount = None
         if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable', False) is True:
-            # add snapshot volumes
-            (snapshot_volumes, snapshot_volumes_mount) = \
-                self.build_volumes_snapshot(authinfo, userinfo, 'snapshot', secrets_requirement, rules, **kwargs)
+            (snapshot_volumes, snapshot_volumes_mount) = self.build_volumes_snapshot()  # add snapshot volumes
 
 
         self.logger.debug('websocketrouting creating')
@@ -3417,9 +3380,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 type( external_dnsconfig.get( 'hostname' )) is str :
                 websocketrouting = fillednetworkconfig.get( 'websocketrouting' )
                 websocketroute = external_dnsconfig.get( 'hostname' ) + '.' + external_dnsconfig.get( 'domain' )
-                envlist.append( { 'name': 'USE_CERTBOT_CERTONLY',        'value': 'enabled' } )
-                envlist.append( { 'name': 'EXTERNAL_DESKTOP_HOSTNAME',   'value': external_dnsconfig.get( 'hostname' ) } )
-                envlist.append( { 'name': 'EXTERNAL_DESKTOP_DOMAIN',     'value': external_dnsconfig.get( 'domain' ) } )
+                envlist.append( { 'name': 'USE_CERTBOT_CERTONLY', 'value': 'enabled' } )
+                envlist.append( { 'name': 'EXTERNAL_DESKTOP_HOSTNAME', 'value': external_dnsconfig.get( 'hostname' ) } )
+                envlist.append( { 'name': 'EXTERNAL_DESKTOP_DOMAIN', 'value': external_dnsconfig.get( 'domain' ) } )
 
                 labels['websocketrouting']  = websocketrouting
                 labels['websocketroute']    = websocketroute
@@ -3507,19 +3470,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list( pod_allvolumes.values() ),                    
-                'nodeSelector': executeclasse.get('nodeSelector'), 
                 'initContainers': initContainers,
                 'imagePullSecrets': imagePullSecrets,
                 'securityContext': specssecurityContext,
                 'tolerations': tolerations,
-                'containers': []
+                'containers': [],
+                **executeclasse_for_pod_spec
             }
         }
 
         # Add graphical servives 
         currentcontainertype='graphical'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-            resources=executeclasse.get('resources') 
+            self.logger.debug( f"adding graphical container to pod {pod_name} with executeclasse={executeclasse}" )
             graphical_container = self.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
@@ -3527,8 +3490,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 myuuid=myuuid,
                 envlist=envlist,
                 workingdir=env['HOME'],
-                list_volumeMounts=list_volumeMounts,
-                resources=resources
+                list_volumeMounts=list( graphical_volumeMounts.values() ),
+                executeclass=executeclasse
             )
             # overwrite image value if a snapshoted image exists for this user
             if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True:
@@ -3545,8 +3508,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
         localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
-        # localaccount_volume_name = self.get_volumename( 'localaccount', userinfo )
-
         assert isinstance(localaccount_volume_name, str),  f"localaccount secret volume is not found"
         
         containers_list = [ 'printer', 'sound', 'ssh', 'filer' ]
@@ -3565,6 +3526,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 pod_manifest['spec']['containers'].append( new_container )
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
 
+        """ 
+        storage
         currentcontainertype = 'storage'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 new_container = self.addcontainertopod( 
@@ -3577,6 +3540,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 )
                 pod_manifest['spec']['containers'].append( new_container )
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
+        """
 
         # add snapshot container if enabled
         # snasphot is a special container
@@ -5152,14 +5116,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type  {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
 
-        #
-        # shareProcessNamespace and shareProcessMemory do not exist for EphemeralContainer
-        #
-        # self.logger.debug("create {self.type} getting shareProcessNamespace and shareProcessMemory options from desktop config")
-        # shareProcessNamespace = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessNamespace', False)
-        # shareProcessMemory = oc.od.settings.desktop_pod.get('spec',{}).get('shareProcessMemory', False)
-        # self.logger.debug(f"shareProcessNamespace={shareProcessNamespace} shareProcessMemory={shareProcessMemory}")
-
         app_container_name = self.orchestrator.get_normalized_username(userinfo.get('name', 'name')) + \
                             '-' + app['name'] + '-' + oc.lib.uuid_digits()
         self.logger.debug( f"app_container_name={app_container_name}" )
@@ -5219,7 +5175,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # Ephemeral container not added to pod #1859
         # https://github.com/kubernetes-client/python/issues/1859
         #
-        image_pull_policy = oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent')
+        image_pull_policy = oc.od.settings.desktop_pod[self.type].get('imagePullPolicy')
         ephemeralcontainer = V1EphemeralContainer(  
             name=app_container_name,
             security_context=securitycontext,
@@ -5483,16 +5439,6 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
     def get_CUPS_SERVER( self, desktop_ip_addr:str )->str:
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
-
-    def get_nodeSelector( self ):
-        """get_nodeSelector
-
-        Returns:
-            dict: dict of nodeSelector for self.type 
-
-        """
-        nodeSelector = oc.od.settings.desktop_pod.get(self.type, {}).get('nodeSelector',{})
-        return nodeSelector
     
     def describe( self, pod_name:str, app_name:str, apps:ODApps ):
         description = {}
@@ -6022,12 +5968,14 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
 
         imagePullSecrets = self.orchestrator.giveme_an_imagePullSecrets()
+        runtimeClassName = app.get('runtimeClassName') or oc.od.settings.desktop_pod.get(self.type, {}).get('runtimeClassName')
 
         # update envlist
         # add EXECUTION CONTEXT env var inside the container
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RUNTIME',   'value': self.type} )
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RESOURCES', 'value': json.dumps(resources) } )
-
+        envlist.append( { 'name': 'ABCDESKTOP_RUNTIME_CLASSNAME', 'value': runtimeClassName } )
+        
         pod_manifest = {
             'apiVersion': 'v1',
             'kind': 'Pod',
@@ -6048,6 +5996,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 'initContainers': initContainers,
                 'tolerations': oc.od.settings.desktop_pod.get('tolerations'),
                 'imagePullSecrets': imagePullSecrets,
+                'runtimeClassName': runtimeClassName,
                 'containers': [ {   
                     'imagePullPolicy': oc.od.settings.desktop_pod[self.type].get('imagePullPolicy','IfNotPresent'),
                     'image': app['id'],
