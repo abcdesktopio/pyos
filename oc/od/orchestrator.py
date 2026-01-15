@@ -2838,15 +2838,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if not isinstance( executeclass, dict ):
             return executeclass
 
+        executeclasse_for_pod_spec = executeclass.copy()
         # remove description key
-        if executeclass.get('description') is not None:
-            del executeclass['description']
+        if executeclasse_for_pod_spec.get('description') is not None:
+            del executeclasse_for_pod_spec['description']
 
         # remove containers key
-        if executeclass.get('containers') is not None: 
-            del executeclass['containers']
+        if executeclasse_for_pod_spec.get('containers') is not None: 
+            del executeclasse_for_pod_spec['containers']
         
-        return executeclass
+        return executeclasse_for_pod_spec
         
         
     def get_executeclasse( self, authinfo:AuthInfo, userinfo:AuthUser, executeclassname:str=None)->dict:
@@ -2902,7 +2903,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             dict: resources dict
         """
-        self.logger.debug('')
+        self.logger.debug(locals())
         # rescources is always a dict 
         resources = {}
         # read desktop settings resources from executeclass
@@ -3252,6 +3253,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # get the execute class if user has a executeclassname tag
         (executeclassname, executeclasse) = self.get_executeclasse( authinfo, userinfo )
         executeclasse_for_pod_spec = self.get_executeclasse_for_pod_spec( executeclasse )
+        self.logger.debug(f"executeclassname={executeclassname} executeclasse_for_pod_spec={executeclasse_for_pod_spec}")
 
         # add a new VNC Password as kubernetes secret
         self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
@@ -3480,6 +3482,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # Add graphical servives 
         currentcontainertype='graphical'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
+            self.logger.debug( f"adding graphical container to pod {pod_name} with executeclasse={executeclasse}" )
             graphical_container = self.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
