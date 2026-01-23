@@ -1059,6 +1059,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 volume_name = self.get_volumename( mountvol.name, userinfo )
                 self.logger.debug( f"selected volume fstype:{fstype} volumes name:{volume_name}")
 
+                if fstype=='hostpath':
+                    volumes_mount[mountvol.name] = {
+                        'name': volume_name, 
+                        'mountPath': mountvol.mountPath,
+                        'readOnly': mountvol.readOnly
+                    }
+                    volumes[mountvol.name] = {  
+                        'name': volume_name,
+                        'hostPath' : {
+                            'path': mountvol.path,
+                            'type': mountvol.hostPathType
+                        }
+                    }
+                    continue
+
                 if fstype=='nfs':
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 

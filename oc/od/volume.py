@@ -67,18 +67,24 @@ def getODVolumebyRules( authinfo, userinfo, rule ):
         vol         = ODVolumeActiveDirectoryWebDav( authinfo, userinfo, entry, url )
 
     if rule.get('type') == 'nfs' :
-        name          = rule.get('name')
-        server        = rule.get('server')
-        path          = rule.get('path')
-        readOnly      = rule.get('readOnly')
-        mountPath     = rule.get('mountPath')
-        vol           = ODVolumeNFS( name, server=server, path=path, mountPath=mountPath, readOnly=readOnly)
+        vol           = ODVolumeNFS( name=rule.get('name'),
+                                     server=rule.get('server'),
+                                     path=rule.get('path'),
+                                     mountPath=rule.get('mountPath'),
+                                     readOnly=rule.get('readOnly'))
 
     if rule.get('type') == 'pvc'  :
-        name          = rule.get('name')
-        claimName     = rule.get('claimName')
-        mountPath     = rule.get('mountPath')
-        vol           = ODVolumePersistentVolumeClaim( name=name, mountPath=mountPath, claimName=claimName)
+        vol = ODVolumePersistentVolumeClaim( name=rule.get('name'), 
+                                             mountPath=rule.get('mountPath'), 
+                                             claimName=rule.get('claimName'))
+
+    if rule.get('type') == 'hostPath' :
+        vol = ODVolumeHostPath( name=rule.get('name'),
+                                path=rule.get('path'),
+                                mountPath=rule.get('mountPath'), 
+                                hostPathType=rule.get('hostPathType','DirectoryOrCreate'),
+                                readOnly=rule.get('readOnly',False) )
+
 
     return vol
 
@@ -149,14 +155,19 @@ class ODVolumeBase(object):
 
 
 @oc.logging.with_logger()
-class ODVolumeHostPath(ODVolumeBase):    
-    def __init__(self ):        
-        super().__init__()                       
-        self._type          = 'HostPath'    
-        self._name          = 'hostpath'    
-          
+class ODVolumeHostPath(ODVolumeBase):
+    def __init__(self, name:str, mountPath:str, path:str, hostPathType:str='DirectoryOrCreate', readOnly:bool=False ):
+        super().__init__()
+        self._fstype = 'hostpath'
+        self._type = 'hostpath'
+        self._name = 'hostpath-' + name
+        self.path = path
+        self.hostPathType = hostPathType
+        self.mountPath = mountPath
+        self.readOnly = readOnly
+
     def is_mountable(self):
-        raise NotImplementedError( f"{type(self)}.is_mountable" )
+         return all( [self.path, self.mountPath] )
 
 
 @oc.logging.with_logger()
@@ -168,6 +179,7 @@ class ODVolumePersistentVolumeClaim(ODVolumeBase):
         self._name = 'pvc-' + name
         self.mountPath = mountPath 
         self.claimName = claimName
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
 
     def is_mountable(self):
          return all( [self.claimName, self.mountPath] )
@@ -177,19 +189,20 @@ class ODVolumePersistentVolumeClaim(ODVolumeBase):
 class ODVolumeNFS(ODVolumeBase):    
     def __init__(self, name, server, path, mountPath, readOnly=True ):        
         super().__init__()      
-        self._fstype        = 'nfs'                 
-        self._type          = 'nfs'    
-        self._name          = 'nfs-' + name
-        self.server= server
-        self.path    = path
-        self.mountPath   = mountPath 
-        self.readOnly   = readOnly
+        self._fstype = 'nfs'                 
+        self._type = 'nfs'    
+        self._name = 'nfs-' + name
+        self.server = server
+        self.path = path
+        self.mountPath = mountPath 
+        self.readOnly = readOnly
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
           
     def is_mountable(self):
          return all( [self.server, self.path, self.mountPath ] )
 
 @oc.logging.with_logger()
-class ODVolumeActiveDirectory(ODVolumeHostPath):    
+class ODVolumeActiveDirectory(ODVolumeBase):
     def __init__(self, authinfo, userinfo, name):    
         super().__init__()
         ''' authinfo.claims:
@@ -206,18 +219,19 @@ class ODVolumeActiveDirectory(ODVolumeHostPath):
             'userid':'alex'
         '''
         # add homedir for Active Directory                
-        self._name                  = 'activedirectory-' + name    
-        self.sAMAccountName         = userinfo.get('sAMAccountName')
-        self.domainlogin            = self.sAMAccountName
-        self.domainpassword         = None
-        self.domain                 = authinfo.data.get('domain')
+        self._name = 'activedirectory-' + name
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
+        self.sAMAccountName = userinfo.get('sAMAccountName')
+        self.domainlogin = self.sAMAccountName
+        self.domainpassword = None
+        self.domain = authinfo.data.get('domain')
         
         # if claim is defined
         if type(authinfo.get('claims')) is dict:
-            self.domainpassword         = authinfo.claims.get('password')
+            self.domainpassword = authinfo.claims.get('password')
         
-        self.mountOptions           = None
-        self._containertarget       = None
+        self.mountOptions = None
+        self._containertarget = None
         
 
     @property
@@ -236,6 +250,7 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
         self._fstype = 'cifs'
         self._type = 'flexvol'
         self._name = f"{self._type}-{self._fstype}-{name}"
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
         self.homeDrive = homeDrive
         self.networkPath = networkPath
         self.mountOptions = mountOptions
@@ -266,6 +281,7 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
         self._fstype = 'webdav'
         self._type = 'flexvol'
         self._name = f"{self._type}-{self._fstype}-{name}"
+        self._name = self._name.lower()  # Kubernetes volume name must be lowercase
         self.networkPath = url
         self._containertarget = os.path.join( authinfo.get_localaccount().get['homeDirectory'], entry )
         self.mountOptions = mountOptions
