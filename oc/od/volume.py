@@ -67,18 +67,24 @@ def getODVolumebyRules( authinfo, userinfo, rule ):
         vol         = ODVolumeActiveDirectoryWebDav( authinfo, userinfo, entry, url )
 
     if rule.get('type') == 'nfs' :
-        name          = rule.get('name')
-        server        = rule.get('server')
-        path          = rule.get('path')
-        readOnly      = rule.get('readOnly')
-        mountPath     = rule.get('mountPath')
-        vol           = ODVolumeNFS( name, server=server, path=path, mountPath=mountPath, readOnly=readOnly)
+        vol           = ODVolumeNFS( name=rule.get('name'),
+                                     server=rule.get('server'),
+                                     path=rule.get('path'),
+                                     mountPath=rule.get('mountPath'),
+                                     readOnly=rule.get('readOnly'))
 
     if rule.get('type') == 'pvc'  :
-        name          = rule.get('name')
-        claimName     = rule.get('claimName')
-        mountPath     = rule.get('mountPath')
-        vol           = ODVolumePersistentVolumeClaim( name=name, mountPath=mountPath, claimName=claimName)
+        vol = ODVolumePersistentVolumeClaim( name=rule.get('name'), 
+                                             mountPath=rule.get('mountPath'), 
+                                             claimName=rule.get('claimName'))
+
+    if rule.get('type') == 'hostPath' :
+        vol = ODVolumeHostPath( name=rule.get('name'),
+                                path=rule.get('path'),
+                                mountPath=rule.get('mountPath'), 
+                                hostPathType=rule.get('hostPathType','DirectoryOrCreate'),
+                                readOnly=rule.get('readOnly',False) )
+
 
     return vol
 
@@ -149,14 +155,19 @@ class ODVolumeBase(object):
 
 
 @oc.logging.with_logger()
-class ODVolumeHostPath(ODVolumeBase):    
-    def __init__(self ):        
-        super().__init__()                       
-        self._type          = 'HostPath'    
-        self._name          = 'hostpath'    
-          
+class ODVolumeHostPath(ODVolumeBase):
+    def __init__(self, name:str, mountPath:str, path:str, hostPathType:str='DirectoryOrCreate', readOnly:bool=False ):
+        super().__init__()
+        self._fstype = 'hostpath'
+        self._type = 'hostpath'
+        self._name = 'hostpath-' + name
+        self.path = path
+        self.hostPathType = hostPathType
+        self.mountPath = mountPath
+        self.readOnly = readOnly
+
     def is_mountable(self):
-        raise NotImplementedError( f"{type(self)}.is_mountable" )
+         return all( [self.path, self.mountPath] )
 
 
 @oc.logging.with_logger()
@@ -191,7 +202,7 @@ class ODVolumeNFS(ODVolumeBase):
          return all( [self.server, self.path, self.mountPath ] )
 
 @oc.logging.with_logger()
-class ODVolumeActiveDirectory(ODVolumeHostPath):    
+class ODVolumeActiveDirectory(ODVolumeBase):
     def __init__(self, authinfo, userinfo, name):    
         super().__init__()
         ''' authinfo.claims:
