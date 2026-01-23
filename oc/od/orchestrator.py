@@ -1062,13 +1062,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if fstype=='hostpath':
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
-                        'mountPath': mountvol.mountPath,
-                        'readOnly': mountvol.readOnly
+                        'mountPath': mountvol.mountPath 
                     }
                     volumes[mountvol.name] = {  
                         'name': volume_name,
                         'hostPath' : {
                             'path': mountvol.path,
+                            'readOnly': mountvol.readOnly,
                             'type': mountvol.hostPathType
                         }
                     }
@@ -3075,7 +3075,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
         vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
         if not isinstance( vnc_secret_password, V1Secret ):
-            raise ODAPIError( f"crebuildinitcommandate vnc kubernetes secret {plaintext_vnc_password} failed" )
+            raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
 
 
