@@ -60,8 +60,9 @@ def selectSecret( namespace, kubeapi, prefix, secret_type):
                         
     # get the class from the secret_type
     secret_cls = secret_cls_dict.get( secret_type )
-    # instance the class
-    if  secret_cls :
+    # instance the class object
+    if secret_cls is not None:
+        # issubclass( secret_cls, ODSecret ): # secret_cls is a ODSecret subclass
         secret = secret_cls( namespace, kubeapi, prefix, secret_type )
     # return the secret object
     return secret
