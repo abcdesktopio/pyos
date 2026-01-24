@@ -1164,6 +1164,21 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     }
                     continue
 
+                if fstype=='hostpath':
+                    volumes_mount[mountvol.name] = {
+                        'name': volume_name, 
+                        'mountPath': mountvol.mountPath 
+                    }
+                    volumes[mountvol.name] = {  
+                        'name': volume_name,
+                        'hostPath' : {
+                            'path': mountvol.path,
+                            'readOnly': mountvol.readOnly,
+                            'type': mountvol.hostPathType
+                        }
+                    }
+                    continue
+
                 if fstype=='pvc':
                     claimName = mountvol.claimName
                     if isinstance(claimName, str):
@@ -2058,7 +2073,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             for mountvol in mountvols:
                 # use as a volume defined and the volume is mountable
                 fstype = mountvol.fstype # Get the fstype: for example 'cifs' or 'cifskerberos' or 'webdav' or 'nfs'
-                # find a secret class, can return None if fstype does not need a auth
+                # find a secret class, can return None if fstype does not need a auth like crentials
+                # for example 'hostPath' doesn't need credentials but 'cifs' need credentials 
                 secret = oc.od.secret.selectSecret( self.namespace, self.kubeapi, prefix=mountvol.name, secret_type=fstype)
                 if isinstance( secret, oc.od.secret.ODSecret):
                     # Flex volume use kubernetes secret, add mouting path
