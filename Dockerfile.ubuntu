@@ -84,8 +84,9 @@ RUN virtualenv /var/pyos && \
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
 # and parsing them using provided scripts that tail the BGP AS-Path.
-RUN pyasn_util_download.py --latestv46 --filename rib.bz2 && \
-    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
+RUN source /var/pyos/bin/activate && \
+    python3 bin/pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+    python3 bin/pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
     rm -f rib.bz2
 
 # remove dev lib 
