@@ -13,7 +13,10 @@ RUN apk upgrade --no-cache && \
 	cntlm \
 	krb5 \
 	krb5-libs \
-	libgsasl 
+	libgsasl \
+	bash
+
+SHELL ["/bin/bash", "-c"]
 
 #   gss-ntlmssp 
 #   krb5-user 
@@ -69,8 +72,9 @@ RUN pip install --upgrade pip && \
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
 # and parsing them using provided scripts that tail the BGP AS-Path.
-RUN pyasn_util_download.py --latestv46
-RUN pyasn_util_convert.py --single *.bz2  ipasn_db.dat
+RUN pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
+    rm -f rib.bz2 
 
 # remove dev package
 # should better use a builder instance
