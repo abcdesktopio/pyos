@@ -24,6 +24,7 @@ class ODServices(object):
         self.prelogin = None
         self.logmein = None
         self.fail2ban = None
+        self.asnumber = None
 
     def init(self):
         """[init services call all services init() methods]
@@ -40,6 +41,7 @@ class ODServices(object):
         self.init_prelogin()
         self.init_logmein()
         self.init_fail2ban()
+        self.init_asnumber()
         
     def start(self):
         """start
@@ -94,6 +96,10 @@ class ODServices(object):
             fail2banconfig=settings.fail2banconfig 
         )
         
+    def init_asnumber( self ):
+        import oc.od.asnumber
+        self.asnumber = oc.od.asnumber.ODASNumber( database='ipasn_db.dat' )
+
 
     def init_keymanager(self):
         """[decode arg params query string in metappli mode ]

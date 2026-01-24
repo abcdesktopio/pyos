@@ -27,7 +27,6 @@ import re
 from urllib.parse import urlparse
 from ldap import filter as ldap_filter
 import ldap3
-import base64
 
 #
 # from ldap3.utils.log import set_library_log_detail_level, get_detail_level_name, set_library_log_hide_sensitive_data, EXTENDED
@@ -49,6 +48,7 @@ from netaddr import IPNetwork, IPAddress
 
 
 import oc.logging
+from oc.od.asnumber import ODASNumber
 import oc.pyutils as pyutils
 import oc.od.resolvdns
 import jwt
@@ -872,10 +872,41 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
-        def isTimeAfter( timeafter ) :
+        def isTimeAfter( timeafter ):
             return False
 
-        def isTimeBefore( timebefore ) :
+        def isTimeBefore( timebefore ):
+            return False
+
+        def __isASNumber( ipsource:str, asnumber:str ):
+            bReturn = False
+            try:
+                if isinstance( oc.od.services.services.asnumber, ODASNumber ):
+                    bReturn = oc.od.services.services.asnumber.lookup( ipsource, asnumber )
+            except Exception as e:
+                logger.error( e )
+                bReturn = False
+            # self.logger.debug( f"ipsource={ipsource} is in network={network} return {bReturn}")
+            return bReturn
+
+        def _isASNumber( ipsource:str, asnumber:str ):
+            # self.logger.debug(locals())
+            if isinstance( asnumber, list ):
+                for n in asnumber:
+                    if __isASNumber( ipsource, n ):
+                        return True
+            elif isinstance( asnumber, str ):
+                return __isASNumber( ipsource, asnumber )
+            return False
+
+        def isASNumber(ipsource:str, asnumber:str ):
+            # self.logger.debug(locals())
+            if isinstance( ipsource, list ):
+                for ip in ipsource:
+                    if _isASNumber( ip, asnumber ):
+                        return True
+            elif isinstance( ipsource, str):
+                return _isASNumber( ipsource, asnumber )
             return False
 
 
@@ -1088,6 +1119,14 @@ class ODAuthTool(cherrypy.Tool):
         if type(geolocation) is dict:
             result = isGeoLocation( user, geolocation  )
             if result == condition.get( 'expected'):
+                compiled_result = True
+
+        asnumber = condition.get('asnumber')
+        if isinstance(asnumber, (str, list) ) :
+            ipsource = getclientipaddr()
+            # self.logger.debug( f"asnumber rules ipsource={ipsource}" )
+            result = isASNumber( ipsource, asnumber )
+            if result == condition.get( 'expected' ):
                 compiled_result = True
 
         network = condition.get('network')
