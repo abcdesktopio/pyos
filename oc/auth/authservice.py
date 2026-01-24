@@ -1042,8 +1042,7 @@ class ODAuthTool(cherrypy.Tool):
             # check if the provider object is an ODAdAuthMetaProvider
             # and auth object is an AuthInfo
             # kwargs can contain 'provider' and 'auth' entries
-            meta_provider = provider
-            if isinstance( meta_provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
+            if isinstance( provider, ODAdAuthMetaProvider ) and isinstance( auth, AuthInfo):
                 self.logger.debug(f"This is a ODAdAuthMetaProvider and auth is AuthInfo")
                 self.logger.debug(f"auth.isForeignSecurityPrincipalsWithSid={auth.isForeignSecurityPrincipalsWithSid}")
                 if auth.isForeignSecurityPrincipalsWithSid is True:
@@ -1057,12 +1056,28 @@ class ODAuthTool(cherrypy.Tool):
                     # read the member attribut in group
                     # This is not the user's memberOf
                     self.logger.debug( f"this call will take a while")
-                    self.logger.debug( f"isMemberOf query to provider={meta_provider.name}")
-                    result = meta_provider.isMemberOf( auth, memberOf )
-            else:
-                # read the role (memberOf LDAP attribut of objectClass=user)
-                # use string compare if memberOf match
-                result = isMemberOf( roles, memberOf )
+                    self.logger.debug( f"isMemberOf query to provider={provider.name}")
+                    result = provider.isMemberOf( auth, user, memberOf )
+
+            elif isinstance( provider, ODLdapAuthProvider ) and isinstance( auth, AuthInfo):
+                self.logger.debug(f"This is a ODLdapAuthProvider and auth is AuthInfo")
+                if len(roles) == 0:
+                    # run a query on the group cn to list all members
+                    #
+                    # dn: cn=admin_staff,ou=people,dc=planetexpress,dc=com
+                    # objectclass: Group
+                    # objectclass: top
+                    # groupType: 2147483650
+                    # cn: admin_staff
+                    # member: cn=Hubert J. Farnsworth,ou=people,dc=planetexpress,dc=com
+                    # member: cn=Hermes Conrad,ou=people,dc=planetexpress,dc=com
+                    #
+                    userdistinguished_name = auth.data.get('dn') # this is the user distinguished name
+                    result = provider.isMemberOf( authinfo=auth, user=user, userdistinguished_name=userdistinguished_name, groupdistinguished_name=memberOf )
+                else: 
+                    # read the role (memberOf LDAP attribut of objectClass=user)
+                    # use string compare if memberOf match
+                    result = isMemberOf( roles, memberOf )
 
             self.logger.debug( f"isMemberOf({memberOf}) returns {result}")
             self.logger.debug( f"result == condition.get('expected') -> {result} == {condition.get('expected')}")
@@ -1140,7 +1155,7 @@ class ODAuthTool(cherrypy.Tool):
         # self.logger.debug( f"compiledcondition -> {compiled_result}")
         return compiled_result
 
-    def compiledrule( self, name, rule, thread_compiled_result, user, roles, provider=None, auth=None ):
+    def compiledrule( self, name:str, rule:dict, thread_compiled_result, user, roles, provider=None, auth=None ):
 
         if not isinstance(rule,dict) :
             return False
@@ -1686,7 +1701,7 @@ class ODAuthTool(cherrypy.Tool):
             # compile data using rules
             # runs the rules to get associated labels tag
             if pdr.rules: 
-                auth.data['labels'] = self.compiledrules( pdr.rules, userinfo, roles )
+                auth.data['labels'] = self.compiledrules( rules=pdr.rules, user=userinfo, roles=roles, provider=pdr, auth=auth )
 
             # update auth.data['labels']['executeclassname'] 
             # if user requests feature executeclassname
@@ -3225,27 +3240,38 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             distinguishedName = result.get('distinguishedName') or result.get('dn') 
         return distinguishedName
 
-    def isMemberOf( self, authinfo, userdistinguished_name:str, groupdistinguished_name:str):
+    def isMemberOf( self, authinfo:AuthInfo, user:dict, userdistinguished_name:str, groupdistinguished_name:str):
         self.logger.debug(f"userdistinguished_name={userdistinguished_name} groupdistinguished_name={groupdistinguished_name}")
         memberof = False
-        filter = '(objectClass=group)'
-        groupinfo = self.search_one( conn=authinfo.conn, 
-                                    basedn=groupdistinguished_name, 
-                                    scope=ldap3.BASE, 
-                                    filter=filter, 
-                                    attrs=['member'] )
+        group_name = groupdistinguished_name.split(',',1)[0].split('=',1)[1]
+        filter = f"(cn={group_name})" # search only by group cn
+        group_basedn = groupdistinguished_name.split(',',1)[1]
+        self.logger.debug(f"group_name={group_name}, filter={filter}, group_basedn={group_basedn}") 
+        groupinfo = self.search_one( conn=authinfo.conn,
+                                    basedn=group_basedn,
+                                    scope=ldap3.SUBTREE,
+                                    filter=filter,
+                                    attrs=[ 'objectClass', 'member', 'memberUid'] )
+        
         self.logger.debug(f"groupinfo={groupinfo}")
         if not isinstance( groupinfo, dict ):
             self.logger.debug('groupinfo is not a dict')
             return memberof
         
         member = groupinfo.get('member')
-        if not isinstance( member, list ):
-            self.logger.debug('member is not a list')
-            return memberof
-        self.logger.debug(f"member={member}")
-        if userdistinguished_name in member:
-            memberof = True
+        if isinstance( member, list ):
+            self.logger.debug(f"member={member}")
+            if userdistinguished_name in member:
+                memberof = True
+        
+        if isinstance( user, dict ):
+            memberUid = groupinfo.get('memberUid')
+            if isinstance( memberUid, list ):
+                self.logger.debug(f"memberUid={memberUid}")
+                uid = user.get('posix',{}).get('uid') or user.get('uid')
+                if uid in memberUid:
+                    memberof = True
+        
         self.logger.debug(f"return memberof={memberof}")
         return memberof
         
@@ -4041,7 +4067,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         self.logger.debug('')
         return super().validate(userid, password, **params)
 
-    def authenticate(self, userid, password, **params):
+    def authenticate(self, userid:str, password:str, **params):
         self.logger.debug('')
         if not self.issafeAdAuthusername(userid):
             raise InvalidCredentialsError('Unsafe login credentials')
@@ -4058,11 +4084,11 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         authinfo = AuthInfo(provider=self.name, providertype=self.type, token=userid, data=data, protocol=self.auth_protocol, conn=conn)
         return authinfo
 
-    def createclaims( self, authinfo, userinfo, userid, password, **arguments):
+    def createclaims( self, authinfo:AuthInfo, userinfo:AuthUser, userid:str, password:str, **arguments):
         claims = { 'userid': userid, 'password': password, 'domain': self.domain }
         authinfo.set_claims(claims)
         
-    def getuserinfo(self, authinfo, **arguments):  
+    def getuserinfo(self, authinfo:AuthInfo, **arguments):  
         self.logger.debug('')     
         userid = arguments.get( 'userid' )
         filter = ldap_filter.filter_format( self.user_query.filter, [ userid ] )
@@ -4093,7 +4119,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         foreingdistinguished_name = self.getForeignDistinguishedName( authinfo, user.get( 'objectSid' ) )
         return foreingdistinguished_name
 
-    def getroles(self, authinfo, userinfo, **params): 
+    def getroles(self, authinfo:AuthInfo, userinfo:AuthUser, **params): 
         self.logger.debug('') 
         roles = []
         
@@ -4168,7 +4194,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         self.logger.debug( f"return foreingdistinguished_list={foreingdistinguished_list}" )
         return foreingdistinguished_list
 
-    def isMemberOf(self, authinfo, groupdistinguished_name: str):
+    def isMemberOf(self, authinfo:AuthInfo, groupdistinguished_name:str):
         memberof = False
         q = self.foreingmemberof_query
         filter = ldap_filter.filter_format( q.filter, [ groupdistinguished_name ] )
@@ -4192,7 +4218,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         self.logger.debug ( f"return memberof={memberof}" )
         return memberof
 
-    def isMemberOfForeingSecuriyPrincipalsbyObjectSid( self, authinfo:AuthInfo, user:AuthUser, groupdistinguished_name:str ):
+    def isMemberOfForeingSecuriyPrincipalsbyObjectSid( self, authinfo:AuthInfo, user:dict, groupdistinguished_name:str ):
         self.logger.debug('ODAdAuthMetaProvider')
         memberof = False
         foreing_distinguished_name = user.get('foreing_distinguished_name')
@@ -4204,7 +4230,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
 
         for userdistinguished_name in foreing_distinguished_name:
             self.logger.debug( f"call super().isMemberOf {userdistinguished_name} {groupdistinguished_name}")
-            if super().isMemberOf( authinfo, userdistinguished_name, groupdistinguished_name):
+            if super().isMemberOf( authinfo, user, userdistinguished_name, groupdistinguished_name):
                 memberof = True
                 break
         self.logger.debug( f"isMemberOf return {memberof}")
