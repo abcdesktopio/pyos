@@ -1060,7 +1060,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 volume_name = self.get_volumename( mountvol.name, userinfo )
                 self.logger.debug( f"selected volume fstype:{fstype} volumes name:{volume_name}")
                 self.logger.debug( f"fstype is {fstype}" )
-                if fstype=='hostPath':
+                if fstype=='hostpath':
+                    self.logger.debug( f"adding {mountvol.name}" )
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
                         'mountPath': mountvol.mountPath 
