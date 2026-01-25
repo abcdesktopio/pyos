@@ -1054,12 +1054,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( rules, dict ):
             self.logger.debug( f"selected volume by rules {rules}" )
             mountvols = oc.od.volume.selectODVolumebyRules( authinfo, userinfo, rules=rules.get('volumes') )
+            self.logger.debug( f"mountvols is {mountvols}" )
             for mountvol in mountvols:
                 fstype = mountvol.fstype
                 volume_name = self.get_volumename( mountvol.name, userinfo )
                 self.logger.debug( f"selected volume fstype:{fstype} volumes name:{volume_name}")
-
-                if fstype=='hostpath':
+                self.logger.debug( f"fstype is {fstype}" )
+                if fstype=='hostPath':
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
                         'mountPath': mountvol.mountPath 
