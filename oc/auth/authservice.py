@@ -450,7 +450,7 @@ class AuthInfo(object):
     def merge( self, newauthinfo ):
         # merge only data object
         if not isinstance( newauthinfo, AuthInfo):
-              raise ValueError( f"merge error invalid AuthInfo object type {type(newauthinfo)}" )
+            raise ValueError( f"merge error invalid AuthInfo object type {type(newauthinfo)}" )
         mergedeep.merge(newauthinfo.data, self.data, strategy=mergedeep.Strategy.ADDITIVE)
         self.data = newauthinfo.data
         return self 
@@ -866,7 +866,6 @@ class ODAuthTool(cherrypy.Tool):
             # if user is not a dict return False
             if not isinstance(user, dict):
                 return False
-
             # primary group id is uniqu for
             if user.get('primaryGroupID') == primaryGroupID:
                 return True
