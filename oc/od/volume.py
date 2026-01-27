@@ -83,8 +83,8 @@ def getODVolumebyRules( authinfo, userinfo, rule ):
                                 path=rule.get('path'),
                                 mountPath=rule.get('mountPath'), 
                                 hostPathType=rule.get('hostPathType','DirectoryOrCreate'),
-                                readOnly=rule.get('readOnly',False) )
-
+                                readOnly=rule.get('readOnly',False),
+                                mountPropagation=rule.get('mountPropagation',None) )
 
     return vol
 
@@ -156,7 +156,7 @@ class ODVolumeBase(object):
 
 @oc.logging.with_logger()
 class ODVolumeHostPath(ODVolumeBase):
-    def __init__(self, name:str, mountPath:str, path:str, hostPathType:str='DirectoryOrCreate', readOnly:bool=False ):
+    def __init__(self, name:str, mountPath:str, path:str, hostPathType:str='DirectoryOrCreate', readOnly:bool=False, mountPropagation:str=None ):
         super().__init__()
         self._fstype = 'hostpath'
         self._type = 'hostpath'
@@ -165,6 +165,7 @@ class ODVolumeHostPath(ODVolumeBase):
         self.hostPathType = hostPathType
         self.mountPath = mountPath
         self.readOnly = readOnly
+        self.mountPropagation = mountPropagation
 
     def is_mountable(self):
          return all( [self.path, self.mountPath] )

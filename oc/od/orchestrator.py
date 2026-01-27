@@ -1064,7 +1064,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     self.logger.debug( f"adding {mountvol.name}" )
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
-                        'mountPath': mountvol.mountPath 
+                        'mountPath': mountvol.mountPath,
+                        'mountPropagation': mountvol.mountPropagation
                     }
                     volumes[mountvol.name] = {  
                         'name': volume_name,
