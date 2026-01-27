@@ -213,8 +213,11 @@ class BaseController(object):
           # if both filters are set, at least one must match
           # self.logger.debug( f"is_api_filter={is_api_filter}, is_ip_filter={is_ip_filter}" )
           if not is_api_filter or not is_ip_filter:
-               self.raise_http_error_message( '403.1 - Execute access forbidden' )
-
+               if not is_ip_filter:
+                    self.raise_http_error_message( '403.7 - IP address access denied' )
+               if not is_api_filter: 
+                    self.raise_http_error_message( '403.1 - Execute access forbidden' )
+               
           if isinstance( self.requestsallowed, dict ):
                # read the request path
                path = cherrypy.request.path_info
