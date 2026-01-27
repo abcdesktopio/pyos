@@ -15,24 +15,11 @@ import logging
 import oc.logging
 import oc.auth.namedlib
 
+from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+
 logger = logging.getLogger(__name__)
 
-
-def selectODVolume( authinfo, userinfo ):
-
-    volumes = []
-    volumeclassnamelist = []
-
-    if authinfo.providertype == 'activedirectory':
-        volumeclassnamelist = [ ODVolumeActiveDirectoryCIFS, ODVolumeActiveDirectoryWebDav ]        
-
-    for vclass in volumeclassnamelist:         
-        volumes.append( vclass(authinfo, userinfo ) )
-
-    return volumes
-
-
-def getODVolumebyRules( authinfo, userinfo, rule ):
+def getODVolumebyRules( authinfo:AuthInfo, userinfo:AuthUser, rule:dict ):
     """getODVolumebyRules
 
     Args:
@@ -88,7 +75,7 @@ def getODVolumebyRules( authinfo, userinfo, rule ):
 
     return vol
 
-def selectODVolumebyRules( authinfo, userinfo, rules ):
+def selectODVolumebyRules( authinfo:AuthInfo, userinfo:AuthUser, rules:dict ):
     """selectODVolumebyRules
 
     Args:
