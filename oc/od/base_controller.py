@@ -235,12 +235,25 @@ class BaseController(object):
                     self.raise_http_error_message( '403.8 - Site access denied' )
 
      def apifilter(self):
+          """apifilter
+               check if the request apikey is in the permitted apikey list
+               if no apikey list is set, return True
+          Returns:
+               bool: True if the request apikey is in the permitted apikey list or no list is set
+          """
           self.logger.debug('')
           if isinstance(self.apikey, list):
                return self.is_apikey()          
           return True
           
      def ipfilter( self ):
+          """ipfilter
+               check if the client ip address is in the permitted network list
+               if no network list is set, return True
+
+          Returns:
+               bool: True if the client ip address is in the permitted network list or no list is set
+          """
           self.logger.debug('')
           if not isinstance(self.ipnetworklistfilter, list) :
                return True
