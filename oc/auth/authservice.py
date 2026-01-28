@@ -1264,6 +1264,17 @@ class ODAuthTool(cherrypy.Tool):
             except Exception as e:
                 self.logger.error(f"rules {name} compilation failed {e} skipping rule")
 
+
+        # add builtin additional tags
+        # always add 
+        # - ipsource tag
+        # - asnumber tag if not none
+        ipsource = getclientipaddr()
+        buildcompiledrules[ 'ipsource' ]
+        asnumber = oc.od.services.services.asnumber.getasn( ipsource )
+        if isinstance( asnumber, str ):
+            buildcompiledrules[ 'asnumber' ] = oc.od.services.services.asnumber.getasn( ipsource )
+
         """
         # same version with thread support 
         compilerule_timeout = 640 # seconds
