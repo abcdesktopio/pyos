@@ -76,7 +76,8 @@ def getODVolumebyRules( authinfo, userinfo, rule ):
     if rule.get('type') == 'pvc'  :
         vol = ODVolumePersistentVolumeClaim( name=rule.get('name'), 
                                              mountPath=rule.get('mountPath'), 
-                                             claimName=rule.get('claimName'))
+                                             claimName=rule.get('claimName'),
+                                             mountPropagation=rule.get('mountPropagation',None))
 
     if rule.get('type') == 'hostPath' :
         vol = ODVolumeHostPath( name=rule.get('name'),
@@ -132,6 +133,7 @@ class ODVolumeBase(object):
         self._type = 'base'    
         self._name = 'volbase'                 
         self._fstype = None
+        self.mountPropagation = None
 
     @property
     def type(self):
@@ -173,13 +175,14 @@ class ODVolumeHostPath(ODVolumeBase):
 
 @oc.logging.with_logger()
 class ODVolumePersistentVolumeClaim(ODVolumeBase):    
-    def __init__(self, name:str, mountPath:str, claimName:str ):        
+    def __init__(self, name:str, mountPath:str, claimName:str, mountPropagation:str=None ):        
         super().__init__()      
         self._fstype = 'pvc'                 
         self._type = 'pvc'    
         self._name = 'pvc-' + name
         self.mountPath = mountPath 
         self.claimName = claimName
+        self.mountPropagation = mountPropagation
         self._name = self._name.lower()  # Kubernetes volume name must be lowercase
 
     def is_mountable(self):

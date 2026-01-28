@@ -1097,7 +1097,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     if isinstance(claimName, str):
                         volumes_mount[mountvol.name] = {
                             'name': volume_name, 
-                            'mountPath': mountvol.mountPath 
+                            'mountPath': mountvol.mountPath,
+                            'mountPropagation': mountvol.mountPropagation
                         }
                         volumes[mountvol.name] = { 
                             'name': volume_name, 
