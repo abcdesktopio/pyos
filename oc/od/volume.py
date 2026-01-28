@@ -13,9 +13,7 @@
 import os
 import logging
 import oc.logging
-import oc.auth.namedlib
-
-from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+from  oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 
 logger = logging.getLogger(__name__)
 
@@ -37,28 +35,28 @@ def getODVolumebyRules( authinfo:AuthInfo, userinfo:AuthUser, rule:dict ):
         return vol
 
     if rule.get('type') == 'cifs' :
-        name          = rule.get('volumename')
-        mountOptions  = rule.get('mountOptions')
+        name = rule.get('volumename')
+        mountOptions = rule.get('mountOptions')
         if rule.get('name') == 'homedirectory' :
-            homeDrive     = userinfo.get('homeDrive', 'homeDrive')
-            networkPath   = userinfo.get('homeDirectory')
+            homeDrive = userinfo.get('homeDrive', 'homeDrive')
+            networkPath = userinfo.get('homeDirectory')
             vol = ODVolumeActiveDirectoryCIFS( authinfo, userinfo, name, homeDrive, networkPath, mountOptions )
         else:
-            entry       = rule.get('name')
-            unc         = rule.get('unc')
-            vol         = ODVolumeActiveDirectoryCIFS( authinfo, userinfo, name, entry, unc, mountOptions )
+            entry = rule.get('name')
+            unc = rule.get('unc')
+            vol = ODVolumeActiveDirectoryCIFS( authinfo, userinfo, name, entry, unc, mountOptions )
 
-    if rule.get('type') == 'webdav' :
-        entry       = userinfo.get('name')
-        url         = rule.get('url')
-        vol         = ODVolumeActiveDirectoryWebDav( authinfo, userinfo, entry, url )
+    # if rule.get('type') == 'webdav' :
+    #    entry       = userinfo.get('name')
+    #    url         = rule.get('url')
+    #    vol         = ODVolumeActiveDirectoryWebDav( authinfo, userinfo, entry, url )
 
     if rule.get('type') == 'nfs' :
-        vol           = ODVolumeNFS( name=rule.get('name'),
-                                     server=rule.get('server'),
-                                     path=rule.get('path'),
-                                     mountPath=rule.get('mountPath'),
-                                     readOnly=rule.get('readOnly'))
+        vol = ODVolumeNFS(  name=rule.get('name'), 
+                            server=rule.get('server'),
+                            path=rule.get('path'),
+                            mountPath=rule.get('mountPath'),
+                            readOnly=rule.get('readOnly'))
 
     if rule.get('type') == 'pvc'  :
         vol = ODVolumePersistentVolumeClaim( name=rule.get('name'), 
@@ -70,8 +68,8 @@ def getODVolumebyRules( authinfo:AuthInfo, userinfo:AuthUser, rule:dict ):
                                 path=rule.get('path'),
                                 mountPath=rule.get('mountPath'), 
                                 hostPathType=rule.get('hostPathType','DirectoryOrCreate'),
-                                readOnly=rule.get('readOnly',False) )
-
+                                readOnly=rule.get('readOnly',False),
+                                mountPropagation=rule.get('mountPropagation',None) )
 
     return vol
 
@@ -143,7 +141,7 @@ class ODVolumeBase(object):
 
 @oc.logging.with_logger()
 class ODVolumeHostPath(ODVolumeBase):
-    def __init__(self, name:str, mountPath:str, path:str, hostPathType:str='DirectoryOrCreate', readOnly:bool=False ):
+    def __init__(self, name:str, mountPath:str, path:str, hostPathType:str='DirectoryOrCreate', readOnly:bool=False, mountPropagation:str=None ):
         super().__init__()
         self._fstype = 'hostpath'
         self._type = 'hostpath'
@@ -152,6 +150,7 @@ class ODVolumeHostPath(ODVolumeBase):
         self.hostPathType = hostPathType
         self.mountPath = mountPath
         self.readOnly = readOnly
+        self.mountPropagation = mountPropagation
 
     def is_mountable(self):
          return all( [self.path, self.mountPath] )
@@ -190,7 +189,7 @@ class ODVolumeNFS(ODVolumeBase):
 
 @oc.logging.with_logger()
 class ODVolumeActiveDirectory(ODVolumeBase):
-    def __init__(self, authinfo, userinfo, name):    
+    def __init__(self, authinfo:AuthInfo, userinfo:AuthUser, name:str):    
         super().__init__()
         ''' authinfo.claims:
                 {'domain': 'AD', 'password': 'xxxx', 'userid': 'alex'}
@@ -231,7 +230,7 @@ class ODVolumeActiveDirectory(ODVolumeBase):
 
 @oc.logging.with_logger()
 class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
-    def __init__(self, authinfo, userinfo, name, homeDrive, networkPath, mountOptions=None ):
+    def __init__(self, authinfo:AuthInfo, userinfo:AuthUser, name:str, homeDrive:str, networkPath:str, mountOptions:str=None ):
         self.logger.info(locals())
         super().__init__(authinfo, userinfo, name)
         self._fstype = 'cifs'
@@ -259,11 +258,11 @@ class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
         return all( [ super().is_mountable(), self.homeDrive, self.networkPath, self._containertarget ] )
 
 
-
+"""
 @oc.logging.with_logger()
 class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
 
-    def __init__(self, authinfo, userinfo, name, entry, url, mountOptions=None ):
+    def __init__(self, authinfo:AuthInfo, userinfo:AuthUser, name, entry, url, mountOptions=None ):
         super().__init__(authinfo, userinfo)
         self._fstype = 'webdav'
         self._type = 'flexvol'
@@ -305,3 +304,4 @@ class ODVolumeActiveDirectoryWebDav(ODVolumeActiveDirectory):
                     self._mountpoint]
         return command
     '''
+"""

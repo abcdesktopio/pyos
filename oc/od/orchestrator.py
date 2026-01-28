@@ -17,7 +17,6 @@ from platform import node
 from typing_extensions import assert_type
 import oc.logging
 from oc.od.apps import ODApps
-import oc.od.error
 import oc.od.settings
 import oc.lib
 import oc.auth.namedlib
@@ -34,7 +33,6 @@ import chevron
 import requests
 import copy
 import threading
-import hashlib
 
 from kubernetes import client, config, watch
 from kubernetes.stream import stream
@@ -1152,7 +1150,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 if fstype=='nfs':
                     volumes_mount[mountvol.name] = {
                         'name': volume_name, 
-                        'mountPath': mountvol.mountPath 
+                        'mountPath': mountvol.mountPath,
+                        'mountPropagation': mountvol.mountPropagation
                     }
                     volumes[mountvol.name] = {  
                         'name': volume_name,
