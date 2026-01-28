@@ -333,7 +333,7 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def images( self )->str:
         self.is_permit_request()
-        if   cherrypy.request.method == 'GET':
+        if cherrypy.request.method == 'GET':
             return self.handle_images_GET()
         elif cherrypy.request.method == 'DELETE':
             return self.handle_images_DELETE()
@@ -356,7 +356,7 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def image( self, image:str=None, node:str=None ):
         self.is_permit_request()
-        if   cherrypy.request.method == 'GET':
+        if cherrypy.request.method == 'GET':
             return self.handle_image_GET( image=image )
         elif cherrypy.request.method == 'PUT':
             return self.handle_image_PUT( json_images=cherrypy.request.json, node=node )
