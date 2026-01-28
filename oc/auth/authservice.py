@@ -1270,7 +1270,7 @@ class ODAuthTool(cherrypy.Tool):
         # - ipsource tag
         # - asnumber tag if not none
         ipsource = getclientipaddr()
-        buildcompiledrules[ 'ipsource' ]
+        buildcompiledrules[ 'ipsource' ] = ipsource
         asnumber = oc.od.services.services.asnumber.getasn( ipsource )
         if isinstance( asnumber, str ):
             buildcompiledrules[ 'asnumber' ] = oc.od.services.services.asnumber.getasn( ipsource )
