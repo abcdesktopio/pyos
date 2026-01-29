@@ -65,7 +65,9 @@ COPY . .
 # install upgrade pip
 # install requirements.txt
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip3 install --upgrade wheel && \
+    pip3 install --upgrade jaraco.context
 
 # remove dev package
 # should better use a builder instance
