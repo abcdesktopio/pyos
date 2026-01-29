@@ -7,13 +7,15 @@ LABEL org.opencontainers.image.description=abcdesktop.pyos
 
 RUN apk update --no-cache && \
     apk upgrade --no-cache && \
-    apk add --no-cache \
+    apk add --no-cache --update \
  	wget \
 	curl \
 	cntlm \
 	krb5 \
 	krb5-libs \
-	libgsasl 
+	libgsasl \
+	"libssl3>3.5.4" \
+	"libcrypto3>3.5.4"
 
 #   gss-ntlmssp 
 #   krb5-user 
