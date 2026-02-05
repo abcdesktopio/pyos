@@ -66,6 +66,7 @@ class ODServices(object):
                 * apps mongo change stream watcher
                 * kuberneteswatcher
         '''
+        self.logger.debug('ODServices stopping services threads...')
         if isinstance(self.apps, oc.od.apps.ODApps):
             try:
                 self.apps.stop_mongo_watcher()
@@ -78,7 +79,6 @@ class ODServices(object):
         if isinstance( self.kuberneteswatcher, oc.od.kuberneteswatcher.ODKubernetesWatcher):
             # always use try/except 
             try:
-                self.logger.debug( 'kuberneteswatcher in stopping')
                 self.kuberneteswatcher.stop()
                 self.logger.debug( 'kuberneteswatcher stopped')
             except Exception as e:
@@ -86,7 +86,7 @@ class ODServices(object):
         else:
             self.logger.debug( 'self.kuberneteswatcher is not defined')
 
-        self.logger.debug('done, this is the end')
+        self.logger.debug('done, this is the end') # pom pom pom 
 
 
     def init_fail2ban( self ):
@@ -155,24 +155,7 @@ class ODServices(object):
 
     def init_datastore(self):
         import oc.datastore
-        self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongodburl)
-        
-        '''
-        replicaset_name = 'rs0'
-        # check if replicaset is configured
-        if not self.datastore.getstatus_replicaset(replicaset_name):
-           self.logger.info(f"replicaset {replicaset_name} does not exist")
-           # create a replicaset
-            create_replicaset = self.datastore.create_replicaset(replicaset_name)
-            # if create_replicaset is None or False
-            # create_replicaset can return None but this is not a failure
-            if not create_replicaset :
-                # reread if replicaset is configured
-                create_replicaset = self.datastore.getstatus_replicaset(replicaset_name)
-            return create_replicaset
-        self.logger.info(f"replicaset {replicaset_name} exist")
-        '''
-        return True
+        self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongodburl, settings.mongodbparam)
 
     def init_datacache(self):
         import oc.sharecache
@@ -197,7 +180,7 @@ class ODServices(object):
     def init_applist( self ):
         import oc.od.apps 
         # Build applist cache data
-        self.apps = oc.od.apps.ODApps(mongodburl=settings.mongodburl)
+        self.apps = oc.od.apps.ODApps(mongodburl=settings.mongodburl, mongodbparam=settings.mongodbparam )
         self.apps.cached_applist(bRefresh=True)
 
     def init_kuberneteswatcher( self ):

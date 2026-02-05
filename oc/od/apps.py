@@ -32,7 +32,7 @@ class ODApps:
     """ ODApps
         manage application list 
     """
-    def __init__(self, mongodburl=None ):
+    def __init__(self, mongodburl:str=None, mongodbparam:str=None):
         self.lock = threading.Lock()
         self.myglobal_list = {}
         self.build_image_counter = 0
@@ -56,11 +56,11 @@ class ODApps:
         self.index_name = 'id' # id is the name of the image repoTags[0]
         self.image_collection_name = 'image'
         if isinstance( mongodburl, str) :
-            self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl, self.databasename)
+            self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl, mongodbparam, self.databasename)
             self.init_collection( collection_name=self.image_collection_name )
 
     def init_collection( self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename)
+        mongo_client = self.datastore.createclient(self.databasename)
         db = mongo_client[self.databasename]
         col = db[collection_name]
         try:
@@ -70,11 +70,11 @@ class ODApps:
         mongo_client.close()
 
     def get_collection(self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename)
+        mongo_client = self.datastore.createclient(self.databasename)
         db = mongo_client[self.databasename]
         return db[collection_name]
 
-    def append_app_to_collection( self, app ):
+    def append_app_to_collection( self, app:dict )->bool:
         if not isinstance( app, dict):
             return False
         myapp = app.copy() # copy
@@ -513,20 +513,21 @@ class ODApps:
  
     def add_json_image_to_collection( self, json_image:str )->list|None:
         applist = None
+
         # if json image is a list add each image in list
         if isinstance( json_image, list ):
             applist = []
             for image in json_image:
                 myapp = self.json_imagetoapp( image )
-                if isinstance( myapp, dict ):
-                    if self.append_app_to_collection( myapp ):
-                        applist.append( myapp )
-
+                if self.append_app_to_collection( myapp ):
+                    applist.append( myapp )
+                    
+        # if json image is a dict add it in collection
         if isinstance( json_image, dict ):
             myapp = self.json_imagetoapp( json_image )
-            if isinstance( myapp, dict ):
-                if self.append_app_to_collection( myapp ):
-                    applist = myapp
+            if self.append_app_to_collection( myapp ):
+                applist = myapp
+
         return applist
 
     @staticmethod
@@ -788,11 +789,13 @@ class ODApps:
 
 
     def stop_mongo_watcher(self):
-        self.thread_event.set()
         if isinstance(self.watcher_thread, threading.Thread):
-            if self.watcher_thread.is_alive():
+            if hasattr(self.watcher_thread, 'set'):
+                self.thread_event.set()
+            if hasattr(self.watcher_thread, 'is_alive') and self.watcher_thread.is_alive():
                 self.logger.debug("MongoDB watcher_thread.join()...")
                 self.watcher_thread.join()
+                self.watcher_thread = None
             else:
                 self.logger.debug("MongoDB watcher_thread is not alive.")
         else:
