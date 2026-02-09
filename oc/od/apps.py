@@ -794,7 +794,7 @@ class ODApps:
                 self.thread_event.set()
             if hasattr(self.watcher_thread, 'is_alive') and self.watcher_thread.is_alive():
                 self.logger.debug("MongoDB watcher_thread.join()...")
-                self.watcher_thread.join()
+                # self.watcher_thread.join()
                 self.watcher_thread = None
             else:
                 self.logger.debug("MongoDB watcher_thread is not alive.")

@@ -598,7 +598,8 @@ def createDesktopArguments( authinfo, userinfo, args ):
     # add environment variables   
     env = createExecuteEnvironment( authinfo, userinfo  )
     # add source ip addr as WEBCLIENT_SOURCEIPADDR var env
-    env.update( { 'WEBCLIENT_SOURCEIPADDR':  args.get('WEBCLIENT_SOURCEIPADDR') } )                   
+    env.update( { 'ABCDESKTOP_WEBCLIENT_SOURCEIPADDR':  args.get('ABCDESKTOP_WEBCLIENT_SOURCEIPADDR') } )   
+    env.update( { 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY':  args.get('ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY') } )                  
     myCreateDesktopArguments = { 'env' : env }
     return myCreateDesktopArguments
  

@@ -1277,6 +1277,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
             elif isinstance( oc.od.settings.desktop['persistentvolumeclaim'], dict):
                 # oc.od.settings.desktop['persistentvolumeclaim'] must be created by pyos
+                self.logger.debug( f"build home volume with volume_type={volume_type} and persistentvolumeclaim is a dict" )
                 if volume_type in [ 'pod_desktop', 'pod_application' ] :
                     # create a pvc to store desktop volume
                     persistentvolume = copy.deepcopy( oc.od.settings.desktop['persistentvolume'] )

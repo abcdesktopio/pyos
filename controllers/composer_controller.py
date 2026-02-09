@@ -20,11 +20,13 @@ import oc.od.settings as settings
 import oc.od.composer 
 import oc.i18n
 import urllib
+import ua_parser
 
 from oc.od.services import services
 
 from oc.cherrypy import Results
 from oc.od.base_controller import BaseController
+
 
 
 logger = logging.getLogger(__name__)
@@ -64,7 +66,7 @@ class ComposerController(BaseController):
              raise cherrypy.HTTPError( status=400, message='ocrun error')
         return Results.success(result=result)
         
-    def LocaleSettingsLanguage( self, user ):
+    def LocaleSettingsLanguage( self, user:dict ):
         # add current locale from http Accept-Language to AuthUser 
         locale = oc.i18n.detectLocale(cherrypy.request.headers.get('Accept-Language'), oc.od.settings.supportedLocales)
         user['locale'] = locale
@@ -285,6 +287,23 @@ class ComposerController(BaseController):
         userapplist = list( userappdict.values() )
         # return succes data 
         return Results.success(result=userapplist)    
+
+
+    def parse_user_agent_os_family( self )->str:
+        os_family = None # default value as fallback
+        try:
+            user_agent = oc.cherrypy.getuseragent()
+            ua_parsed = ua_parser.parse(user_agent)
+            if isinstance( ua_parsed, ua_parser.core.Result):
+                os_family = ua_parsed.os.family.replace(' ', '').lower()
+            # Mac OS/X -> macosx
+            # Linux -> linux
+            # Windows -> windows
+        except Exception as e:
+            self.logger.error(e)
+        return os_family
+
+
         
     def _launchdesktop(self, auth, user, args):
         self.logger.debug('')
@@ -298,9 +317,8 @@ class ComposerController(BaseController):
         #
         try:
             # read the user ip source address for accounting and log history data
-            webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
-            args[ 'WEBCLIENT_SOURCEIPADDR' ] = webclient_sourceipaddr
-
+            args[ 'ABCDESKTOP_WEBCLIENT_SOURCEIPADDR' ] = oc.cherrypy.getclientipaddr()
+            args[ 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY' ] = 'windows' # self.parse_user_agent_os_family()
             # open a new desktop
             desktop = oc.od.composer.opendesktop( auth, user, args ) 
 
