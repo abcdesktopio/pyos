@@ -1241,7 +1241,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volume_home_name = 'home'
         # homedirectorytype is by default None 
         homedirectorytype = oc.od.settings.desktop['homedirectorytype']
-        self.logger.debug(f"homedirectorytype is {homedirectorytype}")
+        self.logger.debug(f"homedirectorytype is {homedirectorytype} and volume_type is {volume_type}")
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
         self.logger.debug(f"subpath_name is {subpath_name}")
         user_homedirectory = os.path.join(  self.get_user_homedirectory(authinfo, userinfo), 
@@ -1267,7 +1267,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
+            self.logger.debug( f"homedirectorytype is {homedirectorytype}" ) 
             claimName = None # None is the default value, nothing to do
+            self.logger.debug( f"type of oc.od.settings.desktop['persistentvolumeclaim'] is {type(oc.od.settings.desktop['persistentvolumeclaim'])}" )
             if isinstance( oc.od.settings.desktop['persistentvolumeclaim'], str):
                 # oc.od.settings.desktop['persistentvolumeclaim'] is the name of the PVC
                 # in this case, there is only one shared PVC for all users
