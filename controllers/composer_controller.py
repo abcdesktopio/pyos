@@ -20,7 +20,6 @@ import oc.od.settings as settings
 import oc.od.composer 
 import oc.i18n
 import urllib
-import ua_parser
 
 from oc.od.services import services
 
@@ -288,22 +287,6 @@ class ComposerController(BaseController):
         # return succes data 
         return Results.success(result=userapplist)    
 
-
-    def parse_user_agent_os_family( self )->str:
-        os_family = None # default value as fallback
-        try:
-            user_agent = oc.cherrypy.getuseragent()
-            ua_parsed = ua_parser.parse(user_agent)
-            if isinstance( ua_parsed, ua_parser.core.Result):
-                os_family = ua_parsed.os.family.replace(' ', '').lower()
-            # Mac OS/X -> macosx
-            # Linux -> linux
-            # Windows -> windows
-        except Exception as e:
-            self.logger.error(e)
-        return os_family
-
-
         
     def _launchdesktop(self, auth, user, args):
         self.logger.debug('')
@@ -316,10 +299,6 @@ class ComposerController(BaseController):
         # raise it again
         #
         try:
-            # read the user ip source address for accounting and log history data
-            args[ 'ABCDESKTOP_WEBCLIENT_SOURCEIPADDR' ] = oc.cherrypy.getclientipaddr()
-            args[ 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY' ] = 'windows' # self.parse_user_agent_os_family()
-            # open a new desktop
             desktop = oc.od.composer.opendesktop( auth, user, args ) 
 
             # safe check for desktop type
