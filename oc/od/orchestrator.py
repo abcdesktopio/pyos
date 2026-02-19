@@ -1894,7 +1894,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
 
-
         # get the user's pod
         if not isinstance(myPod, V1Pod ):
             myPod = self.findPodByUser(authinfo, userinfo )
@@ -3289,7 +3288,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'USER' ] = posixuser.get('uid') # read uid
         env[ 'USERNAME' ] = posixuser.get('uid') # read uid
         env[ 'LOGNAME' ] = posixuser.get('uid') # read uid
-        env[ 'PULSE_SERVER' ] = 'unix:/tmp/.pulse.sock' # for embedded applications
+        env[ 'PULSE_SERVER' ] = '/tmp/runtime/pulse/native' # for embedded applications
         env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
         env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
         env[ 'ABCDESKTOP_RUNTIME_CLASSNAME' ] = executeclasse.get('runtimeClassName','')
@@ -3544,22 +3543,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 )
                 pod_manifest['spec']['containers'].append( new_container )
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
-
-        """ 
-        storage
-        currentcontainertype = 'storage'
-        if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
-                new_container = self.addcontainertopod( 
-                    authinfo=authinfo, 
-                    userinfo=userinfo, 
-                    currentcontainertype=currentcontainertype, 
-                    myuuid=myuuid,
-                    envlist=envlist,
-                    list_volumeMounts=list_pod_allvolumeMounts
-                )
-                pod_manifest['spec']['containers'].append( new_container )
-                self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
-        """
 
         # add snapshot container if enabled
         # snasphot is a special container
@@ -4624,7 +4607,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return ':0.0'
 
     def get_PULSE_SERVER(  self, desktop_ip_addr:str='' ):
-        return  'unix:/tmp/.pulse.sock'
+        return  '/tmp/runtime/pulse/native'
 
     def get_CUPS_SERVER( self, desktop_ip_addr:str ):
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
