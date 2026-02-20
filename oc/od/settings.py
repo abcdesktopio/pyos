@@ -412,9 +412,7 @@ def init_desktop():
             'log': { 'name': 'log', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
             'rundbus': { 'name': 'rundbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
             'runuser': { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
-            'x11socket': { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } },
-            'pulseaudiosocket' :  { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } },
-            'cupsdsocket': { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
+            'x11socket': { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } }
         }
     if not isinstance ( desktop_pod.get('default_volumes_mount'), dict ):
         desktop_pod['default_volumes_mount'] = {
@@ -424,16 +422,14 @@ def init_desktop():
             'log': { 'name': 'log',  'mountPath': '/var/log/desktop' },
             'rundbus': { 'name': 'rundbus',  'mountPath': '/var/run/dbus' },
             'runuser': { 'name': 'runuser',  'mountPath': '/run/user/' },
-            'x11socket': { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' },
-            'pulseaudiosocket':  { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' },
-            'cupsdsocket': { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
+            'x11socket': { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' } 
         }
     if not isinstance ( desktop_pod.get('graphical', {}).get('volumes') , list ):
-        desktop_pod['graphical']['volumes'] = [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
+        desktop_pod['graphical']['volumes'] = [ 'x11socket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
         logger.debug(f"fixing desktop.pod.graphical.volumes config {desktop_pod['graphical']['volumes']}")
     if not isinstance ( desktop_pod.get('ephemeral_container', {}).get('volumes') , list ):
         # ephemeral container use the same volumes as graphical pod
-        desktop_pod['ephemeral_container']['volumes'] = [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
+        desktop_pod['ephemeral_container']['volumes'] = [ 'x11socket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
         logger.debug(f"fixing desktop.pod.ephemeral_container.volumes config {desktop_pod['ephemeral_container']['volumes']}")
     if not isinstance ( desktop_pod.get('pod_application', {}).get('volumes') , list ):
         desktop_pod['pod_application']['volumes'] = [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
