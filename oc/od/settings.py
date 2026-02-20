@@ -340,6 +340,7 @@ def init_desktop():
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
     desktop['nodeselector']             = gconfig.get('desktop.nodeselector', {} )
     desktop['theme']                    = gconfig.get('desktop.theme') 
+    desktop['pulseaudiosocketpath']     = gconfig.get('desktop.pulseaudiosocketpath', '/tmp/runtime/pulse/native' )
     desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim') or gconfig.get('desktop.persistentvolumeclaimspec')
     desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')

@@ -3288,7 +3288,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         env[ 'USER' ] = posixuser.get('uid') # read uid
         env[ 'USERNAME' ] = posixuser.get('uid') # read uid
         env[ 'LOGNAME' ] = posixuser.get('uid') # read uid
-        env[ 'PULSE_SERVER' ] = '/tmp/runtime/pulse/native' # for embedded applications
+        env[ 'PULSE_SERVER' ] = oc.od.settings.desktop['pulseaudiosocketpath'] # set PULSE_SERVER
         env[ 'ABCDESKTOP_EXECUTE_CLASSNAME' ] = executeclassname
         env[ 'ABCDESKTOP_EXECUTE_CLASS' ] = json.dumps(executeclasse)
         env[ 'ABCDESKTOP_RUNTIME_CLASSNAME' ] = executeclasse.get('runtimeClassName','')
@@ -4607,7 +4607,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return ':0.0'
 
     def get_PULSE_SERVER(  self, desktop_ip_addr:str='' ):
-        return  '/tmp/runtime/pulse/native'
+        return  oc.od.settings.desktop['pulseaudiosocketpath']
 
     def get_CUPS_SERVER( self, desktop_ip_addr:str ):
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
