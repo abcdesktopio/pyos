@@ -98,12 +98,12 @@ class ODKubernetesWatcher:
             
             except client.exceptions.ApiException as e:
                 self.logger.error( f"{type(e)} {e}" )
-                if hasattr('status',e) and e.status == 401 :
+                if hasattr(e,'status') and e.status == 401 :
                     self.logger.fatal( f"exit loopforevent threading, this error is fatal" )
                     return
                 
-                if hasattr('status',e) and e.status == 504 and \
-                   hasattr('reason',e) and 'Too large resource version' in e.reason :
+                if hasattr(e, 'status') and e.status == 504 and \
+                   hasattr(e, 'reason') and 'Too large resource version' in e.reason :
                     self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
                     break # break this for loop and retry watch streaming
 
