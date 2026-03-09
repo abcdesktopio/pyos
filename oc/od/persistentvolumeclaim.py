@@ -221,7 +221,7 @@ class ODPersistentVolumeClaim():
                                 return (False, f"e.PersistentVolumeClaim {name} has failed its automatic reclamation, claim={name}, volume {volume_name}, storage class {storage_class_name}")
                             if pvc.status.phase in [ 'Pending', 'Available' ]:
                                 event_counter += 1
-
+            
             except ApiException as e:
                 #
                 # kubernetes.client.exceptions.ApiException: (504)
@@ -229,11 +229,10 @@ class ODPersistentVolumeClaim():
                 # pass this exception 
                 # read https://github.com/kubernetes/kubernetes/issues/107133
                 # 
-                if hasattr('status',e) and e.status == 504 and \
-                   hasattr('reason',e) and 'Too large resource version' in e.reason :
-                        self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
-                        event_counter = 0
-                        pass
+                if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+                    self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
+                    event_counter = 0
+                    pass
                 else:
                     raise e
                     
