@@ -1267,9 +1267,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # now ovewrite home values
         if homedirectorytype == 'persistentVolumeClaim':
-            self.logger.debug( f"homedirectorytype is {homedirectorytype}" ) 
+            self.logger.debug( f"use homedirectorytype persistentVolumeClaim" ) 
             claimName = None # None is the default value, nothing to do
-            self.logger.debug( f"type of oc.od.settings.desktop['persistentvolumeclaim'] is {type(oc.od.settings.desktop['persistentvolumeclaim'])}" )
+            # self.logger.debug( f"type of oc.od.settings.desktop['persistentvolumeclaim'] is {type(oc.od.settings.desktop['persistentvolumeclaim'])}" )
             if isinstance( oc.od.settings.desktop['persistentvolumeclaim'], str):
                 # oc.od.settings.desktop['persistentvolumeclaim'] is the name of the PVC
                 # in this case, there is only one shared PVC for all users
@@ -3246,6 +3246,33 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.warning( f"volumeMount {volumeMount_name} not found for container type {currentcontainertype}" )
         return volumemountlist
 
+
+    def areAllmyContainerStarted( self, pod_name:str )->bool:
+        """areAllmyContainerstarted
+            check if all containers in the pod are started
+            return True if all containers in the pod are started, False otherwise
+
+        Args:
+            myPod (V1Pod): pod object
+        Returns:
+            bool: True if all containers are started, False otherwise
+        """
+        assert isinstance(pod_name, str), f"pod_name has invalid type {type(pod_name)}, str is expected"
+        try:
+            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
+        except ApiException as e:
+            self.logger.error( f"error in reading pod {pod_name} to check if all containers are started: {e}" )
+            return False
+        assert isinstance(myPod, V1Pod),  f"myPod has invalid type {type(myPod)}, V1Pod is expected"
+        if not isinstance( myPod.status, V1PodStatus ):
+            return False
+        if not isinstance( myPod.status.container_statuses, list):
+            return False
+        for c in myPod.status.container_statuses:
+            if c.started is not True:
+                return False
+        return True 
+
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)-> ODDesktop :
         """createdesktop
             create the user pod 
@@ -3605,132 +3632,164 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.on_desktoplaunchprogress(f"b.Watching for events" )
         self.logger.debug('watch list_namespaced_event pod creating' )
         pulled_counter = 0 
-        started_counter = 0
         expected_containers_len = 0
         if isinstance( pod.spec.init_containers, list ):
             expected_containers_len += len( pod.spec.init_containers )
         if isinstance( pod.spec.containers, list ):
             expected_containers_len += len( pod.spec.containers )
 
-        # watch list_namespaced_event
+        continue_reading_events = True
         w = watch.Watch()
+        while continue_reading_events:
+            try:
+                # watch list_namespaced_event
+                for event in w.stream(  self.kubeapi.list_namespaced_event, 
+                                        namespace=self.namespace, 
+                                        timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
+                                        field_selector=f'involvedObject.name={pod_name}'):
+                    
+                    if not isinstance(event, dict ): continue # safe type test event is a dict
+                    if not isinstance(event.get('object'), CoreV1Event ): continue # safe type test event object is a CoreV1Event
+                    event_object = event.get('object')
+                    # self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
+                    self.on_desktoplaunchprogress( f"b.{event_object.message}" )
 
-        for event in w.stream(  self.kubeapi.list_namespaced_event, 
-                                namespace=self.namespace, 
-                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
-                                field_selector=f'involvedObject.name={pod_name}'):
-            
-            if not isinstance(event, dict ): continue # safe type test event is a dict
-            if not isinstance(event.get('object'), CoreV1Event ): continue # safe type test event object is a CoreV1Event
-            event_object = event.get('object')
-            self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-            self.on_desktoplaunchprogress( f"b.{event_object.message}" )
+                    #
+                    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Event.md
+                    # Type of this event (Normal, Warning), new types could be added in the future
+                    # 'Normal':  Information only and will not cause any problems
+                    # 'Warning': These events are to warn that something might go wrong
 
-            #
-            # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Event.md
-            # Type of this event (Normal, Warning), new types could be added in the future
-            # 'Normal':  Information only and will not cause any problems
-            # 'Warning': These events are to warn that something might go wrong
+                    if event_object.type == 'Warning':  # event Warning
+                        # something might goes wrong
+                        self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
+                        w.stop()
+                        return f"{event_object.type} {event_object.reason} {event_object.message}"
 
-            if event_object.type == 'Warning':  # event Warning
-                # something might goes wrong
-                self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                w.stop()
-                return f"{event_object.type} {event_object.reason} {event_object.message}"
+                    elif event_object.type == 'Normal': # event Normal
 
-            elif event_object.type == 'Normal': # event Normal
+                        if event_object.reason in [ 'Created', 'Pulling', 'Scheduled' ]:
+                            continue # nothing to do
 
-                if event_object.reason in [ 'Created', 'Pulling', 'Scheduled' ]:
-                    continue # nothing to do
+                        # check reason, read 
+                        # https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
+                        # reason should be a short, machine understandable string that gives the reason for the transition 
+                        # into the object's current status.
+                        if event_object.reason == 'Pulled':
+                            self.logger.debug( f"Event Pulled received pulled_counter={pulled_counter}")
+                            pulledmyPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
+                            pulled_counter = pulled_counter + 1
+                            # if all images are pulled 
+                            self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
+                            if pulled_counter >= expected_containers_len :
+                                self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
+                                # pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
+                                # if isinstance( pod_IPAddress, str ):
+                                #    self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
+                                #    self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
+                                #    self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
+                                continue_reading_events = False
+                                w.stop()
 
-                # check reason, read 
-                # https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go
-                # reason should be a short, machine understandable string that gives the reason for the transition 
-                # into the object's current status.
-                if event_object.reason == 'Pulled':
-                    self.logger.debug( f"Event Pulled received pulled_counter={pulled_counter}")
-                    pulled_counter = pulled_counter + 1
-                    # if all images are pulled 
-                    self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
-                    if pulled_counter >= expected_containers_len :
-                        self.logger.debug( f"counter pulled_counter={pulled_counter} >= expected_containers_len={expected_containers_len}")
-                        # pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
-                        # if isinstance( pod_IPAddress, str ):
-                        #    self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
-                        #    self.on_desktoplaunchprogress(f"b.Your pod {pod.metadata.name} gets ip address {pod_IPAddress} from network plugin")
-                        #    self.logger.debug( f"stop watching event list_namespaced_event for pod {pod.metadata.name} ")
+                        elif event_object.reason == 'Started':                      
+                            if self.areAllmyContainerStarted( pod_name=pod_name ) is True:
+                                continue_reading_events = False
+                                w.stop()
+                            else: 
+                                self.logger.debug(f"Event Started received but not all containers are started, continue watching {pod_name}")
+                                continue
+                        else:
+                            # log the events
+                            self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
+                            self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
+                            # fix for https://github.com/abcdesktopio/oc.user/issues/52
+                            # this is not an error
+                            continue_reading_events = False
+                            w.stop()
+                        
+                    else: 
+                        # this event is not 'Normal' or 'Warning', unknow event received
+                        self.logger.error(f"UNMANAGED EVENT pod type {event_object.type}")
+                        continue_reading_events = False
                         w.stop()
 
-                elif event_object.reason == 'Started':  
-                    self.logger.debug( f"Event Started received started_counter={started_counter}")
-                    started_counter = started_counter + 1    
-                    self.logger.debug( f"counter started_counter={started_counter} expected_containers_len={expected_containers_len}")
-                    #pod_IPAddress = self.getPodIPAddress( pod.metadata.name )
-                    #if isinstance( pod_IPAddress, str ):
-                    #    self.logger.debug( f"{pod.metadata.name} has an ip address: {pod_IPAddress}")
-                    if started_counter >= expected_containers_len :
-                        w.stop()
+            except ApiException as e:
+                if hasattr(e, 'status') and e.status == 504 and \
+                   hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+                    self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
                 else:
-                    # log the events
-                    self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                    self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
-                    # fix for https://github.com/abcdesktopio/oc.user/issues/52
-                    # this is not an error
-                    w.stop()
-                    # return  f"{event_object.reason} {event_object.message}"
-                
-            else: 
-                # this event is not 'Normal' or 'Warning', unknow event received
-                self.logger.error(f"UNMANAGED EVENT pod type {event_object.type}")
-                w.stop()
+                    continue_reading_events = False
+                    self.logger.error( f"{type(e)} {e}" )
+    
+            except Exception as e:
+                self.logger.error( f"Exception: {e}" )
+                continue_reading_events = False
+
         #
         # list_namespaced_event done
         #
         self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
-        w = watch.Watch()                 
-        for event in w.stream(  self.kubeapi.list_namespaced_pod, 
-                                namespace=self.namespace, 
-                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
-                                field_selector=f"metadata.name={pod_name}" ):   
-            # event must be a dict, else continue
-            if not isinstance(event,dict):
-                self.logger.error( f"event type is {type( event )}, and should be a dict, skipping event")
-                continue
+        continue_reading_events = True
+        w = watch.Watch()
+        while continue_reading_events:
+            try:               
+                for event in w.stream(  self.kubeapi.list_namespaced_pod, 
+                                        namespace=self.namespace, 
+                                        timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
+                                        field_selector=f"metadata.name={pod_name}" ):   
+                    # event must be a dict, else continue
+                    if not isinstance(event,dict):
+                        self.logger.error( f"event type is {type( event )}, and should be a dict, skipping event")
+                        continue
 
-            event_type = event.get('type')  # event dict must contain a type 
-            pod_event = event.get('object') # event dict must contain a pod object 
-            if not isinstance( pod_event, V1Pod ): continue  # if podevent type must be a V1Pod
-            if not isinstance( pod_event.status, V1PodStatus ): continue
-            #
-            self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}")
-            self.logger.debug(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase}" )
-            #
-            # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
-            #
-            # possible values for phase
-            # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
-            # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
-            # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
-            # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
-            # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
-            if pod_event.status.phase == 'Pending' :
-                self.on_desktoplaunchprogress( f"b.Your pod {pod_event.metadata.name} is {pod_event.status.phase}"  )
-                continue
-            elif pod_event.status.phase == 'Running' :
-                startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event, myEvent=None)
-                self.on_desktoplaunchprogress( startedmsg )
-                w.stop()
-            elif pod_event.status.phase == 'Succeeded' or \
-                 pod_event.status.phase == 'Failed' :
-                # pod data object is complete, stop reading event
-                # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
-                self.logger.debug(f"The pod {pod_event.metadata.name} is not in Pending phase, phase={pod_event.status.phase} stop watching" )
-                w.stop()
-            else:
-                # pod_event.status.phase should be 'Unknow'
-                self.logger.error(f"UNMANAGED CASE pod {pod_event.metadata.name} is in unmanaged phase {pod_event.status.phase}")
-                self.logger.error(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase} stop watching" )
-                w.stop()
+                    event_type = event.get('type')  # event dict must contain a type 
+                    pod_event = event.get('object') # event dict must contain a pod object 
+                    if not isinstance( pod_event, V1Pod ): continue  # if podevent type must be a V1Pod
+                    if not isinstance( pod_event.status, V1PodStatus ): continue
+                    #
+                    self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}")
+                    self.logger.debug(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase}" )
+                    #
+                    # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+                    #
+                    # possible values for phase
+                    # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
+                    # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
+                    # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
+                    # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
+                    # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
+                    if pod_event.status.phase == 'Pending' :
+                        self.on_desktoplaunchprogress( f"b.Your pod {pod_event.metadata.name} is {pod_event.status.phase}"  )
+                        continue
+                    elif pod_event.status.phase == 'Running' :
+                        startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event, myEvent=None)
+                        self.on_desktoplaunchprogress( startedmsg )
+                        continue_reading_events = False
+                        w.stop()
+                    elif pod_event.status.phase == 'Succeeded' or pod_event.status.phase == 'Failed' :
+                        # pod data object is complete, stop reading event
+                        # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
+                        self.logger.debug(f"The pod {pod_event.metadata.name} is not in Pending phase, phase={pod_event.status.phase} stop watching" )
+                        continue_reading_events = False
+                        w.stop()
+                    else:
+                        # pod_event.status.phase should be 'Unknow'
+                        self.logger.error(f"UNMANAGED CASE pod {pod_event.metadata.name} is in unmanaged phase {pod_event.status.phase}")
+                        self.logger.error(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase} stop watching" )
+                        continue_reading_events = False
+                        w.stop()
+            
+            except ApiException as e:
+                if hasattr(e, 'status') and e.status == 504 and \
+                   hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+                    self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
+                else:
+                    continue_reading_events = False
+                    self.logger.error( f"{e}" )
+    
+            except Exception as e:
+                self.logger.error( f"{e}" )
+                continue_reading_events = False
 
         self.logger.debug(f"watch list_namespaced_pod created, the pod is no more in Pending phase" )
 
@@ -5000,11 +5059,11 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         continue_reading_events = True
         dict_state_exec_only_once = {}
+        w = watch.Watch()
         while continue_reading_events:
             timeout_seconds = 5 # seconds
             try:
                 # watch list_namespaced_event
-                w = watch.Watch()
                 for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
                                         namespace=self.orchestrator.namespace,
                                         field_selector=field_selector,
@@ -5046,8 +5105,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         w.stop()
                         continue
             except ApiException as e:
-                continue_reading_events = False
-                self.logger.error( f"ApiException {e}" )
+                if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+                    self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
+                    continue
+                else:
+                    continue_reading_events = False
+                    self.logger.error( f"ApiException {e}" )
             except Exception as e:
                 continue_reading_events = False
                 self.logger.error( f"Exception {e}" )
@@ -5259,118 +5322,6 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         self.logger.debug(f"create done {appinstancestatus}")
         return appinstancestatus
         
-        """
-        self.logger.debug(f"starting read_namespaced_pod")
-        w = watch.Watch()                 
-        # read_namespaced_pod
-        for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod,
-                                namespace=self.orchestrator.namespace,
-                                field_selector=f"metadata.name={pod_name}" ):
-            # event must be a dict, else continue
-            if not isinstance(event,dict):  continue
-            self.logger.debug( f"list_namespaced_pod get event type={event.get('type')}")
-            # object={type(event.get('object'))}" )
-            pod = event.get('object')
-            # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
-            if not isinstance( pod, V1Pod ): continue
-            if not isinstance( pod.status, V1PodStatus ): continue
-            if not isinstance( pod.status.ephemeral_container_statuses, list): continue
-
-            for c in pod.status.ephemeral_container_statuses:
-                if isinstance( c, V1ContainerStatus ) and c.name == app_container_name:
-                    self.logger.debug( f"{app_container_name} is found in ephemeral_container_statuses {c}")
-                    if isinstance( c.state, V1ContainerState ):
-                        if isinstance(c.state.terminated, V1ContainerStateTerminated ):
-                            appinstancestatus.message = 'Terminated'
-                            w.stop()
-                            break
-                        elif isinstance(c.state.running, V1ContainerStateRunning ):
-                            appinstancestatus.message = 'Running'
-                            w.stop()
-                            break
-                        elif isinstance(c.state.waiting, V1ContainerStateWaiting):
-                            self.logger.debug( f"V1ContainerStateWaiting reason={c.state.waiting.reason}" )
-                            data = {    'message':  app.get('name'), 
-                                        'name':     app.get('name'),
-                                        'icondata': app.get('icondata'),
-                                        'icon':     app.get('icon'),
-                                        'image':    app.get('id'),
-                                        'launch':   app.get('launch')
-                            }
-                            if  c.state.waiting.reason == 'PodInitializing':
-                                data['message'] = f"{c.state.waiting.reason} {app.get('name')}, please wait"
-                                self.orchestrator.notify_user( myDesktop, 'container', data )
-
-            if event.get('type') == 'ERROR':
-                self.logger.error( f"{event.get('type')} object={type(event.get('object'))}")
-                appinstancestatus.message = 'ERROR'
-                w.stop()
-
-        return appinstancestatus  
-    """
-    
-    """
-        # Valid values for event types (new types could be added in future)
-        #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
-        #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
-        # self.logger.info( f"object_type={event_object.type} reason={event_object.reason}")
-        # message = f"b.{event_object.reason} {event_object.message.lower()}"
-
-    
-    send_previous_pulling_message = False
-    # watch list_namespaced_event
-    w = watch.Watch()                 
-    for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
-                            namespace=self.orchestrator.namespace, 
-                            timeout_seconds=self.orchestrator.DEFAULT_K8S_CREATE_TIMEOUT_SECONDS,
-                            field_selector=f'involvedObject.name={pod_name}' ):  
-        if not isinstance(event, dict ): continue
-        if not isinstance(event.get('object'), CoreV1Event ): continue
-
-        # Valid values for event types (new types could be added in future)
-        #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
-        #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
-
-        event_object = event.get('object')
-
-        self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-        data = { 
-                'message':  app.get('name'), 
-                'name':     app.get('name'),
-                'icondata': app.get('icondata'),
-                'icon':     app.get('icon'),
-                'image':    app.get('id'),
-                'launch':   app.get('launch')
-        }
-        if event_object.type == 'Normal':
-            if event_object.reason == 'Pulling':
-                send_previous_pulling_message = True
-                data['message'] =  f"Installing {app.get('name')}, please wait"
-                self.orchestrator.notify_user( myDesktop, 'container', data )
-            elif event_object.reason == 'Pulled':
-                if send_previous_pulling_message is True:
-                    data['message'] =  f"{app.get('name')} is installed"
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
-            elif event_object.reason in [ 'Created', 'Scheduled' ]:
-                pass # nothing to do
-            elif event_object.reason == 'Started':
-                # w.stop()
-                pass
-            else:
-                data['message'] =  f"{app.get('name')} is {event_object.reason}"
-                self.orchestrator.notify_user( myDesktop, 'container', data )
-                self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                w.stop()
-            
-        else: # event_object.type == 'Warning':
-            # an error occurs
-            data['name'] = event_object.type
-            data['message'] = event_object.reason
-            self.orchestrator.notify_user( myDesktop, 'container', data )
-            w.stop()
-
-    return appinstancestatus
-    """
         
     def describe( self, pod_name:str, app_name:str, apps:ODApps ):
         description = None
@@ -5737,7 +5688,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, app_pod_name:str, app:dict )->None:
         self.logger.debug('')
 
-          # pod data object is complete, stop reading event
+        # pod data object is complete, stop reading event
         # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
         data = { 
             'id': app_pod_name,
@@ -5749,63 +5700,65 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'launch':   app.get('launch')
         }
 
-        w = watch.Watch()                 
-        for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
-                                namespace=self.orchestrator.namespace, 
-                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
-                                field_selector=f"metadata.name={app_pod_name}" ):   
-            # event must be a dict, else continue
-            if not isinstance(event,dict):
-                self.logger.error( f"event type is {type( event )}, and should be a dict, skipping event")
-                continue
+        # we must catch exception because 
+        # if the pod is deleted while we are watching, it will raise an exception and we want to catch it and stop the thread             
+        # if kubernetes.client.exceptions.ApiException: (504) Reason: Timeout: Timeout: Too large resource version: 135065452, current: 135065439
+        try:          
+            w = watch.Watch()
+            for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
+                                    namespace=self.orchestrator.namespace, 
+                                    timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
+                                    field_selector=f"metadata.name={app_pod_name}" ):   
+                # event must be a dict, else continue
+                if not isinstance(event,dict): continue
+                self.logger.debug( f"event type is {event.get('type')}")
+                # event dict must contain a pod object 
+                pod_event = event.get('object')
+                # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
+                if not isinstance( pod_event, V1Pod ): continue
+                if not isinstance( pod_event.status, V1PodStatus ): continue
 
-            self.logger.debug( f"event type is {event.get('type')}")
-            # event dict must contain a pod object 
-            pod_event = event.get('object')
-            # if podevent type must be a V1Pod, we use kubeapi.list_namespaced_pod
-            if not isinstance( pod_event, V1Pod ): continue
-            if not isinstance( pod_event.status, V1PodStatus ): continue
-
-            # expected_containers_len = len( pod_event.spec.containers ) + len( pod_event.spec.init_containers )
-
-            # self.logger.debug( f"pod_event.status.phase={pod_event.status.phase} pod_event.status.reason={pod_event.status.reason}")
-            #
-            # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
-            # possible values for phase
-            # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
-            # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
-            # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
-            # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
-            # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
-            
-            if pod_event.status.phase == 'Running':
-                data['reason'] = pod_event.status.phase
-                data['message'] = pod_event.status.message or pod_event.status.phase
-                self.orchestrator.notify_user( myDesktop, 'container', data )
-                w.stop()
-                continue
-
-            if pod_event.status.phase == 'Pending':
-                if pod_event.status.reason in [ 'Pulling', 'Pulled', 'Started' ]:
+                # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+                # possible values for phase
+                # Pending	The Pod has been accepted by the Kubernetes cluster, but one or more of the containers has not been set up and made ready to run. This includes time a Pod spends waiting to be scheduled as well as the time spent downloading container images over the network.
+                # Running	The Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.
+                # Succeeded	All containers in the Pod have terminated in success, and will not be restarted.
+                # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
+                # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
+                
+                if pod_event.status.phase == 'Running':
                     data['reason'] = pod_event.status.phase
                     data['message'] = pod_event.status.message or pod_event.status.phase
                     self.orchestrator.notify_user( myDesktop, 'container', data )
-                continue
+                    w.stop()
+                    continue
 
-            if pod_event.status.phase == 'Warning':
-                data['reason'] = pod_event.status.phase
-                data['message'] = pod_event.status.message 
-                self.orchestrator.notify_user( myDesktop, 'container', data )
-                w.stop()
-            elif pod_event.status.phase in [ 'Failed', 'Unknown', 'Warning', 'Succeeded'] :
-                # pod data object is complete, stop reading event
-                # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
-                # an error occurs
-                data['reason'] = pod_event.status.type
-                data['message'] = pod_event.status.reason
-                self.orchestrator.notify_user( myDesktop, 'container', data )
-                self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
-                w.stop()
+                if pod_event.status.phase == 'Pending':
+                    if pod_event.status.reason in [ 'Pulling', 'Pulled', 'Started' ]:
+                        data['reason'] = pod_event.status.phase
+                        data['message'] = pod_event.status.message or pod_event.status.phase
+                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                    continue
+
+                if pod_event.status.phase == 'Warning':
+                    data['reason'] = pod_event.status.phase
+                    data['message'] = pod_event.status.message 
+                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    w.stop()
+
+                elif pod_event.status.phase in [ 'Failed', 'Unknown', 'Warning', 'Succeeded'] :
+                    # pod data object is complete, stop reading event
+                    # phase can be 'Running' 'Succeeded' 'Failed' 'Unknown'
+                    # an error occurs
+                    data['reason'] = pod_event.status.type
+                    data['message'] = pod_event.status.reason
+                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
+                    w.stop()
+
+        except Exception as e:
+            self.logger.error( f"Exception in watch_for_end_of_pod_initializing: {e}" )
+    
         self.logger.debug('end of watch_for_end_of_pod_initializing')
 
 
@@ -5841,49 +5794,53 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     'launch': app.get('launch')
         }
 
-        w = watch.Watch()                 
-        for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
-                                namespace=self.orchestrator.namespace, 
-                                timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
-                                field_selector=f'involvedObject.name={app_pod_name}' ):  
-            # safe type check 
-            if not isinstance(event, dict ): continue
-            if not isinstance(event.get('object'), CoreV1Event ): continue
+        # we must catch exception because 
+        # if the pod is deleted while we are watching, it will raise an exception and we want to catch it and stop the thread             
+        # if kubernetes.client.exceptions.ApiException: (504) Reason: Timeout: Timeout: Too large resource version: 135065452, current: 135065439
+        try:     
+            w = watch.Watch()     
+            for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
+                                    namespace=self.orchestrator.namespace, 
+                                    timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
+                                    field_selector=f'involvedObject.name={app_pod_name}' ):  
+                # safe type check 
+                if not isinstance(event, dict ): continue
+                if not isinstance(event.get('object'), CoreV1Event ): continue
 
-            # Valid values for event types (new types could be added in future)
-            #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
-            #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
+                # Valid values for event types (new types could be added in future)
+                #    EventTypeNormal  string = "Normal"     // Information only and will not cause any problems
+                #    EventTypeWarning string = "Warning"    // These events are to warn that something might go wrong
 
-            event_object = event.get('object')
-            self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
+                event_object = event.get('object')
+                data['reason'] = event_object.reason
+                data['message'] = event_object.message
 
-            data['reason'] = event_object.reason
-            data['message'] = event_object.message
-
-            if event_object.type == 'Normal':
-                if event_object.reason == 'Pulling':
-                    data['message'] =  f"{event_object.reason} {app.get('name')}, please wait"             
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
-                elif event_object.reason == 'Pulled':
-                    self.logger.debug( f"Event Pulled received")
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
-                elif event_object.reason == 'Started': 
+                if event_object.type == 'Normal':
+                    if event_object.reason == 'Pulling':
+                        data['message'] =  f"{event_object.reason} {app.get('name')}, please wait"             
+                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                    elif event_object.reason == 'Pulled':
+                        self.logger.debug( f"Event Pulled received")
+                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                    elif event_object.reason == 'Started': 
+                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        w.stop()
+                    elif event_object.reason in [ 'Scheduled', 'Created' ]:
+                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                    else:
+                        data['message'] = f"{event_object.reason} {event_object.message}"
+                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
+                        w.stop()
+                    
+                else: # event_object.type == 'Warning':
+                    # an error occurs
+                    data['name'] = event_object.type
+                    data['message'] = event_object.reason
                     self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
-                elif event_object.reason in [ 'Scheduled', 'Created' ]:
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
-                else:
-                    data['message'] = f"{event_object.reason} {event_object.message}"
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
-                    self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                    w.stop()
-                
-            else: # event_object.type == 'Warning':
-                # an error occurs
-                data['name'] = event_object.type
-                data['message'] = event_object.reason
-                self.orchestrator.notify_user( myDesktop, 'container', data )
-                w.stop()
+        except Exception as e:
+            self.logger.error( f"Exception in watch_for_end_of_pod_initializing: {e}" )
         self.logger.debug('end of watch_for_pulling_event')
         
 
