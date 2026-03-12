@@ -5156,7 +5156,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         self.logger.debug('thread_to_watch_for_pulling_event end')
 
 
-    def create(self, myDesktop:ODDesktop, app, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
+    def create(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
         """create
             create an ephemeral container in a desktop pod
         Args:
@@ -5846,7 +5846,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
 
 
-    def create(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
+    def create(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
         self.logger.debug('')
 
         rules = app.get('rules', {}) or {} # app['rules] can be set to None
