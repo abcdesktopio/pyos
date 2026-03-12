@@ -37,9 +37,10 @@ class ODMongoDatastoreClient(ODDatastoreClient):
     def __init__(self, mongodburl:str, mongodbparam:str=None, databasename:str=None):
         self.databasename = databasename
         self.mongodburl = mongodburl
-        self.mongodbparam = mongodbparam
-        if not isinstance( self.mongodbparam, str):
+        if not isinstance( mongodbparam, str):
             self.mongodbparam = ''
+        else: 
+            self.mongodbparam = mongodbparam
 
          # Defaults to 20000 (20 seconds). 
         # set to 5000 (5 seconds). 

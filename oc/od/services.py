@@ -93,6 +93,7 @@ class ODServices(object):
         import oc.od.fail2ban
         self.fail2ban = oc.od.fail2ban.ODFail2ban( 
             mongodburl=settings.mongodburl, 
+            mongodbparam=settings.mongodbparam,
             fail2banconfig=settings.fail2banconfig 
         )
         
