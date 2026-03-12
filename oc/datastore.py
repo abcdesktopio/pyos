@@ -57,31 +57,20 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         url = None
         if isinstance(databasename, str ):
             # url = f"{self.mongodburl}/{databasename}?directConnection=true&replicaSet=rs0&authSource={databasename}"
-            # url = f"{self.mongodburl}/{databasename}?directConnection=true&replicaSet=rs0&authSource={databasename}"
-            url = f"{self.mongodburl}/{databasename}?{self.mongodbparam}&authSource={databasename}"
-            # url = f"{self.mongodburl}/{databasename}?authSource={databasename}"
             # url = f"{self.mongodburl}/{databasename}?replicaSet=rs0&authSource={databasename}"
+            url = f"{self.mongodburl}/{databasename}?{self.mongodbparam}&authSource={databasename}"
         else:
             url = self.mongodburl
         return url
 
     def createclient(self, databasename:str):
-        self.logger.debug( f"databasename={databasename}")
-        # hosturl = self.createhosturl( databasename )
-        # self.logger.debug( f"hosturl={hosturl}")
         hosturl = self.createhosturl( databasename )
-        self.logger.debug( f"createclient MongoClient {hosturl}")
         mongo_client = MongoClient(host=hosturl)
-        # connectTimeoutMS=self.connectTimeoutMS, 
-        # socketTimeoutMS=self.socketTimeoutMS, 
-        # serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
-        # server_info = mongo_client.server_info()
-        # self.logger.debug( f"server_info={server_info}")
         return mongo_client
 
     def get_document_value_in_collection(self, databasename, collectionname, key):
         obj = None
-        self.logger.debug( f"database={databasename} collectionname={collectionname} key={key}" )
+        # self.logger.debug( f"database={databasename} collectionname={collectionname} key={key}" )
         try:            
             client = self.createclient(databasename)        
             collection = client[databasename][collectionname]            
