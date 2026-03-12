@@ -65,7 +65,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             url = self.mongodburl
         return url
 
-    def createclient(self, databasename):
+    def createclient(self, databasename:str):
         self.logger.debug( f"databasename={databasename}")
         # hosturl = self.createhosturl( databasename )
         # self.logger.debug( f"hosturl={hosturl}")
