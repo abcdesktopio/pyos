@@ -88,7 +88,7 @@ class ODFail2ban:
         myfail = None
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
-        myfail = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=1 ) 
+        myfail = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=1 )
         return myfail
 
     def fail_ip( self, value ):
@@ -146,7 +146,6 @@ class ODFail2ban:
           # if ban is not enable nothing to do
         if not self.enable: 
             return False
-
         bReturn = False 
 
         # sanity check
@@ -170,11 +169,9 @@ class ODFail2ban:
             q = collection.update_one({ self.index_name: value, self.index_date: utc_timestamp}, {'$inc' : { self.counter : counter } })
         else: 
             q = collection.insert_one({ self.index_name: value, self.index_date: utc_timestamp,  self.counter : counter })
-            q = {"n": 1, "Inserted": 1, "ok": 1.0, "updatedExisting": False }
         return q
 
-    def ban( self, value,  collection_name ):
-        myban = None
+    def ban( self, value:str, collection_name:str )->dict:
         if not self.sanity( value, self.sanity_filter.get(collection_name)):
             error_message = f"bad value sanity check {value} for {collection_name}"
             self.logger.error(error_message)
@@ -182,9 +179,13 @@ class ODFail2ban:
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
         myban = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=self.failmaxvaluebeforeban )
+        ban_result = {}
         if isinstance( myban, pymongo.results.UpdateResult ):
-            myban = myban.raw_result
-        return myban
+            ban_result = { 'n':  myban.raw_result.get('n'), 'ok': myban.raw_result.get('ok'), 'updatedExisting': myban.raw_result.get('updatedExisting') }
+        if isinstance( myban, pymongo.results.InsertOneResult ):
+            ban_ok = '1' if myban.acknowledged else '0'
+            ban_result = { 'n': 1, 'ok': ban_ok }
+        return ban_result
 
     def drop( self, collection_name ):
         collection = self.get_collection( collection_name )
@@ -197,10 +198,14 @@ class ODFail2ban:
             self.logger.error("bad parameter sanity check")
             return myban
         collection = self.get_collection( collection_name )
+        # self.logger.debug( f"collection.delete_one {value} in {collection_name}")
         delete_one = collection.delete_one({ self.index_name: value})
+        # self.logger.debug( f"delete_one result: {delete_one} type={type(delete_one)}" )
+        unban_result = {}
         if isinstance( delete_one, pymongo.results.DeleteResult ):
-            myban = delete_one.raw_result
-        return myban
+            # filter the result to return only the number of deleted document and the status of the operation
+            unban_result = { 'n': delete_one.raw_result.get('n'), 'ok': delete_one.raw_result.get('ok') }
+        return unban_result
 
     def listban( self, collection_name ):
         ban_list = []
