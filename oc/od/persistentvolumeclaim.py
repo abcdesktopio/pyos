@@ -185,15 +185,13 @@ class ODPersistentVolumeClaim():
         assert_type( name, str )
         w = watch.Watch()                 
         event_counter = 0
-        while True:
+        while event_counter < oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']:
             try:
                 for event in w.stream(  self.kubeapi.list_namespaced_persistent_volume_claim, 
                                         namespace=self.namespace, 
                                         timeout_seconds=oc.od.settings.desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'],
                                         field_selector=f'metadata.name={name}' ):  
-                    if event_counter > oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']:
-                        return (False, f"e.Volume {name} has failed {event_counter}/{oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']}")
-                    
+                     
                     # safe type test event is a dict
                     if not isinstance(event, dict ): continue
                     pvc = event.get('object')
@@ -231,12 +229,10 @@ class ODPersistentVolumeClaim():
                 # 
                 if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
                     self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
-                    event_counter = 0
-                    pass
                 else:
                     raise e
-                    
-        return (False, f"e.Volume {name} has failed its automatic reclamation")
+                      
+        return (False, f"e.Volume {name} has failed its automatic reclamation after {event_counter}/{oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']} events")
 
     '''
     def waitforBoundPVC( self, name:str, callback_notify, timeout:int=42 )->tuple:
