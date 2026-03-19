@@ -813,7 +813,7 @@ class ODAuthTool(cherrypy.Tool):
        return { 'managers': list(map(lambda m: m.getclientdata(), self.managers.values())) }
     
 
-    def reduce_auth_data( self, auth ):
+    def reduce_auth_data( self, auth:AuthInfo )->dict:
         """reduce_token
             reduce token data to return only 
 
@@ -1327,7 +1327,7 @@ class ODAuthTool(cherrypy.Tool):
         return buildcompiledrules
 
 
-    def findproviderusingrules(self, manager ):
+    def findproviderusingrules(self, manager:str ):
         provider = None # default value
 
         # get explicit manager dict
@@ -1399,7 +1399,7 @@ class ODAuthTool(cherrypy.Tool):
 
 
 
-    def metalogin(self, provider, manager=None, **arguments): 
+    def metalogin(self, provider:str, manager=None, **arguments): 
         """ [metalogin]
             same as login but use meta directory to select user informations like DOMAIN \\ SAMAccountName 
             and Kerberos realm
@@ -1598,7 +1598,7 @@ class ODAuthTool(cherrypy.Tool):
 
 
         
-    def findproviderbydomainprefix( self, providers, domain ):
+    def findproviderbydomainprefix( self, providers:list, domain:str ):
         """[summary]
             find a provider using the DOMAIN ActiveDirectory domain name
             return the provider object for this domain
@@ -1644,7 +1644,7 @@ class ODAuthTool(cherrypy.Tool):
         return default_provider
 
 
-    def logintrytofindaprovider( self, manager ):
+    def logintrytofindaprovider( self, manager:str ):
         # manager must be explicit
         if manager != 'explicit':
             raise AuthenticationFailureError('No authentication provider can be found')
@@ -2432,12 +2432,9 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             # return empty list
             self.logger.debug(f"provider {self.name} is a auth_only={self.auth_only}, no roles can be read return {roles}") 
             return roles
-
-        roles = [ "sales", "plpoweruser" ]
-
+        
         if isinstance( userinfo.get('groups'), list ):
             roles = userinfo.get('groups')
-            
 
         return roles
 
@@ -3044,7 +3041,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         return userinfo
 
     
-    def getroles(self, authinfo, userinfo, **params):  
+    def getroles(self, authinfo:AuthInfo, userinfo:AuthUser, **params):  
         self.logger.debug('') 
         roles = []
 
@@ -3916,7 +3913,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
     
    
 
-    def getroles(self, authinfo, userinfo, **params):
+    def getroles(self, authinfo:AuthInfo, userinfo:AuthUser, **params):
         self.logger.debug('')
         token = authinfo.token 
         if not self.recursive_search:
