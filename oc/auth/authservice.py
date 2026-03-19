@@ -476,7 +476,7 @@ class AuthResponse(object):
 class AuthCache(object):
     NotSet  = object()
 
-    def __init__(self, dict_token=None, auth_duration_in_milliseconds=None, origin=None):
+    def __init__(self, dict_token:dict=None, auth_duration_in_milliseconds:int=None, origin=None):
         self.reset()
         if isinstance(dict_token, dict):
             self.setuser( dict_token.get('user'))
@@ -529,8 +529,16 @@ class AuthCache(object):
     def roles(self):
         return self._roles
 
-    def setroles( self, valuedict ):
-        self._roles = AuthRoles( valuedict )
+    def setroles( self, rolevalues:dict|list ):
+        myroles=rolevalues
+        # we convert a list of role to a dict with role as key and None as value 
+        # to be able to use the same code for list or dict of roles
+        if isinstance( rolevalues, list):
+            myroles = {}
+            for role in rolevalues:
+                if isinstance( role, str):
+                    myroles[role] = None
+        self._roles = AuthRoles( myroles )
         
     @property 
     def auth(self):
@@ -651,15 +659,12 @@ class ODAuthTool(cherrypy.Tool):
         # check if we can use cached request data 
         # to prevent decode twice update the request object 
         # by adding the cherrypy.request.odauthcache attribut
-        if not hasattr(cherrypy.request, 'odauthcache') :  
+        if not hasattr(cherrypy.request, 'odauthcache'):
             # attr is not found
-            # parse_auth_request() will decode the token 
-            # self.logger.debug( "current http request has no odauthcache" ) 
-            cherrypy.request.odauthcache = self.parse_auth_request()    
-        else:
-            # self.logger.debug( f"current http request has cached odauthcache" ) 
-            pass           
-        return cherrypy.request.odauthcache 
+            # parse_auth_request() will decode the token
+            # self.logger.debug( "current http request has no odauthcache" )
+            cherrypy.request.odauthcache = self.parse_auth_request()
+        return cherrypy.request.odauthcache
 
     @property
     def user(self):
@@ -816,17 +821,21 @@ class ODAuthTool(cherrypy.Tool):
             auth (_type_): _description_
         """
         auth_data_reduce = {} # return an empty auth_data_reduce by default
-
+        
         if isinstance( auth.data, dict ):
             # filter to this entries
-            for entry in [ 'domain', 'labels' ] :
-                if auth.data.get(entry) :
-                    auth_data_reduce[entry] = auth.data.get(entry)
-
+            if isinstance( auth.data.get('domain'), str ):
+                auth_data_reduce['domain'] = auth.data.get('domain')
+            if isinstance( auth.data.get('labels'), dict ):
+                auth_data_reduce['labels'] = {}
+                for key, value in auth.data.get('labels').items():
+                    if key.isalnum(): # and isinstance(value, str):
+                        auth_data_reduce['labels'][key] = value
+            
         return auth_data_reduce
 
 
-    def update_token( self, auth, user, roles=None ):        
+    def update_token( self, auth:AuthInfo, user:AuthUser, roles:AuthRoles ):        
         """update_token
 
             remove unused data
@@ -853,16 +862,16 @@ class ODAuthTool(cherrypy.Tool):
 
         # create jwt_role_reduce (futur usage) 
         # roles=None as default parameter 
-        jwt_role_reduce = {} 
+        jwt_role_reduce = roles 
         # encode new jwt 
         jwt_token = self.jwt.encode( auth=jwt_auth_reduce, user=jwt_user_reduce, roles=jwt_role_reduce )
 
         return jwt_token 
 
         
-    def compiledcondition( self, condition, user, roles, provider=None, auth=None ):
+    def compiledcondition( self, condition:dict, user:dict, roles:list, provider=None, auth=None )->bool:
 
-        def isPrimaryGroup(user, primaryGroupID):
+        def isPrimaryGroup(user:dict, primaryGroupID:str)->bool:
             # if user is not a dict return False
             if not isinstance(user, dict):
                 return False
@@ -877,7 +886,7 @@ class ODAuthTool(cherrypy.Tool):
         def isTimeBefore( timebefore ):
             return False
 
-        def __isASNumber( ipsource:str, asnumber:str ):
+        def __isASNumber( ipsource:str, asnumber:str )->bool:
             bReturn = False
             try:
                 if isinstance( oc.od.services.services.asnumber, ODASNumber ):
@@ -888,7 +897,7 @@ class ODAuthTool(cherrypy.Tool):
             # self.logger.debug( f"ipsource={ipsource} is in network={network} return {bReturn}")
             return bReturn
 
-        def _isASNumber( ipsource:str, asnumber:str ):
+        def _isASNumber( ipsource:str, asnumber:str )->bool:
             # self.logger.debug(locals())
             if isinstance( asnumber, list ):
                 for n in asnumber:
@@ -898,7 +907,7 @@ class ODAuthTool(cherrypy.Tool):
                 return __isASNumber( ipsource, asnumber )
             return False
 
-        def isASNumber(ipsource:str, asnumber:str ):
+        def isASNumber(ipsource:str, asnumber:str )->bool:
             # self.logger.debug(locals())
             if isinstance( ipsource, list ):
                 for ip in ipsource:
@@ -909,7 +918,7 @@ class ODAuthTool(cherrypy.Tool):
             return False
 
 
-        def isGeoLocation(user, geolocation):
+        def isGeoLocation(user:dict, geolocation:dict)->bool:
             # user.get('geolocation'): {accuracy: 14.884, latitude: 48.8555131, longitude: 2.3752174}
             # haversine.haversine()
             user_geolocation = user.get('geolocation')
@@ -935,7 +944,7 @@ class ODAuthTool(cherrypy.Tool):
                 return True
             return False
 
-        def isHttpHeader( requestheader, rulesheader ):
+        def isHttpHeader( requestheader:dict, rulesheader:dict )->bool:
             if not isinstance( rulesheader, dict):
                 logger.error(f"invalid value type http header {type(rulesheader)}, dict is expected in rule" )
                 return False
@@ -945,7 +954,7 @@ class ODAuthTool(cherrypy.Tool):
                     return False
             return True
 
-        def existHttpHeader( requestheader, rulesheader ):
+        def existHttpHeader( requestheader:dict, rulesheader:list )->bool:
             if not isinstance( rulesheader, list):
                 logger.error(f"invalid value type http header {type(rulesheader)}, list is expected in rule" )
                 return False
@@ -961,7 +970,7 @@ class ODAuthTool(cherrypy.Tool):
                 return False
             return value
 
-        def isMemberOf(roles, groups ) :
+        def isMemberOf(roles:list, groups:list)->bool:
             # self.logger.debug(locals())
             if not isinstance(roles,list):
                 roles = [roles]
@@ -978,7 +987,7 @@ class ODAuthTool(cherrypy.Tool):
                         return True
             return False
 
-        def __isinNetwork( ipsource, network ):
+        def __isinNetwork( ipsource:str, network:str )->bool:
             bReturn = False
             try:
                 if IPAddress(ipsource) in IPNetwork( network ):
@@ -986,10 +995,9 @@ class ODAuthTool(cherrypy.Tool):
             except Exception as e:
                 logger.error( e )
                 bReturn = False
-            # self.logger.debug( f"ipsource={ipsource} is in network={network} return {bReturn}")
             return bReturn
 
-        def _isinNetwork( ipsource, network ):
+        def _isinNetwork( ipsource:str, network:str|list )->bool:
             # self.logger.debug(locals())
             if isinstance( network, list ):
                 for n in network:
@@ -999,7 +1007,7 @@ class ODAuthTool(cherrypy.Tool):
                 return __isinNetwork( ipsource, network )
             return False
 
-        def isinNetwork( ipsource, network ):
+        def isinNetwork( ipsource:str, network:str|list )->bool:
             # self.logger.debug(locals())
             if isinstance( ipsource, list ):
                 for ip in ipsource:
@@ -1221,7 +1229,7 @@ class ODAuthTool(cherrypy.Tool):
         return result
 
 
-    def compiledrules( self, rules, user, roles, provider=None, auth=None, use_memcache=False, memcache=None ):
+    def compiledrules( self, rules:dict, user:dict, roles, provider=None, auth=None, use_memcache=False, memcache=None ):
         # 
         # 'rule-ship':   {  'conditions' : { 'memberOf': [  'cn=ship_crew,ou=people,dc=planetexpress,dc=com'] },
         #                   'expected' : True,
@@ -1243,7 +1251,20 @@ class ODAuthTool(cherrypy.Tool):
         #
         self.logger.debug('')
         
+        # default values
         buildcompiledrules = {}
+        # add builtin additional tags
+        # always add 
+        # - ipsource tag
+        # - asnumber tag if not none
+        # - all user info values with prefix 'user.' to avoid conflict with other tags
+        ipsource = getclientipaddr()
+        buildcompiledrules[ 'ipsource' ] = ipsource
+        asnumber = oc.od.services.services.asnumber.getasn( ipsource )
+        if isinstance( asnumber, str ): 
+            buildcompiledrules[ 'asnumber' ] = asnumber
+
+        # add rules 
         if not isinstance( rules, dict ):
             return buildcompiledrules
 
@@ -1264,16 +1285,6 @@ class ODAuthTool(cherrypy.Tool):
             except Exception as e:
                 self.logger.error(f"rules {name} compilation failed {e} skipping rule")
 
-
-        # add builtin additional tags
-        # always add 
-        # - ipsource tag
-        # - asnumber tag if not none
-        ipsource = getclientipaddr()
-        buildcompiledrules[ 'ipsource' ] = ipsource
-        asnumber = oc.od.services.services.asnumber.getasn( ipsource )
-        if isinstance( asnumber, str ):
-            buildcompiledrules[ 'asnumber' ] = oc.od.services.services.asnumber.getasn( ipsource )
 
         """
         # same version with thread support 
@@ -1671,7 +1682,7 @@ class ODAuthTool(cherrypy.Tool):
         auth_duration_in_milliseconds = (server_endoflogin_utctimestamp - server_utctimestamp)/1000 # in float second
         return auth_duration_in_milliseconds
 
-    def update_user_resqueted_executeclassname(self, auth, user_requested_features:dict)->None:
+    def update_user_resqueted_executeclassname(self, auth:AuthInfo, user_requested_features:dict)->None:
         # update auth.data['labels'] with user_requested_features entries
         if not isinstance( user_requested_features ,dict ):
             return
@@ -1689,7 +1700,7 @@ class ODAuthTool(cherrypy.Tool):
             auth.data['labels'][feature_name] = feature_value
 
 
-    def login(self, provider, manager=None, **arguments):  
+    def login(self, provider:str, manager=None, **arguments):  
         self.logger.debug('')
         auth = None # must be define to prevent referenced before assignment exception
         pdr  = None # must be define to prevent referenced before assignment exception
@@ -1703,7 +1714,7 @@ class ODAuthTool(cherrypy.Tool):
                 # provider is None
                 # can raise exception
                 # do everythings possible to find one provider
-                self.logger.debug( f"provider is None, login try to find a provider using manager={manager}" )
+                self.logger.debug( f"provider is None, login is trying to find a provider using manager={manager}" )
                 provider = self.logintrytofindaprovider( manager )
                 
             # look for an auth manager
@@ -1749,14 +1760,12 @@ class ODAuthTool(cherrypy.Tool):
             # if the provider has rules defined then 
             # compile data using rules
             # runs the rules to get associated labels tag
-            if pdr.rules: 
-                auth.data['labels'] = self.compiledrules( rules=pdr.rules, user=userinfo, roles=roles, provider=pdr, auth=auth )
+            auth.data['labels'] = self.compiledrules( rules=pdr.rules, user=userinfo, roles=roles, provider=pdr, auth=auth )
 
             # update auth.data['labels']['executeclassname'] 
             # if user requests feature executeclassname
             self.update_user_resqueted_executeclassname( auth, arguments.get('features') )
             
-
             # dump labels for debug 
             self.logger.debug( f"labels {auth.data.get('labels')}")
             # end of auth, mesuretimeserver_auth_duration
@@ -1770,10 +1779,7 @@ class ODAuthTool(cherrypy.Tool):
             ) 
 
             reason = f"a.Authentication on { pdr.getdisplaydescription() } successful in {auth_duration_in_milliseconds:.2f} s" # float two digits after comma
-            response.update(    manager=mgr, 
-                                result=myauthcache, 
-                                success=True, 
-                                reason=reason )
+            response.update( manager=mgr, result=myauthcache, success=True, reason=reason )
             
         finally:
             if isinstance( pdr, ODAuthProviderBase):
@@ -2322,7 +2328,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         data['state'] = state
         return data
 
-    def authenticate(self, code=None, **params):
+    def authenticate(self, code=None, **params)->AuthInfo:
         oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
         authorization_response = self.redirect_uri_prefix + '?' + cherrypy.request.query_string
         token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, include_client_id=self.include_client_id,  authorization_response=authorization_response )
@@ -2331,7 +2337,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         return authinfo
 
 
-    def getuserinfo(self, authinfo, **params):
+    def getuserinfo(self, authinfo:AuthInfo, **params):
 
         # retrieve the token object from the previous authinfo 
         oauthsession = authinfo.token 
@@ -2427,8 +2433,11 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             self.logger.debug(f"provider {self.name} is a auth_only={self.auth_only}, no roles can be read return {roles}") 
             return roles
 
+        roles = [ "sales", "plpoweruser" ]
+
         if isinstance( userinfo.get('groups'), list ):
             roles = userinfo.get('groups')
+            
 
         return roles
 

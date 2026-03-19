@@ -45,7 +45,7 @@ class UserController(BaseController):
     @cherrypy.tools.json_in()
     def getlocation(self):
         # self.logger.debug('')
-        (auth, user) = self.validate_env() 
+        (auth, user, roles) = self.validate_env() 
         location = oc.od.user.getlocation( auth )
         return Results.success(result=location)
 
@@ -56,10 +56,12 @@ class UserController(BaseController):
         # self.logger.debug('')  
         auth = None
         user = None
+        roles = None
         # same has super().validate_env 
         # but do not fail or ban ipaddr
         if services.auth.isauthenticated and services.auth.isidentified:
             user = services.auth.user
             auth = services.auth.auth
+            roles = services.auth.roles
         userinfo = oc.od.user.whoami( auth, user )
         return userinfo

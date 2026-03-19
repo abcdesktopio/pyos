@@ -35,7 +35,7 @@ def randomStringwithDigitsAndSymbols(stringLength=10):
     alphabet = string.ascii_letters + string.digits 
     return ''.join(secrets.choice(alphabet) for i in range(stringLength))
 
-def remove_accents(input_str):
+def remove_accents(input_str:str)->str:
     """[remove_accents]
         remove accents in string and set to lower case
     Args:

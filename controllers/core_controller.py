@@ -96,7 +96,7 @@ class CoreController(BaseController):
         # route content type to handler
         routecontenttype = { 'text/plain': self.handler_messageinfo_text, 'application/json': self.handler_messageinfo_json }
         try:
-            (_, user ) = self.validate_env()
+            (_auth, user, _roles) = self.validate_env()
             message = services.messageinfo.popflush(user.userid)
             lambdaroute = self.getlambdaroute( routecontenttype, defaultcontenttype='application/json' )( message )
         except Exception as e:

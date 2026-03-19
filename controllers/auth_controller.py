@@ -359,9 +359,8 @@ class AuthController(BaseController):
         password = args.get('password')
         if not isinstance(password, str):
             raise cherrypy.HTTPError(400, 'Bad request invalid password parameter')
-
         
-        (auth, user ) = self.validate_env()
+        (auth, user, roles) = self.validate_env()
 
         # build a login dict arg object with provider set to AD
         args_login = {  
@@ -675,12 +674,12 @@ class AuthController(BaseController):
         # get params from json request
         args = cherrypy.request.json
         # can raise exception
-        (auth, user ) = self.validate_env()
+        (auth, user, roles) = self.validate_env()
 
         # push a start message to database cache info
         services.messageinfo.start( user.userid, "b.Launching desktop")
         # launch the user desktop 
-        return self.root.composer._launchdesktop( auth, user, args)
+        return self.root.composer._launchdesktop( auth, user, roles, args)
 
 
     @cherrypy.expose
@@ -691,9 +690,9 @@ class AuthController(BaseController):
         # no params from json request
         # args = cherrypy.request.json
         # can raise exception
-        (auth, user) = self.validate_env()
+        (auth, user, roles) = self.validate_env()
         # update token
-        jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=None )
+        jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=roles )
         # add no-cache nosniff HTTP headers
         cherrypy.response.headers[ 'Cache-Control'] = 'no-cache, private'
         # disable content or MIME sniffing which is used to override response Content-Type headers 

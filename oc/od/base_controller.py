@@ -143,11 +143,12 @@ class BaseController(object):
 
           user = services.auth.user
           auth = services.auth.auth
+          roles = services.auth.roles
 
           if self.isban_login(user.userid):
                raise cherrypy.HTTPError( status=401, message='user is banned')
 
-          return (auth, user)
+          return (auth, user, roles)
 
      def fail_ip( self, ipAddr:str=None ):
           if not isinstance( ipAddr, str):

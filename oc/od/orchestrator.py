@@ -99,7 +99,7 @@ import oc.od.registry
 import oc.od.appinstancestatus
 from   oc.od.error          import ODAPIError, ODError   # import all error classes
 from   oc.od.desktop        import ODDesktop
-from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+from   oc.auth.authservice  import AuthInfo, AuthUser, AuthRoles # to read AuthInfo, AuthUser, AuthRoles
 from   oc.od.vnc_password   import ODVncPassword
 
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ class ODOrchestratorBase(object):
     #    name = oc.auth.namedlib.normalize_name_dnsname( name )
     #    return name
 
-    def get_normalized_username(self, name ):
+    def get_normalized_username(self, name:str ):
         """[get_normalized_username]
             return a username without accent to be use in label and container name
         Args:
@@ -199,22 +199,22 @@ class ODOrchestratorBase(object):
         """
         return oc.lib.remove_accents( name ) 
    
-    def resumedesktop(self, authinfo, userinfo, **kwargs):
+    def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs):
         raise NotImplementedError(f"{type(self)}.resumedesktop")
 
-    def createdesktop(self, authinfo, userinfo, **kwargs):
+    def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, **kwargs):
         raise NotImplementedError(f"{type(self)}.createdesktop")
 
-    def build_volumes( self, authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs):
+    def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
         raise NotImplementedError(f"{type(self)}.build_volumes")
 
-    def findDesktopByUser( self, authinfo, userinfo ):
+    def findDesktopByUser( self, authinfo:AuthInfo, userinfo:AuthUser ):
         raise NotImplementedError(f"{type(self)}.findDesktopByUser")
 
-    def removedesktop(self, authinfo, userinfo, args={}):
+    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, args={}):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
-    def getsecretuserinfo(self, authinfo, userinfo):
+    def getsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser):
         raise NotImplementedError(f"{type(self)}.getsecretuserinfo")
 
     def execwaitincontainer( self, desktop, command, timeout):
@@ -956,10 +956,15 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [str]: [return normalized label name]
         """
-        assert isinstance(label_value, str),  f"label_value has invalid type {type(label_value)}"
-        normalize_data = oc.auth.namedlib.normalize_label( label_value )
-        no_accent_normalize_data = oc.lib.remove_accents( normalize_data )
-        return no_accent_normalize_data
+        if label_value is None:
+            return label_value
+        if not isinstance(label_value, str):
+            label_value = json.stringify(label_value)
+            # self.logger.error( f"get_labelvalue invalid type {type(label_value)} for label value {label_value}" )
+            # return None
+        no_accent_normalize_data = oc.lib.remove_accents( label_value )
+        normalize_data = oc.auth.namedlib.normalize_data_label( no_accent_normalize_data )
+        return normalize_data
 
     def logs( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
         """logs
@@ -3273,7 +3278,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 return False
         return True 
 
-    def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, **kwargs)-> ODDesktop :
+    def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles,  **kwargs)-> ODDesktop :
         """createdesktop
             create the user pod 
 
@@ -3329,7 +3334,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'access_provider': authinfo.provider,
             'access_providertype': authinfo.providertype,
             'access_userid': userinfo.userid,
-            'access_username': self.get_labelvalue(userinfo.name),
+            'access_username': self.get_labelvalue(userinfo.name), # only for human readable label, not for logic use, because userinfo.name can contains special character and is not unique
             'netpol/ocuser': 'true',
             'xauthkey': env[ 'XAUTH_KEY' ], 
             'pulseaudio_cookie': env[ 'PULSEAUDIO_COOKIE' ],
@@ -3339,9 +3344,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # add authinfo labels and env 
         # could also use downward-api https://kubernetes.io/docs/concepts/workloads/pods/downward-api/
         for k,v in authinfo.get_labels().items():
-            abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_LABEL_NAME + k.lower()
-            env[ abcdesktopvarenvname ] = v
-            labels[k] = v
+            if k.isalnum(): # only add alpanum label to avoid issue with kubernetes label validation, and only for env var, not for labels because we can use normalize_name_label for labels
+                abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_LABEL_NAME + k.lower()
+                env[ abcdesktopvarenvname ] = v
+                labels[oc.auth.namedlib.normalize_name_label(k)] = self.get_labelvalue( v ) 
+
+        for k,v in rolesinfo.items():
+            labels[oc.auth.namedlib.normalize_name_label(k)] = self.get_labelvalue( v ) 
+
         # add enabled services in env dict 
         for currentcontainertype in self.nameprefixdict.keys() :
             if self.isenablecontainerinpod( authinfo, currentcontainertype ):
@@ -5870,7 +5880,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'access_providertype':  authinfo.providertype,
             'access_provider':  authinfo.provider,
             'access_userid':    userinfo.userid,
-            'access_username':  self.orchestrator.get_labelvalue(userinfo.name),
+            'access_username':  self.orchestrator.get_labelvalue(userinfo.name), # 
             'type':             self.type,
             'uniquerunkey':     app.get('uniquerunkey'),
             'netpol/ocapplication': 'true'
