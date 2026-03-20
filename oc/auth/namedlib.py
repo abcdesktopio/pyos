@@ -46,10 +46,8 @@ def normalize_name_volunename(name:str)->str:
   # volume name max length is 63 chars to lowercase
   return normalize_name( name )[0:63].lower()
 
-def normalize_name_label(name:str)->str:
-  return normalize_name(name)[0:63]
 
-def normalize_data_label(data:str)->str:
+def normalize_label(data:str)->str:
   # must be 63 characters or less (can be empty),
   # unless empty, must begin and end with an alphanumeric character ([a-z0-9A-Z]),
   # could contain dashes (-), underscores (_), dots (.), and alphanumerics between.
@@ -71,7 +69,9 @@ def normalize_data_label(data:str)->str:
   for c in mydata:
     if c.isalnum() or c == '-' or c == '_' or c == '.':
       newdata = newdata + c
-
+    else:
+      newdata = newdata + '-'
+      
   try:
     # must end with an alphanumeric character ([a-z0-9A-Z]),
     while not newdata[-1].isalnum():
@@ -79,7 +79,16 @@ def normalize_data_label(data:str)->str:
   except IndexError:
     return None
 
-  return newdata[0:63]
+  newdata = newdata[0:63]
+  
+  try:
+    # must end with an alphanumeric character ([a-z0-9A-Z]),
+    while not newdata[-1].isalnum():
+      newdata=newdata[:-1]
+  except IndexError:
+    return None
+
+  return newdata
  
 
 def normalize_networkname(name:str)->str:
@@ -109,14 +118,6 @@ def normalize_char( c ):
     return c
   else:
     return '_'
-
-# (([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')
-def normalize_label( name:str )->str:
-  # permit only DNS name [a-z][A-Z][0-9]-
-  newname = ''
-  for c in name:
-        newname = newname + normalize_char(c)
-  return newname
 
 # Take care 
 def normalize_shell_variable(myvar:str)->str:

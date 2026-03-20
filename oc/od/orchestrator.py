@@ -963,7 +963,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # self.logger.error( f"get_labelvalue invalid type {type(label_value)} for label value {label_value}" )
             # return None
         no_accent_normalize_data = oc.lib.remove_accents( label_value )
-        normalize_data = oc.auth.namedlib.normalize_data_label( no_accent_normalize_data )
+        normalize_data = oc.auth.namedlib.normalize_label( no_accent_normalize_data )
         return normalize_data
 
     def logs( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
@@ -3347,10 +3347,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if k.isalnum(): # only add alpanum label to avoid issue with kubernetes label validation, and only for env var, not for labels because we can use normalize_name_label for labels
                 abcdesktopvarenvname = oc.od.settings.ENV_PREFIX_LABEL_NAME + k.lower()
                 env[ abcdesktopvarenvname ] = v
-                labels[oc.auth.namedlib.normalize_name_label(k)] = self.get_labelvalue( v ) 
+                labels[oc.auth.namedlib.normalize_label(k)] = oc.auth.namedlib.normalize_label(v)
 
         for k,v in rolesinfo.items():
-            labels[oc.auth.namedlib.normalize_name_label(k)] = self.get_labelvalue( v ) 
+            labels[oc.auth.namedlib.normalize_label(k)] = oc.auth.namedlib.normalize_label(v) 
 
         # add enabled services in env dict 
         for currentcontainertype in self.nameprefixdict.keys() :
