@@ -537,7 +537,7 @@ class AuthCache(object):
             myroles = {}
             for role in rolevalues:
                 if isinstance( role, str):
-                    myroles[role] = 'True'
+                    myroles[role] = None
         self._roles = AuthRoles( myroles )
         
     @property 
