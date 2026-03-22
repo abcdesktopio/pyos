@@ -5,9 +5,9 @@ LABEL org.opencontainers.image.description=abcdesktop.pyos
 ## install kerberos libgss ldap
 ## we must install curl command line for pullapps bash script 
 
-RUN apk upgrade --no-cache && \
-    apk update --no-cache  && \
-    apk add --no-cache \
+RUN apk update --no-cache && \
+    apk upgrade --no-cache && \
+    apk add --no-cache --update \
  	wget \
 	curl \
 	cntlm \
