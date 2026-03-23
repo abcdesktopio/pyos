@@ -56,6 +56,10 @@ def getclientreal_ip():
         pass
     return realip
 
+def getuseragent():
+    user_agent = cherrypy.request.headers.get('User-Agent')
+    return user_agent
+
 def getclientxforwardedfor_listip():
     clientiplist = []
     xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')

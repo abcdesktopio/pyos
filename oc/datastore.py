@@ -34,10 +34,14 @@ class ODDatastoreClient(object):
 @oc.logging.with_logger()
 class ODMongoDatastoreClient(ODDatastoreClient):
 
-    def __init__(self, mongodburl, databasename=None):
-        self.authenticationDatabase = 'admin'
+    def __init__(self, mongodburl:str, mongodbparam:str=None, databasename:str=None):
         self.databasename = databasename
         self.mongodburl = mongodburl
+        if not isinstance( mongodbparam, str):
+            self.mongodbparam = ''
+        else: 
+            self.mongodbparam = mongodbparam
+
          # Defaults to 20000 (20 seconds). 
         # set to 5000 (5 seconds). 
         # self.connectTimeoutMS = 3000  
@@ -53,29 +57,20 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         url = None
         if isinstance(databasename, str ):
             # url = f"{self.mongodburl}/{databasename}?directConnection=true&replicaSet=rs0&authSource={databasename}"
-            # url = f"{self.mongodburl}/{databasename}?authSource={databasename}"
-            url = f"{self.mongodburl}/{databasename}?replicaSet=rs0&authSource={databasename}"
+            # url = f"{self.mongodburl}/{databasename}?replicaSet=rs0&authSource={databasename}"
+            url = f"{self.mongodburl}/{databasename}?{self.mongodbparam}&authSource={databasename}"
         else:
             url = self.mongodburl
         return url
 
-    def createclient(self, databasename):
-        # self.logger.debug( f"databasename={databasename}")
-        # hosturl = self.createhosturl( databasename )
-        # self.logger.debug( f"hosturl={hosturl}")
+    def createclient(self, databasename:str):
         hosturl = self.createhosturl( databasename )
-        # self.logger.debug( f"createclient MongoClient {hosturl}")
         mongo_client = MongoClient(host=hosturl)
-        # connectTimeoutMS=self.connectTimeoutMS, 
-        # socketTimeoutMS=self.socketTimeoutMS, 
-        # serverSelectionTimeoutMS=self.serverSelectionTimeoutMS )
-        # server_info = mongo_client.server_info()
-        # self.logger.debug( f"server_info={server_info}")
         return mongo_client
 
     def get_document_value_in_collection(self, databasename, collectionname, key):
         obj = None
-        self.logger.debug( f"database={databasename} collectionname={collectionname} key={key}" )
+        # self.logger.debug( f"database={databasename} collectionname={collectionname} key={key}" )
         try:            
             client = self.createclient(databasename)        
             collection = client[databasename][collectionname]            
@@ -231,46 +226,3 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         except Exception  as e  :
             self.logger.error( f"list_collections {e}" ) 
         return collections
-
-    """
-    def config_replicaset( self, replicaset_name ):
-        mongoclientcfg = ODMongoDatastoreClient( self.config.hosturl )
-        host = mongoclientcfg.gethost()
-        config = { '_id': replicaset_name, 'members': [ { '_id':0, 'host': host } ] }
-        return config
-
-    def create_replicaset( self, replicaset_name ):
-        self.logger.info(f"create replicaset {replicaset_name}")
-        c = MongoClient(self.serverfqdn, self.serverport, directConnection=True )
-        try:
-            # set a default configuration 
-            config = self.config_replicaset( replicaset_name )
-            repl_status = c.admin.command("replSetInitiate", config, allowable_errors=True)
-        except pymongo.errors.OperationFailure as e:
-            if e.code == 23: # already initialized
-                # another process has done before
-                self.logger.info( f"{self.serverfqdn} already use replicatset")
-                return True
-            else:
-                self.logger.error( e )
-        except Exception as e:
-            self.logger.error( e )
-            return False
-
-    def getstatus_replicaset( self, replicaset_name):
-        self.logger.info(f"read replicaset {replicaset_name} status")
-        c = MongoClient(self.serverfqdn, self.serverport, directConnection=True )
-        try:
-            repl_status = c.admin.command("replSetGetStatus")
-            if isinstance( repl_status, dict ):
-                if int(repl_status.get('ok')) == 1:
-                    # repl_status.get('set') == replicaset_name
-                    self.logger.info( f"{self.serverfqdn} already uses replicatset {repl_status.get('set')}")
-                    return True
-        except pymongo.errors.OperationFailure as e:
-            if e.code == 94: # no replset config has been received
-                self.logger.info("no replset config has been received")
-        except Exception as e:
-            self.logger.error( e )
-        return False
-    """

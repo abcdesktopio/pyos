@@ -13,10 +13,9 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-import os
 import logging
+import ua_parser
 from typing_extensions import assert_type
-import requests
 
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
@@ -24,12 +23,13 @@ from oc.od.desktop import ODDesktop
 import oc.od.orchestrator
 
 from oc.od.services import services
-from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+from oc.auth.authservice import AuthInfo, AuthUser, AuthRoles # to read AuthInfo and AuthUser
 from oc.od.error import ODError
 import oc.od.appinstancestatus
 import oc.od.desktop
 import oc.od.services
 import oc.od.tracking
+import oc.od.settings
 
 # type need for garbage collector
 from kubernetes.client.models.v1_pod_list import V1PodList
@@ -89,7 +89,29 @@ def securitypoliciesmatchlabelvalue( desktop:ODDesktop, authinfo:AuthInfo, label
     return result
 
 
-def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, args ):
+def get_webclient_os_family():
+    desktop_theme = oc.od.settings.desktop.get('theme')
+    if isinstance(desktop_theme, str):
+        if desktop_theme == 'autodetect':
+            desktop_theme = parse_user_agent_os_family()
+    return desktop_theme
+
+def parse_user_agent_os_family()->str:
+    os_family = None # default value as fallback
+    try:
+        user_agent = oc.cherrypy.getuseragent()
+        ua_parsed = ua_parser.parse(user_agent)
+        if isinstance( ua_parsed, ua_parser.core.Result):
+            os_family = ua_parsed.os.family.replace(' ', '').lower()
+        # Mac OS/X -> macosx
+        # Linux -> linux
+        # Windows -> windows
+    except Exception as e:
+        logger.error(e)
+    return os_family
+
+
+def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, args:dict ):
     """open a new or return a desktop
     Args:
         authinfo (AuthInfo): authentification data
@@ -167,7 +189,12 @@ def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, args ):
     # create a new desktop
     #
     logger.debug( 'Cold start, creating your new desktop' )
-    desktop = createdesktop( authinfo, userinfo, args)
+
+    # read http headers for accounting and log history data
+    args[ 'ABCDESKTOP_WEBCLIENT_SOURCEIPADDR' ] = oc.cherrypy.getclientipaddr()
+    args[ 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY' ] = get_webclient_os_family() # parse_user_agent_os_family()
+    # open a new desktop
+    desktop = createdesktop( authinfo, userinfo, rolesinfo, args)
     if isinstance( desktop, ODDesktop) :
         oc.od.tracking.addstartnewentryindesktophistory(authinfo, userinfo, desktop )
         services.accounting.accountex( desktoptype, 'createsuccess')
@@ -598,7 +625,8 @@ def createDesktopArguments( authinfo, userinfo, args ):
     # add environment variables   
     env = createExecuteEnvironment( authinfo, userinfo  )
     # add source ip addr as WEBCLIENT_SOURCEIPADDR var env
-    env.update( { 'WEBCLIENT_SOURCEIPADDR':  args.get('WEBCLIENT_SOURCEIPADDR') } )                   
+    env.update( { 'ABCDESKTOP_WEBCLIENT_SOURCEIPADDR':  args.get('ABCDESKTOP_WEBCLIENT_SOURCEIPADDR') } )   
+    env.update( { 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY':  args.get('ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY') } )                  
     myCreateDesktopArguments = { 'env' : env }
     return myCreateDesktopArguments
  
@@ -608,7 +636,7 @@ def resumedesktop( authinfo:AuthInfo, userinfo:AuthUser ) -> ODDesktop:
     return myDesktop
         
 
-def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
+def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, args  ):
     """create a new desktop 
 
     Args:
@@ -632,6 +660,7 @@ def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
     # Create the desktop                
     myDesktop = myOrchestrator.createdesktop(   userinfo=userinfo, 
                                                 authinfo=authinfo,  
+                                                rolesinfo=rolesinfo,
                                                 **myCreateDesktopArguments )
 
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
@@ -652,7 +681,7 @@ def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, args  ):
     return myDesktop
 
 
-def dry_run_desktop(authinfo:AuthInfo, userinfo:AuthUser):
+def dry_run_desktop(authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles):
     """dry_run_desktop
         create a desktop with dry_run mode, this is used to test the desktop creation
         without creating a pod or a container   
@@ -670,7 +699,7 @@ def dry_run_desktop(authinfo:AuthInfo, userinfo:AuthUser):
     myOrchestrator.desktoplaunchprogress = dry_run_on_desktoplaunchprogress_info
 
     # Create the desktop dry_run             
-    jsonDesktop = myOrchestrator.createdesktop( authinfo, userinfo, **myCreateDesktopArguments )
+    jsonDesktop = myOrchestrator.createdesktop( authinfo, userinfo, rolesinfo, **myCreateDesktopArguments )
     return jsonDesktop
     
 
