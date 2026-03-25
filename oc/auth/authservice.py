@@ -2434,8 +2434,9 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             return roles
         
         if isinstance( userinfo.get('groups'), list ):
-            roles = userinfo.get('groups')
-
+            for role in userinfo.get('groups'):
+                if isinstance(role, str):
+                    roles.append(role)
         return roles
 
     def logout(self, authinfo, **arguments):
@@ -4316,7 +4317,6 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         # These objects are created in the Foreign Security Principals container of the domain.
         #
         filter = ldap_filter.filter_format( self.foreign_query.filter, [ objectSid ] )
-        self.logger.debug( f"ldap.filter {filter}")
         self.logger.debug( f"ldap search_all basedn={self.foreign_query.basedn} filter={filter} attrs={self.foreign_query.attrs}" )
 
         query_foreingdistinguished = self.search_one(   conn=authinfo.conn,
@@ -4324,7 +4324,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
                                                         scope=self.foreign_query.scope,
                                                         filter=filter,
                                                         attrs=self.foreign_query.attrs )
-        self.logger.debug( f"ldap search result {type(query_foreingdistinguished)} {query_foreingdistinguished}")
+        # self.logger.debug( f"ldap search result {type(query_foreingdistinguished)} {query_foreingdistinguished}")
 
         if not isinstance( query_foreingdistinguished, dict ):
             # foreign sid not exist in metadirectory
