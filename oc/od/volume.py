@@ -234,7 +234,7 @@ class ODVolumeActiveDirectory(ODVolumeBase):
 @oc.logging.with_logger()
 class ODVolumeActiveDirectoryCIFS(ODVolumeActiveDirectory):
     def __init__(self, authinfo:AuthInfo, userinfo:AuthUser, name:str, homeDrive:str, networkPath:str, mountOptions:str=None ):
-        self.logger.info(locals())
+        self.logger.debug('')
         super().__init__(authinfo, userinfo, name)
         self._fstype = 'cifs'
         self._type = 'flexvol'
