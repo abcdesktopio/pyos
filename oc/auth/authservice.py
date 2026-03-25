@@ -4120,7 +4120,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         Returns:
             [type]: [description]
         """
-        self.logger.debug('')
+        # self.logger.debug('')
         return super().validate(userid, password, **params)
 
     def authenticate(self, userid:str, password:str, **params):
