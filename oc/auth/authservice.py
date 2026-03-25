@@ -1518,11 +1518,11 @@ class ODAuthTool(cherrypy.Tool):
             # if the metaprovider has rules defined
             # then compile data using rules
             # and runs the rules to get associated labels tag
-            # on most case it use the memberof
-            self.logger.debug('== Query meta provider ==')
-            self.logger.debug(f"userloginresponse.result={userloginresponse.result}")
-            self.logger.debug(f"userloginresponse.result.user={userloginresponse.result.user}")
-            self.logger.debug(f"userloginresponse.result.user.get('objectSid')={userloginresponse.result.user.get('objectSid')}")
+            # in most cases it use the memberof
+            # self.logger.debug('== Query meta provider ==')
+            # self.logger.debug(f"userloginresponse.result={userloginresponse.result}")
+            # self.logger.debug(f"userloginresponse.result.user={userloginresponse.result.user}")
+            # self.logger.debug(f"userloginresponse.result.user.get('objectSid')={userloginresponse.result.user.get('objectSid')}")
 
             # 
             # do authenticate using the user's credential to the metadirectory provider
