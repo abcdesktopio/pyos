@@ -3135,7 +3135,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
                 # read supported_sasl_mechanisms supported by the ldap server
                 supported_sasl_mechanisms = server.info.supported_sasl_mechanisms if server.info else None
-                self.logger.debug( f"supported_sasl_mechanisms by {server_name} return {supported_sasl_mechanisms}" )
+                # self.logger.debug( f"supported_sasl_mechanisms by {server_name} return {supported_sasl_mechanisms}" )
                 del c # remove the c Connection, only use to get supported_sasl_mechanisms 
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
@@ -3633,14 +3633,14 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                         timeout=self.exec_timeout)
             if ret != 0:
                 raise RuntimeError( f"Command ntlm_auth returned error code: {ret}" )
-            self.logger.debug( f"Running ntlm_command={self.ntlm_command}" )
+            # self.logger.debug( f"Running ntlm_command={self.ntlm_command}" )
             hashes = {}
             for line in out:
                 if len( line ) < 1: # skipping empty line
                     continue
                 # parse string format
                 # NTLM_KEY=v8+pDkRc41i8weIufYRhVBPSv=dqM
-                self.logger.debug( f"Parsing {line}")
+                # self.logger.debug( f"Parsing {line}")
                 try:
                     nv = line.index('=') # read the first entry of 
                     hashes[ line[ 0 : nv ] ] = line[ nv+1 : ]
@@ -3648,7 +3648,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # Index if found otherwise raises an exception if str is not found
                     # by pass line 
                     self.logger.error( f"Parsing ntlm_auth result failed: {e}")
-            self.logger.debug( f"NTLM hashes: {hashes}" )
+            # self.logger.debug( f"NTLM hashes: {hashes}" )
         except Exception as e:
             self.logger.error( f"Failed: {e}" )
 
