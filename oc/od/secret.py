@@ -164,19 +164,22 @@ class ODSecret():
         mydict_secret = {}
         # convert each argument key to base64
         for key in arguments.keys():
-            argument_type = type(arguments[key])
-            if argument_type is str:
-                mydict_secret.update( { key:  ODSecret.strtob64(arguments[key]) } )
-            elif argument_type is int:
-                mydict_secret.update( { key:  ODSecret.strtob64(str(arguments[key])) } )
-            elif argument_type is bytes:
-                mydict_secret.update( { key:  ODSecret.bytestob64(arguments[key]) } )
-            elif argument_type is dict :
-                serialized = json.dumps(arguments[key])
-                mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
-            elif argument_type is list:
-                serialized = json.dumps(arguments[key])
-                mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
+            try: 
+                argument_type = type(arguments[key])
+                if argument_type is str:
+                    mydict_secret.update( { key:  ODSecret.strtob64(arguments[key]) } )
+                elif argument_type is int:
+                    mydict_secret.update( { key:  ODSecret.strtob64(str(arguments[key])) } )
+                elif argument_type is bytes:
+                    mydict_secret.update( { key:  ODSecret.bytestob64(arguments[key]) } )
+                elif argument_type is dict :
+                    serialized = json.dumps(arguments[key])
+                    mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
+                elif argument_type is list:
+                    serialized = json.dumps(arguments[key])
+                    mydict_secret.update( { key:  ODSecret.strtob64(serialized) } )
+            except Exception as e:
+                self.logger.error( e )
         return mydict_secret
 
     def patch(self, authinfo:AuthInfo, userinfo:AuthUser, arguments )->V1Secret: 
