@@ -164,8 +164,9 @@ class ODSecret():
         mydict_secret = {}
         # convert each argument key to base64
         for key in arguments.keys():
-            try: 
-                argument_type = type(arguments[key])
+            try:
+                argument_type = type(arguments.get(key))
+                # self.logger.debug( f"argument key {key} type {argument_type} value {arguments.get(key)}" )
                 if argument_type is str:
                     mydict_secret.update( { key:  ODSecret.strtob64(arguments[key]) } )
                 elif argument_type is int:
