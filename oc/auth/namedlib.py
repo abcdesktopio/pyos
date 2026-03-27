@@ -48,18 +48,24 @@ def normalize_name_volunename(name:str)->str:
 
 
 def normalize_label(data:str)->str:
+  #
+  #  https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  #
   # must be 63 characters or less (can be empty),
   # unless empty, must begin and end with an alphanumeric character ([a-z0-9A-Z]),
   # could contain dashes (-), underscores (_), dots (.), and alphanumerics between.
+  # 
+
   if not isinstance( data, str ): 
-     return None
+    return None
   
   if len(data) == 0:
     return data
   
   mydata = str(data)
   try: 
-    # must begin with an alphanumeric character ([a-z0-9A-Z]),
+    # must begin with an alpha character ([a-z0-9A-Z])
+    # remove the first char if it's not an alphanumeric character
     while not mydata[0].isalnum():
       mydata=mydata[1::]
   except IndexError:
@@ -72,17 +78,12 @@ def normalize_label(data:str)->str:
     else:
       newdata = newdata + '-'
       
-  try:
-    # must end with an alphanumeric character ([a-z0-9A-Z]),
-    while not newdata[-1].isalnum():
-      newdata=newdata[:-1]
-  except IndexError:
-    return None
-
+  # cut to 63 chars
   newdata = newdata[0:63]
   
   try:
-    # must end with an alphanumeric character ([a-z0-9A-Z]),
+    # must end with an alphanumeric character ([a-z0-9A-Z])
+    # remove the last char if it's not an alphanumeric character
     while not newdata[-1].isalnum():
       newdata=newdata[:-1]
   except IndexError:

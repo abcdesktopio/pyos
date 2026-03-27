@@ -1,15 +1,17 @@
 # This is a basic workflow to help you get started with Actions
-
 name: main
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
-on: [push, pull_request]
-
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0,12 * * *'
+    
 env: 
   imagetag: ${{ github.head_ref || github.ref_name || 'dev' }}
   branch: ${{ github.head_ref || github.ref_name || 'dev' }}
-  node_version: '20'
   REGISTRY_IMAGE: abcdesktopio/pyos
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel

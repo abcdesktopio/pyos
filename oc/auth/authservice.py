@@ -1518,11 +1518,11 @@ class ODAuthTool(cherrypy.Tool):
             # if the metaprovider has rules defined
             # then compile data using rules
             # and runs the rules to get associated labels tag
-            # on most case it use the memberof
-            self.logger.debug('== Query meta provider ==')
-            self.logger.debug(f"userloginresponse.result={userloginresponse.result}")
-            self.logger.debug(f"userloginresponse.result.user={userloginresponse.result.user}")
-            self.logger.debug(f"userloginresponse.result.user.get('objectSid')={userloginresponse.result.user.get('objectSid')}")
+            # in most cases it use the memberof
+            # self.logger.debug('== Query meta provider ==')
+            # self.logger.debug(f"userloginresponse.result={userloginresponse.result}")
+            # self.logger.debug(f"userloginresponse.result.user={userloginresponse.result.user}")
+            # self.logger.debug(f"userloginresponse.result.user.get('objectSid')={userloginresponse.result.user.get('objectSid')}")
 
             # 
             # do authenticate using the user's credential to the metadirectory provider
@@ -2434,8 +2434,9 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             return roles
         
         if isinstance( userinfo.get('groups'), list ):
-            roles = userinfo.get('groups')
-
+            for role in userinfo.get('groups'):
+                if isinstance(role, str):
+                    roles.append(role)
         return roles
 
     def logout(self, authinfo, **arguments):
@@ -3134,7 +3135,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 # supported_sasl_mechanisms example [ 'GSS-SPNEGO', 'GSSAPI', 'NTLM', 'PLAIN' ]
                 # read supported_sasl_mechanisms supported by the ldap server
                 supported_sasl_mechanisms = server.info.supported_sasl_mechanisms if server.info else None
-                self.logger.debug( f"supported_sasl_mechanisms by {server_name} return {supported_sasl_mechanisms}" )
+                # self.logger.debug( f"supported_sasl_mechanisms by {server_name} return {supported_sasl_mechanisms}" )
                 del c # remove the c Connection, only use to get supported_sasl_mechanisms 
 
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
@@ -3632,14 +3633,14 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                                         timeout=self.exec_timeout)
             if ret != 0:
                 raise RuntimeError( f"Command ntlm_auth returned error code: {ret}" )
-            self.logger.debug( f"Running ntlm_command={self.ntlm_command}" )
+            # self.logger.debug( f"Running ntlm_command={self.ntlm_command}" )
             hashes = {}
             for line in out:
                 if len( line ) < 1: # skipping empty line
                     continue
                 # parse string format
                 # NTLM_KEY=v8+pDkRc41i8weIufYRhVBPSv=dqM
-                self.logger.debug( f"Parsing {line}")
+                # self.logger.debug( f"Parsing {line}")
                 try:
                     nv = line.index('=') # read the first entry of 
                     hashes[ line[ 0 : nv ] ] = line[ nv+1 : ]
@@ -3647,7 +3648,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                     # Index if found otherwise raises an exception if str is not found
                     # by pass line 
                     self.logger.error( f"Parsing ntlm_auth result failed: {e}")
-            self.logger.debug( f"NTLM hashes: {hashes}" )
+            # self.logger.debug( f"NTLM hashes: {hashes}" )
         except Exception as e:
             self.logger.error( f"Failed: {e}" )
 
@@ -4119,7 +4120,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         Returns:
             [type]: [description]
         """
-        self.logger.debug('')
+        # self.logger.debug('')
         return super().validate(userid, password, **params)
 
     def authenticate(self, userid:str, password:str, **params):
@@ -4316,7 +4317,6 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
         # These objects are created in the Foreign Security Principals container of the domain.
         #
         filter = ldap_filter.filter_format( self.foreign_query.filter, [ objectSid ] )
-        self.logger.debug( f"ldap.filter {filter}")
         self.logger.debug( f"ldap search_all basedn={self.foreign_query.basedn} filter={filter} attrs={self.foreign_query.attrs}" )
 
         query_foreingdistinguished = self.search_one(   conn=authinfo.conn,
@@ -4324,7 +4324,7 @@ class ODAdAuthMetaProvider(ODAdAuthProvider):
                                                         scope=self.foreign_query.scope,
                                                         filter=filter,
                                                         attrs=self.foreign_query.attrs )
-        self.logger.debug( f"ldap search result {type(query_foreingdistinguished)} {query_foreingdistinguished}")
+        # self.logger.debug( f"ldap search result {type(query_foreingdistinguished)} {query_foreingdistinguished}")
 
         if not isinstance( query_foreingdistinguished, dict ):
             # foreign sid not exist in metadirectory
