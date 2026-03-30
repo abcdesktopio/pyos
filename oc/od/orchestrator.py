@@ -163,6 +163,7 @@ class ODOrchestratorBase(object):
                                 'snapshot'  : self.snapshotcontainernameprefix
         }
         self.name                   = 'base'
+        self.endpoint_domain        = 'desktop'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
         self.x11servertype          = 'x11server'        
         self.pod_application        = 'pod_application'
@@ -3501,8 +3502,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # give the give pull secret for the desktop pod
         imagePullSecrets = self.giveme_an_imagePullSecrets()
-
-        hostname = oc.od.settings.desktop.get('hostname', pod_name)
+        # set the hostname for the desktop pod
+        hostname = oc.auth.namedlib.normalize_name_dnsname( userinfo.userid )
 
         if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True and isinstance(snapshot_volumes, dict) : 
             pod_allvolumes.update( snapshot_volumes.get('snapshot') ) 
@@ -3522,6 +3523,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'hostname': hostname,
                 'dnsPolicy' : dnspolicy,
                 'dnsConfig' : dnsconfig,
+                'subdomain': self.endpoint_domain,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list( pod_allvolumes.values() ),                    
