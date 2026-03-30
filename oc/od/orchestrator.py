@@ -3351,7 +3351,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 labels[oc.auth.namedlib.normalize_label(k)] = oc.auth.namedlib.normalize_label(v)
 
         for k,v in rolesinfo.items():
-            labels[oc.auth.namedlib.normalize_label(k)] = oc.auth.namedlib.normalize_label(v) 
+            label_value = 'true'
+            if v is not None: 
+                label_value = oc.auth.namedlib.normalize_label(v) 
+            labels[oc.auth.namedlib.normalize_label(k)] = label_value 
 
         # add enabled services in env dict 
         for currentcontainertype in self.nameprefixdict.keys() :
