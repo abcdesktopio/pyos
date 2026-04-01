@@ -163,6 +163,7 @@ class ODOrchestratorBase(object):
                                 'snapshot'  : self.snapshotcontainernameprefix
         }
         self.name                   = 'base'
+        self.endpoint_domain        = 'desktop'
         self.desktoplaunchprogress  = oc.pyutils.Event()        
         self.x11servertype          = 'x11server'        
         self.pod_application        = 'pod_application'
@@ -1580,6 +1581,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
 
+
+        #
+        # mount init localaccount volume
+        #
+        (init_localaccount_volumes, init_localaccount_volumes_mount) = self.build_volumes_localaccount(authinfo, userinfo )
+        volumes.update(init_localaccount_volumes)
+        volumes_mount.update(init_localaccount_volumes_mount)
+
         #
         # mount home volume
         #
@@ -1611,7 +1620,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
                 volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
                 volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
-
 
         #
         # mount vnc secret in /var/secrets/abcdesktop
@@ -3350,7 +3358,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 labels[oc.auth.namedlib.normalize_label(k)] = oc.auth.namedlib.normalize_label(v)
 
         for k,v in rolesinfo.items():
-            labels[oc.auth.namedlib.normalize_label(k)] = oc.auth.namedlib.normalize_label(v) 
+            label_value = 'true'
+            if v is not None: 
+                label_value = oc.auth.namedlib.normalize_label(v) 
+            labels[oc.auth.namedlib.normalize_label(k)] = label_value 
 
         # add enabled services in env dict 
         for currentcontainertype in self.nameprefixdict.keys() :
@@ -3501,8 +3512,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # give the give pull secret for the desktop pod
         imagePullSecrets = self.giveme_an_imagePullSecrets()
-
-        hostname = oc.od.settings.desktop.get('hostname', pod_name)
+        # set the hostname for the desktop pod
+        hostname = oc.auth.namedlib.normalize_name_dnsname( userinfo.userid )
 
         if oc.od.settings.desktop_pod.get('snapshot', {}).get('enable') is True and isinstance(snapshot_volumes, dict) : 
             pod_allvolumes.update( snapshot_volumes.get('snapshot') ) 
@@ -3522,6 +3533,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 'hostname': hostname,
                 'dnsPolicy' : dnspolicy,
                 'dnsConfig' : dnsconfig,
+                'subdomain': self.endpoint_domain,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'shareProcessNamespace': shareProcessNamespace,
                 'volumes': list( pod_allvolumes.values() ),                    
