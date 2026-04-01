@@ -323,13 +323,12 @@ def init_desktop():
 
     # default secret path
     desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
-    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/secrets/abcdesktop/extrausers')
+    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/lib/extrausers')
     desktop['zoom']                     = gconfig.get('desktop.zoom', 1)
     desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
     desktop['webhookdict']              = gconfig.get('desktop.webhookdict', {} )
-    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
     desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt')
     desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
