@@ -1581,6 +1581,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
 
+
+        #
+        # mount init localaccount volume
+        #
+        (init_localaccount_volumes, init_localaccount_volumes_mount) = self.build_volumes_localaccount(authinfo, userinfo )
+        volumes.update(init_localaccount_volumes)
+        volumes_mount.update(init_localaccount_volumes_mount)
+
         #
         # mount home volume
         #
@@ -1612,7 +1620,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
                 volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
                 volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
-
 
         #
         # mount vnc secret in /var/secrets/abcdesktop
