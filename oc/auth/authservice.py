@@ -2623,7 +2623,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 self.logger.error( f"provider {name} has disabled citrix, invalid entry citrix_all_regions.ini")
 
         self.exec_timeout = config.get('exec_timeout', 10)
-        self.tls_require_cert = config.get( 'tls_require_cert', False)
         self.join_key_ldapattribut = config.get( 'join_key_ldapattribut' )
         self.krb5cctype = config.get('krb5cctype', 'MEMORY').upper()
         self.ldap_ipmod = config.get('ldap_ip_mode', ldap3.IP_V4_PREFERRED )
@@ -2753,8 +2752,8 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
 
         self.domain = provider.domain
         self.kerberos_realm = provider.kerberos_realm
-        self.kerberos_krb5_conf =  provider.kerberos_krb5_conf
-        self.kerberos_ktutil =  provider.kerberos_ktutil
+        self.kerberos_krb5_conf = provider.kerberos_krb5_conf
+        self.kerberos_ktutil = provider.kerberos_ktutil
 
 
     def loadserviceaccount( self, config ):
@@ -3590,7 +3589,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                 keytabdata = koutputfile.read() 
                 koutputfile.close()
 
-                krb5conf_file =  open( self.kerberos_krb5_conf )
+                krb5conf_file = open( self.kerberos_krb5_conf )
                 krb5conf = krb5conf_file.read() 
                 krb5conf_file.close()
                 keytab = { 'keytab' : keytabdata, 'krb5_conf': krb5conf }
