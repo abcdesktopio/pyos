@@ -350,7 +350,6 @@ def init_desktop():
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
     
-    desktop['hostname'] = gconfig.get('desktop.hostname')
     desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
     # features_permissions
     # 'read' features_permissions is exposed to the frontend
@@ -433,6 +432,17 @@ def init_desktop():
     if not isinstance ( desktop_pod.get('pod_application', {}).get('volumes') , list ):
         desktop_pod['pod_application']['volumes'] = [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
         logger.debug(f"fixing desktop.pod.pod_application.volumes config {desktop_pod['pod_application']['volumes']}")  
+
+
+    # fix for compatility 4.3 -> 4.4
+    # remove all value extrausers
+    for k in desktop_pod.keys():
+        if isinstance( desktop_pod.get(k).get('volumes'), dict ):
+            for v in desktop_pod.get(k).get('volumes').values():
+                if 'extrausers' in v:
+                    del v['extrausers']
+
+
     init_balloon()
 
     # apply cgroup memory and cpu 
