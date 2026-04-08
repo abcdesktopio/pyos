@@ -500,8 +500,6 @@ class ODApps:
                 'fileextensions':       self.labeltoList( labels.get('oc.fileextensions') ),
                 'legacyfileextensions': self.labeltoList( labels.get('oc.legacyfileextensions') ),
                 'secrets_requirement' : secrets_requirement,
-                'image_pull_policy' :   labels.get('image_pull_policy', 'IfNotPresent' ),
-                'image_pull_secrets':   labels.get('image_pull_secrets'),
                 'containerengine':      labels.get('oc.containerengine', 'ephemeral_container'),
                 'securitycontext':      securitycontext,
                 'created':              created
