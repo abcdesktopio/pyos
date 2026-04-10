@@ -345,6 +345,7 @@ def init_desktop():
     desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
     desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', False)
     desktop['directorytomemoryemptydir']= gconfig.get('desktop.directorytomemoryemptydir', [])
+    desktop['directorytomemory']        = gconfig.get('desktop.directorytomemory', { 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } })
     desktop['removepersistentvolume']   = gconfig.get('desktop.removepersistentvolume', False)
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
@@ -436,11 +437,13 @@ def init_desktop():
 
     # fix for compatility 4.3 -> 4.4
     # remove all value extrausers
+    """
     for k in desktop_pod.keys():
-        if isinstance( desktop_pod.get(k).get('volumes'), dict ):
-            for v in desktop_pod.get(k).get('volumes').values():
-                if 'extrausers' in v:
-                    del v['extrausers']
+        if desktop_pod.get(k).get('volumes') is not None:
+            if isinstance(desktop_pod.get(k).get('volumes'), list )
+                if 'extrausers' in desktop_pod.get(k).get('volumes'):
+                    del desktop_pod.get(k).get('volumes')['extrausers']
+    """      
 
 
     init_balloon()
@@ -577,6 +580,7 @@ def init_controllers():
     """Define controlers access
     """
     global controllers
+
     # by default manager controller is protected by filtering source ip address as local net 
     # local net is defined as list_local_subnet
     controllers = gconfig.get(  
