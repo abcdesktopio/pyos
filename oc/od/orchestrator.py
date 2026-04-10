@@ -1265,7 +1265,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             directorytomemoryemptydir_user_homedirectory = os.path.join( self.get_user_homedirectory(authinfo, userinfo), directorytomemoryemptydir )
             self.logger.debug( f"map {directorytomemoryemptydir_user_homedirectory} to emptyDir medium Memory" )
             volume_name = oc.auth.namedlib.normalize_name( directorytomemoryemptydir )
-            volumes[volume_name]       = { 'name': volume_name,  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
+            volumes[volume_name]       = { 'name': volume_name,  **oc.od.settings.desktop['directorytomemory']  }
             volumes_mount[volume_name] = { 'name': volume_name,  'mountPath': directorytomemoryemptydir_user_homedirectory }
             if volume_type in ['pod_application']:
                 self.logger.debug( f"warning {volume_type} maps {directorytomemoryemptydir_user_homedirectory} to emptyDir medium Memory" )
