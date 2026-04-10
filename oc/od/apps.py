@@ -791,9 +791,10 @@ class ODApps:
         Returns:
             bool: True if the MongoDB watcher thread is alive, False otherwise
         """
-        return isinstance(self.watcher_thread, threading.Thread) and \
-               hasattr(self.watcher_thread, 'is_alive') and \
-               self.watcher_thread.is_alive()
+        if isinstance(self.watcher_thread, threading.Thread) and \
+           hasattr(self.watcher_thread, 'is_alive') :
+               return self.watcher_thread.is_alive()
+        return False
 
     def start_mongo_watcher(self):
         """start_mongo_watcher

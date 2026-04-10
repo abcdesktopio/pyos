@@ -121,7 +121,7 @@ class ODKubernetesWatcher:
 
     def stop(self):
         self.logger.debug('watcher thread is stopping')
-        if isinstance( self.thead_event, threading.Thread ):
+        if isinstance( self.thead_event, threading.Thread ) and hasattr(self.thead_event, 'is_alive') :
             while self.thead_event.is_alive():
                 self.logger.debug('thread watcher is alive')
                 if isinstance(self.watch, watch.Watch ) :
