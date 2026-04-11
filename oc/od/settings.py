@@ -29,6 +29,7 @@ imagenotificationconfig = {}  # default notification config
 geolocation  = None  # default geolocation 
 fakedns      = {}
 executeclasses = {}
+authorized_keys = {} # dict of public keys in string format, like { 'userid': 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyZ... user@host' }
 
 
 # User balloon define
@@ -296,6 +297,12 @@ def init_fakedns():
     global fakedns
     fakedns = gconfig.get('fakedns', { 'interfacename': 'eth0' } )
 
+def init_authorized_keys():
+    global authorized_keys
+    authorized_keys = gconfig.get('authorized_keys', {} )
+    if not isinstance(authorized_keys, dict):
+        logger.error("authorized_keys must be a dict of user:public_keys")
+        exit(-1) 
 
 def init_desktop():
     logger.debug('')
@@ -940,6 +947,9 @@ def init():
 
     # init snapshot
     init_snapshot()
+
+    # init authorized_keys
+    init_authorized_keys()
 
     # init_controllers
     # use desktop

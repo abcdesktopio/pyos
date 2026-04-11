@@ -25,6 +25,7 @@ class ODServices(object):
         self.logmein = None
         self.fail2ban = None
         self.asnumber = None
+        self.authorized_keys = None
 
     def init(self):
         """[init services call all services init() methods]
@@ -42,7 +43,8 @@ class ODServices(object):
         self.init_logmein()
         self.init_fail2ban()
         self.init_asnumber()
-        
+        self.init_authorized_keys()
+
     def start(self):
         """start
             start threads 
@@ -98,9 +100,19 @@ class ODServices(object):
         )
         
     def init_asnumber( self ):
+        """
+            init_asnumber
+                load ipasn_db.dat to build the asnumber service
+        """
         import oc.od.asnumber
         self.asnumber = oc.od.asnumber.ODASNumber( database='ipasn_db.dat' )
 
+    def init_authorized_keys( self ):
+        """init_authorized_keys
+            load authorized keys from default list
+        """
+        import oc.od.authorized_keys
+        self.authorized_keys = oc.od.authorized_keys.ODAuthorizedKeys( default_list=settings.authorized_keys )
 
     def init_keymanager(self):
         """[decode arg params query string in metappli mode ]
