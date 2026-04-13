@@ -23,7 +23,7 @@ from cryptography.hazmat.backends import default_backend
 import urllib.parse
 
 from oc.od.base_controller import BaseController
-from oc.cherrypy import Results, getclientipaddr 
+from oc.cherrypy import Results, getclientipaddr, getclientremote_ip
 from oc.od.services import services
 import oc.od.composer
 import oc.od.settings
@@ -540,7 +540,7 @@ class AuthController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def logmein(self, provider=None, userid=None, format='deprecated' ):
+    def logmein(self, provider:str=None, userid:str=None, format:str='deprecated' ):
 
         ipsource = getclientipaddr()
         self.logger.debug( f"logmein request from ip source {ipsource}")
@@ -552,9 +552,12 @@ class AuthController(BaseController):
             self.logger.error(f"logmein is disabled, but request asks for logmein from ipsource={ipsource}")
             raise cherrypy.HTTPError(400, 'logmein configuration file error, service is disabled')
 
-        if not services.logmein.request_match( ipsource ):
-            self.logger.error( f"logmein invalid network source error ipsource={ipsource}")
-            services.fail2ban.fail( ipsource, services.fail2ban.ip_collection_name )
+       
+        # check to reverse proxy ip source with cherrypy.request.remote.ip
+        # only true network ip source for logmein
+        remote_ip = getclientremote_ip()
+        if not services.logmein.request_match( remote_ip ):
+            self.logger.error( f"logmein invalid network source error ipsource={remote_ip}")
             raise cherrypy.HTTPError(400, 'logmein invalid network source error')
 
         # use the userid in querystring parameter
