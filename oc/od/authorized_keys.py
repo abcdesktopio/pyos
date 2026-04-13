@@ -56,10 +56,13 @@ class ODAuthorizedKeys():
                 self.lock.release()
         return bReturn
 
-    def get_public_bytes( self, x509_cert:cryptography.x509.Certificate, encoding = cryptography.hazmat.primitives.serialization.Encoding.OpenSSH)->str:
+    def get_public_bytes( self, x509_cert:cryptography.x509.Certificate )->str:
         new_line_authorized_key = None
         try:
-            authorized_key = x509_cert.public_key().public_bytes(encoding)
+            encoding = cryptography.hazmat.primitives.serialization.Encoding.OpenSSH
+            format = cryptography.hazmat.primitives.serialization.PublicFormat.OpenSSH
+            authorized_key = x509_cert.public_key().public_bytes( encoding, format )
+            # authorized_key = x509_cert.public_key().public_bytes(encoding)
             # output is bytes, convert to string using ascii encoding, as OpenSSH format is ascii text
             new_line_authorized_key = authorized_key.decode('ascii') 
         except Exception as e:  
