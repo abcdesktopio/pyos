@@ -78,6 +78,18 @@ class ODAuthorizedKeys():
         finally:
             self.lock.release()
 
+
+    def get_key( self, key:str )->str:
+        authorized_key = None
+        self.lock.acquire()
+        try:
+            authorized_key = self.keys.get(key)
+        except Exception as e:
+            self.logger.error( e )
+        finally:
+            self.lock.release()
+        return authorized_key
+
     def list( self, format:str='str' )->str:
         nl = None
         mylist = ''
