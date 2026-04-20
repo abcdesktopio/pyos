@@ -651,6 +651,7 @@ class AuthController(BaseController):
         
     def check_features_permissions( sefl, args:dict)->None:
         # if features is defined, then it must be a dict
+        # this is not a dummy twice type check
         if args.get('features') is not None :
             # check if args contains a features dict     
             if isinstance( args.get('features'), dict ) :
