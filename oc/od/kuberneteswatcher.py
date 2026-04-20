@@ -121,19 +121,19 @@ class ODKubernetesWatcher:
 
     def stop(self):
         self.logger.debug('watcher thread is stopping')
-        if isinstance( self.thead_event, threading.Thread ) and hasattr(self.thead_event, 'is_alive') :
-            while self.thead_event.is_alive():
+        while isinstance( self.thead_event, threading.Thread ) and hasattr(self.thead_event, 'is_alive') :
+            if self.thead_event.is_alive() :
                 self.logger.debug('thread watcher is alive')
                 if isinstance(self.watch, watch.Watch ) :
-                    self.logger.debug('ODKubernetesWatcher watch closing')
+                    # self.logger.debug('ODKubernetesWatcher watch closing')
                     self.watch.stop() # this will stop the thread self.thead_event
-                    self.logger.debug('ODKubernetesWatcher watch closed')
-              
-                self.logger.debug('ODKubernetesWatcher join start timeout=5')
+                    # self.logger.debug('ODKubernetesWatcher watch closed')
+                # self.logger.debug('ODKubernetesWatcher join start timeout=5')
                 self.thead_event.join(timeout=5)
-                self.logger.debug('ODKubernetesWatcher join done')
+                # self.logger.debug('ODKubernetesWatcher join done')
             else:
                 self.logger.debug('thread watcher is not alive')
+                break
 
         self.watch = None
         self.thead_event = None
