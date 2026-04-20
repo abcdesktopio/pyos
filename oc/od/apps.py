@@ -500,8 +500,6 @@ class ODApps:
                 'fileextensions':       self.labeltoList( labels.get('oc.fileextensions') ),
                 'legacyfileextensions': self.labeltoList( labels.get('oc.legacyfileextensions') ),
                 'secrets_requirement' : secrets_requirement,
-                'image_pull_policy' :   labels.get('image_pull_policy', 'IfNotPresent' ),
-                'image_pull_secrets':   labels.get('image_pull_secrets'),
                 'containerengine':      labels.get('oc.containerengine', 'ephemeral_container'),
                 'securitycontext':      securitycontext,
                 'created':              created
@@ -793,9 +791,10 @@ class ODApps:
         Returns:
             bool: True if the MongoDB watcher thread is alive, False otherwise
         """
-        return isinstance(self.watcher_thread, threading.Thread) and \
-               hasattr(self.watcher_thread, 'is_alive') and \
-               self.watcher_thread.is_alive()
+        if isinstance(self.watcher_thread, threading.Thread) and \
+           hasattr(self.watcher_thread, 'is_alive') :
+               return self.watcher_thread.is_alive()
+        return False
 
     def start_mongo_watcher(self):
         """start_mongo_watcher

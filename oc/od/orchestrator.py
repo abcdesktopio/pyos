@@ -1265,7 +1265,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             directorytomemoryemptydir_user_homedirectory = os.path.join( self.get_user_homedirectory(authinfo, userinfo), directorytomemoryemptydir )
             self.logger.debug( f"map {directorytomemoryemptydir_user_homedirectory} to emptyDir medium Memory" )
             volume_name = oc.auth.namedlib.normalize_name( directorytomemoryemptydir )
-            volumes[volume_name]       = { 'name': volume_name,  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } }
+            volumes[volume_name]       = { 'name': volume_name,  **oc.od.settings.desktop['directorytomemory']  }
             volumes_mount[volume_name] = { 'name': volume_name,  'mountPath': directorytomemoryemptydir_user_homedirectory }
             if volume_type in ['pod_application']:
                 self.logger.debug( f"warning {volume_type} maps {directorytomemoryemptydir_user_homedirectory} to emptyDir medium Memory" )
@@ -1464,16 +1464,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # 420 in decimal equal to 644 -> rw-r--r-- value for passwd and group
         # 640 in decimal equal to 416 -> rw-r----- value for shadow and gshadow   
         secretmountPath = oc.od.settings.desktop['secretslocalaccount']
-        secret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( secret_auth_name )
+        # secret_auth_localaccount_volume_name = oc.auth.namedlib.normalize_name_volunename( secret_auth_name )
+        secret_auth_localaccount_volume_name = 'extrausers'
         volumes[secret_auth_localaccount_volume_name] = { 
             'name': secret_auth_localaccount_volume_name, 
             'secret': { 
                 'secretName': secret_auth_name, 
                 'items': [
-                    { 'key': 'passwd', 'path': 'passwd', 'mode': 420 },
-                    { 'key': 'group', 'path': 'group', 'mode': 420   },
-                    { 'key': 'shadow', 'path': 'shadow', 'mode': 416  },
-                    { 'key': 'gshadow','path': 'gshadow', 'mode': 416  }
+                    { 'key': 'passwd', 'path': 'passwd',  'mode': 420 },
+                    { 'key': 'group',  'path': 'group',   'mode': 420 },
+                    { 'key': 'shadow', 'path': 'shadow',  'mode': 416 },
+                    { 'key': 'gshadow','path': 'gshadow', 'mode': 416 }
                 ]
             } 
         }
@@ -1581,7 +1582,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
 
-
         #
         # mount init localaccount volume
         #
@@ -1606,25 +1606,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # volume shared between all container inside the desktop pod
         #
-        if volume_type == 'pod_desktop':
+        if volume_type in [ 'pod_desktop', 'pod_application', 'ephemeral_container' ] :
             for vol_name in oc.od.settings.desktop_pod.get('graphical', {}).get('volumes', []):
-                volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
-                volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
-
-        if volume_type == 'ephemeral_container':
-            for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
-                volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
-                volumes_mount[vol_name] =  oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
-
-        if volume_type == 'pod_application':
-            for vol_name in oc.od.settings.desktop_pod.get( volume_type, {}).get('volumes', []):
-                volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
-                volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
+                if isinstance( oc.od.settings.desktop_pod.get('default_volumes').get(vol_name), dict) and \
+                   isinstance( oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name), dict ):        
+                    volumes[vol_name] = oc.od.settings.desktop_pod.get('default_volumes').get(vol_name)
+                    volumes_mount[vol_name] = oc.od.settings.desktop_pod.get('default_volumes_mount').get(vol_name)
 
         #
         # mount vnc secret in /var/secrets/abcdesktop
         # always add vnc secret for the grapical container only type pod_desktop
-        #
+        # add vnc only for desktop_pod because application_pod and ephemeral_container don't need vnc access
         if volume_type == 'pod_desktop' :
             (vnc_volumes, vnc_volumes_mount) = \
                 self.build_volumes_vnc(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
@@ -2905,6 +2897,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('')
         executeclass = None
         selectedexecuteclassname = executeclassname
+
         # if executeclassname is set, read it
         if isinstance( executeclassname, str ):
             executeclass = oc.od.settings.executeclasses.get(executeclassname).copy()
@@ -2916,11 +2909,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     selectedexecuteclassname = tagexecuteclassname
                     executeclass=oc.od.settings.executeclasses.get(tagexecuteclassname).copy()
 
+        # we must return a dict to avoid error 
+        if not isinstance( executeclass, dict ):
+            executeclassname = 'default'
+            executeclass =  oc.od.settings.executeclasses.get(executeclassname).copy()
+
         if isinstance( executeclass, dict ):
             if executeclass.get('nodeSelector') is None:
                 executeclass['nodeSelector'] = oc.od.settings.desktop.get('nodeselector')
 
-        self.logger.debug(f"executeclass={executeclass}")
+        # self.logger.debug(f"executeclass={executeclass}")
         return (selectedexecuteclassname, executeclass)
     
 
@@ -2935,7 +2933,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             dict: resources dict
         """
         self.logger.debug(locals())
-        # rescources is always a dict 
+        # rescources is always a dict
         resources = {}
         # read desktop settings resources from executeclass
         if isinstance( executeclass, dict ):
@@ -3056,9 +3054,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'image': image,                             
             'env': envlist,
             'volumeMounts': list_volumeMounts,
-            'resources': container_resources,
-            'lifecyle': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('lifecyle')                
+            'resources': container_resources           
         }
+        if oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('lifecyle') is not None:
+            container['lifecycle'] = oc.od.settings.desktop_pod[currentcontainertype]['lifecyle']
         if isinstance( workingdir, str):
             container['workingDir'] = workingdir
         if isinstance( command, list):
@@ -3438,20 +3437,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if  fillednetworkconfig.get( 'websocketrouting' ) == 'bridge' :
             # no filter if container ip addr use a bridged network interface
             envlist.append( { 'name': 'DISABLE_REMOTEIP_FILTERING', 'value': 'enabled' })
-
             # if we need to request an X509 certificat on the fly
             external_dnsconfig = fillednetworkconfig.get( 'external_dns' )
             if  type( external_dnsconfig ) is dict and \
                 type( external_dnsconfig.get( 'domain' ))   is str and \
                 type( external_dnsconfig.get( 'hostname' )) is str :
                 websocketrouting = fillednetworkconfig.get( 'websocketrouting' )
-                websocketroute = external_dnsconfig.get( 'hostname' ) + '.' + external_dnsconfig.get( 'domain' )
+                websocketroute = f"{external_dnsconfig.get( 'hostname' )}.{external_dnsconfig.get( 'domain' )}"
                 envlist.append( { 'name': 'USE_CERTBOT_CERTONLY', 'value': 'enabled' } )
                 envlist.append( { 'name': 'EXTERNAL_DESKTOP_HOSTNAME', 'value': external_dnsconfig.get( 'hostname' ) } )
                 envlist.append( { 'name': 'EXTERNAL_DESKTOP_DOMAIN', 'value': external_dnsconfig.get( 'domain' ) } )
-
-                labels['websocketrouting']  = websocketrouting
-                labels['websocketroute']    = websocketroute
+                labels['websocketrouting'] = websocketrouting
+                labels['websocketroute'] = websocketroute
         self.logger.debug('websocketrouting created')
 
         initContainers = []

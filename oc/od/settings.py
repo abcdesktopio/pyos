@@ -29,6 +29,7 @@ imagenotificationconfig = {}  # default notification config
 geolocation  = None  # default geolocation 
 fakedns      = {}
 executeclasses = {}
+authorized_keys = {} # dict of public keys in string format, like { 'userid': 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyZ... user@host' }
 
 
 # User balloon define
@@ -296,6 +297,12 @@ def init_fakedns():
     global fakedns
     fakedns = gconfig.get('fakedns', { 'interfacename': 'eth0' } )
 
+def init_authorized_keys():
+    global authorized_keys
+    authorized_keys = gconfig.get('authorized_keys', {} )
+    if not isinstance(authorized_keys, dict):
+        logger.error("authorized_keys must be a dict of user:public_keys")
+        exit(-1) 
 
 def init_desktop():
     logger.debug('')
@@ -329,6 +336,7 @@ def init_desktop():
     desktop['policies']                 = gconfig.get('desktop.policies', {} )
     desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
     desktop['webhookdict']              = gconfig.get('desktop.webhookdict', {} )
+    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
     desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
     desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt')
     desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
@@ -345,12 +353,12 @@ def init_desktop():
     desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
     desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', False)
     desktop['directorytomemoryemptydir']= gconfig.get('desktop.directorytomemoryemptydir', [])
+    desktop['directorytomemory']        = gconfig.get('desktop.directorytomemory', { 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } })
     desktop['removepersistentvolume']   = gconfig.get('desktop.removepersistentvolume', False)
     desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
     desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
     desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
     
-    desktop['hostname'] = gconfig.get('desktop.hostname')
     desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
     # features_permissions
     # 'read' features_permissions is exposed to the frontend
@@ -433,6 +441,19 @@ def init_desktop():
     if not isinstance ( desktop_pod.get('pod_application', {}).get('volumes') , list ):
         desktop_pod['pod_application']['volumes'] = [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
         logger.debug(f"fixing desktop.pod.pod_application.volumes config {desktop_pod['pod_application']['volumes']}")  
+
+
+    # fix for compatility 4.3 -> 4.4
+    # remove all value extrausers
+    """
+    for k in desktop_pod.keys():
+        if desktop_pod.get(k).get('volumes') is not None:
+            if isinstance(desktop_pod.get(k).get('volumes'), list )
+                if 'extrausers' in desktop_pod.get(k).get('volumes'):
+                    del desktop_pod.get(k).get('volumes')['extrausers']
+    """      
+
+
     init_balloon()
 
     # apply cgroup memory and cpu 
@@ -567,6 +588,7 @@ def init_controllers():
     """Define controlers access
     """
     global controllers
+
     # by default manager controller is protected by filtering source ip address as local net 
     # local net is defined as list_local_subnet
     controllers = gconfig.get(  
@@ -925,6 +947,9 @@ def init():
 
     # init snapshot
     init_snapshot()
+
+    # init authorized_keys
+    init_authorized_keys()
 
     # init_controllers
     # use desktop

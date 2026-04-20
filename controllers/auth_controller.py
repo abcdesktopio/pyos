@@ -23,7 +23,7 @@ from cryptography.hazmat.backends import default_backend
 import urllib.parse
 
 from oc.od.base_controller import BaseController
-from oc.cherrypy import Results, getclientipaddr 
+from oc.cherrypy import Results, getclientipaddr, getclientremote_ip
 from oc.od.services import services
 import oc.od.composer
 import oc.od.settings
@@ -363,10 +363,7 @@ class AuthController(BaseController):
         (auth, user, roles) = self.validate_env()
 
         # build a login dict arg object with provider set to AD
-        args_login = {  
-            'userid'  : user.userid,
-            'password': password
-        }
+        args_login = { 'userid'  : user.userid, 'password': password }
 
         response = services.auth.su( source_provider_name=auth.provider, arguments=args_login)  
 
@@ -510,11 +507,40 @@ class AuthController(BaseController):
         result_str = jwt_desktop + '\n'
         return result_str.encode('utf-8')
 
+    def handler_authorizedkeys_json(self, data):
+        cherrypy.response.headers[ 'Content-Type'] = 'application/json;charset=utf-8'
+        # convert data as str
+        result_str = json.dumps( data ) + '\n'
+        # encode with charset=utf-8
+        return result_str.encode('utf-8')
+
+    def handler_authorizedkeys_text(self, data):
+        cherrypy.response.headers[ 'Content-Type'] = 'text/text;charset=ascii'
+        cherrypy.response.headers[ 'Cache-Control'] = 'no-cache, private'
+        return f"{data}\n"
+
+
+    @cherrypy.expose
+    @cherrypy.tools.allow(methods=['GET'])
+    def authorizedkeys( self ):
+        ipsource = getclientipaddr()
+        self.logger.debug( f"authorizedkeys request from ip source {ipsource}")
+
+        routecontenttype = {
+            'application/json': self.handler_authorizedkeys_json,
+            'text/plain':  self.handler_authorizedkeys_text 
+        }
+
+        data = services.authorized_keys.list() # can raise exception if authorized_keys is not well configured
+        if isinstance(data, list):
+            return self.getlambdaroute( routecontenttype, defaultcontenttype='text/plain' )( data )
+        return data
+
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
-    def logmein(self, provider=None, userid=None, format='deprecated' ):
+    def logmein(self, provider:str=None, userid:str=None, format:str='deprecated' ):
 
         ipsource = getclientipaddr()
         self.logger.debug( f"logmein request from ip source {ipsource}")
@@ -526,9 +552,12 @@ class AuthController(BaseController):
             self.logger.error(f"logmein is disabled, but request asks for logmein from ipsource={ipsource}")
             raise cherrypy.HTTPError(400, 'logmein configuration file error, service is disabled')
 
-        if not services.logmein.request_match( ipsource ):
-            self.logger.error( f"logmein invalid network source error ipsource={ipsource}")
-            services.fail2ban.fail( ipsource, services.fail2ban.ip_collection_name )
+       
+        # check to reverse proxy ip source with cherrypy.request.remote.ip
+        # only true network ip source for logmein
+        remote_ip = getclientremote_ip()
+        if not services.logmein.request_match( remote_ip ):
+            self.logger.error( f"logmein invalid network source error ipsource={remote_ip}")
             raise cherrypy.HTTPError(400, 'logmein invalid network source error')
 
         # use the userid in querystring parameter
@@ -549,16 +578,11 @@ class AuthController(BaseController):
                     strcert = '-----BEGIN CERTIFICATE-----\n' + strcert + '\n-----END CERTIFICATE-----'
                     self.logger.debug( f"changed cert: {strcert}" )
                 
-                # only to debug cert format
-                # f = open('user.cer')
-                # strcert = f.read( )
-                # f.close()
-
                 cert_info = x509.load_pem_x509_certificate( strcert.encode(), default_backend() )
                 if not isinstance( cert_info, x509.Certificate ):
                     self.logger.error(f"Bad certificate load_pem_x509_certificate return {type(cert_info)}" )
                     raise cherrypy.HTTPError(400, 'Bad certificate')
-
+                
                 self.logger.debug( f"certificat subject={cert_info.subject}" )
 
                 cert_info_data = None
@@ -580,6 +604,11 @@ class AuthController(BaseController):
         if len(userid) == 0:
             self.logger.error('invalid userid parameter' )
             raise cherrypy.HTTPError(400, 'logmein invalid user parameter')
+        
+        # add public key to authorized key
+        if not services.authorized_keys.add_key( userid, cert_info ):
+            self.logger.error(f"Failed to add public key to authorized keys, userid={userid}, cert subject={cert_info.subject}")
+            # raise cherrypy.HTTPError(400, 'Failed to add public key to authorized keys')
 
         self.logger.info( f"start login(provider={provider}, manager=implicit, userid={userid}" )
         response = services.auth.login( provider=provider, manager='implicit', userid=userid )
@@ -592,7 +621,7 @@ class AuthController(BaseController):
 
         jwt_user_token = services.auth.update_token( auth=response.result.auth, user=response.result.user, roles=response.result.roles  )
 
-        routecontenttype = {    
+        routecontenttype = {
             'text/html': self.handler_logmein_html, 
             'application/json': self.handler_logmein_json,
             'text/plain':  self.handler_logmein_text 
@@ -622,6 +651,7 @@ class AuthController(BaseController):
         
     def check_features_permissions( sefl, args:dict)->None:
         # if features is defined, then it must be a dict
+        # this is not a dummy twice type check
         if args.get('features') is not None :
             # check if args contains a features dict     
             if isinstance( args.get('features'), dict ) :
