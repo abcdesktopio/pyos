@@ -757,7 +757,7 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
     logger.debug( f"callwebhook exec {webhookcmd}" )
     exitCode = -1
     try :
-        proc = subprocess.run(webhookcmd, timeout=timeout, stdout=subprocess.PIPE )
+        proc = subprocess.run(webhookcmd, timeout=timeout, stdout=subprocess.PIPE, shell=True )
         if isinstance( proc, subprocess.CompletedProcess) :
             proc.check_returncode()
             if messageinfo:
