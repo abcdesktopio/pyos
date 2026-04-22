@@ -4044,13 +4044,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         desktop_interfaces     = None
         vnc_password           = None
 
-        # read metadata annotations 'k8s.v1.cni.cncf.io/networks-status'
-        # to get the ip address of each netwokr interface
+        # read metadata annotations 'k8s.v1.cni.cncf.io/network-status'
+        # to get the ip address of each network interface
         network_status = None
         if isinstance(pod.metadata.annotations, dict):
-            network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/networks-status' )
+            network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
             if isinstance( network_status, str ):
-                # k8s.v1.cni.cncf.io/networks-status is set
+                # k8s.v1.cni.cncf.io/network-status is set
                 # load json formated string
                 network_status = json.loads( network_status )
 
