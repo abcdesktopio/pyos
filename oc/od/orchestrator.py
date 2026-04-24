@@ -3043,13 +3043,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
         container = { 
             'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
-            # 'name': currentcontainertype,
             'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy', 'IfNotPresent' ),
             'image': image,                             
             'env': envlist,
             'volumeMounts': list_volumeMounts,
-            'resources': container_resources,
-            'lifecyle': oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('lifecyle')                
+            'resources': container_resources
         }
         if isinstance( workingdir, str):
             container['workingDir'] = workingdir
