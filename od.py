@@ -66,9 +66,9 @@ def api_handle_error():
 
 def api_build_error(status, message:str, traceback, version:str)->str:
     
-    # _ex_type, ex, _ex_tb = sys.exc_info()
+    _ex_type, ex, _ex_tb = sys.exc_info()
     result =     { 'status': cherrypy.response.status, 'message':message }
-    log_result = { 'status': cherrypy.response.status, 'message':message, 'traceback':str(traceback), 'version':version }
+    log_result = { 'status': cherrypy.response.status, 'message':message,  'exception': str(ex), 'traceback':str(traceback),'version':version }
     if cherrypy.config.get('tools.log_full.on'):
         logger.info( log_result )
     build_error = json.dumps( result ) + '\n'
