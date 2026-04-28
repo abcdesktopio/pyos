@@ -859,10 +859,8 @@ class ODAuthTool(cherrypy.Tool):
         jwt_auth_reduce = { 'provider': auth.provider, 'providertype': auth.providertype, 'data': auth_data_reduce }
         # create jwt_user_reduce
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid') }
-
-        # create jwt_role_reduce (futur usage) 
-        # roles=None as default parameter 
-        jwt_role_reduce = roles 
+        # create a jwt_role_reduce
+        jwt_role_reduce = dict(roles) # copy all data
         # encode new jwt 
         jwt_token = self.jwt.encode( auth=jwt_auth_reduce, user=jwt_user_reduce, roles=jwt_role_reduce )
 
