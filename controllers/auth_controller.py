@@ -443,8 +443,8 @@ class AuthController(BaseController):
         return html_data.encode('utf-8')
 
     @cherrypy.expose
-    @cherrypy.tools.allow(methods=['POST','GET'])
-    # Pure HTTP Form request
+    @cherrypy.tools.allow(methods=['POST'])
+    # Pure HTTP Form request only PUT 
     def autologin(self, login=None, provider=None, password=None):
         self.logger.debug('')
    
