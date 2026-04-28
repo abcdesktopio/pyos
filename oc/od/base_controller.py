@@ -195,8 +195,8 @@ class BaseController(object):
           self.logger.debug( f"read http header apikey={apikey}" )
           for k in self.apikey:
                # self.logger.debug( f"compare apikey {k}={apikey}" )
-               bReturn = k == apikey
-               if bReturn is True:
+               if k == apikey : 
+                    bReturn = True
                     break 
           return bReturn
      
