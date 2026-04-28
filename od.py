@@ -27,18 +27,11 @@ import oc.cherrypy
 import oc.od.settings as settings
 import oc.od.services as services
 
-# Load logging config ASAP !
-oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
 logger = logging.getLogger(__name__)
 
 # define each configration for API
 # app_config is the core service
 # img_config is file service to send icon static file 
-
-# Allow (partial) case-insensivity in URLs
-class APIDispatcher(Dispatcher):
-    def __call__(self, path_info):
-        return Dispatcher.__call__(self, path_info.lower()) 
 
 def api_handle_error():
     _ex_type, ex, _ex_tb = sys.exc_info()
@@ -71,14 +64,11 @@ def api_handle_error():
     cherrypy.response.body = build_error.encode('utf-8')
 
 
-def api_build_error(status, message, traceback, version):
-    _ex_type, ex, _ex_tb = sys.exc_info()
-
-    result = {  'status': cherrypy.response.status,  
-                'message':message 
-    }
+def api_build_error(status, message:str, traceback, version:str)->str:
     
-    log_result = { 'status': cherrypy.response.status,  'message':message, 'traceback':str(traceback), 'version':version }
+    # _ex_type, ex, _ex_tb = sys.exc_info()
+    result =     { 'status': cherrypy.response.status, 'message':message }
+    log_result = { 'status': cherrypy.response.status, 'message':message, 'traceback':str(traceback), 'version':version }
     if cherrypy.config.get('tools.log_full.on'):
         logger.info( log_result )
     build_error = json.dumps( result ) + '\n'
@@ -104,7 +94,7 @@ def img_handle_404_application(status, message, traceback, version):
     ''' return img/app/application-default-icon.svg '''
     curdir = os.getcwd()
     path = os.path.join(curdir, 'img/app', 'application-default-icon.svg')
-    # overwrite 404 to 200 
+    # overwrite 404 to 200
     # if status is 404 then body is not aways display
     cherrypy.response.status = 200
     cherrypy.response.message = 'OK'
@@ -185,13 +175,12 @@ class API(object):
             load json data file version.json in current directory
             return { 'date': 'undefined', 'commit': 'undefined' } if error
         """
-
+        
         data = { 'date': 'undefined', 'commit': 'undefined' }
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
-            json_file = open('version.json')
-            data = json.load(json_file)
-            json_file.close()
+            with open('version.json') as json_file:
+                data = json.load(json_file)
         except Exception as e:  
             logger.error( e )
         return data
@@ -254,6 +243,8 @@ def run_server():
     cherrypy.engine.block()
 
 def main(argv):
+    # Load logging config 
+    oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
     # Load config file od.config
     settings.init()    
     # Init services 

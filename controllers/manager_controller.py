@@ -16,7 +16,6 @@
 import logging
 import cherrypy
 import datetime 
-import distutils.util
 from typing_extensions import assert_type
 
 from oc.od.base_controller import BaseController
@@ -52,7 +51,7 @@ class ManagerController(BaseController):
     @cherrypy.tools.allow(methods=['GET','POST'])
     def echohttp(self):
         """echohttp
-            echo hhtp header dict 
+            echo http header dict 
         """
 
         #    def get_json(obj):
@@ -62,14 +61,15 @@ class ManagerController(BaseController):
         # return http reqest content
         # http_dump = get_json( cherrypy.request.body )
 
+        # check if request is allowed, raise an exception if deny
+        self.is_permit_request()
+
         http_dump = {   'headers' : cherrypy.request.headers,
                         'remote'  : cherrypy.request.remote.__dict__,
                         'params'  : cherrypy.request.params
         }
         # log before is_permit_request
         self.logger.debug( http_dump )
-        # check if request is allowed, raise an exception if deny
-        self.is_permit_request()
         return http_dump
 
     # buildapplist request is protected by is_permit_request()
@@ -119,9 +119,9 @@ class ManagerController(BaseController):
         nexpirein = None
         try:
             nexpirein = int( expirein )
+            
             if isinstance(force,str):
-                # convert str parameter to bool type
-                force = bool( distutils.util.strtobool( force ) )
+                force = oc.lib.strtobool( str(force) )
             else:
                 force = False
         except Exception:

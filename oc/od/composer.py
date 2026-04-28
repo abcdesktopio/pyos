@@ -50,26 +50,6 @@ def selectOrchestrator():
     myOrchestrator = oc.od.orchestrator.selectOrchestrator()
     return myOrchestrator
 
-
-def securitypoliciesmatchlabel( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
-    assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
-    assert isinstance(authinfo, AuthInfo), f"authinfo is not a AuthInfo {type(authinfo)}"
-    if not isinstance(labels_filter_list, list):
-        return True
-
-    labels_authinfo = authinfo.get_labels().keys()
-    labels_desktop  = desktop.labels.keys()
-    matches = {}
-    for require_label in labels_filter_list:
-        if require_label in labels_authinfo.keys():
-            matches[require_label] = False
-            if require_label in labels_desktop.keys():
-                matches[require_label] =True
-
-    logger.debug( f"checking label matching {matches}" )
-    result = all( matches.values() )
-    return result
-
 def securitypoliciesmatchlabelvalue( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
     assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
     assert isinstance(authinfo, AuthInfo), f"authinfo is not a AuthInfo {type(authinfo)}"

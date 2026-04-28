@@ -41,7 +41,7 @@ balloon_gidNumber = 4096            # default group id
 balloon_groupname = 'balloon'       # default group name
 balloon_loginname = 'balloon'       # default login name
 balloon_shell     = '/bin/bash'     # default shell
-balloon_password  = 'lmdpocpetit'   # default password
+balloon_password  = None            # default password set by config file 
 
 # default registry for snapshoted images dictionary or None 
 snapshot_mountpath = None # default mount path for containerd on ubuntu 
@@ -801,7 +801,6 @@ def get_default_appdict():
         dict: default appdict
     """    
     return dock
-
 
 def get_configuration_file_name():
     """get_configuration_file_name

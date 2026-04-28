@@ -234,7 +234,7 @@ class ComposerController(BaseController):
    
         # build new jwtdesktop
         jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
-        self.logger.info(f"jwttoken is {desktop.internaluri} -> {jwtdesktoptoken}" )
+        # self.logger.debug(f"jwttoken is {desktop.internaluri} -> {jwtdesktoptoken}" )
 
         # add no-cache nosniff HTTP headers
         cherrypy.response.headers[ 'Cache-Control'] = 'no-cache, private'

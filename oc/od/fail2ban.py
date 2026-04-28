@@ -19,7 +19,7 @@ class ODFail2ban:
         self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl=mongodburl, mongodbparam=mongodbparam, databasename=self.databasename)
         self.collections_name = [ self.ip_collection_name, self.login_collection_name ]
         self.sanity_filter = {  
-            self.ip_collection_name:"0123456789.", 
+            self.ip_collection_name:"0123456789.:abcdefABCDEF", 
             self.login_collection_name:"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_\\/ " 
         }
         # create a new database instance
@@ -31,7 +31,7 @@ class ODFail2ban:
             self.init_collection( self.ip_collection_name )
             self.init_collection( self.login_collection_name )
 
-    def sanity( self, value, filter ):
+    def sanity( self, value:str, filter:str )->bool:
         """sanity
 
         Args:

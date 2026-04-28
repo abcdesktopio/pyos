@@ -16,7 +16,9 @@ import logging
 import cherrypy
 import json
 import oc.od.services
+import oc.auth.namedlib
 from oc.od.base_controller import BaseController
+
 
 logger = logging.getLogger(__name__)
 
