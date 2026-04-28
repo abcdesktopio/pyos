@@ -3056,8 +3056,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             'volumeMounts': list_volumeMounts,
             'resources': container_resources           
         }
-        if oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('lifecyle') is not None:
-            container['lifecycle'] = oc.od.settings.desktop_pod[currentcontainertype]['lifecyle']
+        if oc.od.settings.desktop_pod.get(currentcontainertype,{}).get('lifecycle') is not None:
+            container['lifecycle'] = oc.od.settings.desktop_pod[currentcontainertype]['lifecycle']
         if isinstance( workingdir, str):
             container['workingDir'] = workingdir
         if isinstance( command, list):
@@ -4053,19 +4053,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         desktop_interfaces     = None
         vnc_password           = None
 
-        # read metadata annotations 'k8s.v1.cni.cncf.io/networks-status'
+        # read metadata annotations 'k8s.v1.cni.cncf.io/network-status'
         # to get the ip address of each netwokr interface
         network_status = None
         if isinstance(pod.metadata.annotations, dict):
-            network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/networks-status' )
+            network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
             if isinstance( network_status, str ):
-                # k8s.v1.cni.cncf.io/networks-status is set
+                # k8s.v1.cni.cncf.io/network-status is set
                 # load json formated string
                 network_status = json.loads( network_status )
 
             if isinstance( network_status, list ):
                 desktop_interfaces = {}
-                self.logger.debug( f"network_status is {network_status}" )
+                # self.logger.debug( f"network_status is {network_status}" )
                 for interface in network_status :
                     self.logger.debug( f"reading interface {interface}" )
                     if not isinstance( interface, dict ): 
