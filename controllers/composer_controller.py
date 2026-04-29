@@ -222,16 +222,14 @@ class ComposerController(BaseController):
         (auth, user, roles) = self.validate_env()
         desktop = oc.od.composer.finddesktop(authinfo=auth, userinfo=user)
 
-        # check desktop object
+        # check desktop object type
         if not isinstance(desktop, oc.od.desktop.ODDesktop):
-            raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')  
-
-        # check desktop object
-        if not isinstance(desktop, oc.od.desktop.ODDesktop):
-            raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')          
+            raise cherrypy.HTTPError( status=400, message='finddesktop does not return a desktop object')
+        
+        # check if desktop is reachable
         if not oc.od.desktop.isdesktopreachabled( desktop ):
             raise cherrypy.HTTPError( status=400, message='Your desktop is unreachable')
-   
+        
         # build new jwtdesktop
         jwtdesktoptoken = services.jwtdesktop.encode( desktop.internaluri )
         # self.logger.debug(f"jwttoken is {desktop.internaluri} -> {jwtdesktoptoken}" )
