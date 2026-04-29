@@ -51,15 +51,13 @@ class ODDesktopJWToken(object):
         with open(payload_desktop_publickeyfile, 'r') as f:
             self.payload_desktop_publickeyfile = f.read()
 
-        #
         # # uncomment to call decode method
-        # jwt_desktop_publickeyfile     = config.get('jwtdesktoppublickeyfile')
-        # # readjwt_desktop_publickeyfile
-        # with open(jwt_desktop_publickeyfile, 'r') as f:
-        #     self.jwt_publickey = f.read()
+        # jwt_desktop_publickeyfile = config.get('jwtdesktoppublickeyfile')l decode me# thod
         #
-
-       
+        # # read the jwt_desktop_publickeyfile
+        # f = open(jwt_desktop_publickeyfile, 'r')
+        # self.jwt_publickey = f.read()
+        # f.close()
 
     def exp(self):
         return self._exp
