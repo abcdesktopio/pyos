@@ -19,7 +19,6 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-    
 @oc.logging.with_logger()
 class ODAuthorizedKeys():
     def __init__( self, default_list={} ):
@@ -30,14 +29,9 @@ class ODAuthorizedKeys():
 
     def remove_key( self,  key:str )->bool :
         bReturn = False
-        self.lock.acquire()
-        try:
+        with self.lock:
             del self.keys[key]
             bReturn = True
-        except Exception as e:
-            self.logger.error( e )
-        finally:
-            self.lock.release()
         return bReturn
 
     def add_key( self,  key:str, x509_cert:cryptography.x509.Certificate)->bool :
@@ -46,14 +40,9 @@ class ODAuthorizedKeys():
         bReturn = False
         authorized_key = self.get_public_bytes( x509_cert )
         if isinstance( authorized_key, str):
-            self.lock.acquire()
-            try:
+            with self.lock:
                 self.keys[key] = authorized_key
                 bReturn = True
-            except Exception as e:
-                self.logger.error( e )
-            finally:
-                self.lock.release()
         return bReturn
 
     def get_public_bytes( self, x509_cert:cryptography.x509.Certificate )->str:
@@ -70,36 +59,20 @@ class ODAuthorizedKeys():
         return new_line_authorized_key
 
     def clear_keys( self )->None:
-        self.lock.acquire()
-        try:
+        with self.lock:
             self.keys = self.default_list.copy()
-        except Exception as e:
-            self.logger.error( e )
-        finally:
-            self.lock.release()
-
 
     def get_key( self, key:str )->str:
         authorized_key = None
-        self.lock.acquire()
-        try:
+        with self.lock:
             authorized_key = self.keys.get(key)
-        except Exception as e:
-            self.logger.error( e )
-        finally:
-            self.lock.release()
         return authorized_key
 
     def list( self, format:str='str' )->str:
         nl = None
         mylist = ''
-        self.lock.acquire()
-        try:
+        with self.lock:
             nl = self.keys.copy()
-        except Exception as e:
-            self.logger.error( e )
-        finally:
-            self.lock.release()
 
         if format == 'dict':
             return nl
