@@ -205,7 +205,7 @@ def init_defaulthostfqdn():
     """
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
-    global default_geolocation_ipaddr            # default ip addr to fake real ip source in geoip
+    global default_geolocation_ipaddr       # default ip addr to fake real ip source in geoip
     global services_http_request_denied     # denied http request uri
 
 
