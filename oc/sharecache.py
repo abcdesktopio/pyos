@@ -11,7 +11,7 @@
 # Software description: cloud native desktop service
 #
 
-from pymemcache.client.base import Client
+from pymemcache.client.base import Client, PooledClient
 from pymemcache import serde
 import oc.logging
 
@@ -39,6 +39,16 @@ class ODMemcachedSharecache(ODSharecacheBase):
     def __init__(self, connectionstring):
         self.socket_timeout = 2 # 2 seconds  
         self.connectionstring = connectionstring
+        self._client = PooledClient(
+            connectionstring,
+            max_pool_size=10,
+            connect_timeout=self.socket_timeout,
+            default_noreply=False,
+            serde=serde.pickle_serde
+        )
+
+    def createclient(self):
+        return self._client   # reuse pool
 
     def get(self, key:str):        
         try:     
@@ -70,7 +80,7 @@ class ODMemcachedSharecache(ODSharecacheBase):
     def set(self, key:str, value:str, expire:int=0 )-> bool:
         try:
             if self.createclient().set(key, value, expire=expire) != 0: 
-                self.logger.debug(f"set({key})->{value}") 
+                # self.logger.debug(f"set({key})->{value}") 
                 return True
             self.logger.error(f"{self.connectionstring} failed, {key} {value} return failed")
         except Exception as e:
@@ -98,7 +108,7 @@ class ODMemcachedSharecache(ODSharecacheBase):
         value = None
         try:
             value = self.createclient().gets(key)
-            self.logger.debug(f"gets({key})->{value}")
+            # self.logger.debug(f"gets({key})->{value}")
         except Exception as e:
             self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
         return value
@@ -108,12 +118,9 @@ class ODMemcachedSharecache(ODSharecacheBase):
         # - None if the key didn’t exist, 
         # - False if it existed but had a different cas value
         # - True if it existed and was changed.
+        cas_status = None
         try:
             cas_status = self.createclient().cas(key, value, cas, expire=expire)
-            return cas_status
         except Exception as e:
             self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
-            return None
-
-    def createclient(self):
-        return Client(self.connectionstring, connect_timeout=self.socket_timeout, default_noreply=False, serde=serde.pickle_serde)
+        return cas_status
