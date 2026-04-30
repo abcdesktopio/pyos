@@ -124,3 +124,6 @@ class ODMemcachedSharecache(ODSharecacheBase):
         except Exception as e:
             self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
         return cas_status
+
+    def _get(self, key: str):
+        return self.memcache.createclient().get(str(key))
