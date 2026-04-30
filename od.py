@@ -127,21 +127,23 @@ class API(object):
     @cherrypy.tools.register('before_handler')
     def trace_request():
         
-        logmessage = cherrypy.request.path_info
+        json_data = cherrypy.request.json
 
-        if hasattr(cherrypy.request, 'json'):
-            # if request is an auth request
-            if cherrypy.request.path_info == '/auth/auth' :
-                # auth may contains password data
-                # do not log password data 
-                # copy dict cherrypy.request.json to keep it unchanged
-                jsonhidendata = cherrypy.request.json.copy()
+        # auth may contains password data
+        # do not log password data 
+        # copy dict cherrypy.request.json to keep it unchanged
+        if cherrypy.request.path_info == '/auth/auth' and hasattr(cherrypy.request, 'json'):
+            #
+            # check if password data exist in cherrypy.request.json and 
+            # replace it by XXXXXXXXXXXXX in log message
+            # logmessage is the message to log with hidden password value
+            #
+            if cherrypy.request.json.get('password'):
+                json_data = cherrypy.request.json.copy()
                 # replace password data by XXXXXXXXXXXXX in jsonhidendata object
-                jsonhidendata['password'] = 'XXXXXXXXXXX'
-                # log data message with the hidden passord value
-                logmessage = logmessage + f" {jsonhidendata}"
-            else:
-                logmessage = logmessage + f" {cherrypy.request.json}"
+                json_data['password'] = 'XXXXXXXXXXX'
+                
+        logmessage = f"{cherrypy.request.path_info} {json_data}"    
 
         logger.info(logmessage)
 
@@ -153,10 +155,15 @@ class API(object):
         if hasattr(cherrypy.response, 'notrace'):
             return
 
+        MAX_LOG_BODY = oc.od.settings.max_log_body_size
+        # get the body of the response and log it, but limit the size to MAX_LOG_BODY bytes
         message = b''
         if isinstance( cherrypy.response.body, list):
             for m in cherrypy.response.body:
                 message = message + m.rstrip(b' ')
+                if len(message) >= MAX_LOG_BODY:
+                    message = message[:MAX_LOG_BODY] + b'...[truncated]'
+                    break
             message = message.rstrip(b' \n')
 
         logmessage = f"{cherrypy.request.path_info} {message}"
@@ -254,3 +261,16 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
+# In od.py, register a before_handler tool
+# MAX_REQUESTS_PER_WINDOW=1000
+# WINDOW_SECONDS=60
+# @cherrypy.tools.register('before_handler')
+# def rate_limit():
+#    ip = oc.cherrypy.getclientipaddr()
+#    key = f"rl:{ip}"
+#    count = services.sharecache.get(key) or 0
+#    if int(count) > MAX_REQUESTS_PER_WINDOW:
+#        raise cherrypy.HTTPError(429, "Too Many Requests")
+#    services.sharecache.set(key, int(count) + 1, expire=WINDOW_SECONDS)
+

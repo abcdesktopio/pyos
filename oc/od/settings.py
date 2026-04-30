@@ -10,7 +10,9 @@ import base64
 
 logger = logging.getLogger(__name__)
 
+max_log_body_size = 2048 # max body size to log in trace_response, in bytes
 
+# Default configuration file name
 config  = {}	    # use for application config and global config
 gconfig = {}	    # use for global config
 
@@ -833,6 +835,14 @@ def load_config():
     except Exception as e:
         logger.error(f"Failed to load configuration file {configpath} {e}")
         exit(-1)           
+
+
+def init_max_log_body_size():
+    global max_log_body_size
+    # 2KB by default, this is the max size of log body 
+    # if log body is bigger than this size, 
+    # it will be truncated and a warning will be logged
+    max_log_body_size = gconfig.get('max_log_body_size', 2048 ) 
 
 def init_snapshot():
     """init_snapshot
