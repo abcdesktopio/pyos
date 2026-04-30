@@ -63,7 +63,7 @@ class ODPrelogin:
         connect_timeout = 3
         read_timeout = 10
         try:
-            r = requests.get(self.prelogin_url, allow_redirects=False, verify=False, timeout=(connect timeout, read_timeout))
+            r = requests.get(self.prelogin_url, allow_redirects=False, verify=False, timeout=(connect_timeout, read_timeout))
             data = r.content.decode('utf-8')
         except Exception as e:
             self.logger.error(e)
