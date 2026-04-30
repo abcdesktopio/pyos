@@ -38,6 +38,9 @@ from kubernetes.client.rest import ApiException
 import subprocess
 import threading
 import json
+from concurrent.futures import ThreadPoolExecutor
+
+_WEBHOOK_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='webhook')
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,8 @@ def parse_user_agent_os_family()->str:
     os_family = None # default value as fallback
     try:
         user_agent = oc.cherrypy.getuseragent()
+        if isinstance(user_agent, str):
+            user_agent = user_agent[:512]  # guard against pathological UA strings
         ua_parsed = ua_parser.parse(user_agent)
         if isinstance( ua_parsed, ua_parser.core.Result):
             os_family = ua_parsed.os.family.replace(' ', '').lower()
@@ -196,10 +201,10 @@ def runwebhook( c, messageinfo=None ):
 
         if isinstance(webhook_create, list):
             bReturn = True # need to call a command
-            for webhook_command in webhook_create:
+            _MAX_WEBHOOKS = 5
+            for webhook_command in webhook_create[:_MAX_WEBHOOKS]:
                 logger.debug( f"calling webhook cmd  {webhook_command}" )
-                t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
-                t1.start()
+                _WEBHOOK_EXECUTOR.submit(callwebhook, webhook_command, messageinfo)
 
         webhook_destroy = c.webhook.get('destroy')
         if webhook_destroy :
