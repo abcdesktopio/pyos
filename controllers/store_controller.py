@@ -96,17 +96,18 @@ class StoreController(BaseController):
         (auth, user, roles) = self.validate_env()
         userid = user.userid
         arguments = cherrypy.request.json
+        
         if not isinstance(arguments,dict) :
             raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
+        
         key = arguments.get('key')
-
         # only key 'loginHistory' or 'callHistory' is allowed
         if key not in ['loginHistory', 'callHistory']:
             raise cherrypy.HTTPError( status=400, message='denied key value')
         collection =  self._getcollection( databasename=key, collectionname=userid )
         return collection
     
-    def _getcollection(self, databasename, collectionname):        
+    def _getcollection(self, databasename:str, collectionname:str)->dict:
         assert isinstance( databasename, str), f"invalid databasename {type(databasename)}"
         assert isinstance( collectionname, str), f"invalid databasename {type(collectionname)}"
         value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname)
