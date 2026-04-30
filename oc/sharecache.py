@@ -41,11 +41,11 @@ class ODMemcachedSharecache(ODSharecacheBase):
         self.connectionstring = connectionstring
         self._client = PooledClient(
             connectionstring,
-            max_pool_size=10,
+            max_pool_size=8,
             connect_timeout=self.socket_timeout,
-            default_noreply=False,
-            serde=serde.pickle_serde
+            default_noreply=False
         )
+        # serde=serde.pickle_serde
 
     def createclient(self):
         return self._client   # reuse pool
@@ -94,7 +94,6 @@ class ODMemcachedSharecache(ODSharecacheBase):
             self.logger.error(f"{self.connectionstring} failed {key} return failed")
         except Exception as e:
             self.logger.error(f"{self.connectionstring} failed, {key} {e}")
-
         return False
 
     def gets(self, key:str )->tuple[any, any]:
@@ -124,6 +123,3 @@ class ODMemcachedSharecache(ODSharecacheBase):
         except Exception as e:
             self.logger.error(f"{self.connectionstring} failed, key:({key}) {e}")
         return cas_status
-
-    def _get(self, key: str):
-        return self.memcache.createclient().get(str(key))
