@@ -39,6 +39,12 @@ import subprocess
 import threading
 import json
 
+from concurrent.futures import ThreadPoolExecutor
+
+# Create a pool ONCE at module load
+_WEBHOOK_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='webhook')
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -197,11 +203,18 @@ def runwebhook( c, messageinfo=None ):
             webhook_create = [ webhook_create ]
 
         if isinstance(webhook_create, list):
-            bReturn = True # need to call a command
-            for webhook_command in webhook_create:
+            bReturn = True
+            for webhook_command in webhook_create[:16]:  # limit the list length
                 logger.debug( f"calling webhook cmd  {webhook_command}" )
-                t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
-                t1.start()
+                # Submit to the pool instead of creating a new thread
+                _WEBHOOK_EXECUTOR.submit(callwebhook, webhook_command, messageinfo)
+
+        # if isinstance(webhook_create, list):
+        #    bReturn = True # need to call a command
+        #    for webhook_command in webhook_create:
+        #        logger.debug( f"calling webhook cmd  {webhook_command}" )
+        #        t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
+        #        t1.start()
 
         webhook_destroy = c.webhook.get('destroy')
         if webhook_destroy :
