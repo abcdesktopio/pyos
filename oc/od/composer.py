@@ -600,7 +600,7 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
 
     return env
 
-def createDesktopArguments( authinfo, userinfo, args ):
+def createDesktopArguments( authinfo:AuthInfo, userinfo:AuthUser, args:dict )-> dict:
     # build env dict
     # add environment variables   
     env = createExecuteEnvironment( authinfo, userinfo  )
@@ -736,11 +736,11 @@ def openapp( auth, user={}, kwargs={} ):
     # default return value appinstancestatus dict format to json format
     return appinstancestatus.to_dict()
 
-def callwebhook(webhookcmd, messageinfo=None, timeout=60):
+def callwebhook(webhookcmd:str, messageinfo=None, timeout:int=60):
     logger.debug( f"callwebhook exec {webhookcmd}" )
     exitCode = -1
     try :
-        proc = subprocess.run(webhookcmd, timeout=timeout, stdout=subprocess.PIPE, shell=True)
+        proc = subprocess.run(webhookcmd.split(), timeout=timeout, stdout=subprocess.PIPE, shell=False)
         if isinstance( proc, subprocess.CompletedProcess) :
             proc.check_returncode()
             if messageinfo:
@@ -753,14 +753,14 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
                 messageinfo.push("e.Webhooking updated service error, please read the log file ")
     except subprocess.CalledProcessError as e:
         if messageinfo:
-            messageinfo.push(f"e.Webhooking updated service error {e}" )
+            messageinfo.push(f"e.Webhooking updated service error" )
         logger.error( f"command failed CalledProcessError {webhookcmd} error={e}")
     except subprocess.TimeoutExpired as e :
         logger.error( f"command TimeoutExpired {webhookcmd} error={e}" )
     except Exception as e:
         logger.error( f"command exception {webhookcmd} error={e}" )
         if messageinfo:
-            messageinfo.push(f"e.Webhooking command exception error={e}" )
+            messageinfo.push(f"e.Webhooking command exception" )
         logger.error( e )
     return exitCode
 
