@@ -16,6 +16,7 @@ import ipaddress
 import cherrypy
 import oc.logging
 import re
+import hmac
 
 from netaddr import IPNetwork, IPAddress
 from oc.cherrypy import getclientipaddr
@@ -195,8 +196,8 @@ class BaseController(object):
           self.logger.debug( f"read http header apikey={apikey}" )
           for k in self.apikey:
                # self.logger.debug( f"compare apikey {k}={apikey}" )
-               if k == apikey : 
-                    bReturn = True
+               bReturn = hmac.compare_digest(k, apikey)
+               if bReturn is True: 
                     break 
           return bReturn
      
