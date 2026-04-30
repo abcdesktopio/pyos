@@ -60,16 +60,12 @@ class ODPrelogin:
             Exception: [requests.get failed]
         """
         data = None
-        if self.mustache_data is None :
-            try: 
-                r = requests.get(self.prelogin_url, allow_redirects=False, verify=False )
-                data = r.content.decode('utf-8')
-                self.mustache_data = data
-            except Exception as e:
-                self.logger.error(e)
-                data = f"<html><body>{e}</body></html>" # return error as html
-        else:
-            data = self.mustache_data
+        try: 
+            r = requests.get(self.prelogin_url, allow_redirects=False, verify=False )
+            data = r.content.decode('utf-8')
+        except Exception as e:
+            self.logger.error(e)
+            data = f"<html><body>{e}</body></html>" # return error as html
         return data
         
 
@@ -130,7 +126,8 @@ class ODPrelogin:
                          'cuid': userid }
 
         # get the mustache template file content
-        mustache_data = self.get_prelogin_mustache_data()
+        if self.mustache_data is None:
+            self.mustache_data = self.get_prelogin_mustache_data()
 
         # set data to memcached
         self.memcacheclient = self.memcache.createclient()
@@ -138,8 +135,9 @@ class ODPrelogin:
         bset = self.memcacheclient.set( key=sessionid, value=userid, expire=self.maxprelogintimeout )
         if not isinstance( bset, bool) or bset is False:
             self.logger.error( f"memcacheclient:set failed to set data key={sessionid} value={userid}" )
-        html_data = chevron.render( mustache_data, prelogindict )
+        html_data = chevron.render( template=self.mustache_data, data=prelogindict )
         # self.logger.debug( html_data )
+        # return html content
         return html_data
              
     def request_match(self, ipsource:str)->bool:
