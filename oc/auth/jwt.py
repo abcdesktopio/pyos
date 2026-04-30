@@ -61,8 +61,10 @@ class ODJWToken( object):
 
     def decode( self, payload:str )->dict:
         data = None
-        assert isinstance( payload, str ), f'invalid payload data gets {type(payload)}, str is expected'
-
+         
+        if not isinstance( payload, str ):
+            raise TypeError(f'invalid payload data gets {type(payload)}, str is expected')
+        
         # There is no public or private key concept, all keys are private   
         # pyos use a the private key and the public key  
         # 
