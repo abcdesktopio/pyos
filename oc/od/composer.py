@@ -38,9 +38,6 @@ from kubernetes.client.rest import ApiException
 import subprocess
 import threading
 import json
-from concurrent.futures import ThreadPoolExecutor
-
-_WEBHOOK_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='webhook')
 
 logger = logging.getLogger(__name__)
 
@@ -201,10 +198,10 @@ def runwebhook( c, messageinfo=None ):
 
         if isinstance(webhook_create, list):
             bReturn = True # need to call a command
-            _MAX_WEBHOOKS = 5
-            for webhook_command in webhook_create[:_MAX_WEBHOOKS]:
+            for webhook_command in webhook_create:
                 logger.debug( f"calling webhook cmd  {webhook_command}" )
-                _WEBHOOK_EXECUTOR.submit(callwebhook, webhook_command, messageinfo)
+                t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
+                t1.start()
 
         webhook_destroy = c.webhook.get('destroy')
         if webhook_destroy :
