@@ -43,9 +43,9 @@ class ODMemcachedSharecache(ODSharecacheBase):
             connectionstring,
             max_pool_size=8,
             connect_timeout=self.socket_timeout,
-            default_noreply=False
+            default_noreply=False,
+            serde=serde.pickle_serde
         )
-        # serde=serde.pickle_serde
 
     def createclient(self):
         return self._client   # reuse pool
