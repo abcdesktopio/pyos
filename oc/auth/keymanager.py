@@ -16,6 +16,7 @@ import jwt
 import logging
 import uuid
 from Crypto.PublicKey import RSA as rsa
+from Crypto.Cipher import PKCS1_v1_5, PKCS1_OAEP
 
 import oc.od.services
 
@@ -30,13 +31,11 @@ class ODDesktopKeyManager(object):
         jwt_desktop_privatekeyfile    = config.get('jwtdesktopprivatekeyfile')
         jwt_desktop_publickeyfile     = config.get('jwtdesktoppublickeyfile')
         
-        f = open(jwt_desktop_privatekeyfile, 'r')        
-        self.jwt_privatekey = f.read()
-        f.close()
+        with open(jwt_desktop_privatekeyfile, 'r') as f:
+            self.jwt_privatekey = f.read()  
 
-        f = open(jwt_desktop_publickeyfile, 'r')        
-        self.jwt_publickey = f.read()
-        f.close()
+        with open(jwt_desktop_publickeyfile, 'r') as f:
+            self.jwt_publickey = f.read()
        
 
     def generatekey(self, length=2048):
