@@ -2329,8 +2329,8 @@ class ODExternalAuthProvider(ODAuthProviderBase):
     def authenticate(self, code=None, **params)->AuthInfo:
         oauthsession = OAuth2Session( self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
         authorization_response = self.redirect_uri_prefix + '?' + cherrypy.request.query_string
-        token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, include_client_id=self.include_client_id,  authorization_response=authorization_response )
-        self.logger.debug( f"provider {self.name} type {self.type} return token {token}" )
+        access_token = oauthsession.fetch_token( self.token_url, client_secret=self.client_secret, include_client_id=self.include_client_id,  authorization_response=authorization_response )
+        self.logger.debug( f"provider {self.name} type {self.type} has returned an access_token" )
         authinfo = AuthInfo( provider=self.name, providertype=self.type, token=oauthsession, protocol='oauth', data={})
         return authinfo
 
