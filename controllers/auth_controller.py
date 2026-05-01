@@ -233,9 +233,9 @@ class AuthController(BaseController):
                 raise cherrypy.HTTPError(401) invalid credentials
         """
         self.logger.debug('auth call start')
-        cherrypy.response.timeout = 180
+        cherrypy.response.timeout = 480
 
-        self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
+        # self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
        
         args = cherrypy.request.json
         if not isinstance(args, dict):
