@@ -94,7 +94,10 @@ class CoreController(BaseController):
     def getmessageinfo(self)->bytes:
         lambdaroute = b'' # default return empty string
         # route content type to handler
-        routecontenttype = { 'text/plain': self.handler_messageinfo_text, 'application/json': self.handler_messageinfo_json }
+        routecontenttype = { 
+            'text/plain': self.handler_messageinfo_text, 
+            'application/json': self.handler_messageinfo_json 
+        }
         try:
             (_auth, user, _roles) = self.validate_env()
             message = services.messageinfo.popflush(user.userid)
