@@ -297,48 +297,6 @@ def get_desktop_resources_usage(desktop_name:str):
         raise ODError( status=404, message='desktop not found')
     return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo)
 
-
-def fakednsquery( userid ):
-    logger.debug( locals() )
-    ipdaddr = None
-    
-    # read interface name to to get ip addr
-    dnsinterface_name = oc.od.settings.fakedns.get('interfacename')
-    if not isinstance( dnsinterface_name , str ):
-        raise ODError( status=400, message=f"fakednsquery has invalid 'interfacename' value 'str' is expected type={type(dnsinterface_name)} in configuration file")
-
-    # fake an userinfo object
-    myDesktop = None
-    myOrchestrator = selectOrchestrator()   
-    # try to find label value with insensitive case, lower and upper case
-    searchuserlist = [ userid, userid.lower(), userid.upper() ]
-    logger.debug( f"try to query {searchuserlist}" )
-    for nocaseuserid in searchuserlist:
-        userinfo = AuthUser( { 'userid': nocaseuserid } )
-        myDesktop = myOrchestrator.findDesktopByUser(authinfo=None, userinfo=userinfo )
-        if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
-            break
-
-    if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
-        logger.debug( f"findDesktopByUser {userid} return not found" )
-        return None
-
-    desktop_interfaces = myDesktop.desktop_interfaces
-    if not isinstance( desktop_interfaces, dict ):
-        logger.debug( f"desktop has no desktop_interfaces desktop_interfaces={desktop_interfaces}" )
-        return None
-    
-    # read the ip value of remappded name of dnsinterface_name
-    logger.debug( f"dnsinterface_name={dnsinterface_name}" )
-    interface = desktop_interfaces.get( dnsinterface_name )
-    logger.debug( f"desktop has desktop_interfaces={interface}" )
-    if isinstance( interface, dict ):
-        ipdaddr = interface.get('ips')
-        if isinstance( ipdaddr, list ):
-            ipdaddr = ipdaddr[0]
-
-    return ipdaddr
-
 def getdesktopdescription( authinfo, userinfo ):
     description = {}
     description['clientipaddr'] = getclientipaddr()
@@ -510,7 +468,7 @@ def logContainerApp(authinfo, userinfo, podname, containerid):
     return result
 
 
-def removeContainerApp(authinfo, userinfo, podname, container_id):
+def removeContainerApp(authinfo:AuthInfo, userinfo:AuthUser, podname, container_id):
     logger.info('removeContainerApp')
 
     # new Orchestrator Object
@@ -529,19 +487,19 @@ def removeContainerApp(authinfo, userinfo, podname, container_id):
     result = myOrchestrator.removeContainerApp( authinfo, userinfo, podname, container_id )
     return result
 
-def getsecretuserinfo( authinfo, userinfo ):
+def getsecretuserinfo( authinfo:AuthInfo, userinfo:AuthUser ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     secretuserinfo = myOrchestrator.getsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
-def getldifsecretuserinfo( authinfo, userinfo ):
+def getldifsecretuserinfo( authinfo:AuthInfo, userinfo:AuthUser ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     secretuserinfo = myOrchestrator.getldifsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
-def listContainerApps(authinfo, userinfo):
+def listContainerApps(authinfo:AuthInfo, userinfo:AuthUser):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )     
@@ -552,7 +510,7 @@ def listContainerApps(authinfo, userinfo):
 
 
 
-def envContainerApp(authinfo, userinfo, podname, containerid ):
+def envContainerApp(authinfo:AuthInfo, userinfo:AuthUser, podname:str, containerid ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
@@ -568,7 +526,7 @@ def envContainerApp(authinfo, userinfo, podname, containerid ):
     result = myOrchestrator.envContainerApp( authinfo, userinfo, podname, containerid )
     return result
 
-def createExecuteEnvironment(authinfo, userinfo, app=None ):
+def createExecuteEnvironment(authinfo:AuthInfo, userinfo:AuthUser, app=None ):
     # build env dict
     # add environment variables        
     # get env from authinfo 
@@ -801,7 +759,7 @@ def notify_user_from_pod_application( pod_application, message:str )->None:
             logger.error( f"image {image} is not found by find_app_by_id")
         myOrchestrator.notify_user( myDesktop, 'container', data )
 
-def notify_user(  authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )->None:
+def notify_user( authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )->None:
     """[notify_user]
         Send a notify message to a userid
     Args:
