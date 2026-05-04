@@ -126,25 +126,25 @@ class API(object):
     @staticmethod
     @cherrypy.tools.register('before_handler')
     def trace_request():
-        
-        json_data = cherrypy.request.json
-
-        # auth may contains password data
-        # do not log password data 
-        # copy dict cherrypy.request.json to keep it unchanged
-        if cherrypy.request.path_info == '/auth/auth' and hasattr(cherrypy.request, 'json'):
-            #
-            # check if password data exist in cherrypy.request.json and 
-            # replace it by XXXXXXXXXXXXX in log message
-            # logmessage is the message to log with hidden password value
-            #
-            if cherrypy.request.json.get('password'):
+        """ trace request """
+        json_data = None
+        if  hasattr(cherrypy.request, 'json'):
+            # copy dict cherrypy.request.json to keep it unchanged
+            json_data = cherrypy.request.json
+            # auth may contains password data do not log password data 
+            # cherrypy.request.path_info in [ '/auth/auth', '/auth/autologin', '/auth/logmein' ]
+            json_data = cherrypy.request.json
+            if  isinstance(cherrypy.request.json, dict) and cherrypy.request.json.get('password'):
+                #
+                # check if password data exist in cherrypy.request.json 
+                # and if it exist, replace it by XXXXXXXXXXXXX in log message
+                # logmessage is the message to log with hidden password value
+                #
                 json_data = cherrypy.request.json.copy()
                 # replace password data by XXXXXXXXXXXXX in jsonhidendata object
                 json_data['password'] = 'XXXXXXXXXXX'
-                
-        logmessage = f"{cherrypy.request.path_info} {json_data}"    
-
+        
+        logmessage = f"{cherrypy.request.path_info} {json_data}"
         logger.info(logmessage)
 
     @staticmethod    
