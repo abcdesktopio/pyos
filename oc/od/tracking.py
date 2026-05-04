@@ -78,7 +78,7 @@ def addnewentryinloginhistory(auth:AuthInfo, user:AuthUser):
 
     # build an accounting data
     datadict={  **user_history,
-                'date': datetime.datetime.utcnow(),
+                'date': datetime.datetime.now(datetime.UTC),
                 'useragent': cherrypy.request.headers.get('User-Agent', None),
                 'ipaddr': webclient_sourceipaddr,
                 'type': 'login'
@@ -106,7 +106,7 @@ def addnewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDesktop,
                 'isgarbaged': isgarbaged,
                 'eventtype': eventtype,
                 'desktop_id': desktop.id,
-                'date': datetime.datetime.utcnow(),
+                'date': datetime.datetime.now(datetime.UTC),
                 'useragent': cherrypy.request.headers.get('User-Agent', None),
                 'ipaddr': webclient_sourceipaddr,
                 'node': desktop.nodehostname,
