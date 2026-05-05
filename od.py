@@ -148,13 +148,13 @@ class API(object):
 
     @staticmethod    
     @cherrypy.tools.register('on_end_request')
-    def trace_response():   
+    def trace_response():
         #
         # do not trace the response if cherrypy.response.notrace is set
         if hasattr(cherrypy.response, 'notrace'):
             return
 
-        MAX_LOG_BODY = oc.od.settings.max_log_body_size
+        MAX_LOG_BODY = settings.max_log_body_size
         # get the body of the response and log it, but limit the size to MAX_LOG_BODY bytes
         message = b''
         if isinstance( cherrypy.response.body, list):
