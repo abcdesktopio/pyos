@@ -1670,7 +1670,6 @@ class ODAuthTool(cherrypy.Tool):
         server_utctimestamp = datetime.datetime.now().timestamp()*1000
         if isinstance(user_utctimestamp, int):
             # convert server_utctimestamp to milliseconds
-            # server_utctimestamp = float(datetime.datetime.utcnow().timestamp()) * 1000
             arguments['difftime'] = server_utctimestamp - user_utctimestamp
             self.logger.debug(f"Diff between server-client {arguments['difftime']} in milliseconds")
         return server_utctimestamp
