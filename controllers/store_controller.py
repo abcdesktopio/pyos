@@ -113,8 +113,10 @@ class StoreController(BaseController):
         return collection
     
     def _getcollection(self, databasename:str, collectionname:str)->dict:
-        assert isinstance( databasename, str), f"invalid databasename {type(databasename)}"
-        assert isinstance( collectionname, str), f"invalid databasename {type(collectionname)}"
+        if not isinstance( databasename, str):
+            raise ValueError(f"invalid databasename {type(databasename)}")
+        if not isinstance( collectionname, str):
+            raise ValueError(f"invalid collectionname {type(collectionname)}")
         value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname)
         if value is None:
             raise cherrypy.HTTPError( status=404, message=f"{collectionname} not found")
