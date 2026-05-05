@@ -28,8 +28,8 @@ class ODDesktopKeyManager(object):
         self.privateprefix = 'priv.'
         self.expire_in = config.get('exp', 180)
         self.algorithms=['RS256']
-        jwt_desktop_privatekeyfile    = config.get('jwtdesktopprivatekeyfile')
-        jwt_desktop_publickeyfile     = config.get('jwtdesktoppublickeyfile')
+        jwt_desktop_privatekeyfile = config.get('jwtdesktopprivatekeyfile')
+        jwt_desktop_publickeyfile = config.get('jwtdesktoppublickeyfile')
         
         with open(jwt_desktop_privatekeyfile, 'r') as f:
             self.jwt_privatekey = f.read()  
@@ -47,9 +47,9 @@ class ODDesktopKeyManager(object):
         publickey  = key.publickey().exportKey('PEM').decode()
 
         struuid = str( uuid.uuid4() )
-        data = {    'name': struuid, 
-                    'publickey': publickey,
-                    'exp' : self.expire_in}
+        data = { 'name': struuid, 
+                 'publickey': publickey,
+                 'exp' : self.expire_in }
 
         keyname = self.privateprefix + struuid
         encoded_jwt = jwt.encode( data, self.jwt_privatekey, algorithm=self.algorithms[0])
