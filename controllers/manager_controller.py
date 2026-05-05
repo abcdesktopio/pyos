@@ -650,6 +650,9 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def dry_run_desktop(self):
         self.logger.debug('validate_env')
-        (auth, user, roles) = self.validate_env()
+
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
+
         result = oc.od.composer.sampledesktop(auth, user)
         return result

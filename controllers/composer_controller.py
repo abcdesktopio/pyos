@@ -48,7 +48,10 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def ocrun(self):
         self.logger.debug('')
+
+        # can raise exception 
         (auth, user, roles) = self.validate_env()
+
         args = cherrypy.request.json
         if not isinstance(args, dict):
             raise cherrypy.HTTPError( status=400, message='invalid parameters')
@@ -75,22 +78,29 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def launchdesktop(self):
-        # increase timeout when creating the first user pod
-        cherrypy.response.timeout = 480
-        self.logger.debug('launchdesktop:validate_env')
+        self.logger.debug('')
+        cherrypy.response.timeout = 480 # increase timeout when creating the first user pod which can take more time than normal to pull the image and start the container
+        
+        # can raise exception 
         (auth, user, roles) = self.validate_env()
+        
         # add lang to user dict   
         self.logger.debug('launchdesktop:LocaleSettingsLanguage')
         self.LocaleSettingsLanguage( user )
+        
         self.logger.debug('launchdesktop:_launchdesktop')
         result = self._launchdesktop(auth, user, roles, cherrypy.request.json)
+        
         return result
     
     @cherrypy.expose
     @cherrypy.tools.json_in()
     @cherrypy.tools.json_out()
     def list_applications_by_phase(self):
+
+        # can raise exception
         (auth, user, roles) = self.validate_env()
+
         args = cherrypy.request.json
         if type(args) is not dict:
             return cherrypy.HTTPError( status=400, message='invalid args parameters')
@@ -105,7 +115,10 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     def getlogs(self):
         self.logger.debug('')
+
+        # can raise exception 
         (auth, user, roles ) = self.validate_env()
+
         logs = oc.od.composer.logdesktop(auth, user)
         return Results.success(result=logs)
 
@@ -114,7 +127,10 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def stopcontainer(self):
         self.logger.debug('')
+
+        # can raise exception 
         (auth, user, roles) = self.validate_env()
+
         args = cherrypy.request.json
         if type(args) is not dict:
             return cherrypy.HTTPError( status=400, message='invalid args parameters')
@@ -136,7 +152,9 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def logcontainer(self):
         self.logger.debug('')
-        (auth, user, roles) = self.validate_env()
+
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
         args = cherrypy.request.json
         if not isinstance( args, dict):
             return cherrypy.HTTPError( status=400, message='invalid parameters')
@@ -160,7 +178,9 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def envcontainer(self):
         self.logger.debug('')
-        (auth, user, roles) = self.validate_env()
+
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
         args = cherrypy.request.json
         if not isinstance( args, dict):
             raise cherrypy.HTTPError( status=400, message='invalid parameters' )
@@ -183,7 +203,9 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def removecontainer(self):
         self.logger.debug('')
-        (auth, user, roles) = self.validate_env()
+
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
         args = cherrypy.request.json
         if not isinstance( args, dict):
             return cherrypy.HTTPError( status=400, message='invalid parameters' )
@@ -210,7 +232,10 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_out()
     def listcontainer(self):
         self.logger.debug('')
-        (auth, user, roles) = self.validate_env()
+
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
+
         result = oc.od.composer.listContainerApps(auth, user)
         return Results.success(result=result)
 
@@ -219,7 +244,10 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     def refreshdesktoptoken(self):
         self.logger.debug('')
+
+        # can raise exception 
         (auth, user, roles) = self.validate_env()
+
         desktop = oc.od.composer.finddesktop(authinfo=auth, userinfo=user)
 
         # check desktop object type
@@ -253,10 +281,13 @@ class ComposerController(BaseController):
     @cherrypy.tools.json_in()
     def getdesktopdescription(self):
         self.logger.debug('')
+
         # check if request is allowed, raise an exception if deny
         self.is_permit_request()
-        # check if user is authenticated and identified, raise an exception if not
+
+        # can raise exception 
         (auth, user, roles) = self.validate_env()
+
         result = oc.od.composer.getdesktopdescription(auth, user)
         if not isinstance( result, dict ):
             raise cherrypy.HTTPError( status=400, message='failed to getdesktopdescription')
@@ -269,7 +300,9 @@ class ComposerController(BaseController):
     def getuserapplist(self):
         self.logger.debug('')
         
-        (auth, user, roles) = self.validate_env()
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
+
         userappdict = {}
         # list all applications allowed for this user (auth)
         appdict = services.apps.user_appdict( auth, filtered_public_attr_list=True)
@@ -403,8 +436,10 @@ class ComposerController(BaseController):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
-    def listsecrets(self):    
-        (auth, user,roles) = self.validate_env()
+    def listsecrets(self):        
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
+
         # list secrets
         secrets = oc.od.composer.listAllSecretsByUser(auth, user)
         list_secrets = list( secrets )

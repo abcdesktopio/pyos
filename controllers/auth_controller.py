@@ -174,8 +174,8 @@ class AuthController(BaseController):
     @cherrypy.tools.allow(methods=['GET'])
     def oauth(self, **params):
 
-        # can raise excetion 
-        self.isban_ip()
+        # can raise exception 
+        self.required_controller_security_check()
 
         # overwrite auth params to prevent manager changes
         # for security reasons
@@ -189,11 +189,11 @@ class AuthController(BaseController):
         # do login
         response = services.auth.login(**params)
 
-        # can raise excetion 
+        # can raise exception 
         self.checkloginresponseresult( response )  
 
         # prepare ressources
-        # can raise Exception
+        # can raise exception
         oc.od.composer.prepareressources( authinfo=response.result.auth, userinfo=response.result.user )
 
         # create auth token
@@ -242,10 +242,11 @@ class AuthController(BaseController):
             raise cherrypy.HTTPError( status=401, message='invalid parameters')
 
         # read user's client ipsource
+        # can raise exception if X-Forwarded-For header is spoofed
         ipsource = getclientipaddr()
 
         # can raise exception 
-        self.isban_ip(ipsource)
+        self.required_controller_security_check(ipsource)
 
         # verify if features is set and can be set
         # can raise exception 
@@ -388,12 +389,12 @@ class AuthController(BaseController):
     @cherrypy.tools.allow(methods=['POST','GET'])
     # Pure HTTP Form request
     def prelogin(self,userid=None):
-        self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
+        # self.logger.debug( f"dump http header request {cherrypy.request.headers} ")
         ipsource = getclientipaddr()
         self.logger.debug(f"prelogin request from ip source {ipsource}")
         
         # can raise exception 
-        self.isban_ip(ipsource)
+        self.required_controller_security_check(ipsource)
 
         if not services.prelogin.enable:
             self.logger.error("prelogin service is disabled in configuration file")
@@ -444,13 +445,13 @@ class AuthController(BaseController):
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST'])
-    # Pure HTTP Form request only PUT 
+    # Pure HTTP Form request only POST 
     def autologin(self, login=None, provider=None, password=None):
         self.logger.debug('')
    
         # can raise exception 
-        self.isban_ip()
-
+        self.required_controller_security_check()
+       
         # check if autologin is enabled
         if oc.od.settings.services_http_request_denied.get(self.autologin.__name__, True) is True:
             raise cherrypy.HTTPError(400, 'request is denied by configfile')
@@ -546,7 +547,7 @@ class AuthController(BaseController):
         self.logger.debug( f"logmein request from ip source {ipsource}")
 
         # can raise exception 
-        self.isban_ip(ipsource)
+        self.required_controller_security_check(ipsource)
         
         if not services.logmein.enable:
             self.logger.error(f"logmein is disabled, but request asks for logmein from ipsource={ipsource}")
@@ -699,12 +700,12 @@ class AuthController(BaseController):
         # this request could take a while and takes up to 180s
         #
         cherrypy.response.timeout = 180
+        
         # can raise exception 
-        self.isban_ip()
+        (auth, user, roles) = self.validate_env()
+
         # get params from json request
         args = cherrypy.request.json
-        # can raise exception
-        (auth, user, roles) = self.validate_env()
 
         # push a start message to database cache info
         services.messageinfo.start( user.userid, "b.Launching desktop")
@@ -717,10 +718,10 @@ class AuthController(BaseController):
     @cherrypy.tools.json_in()
     def refreshtoken(self):
         self.logger.debug('')
-        # no params from json request
-        # args = cherrypy.request.json
+
         # can raise exception
         (auth, user, roles) = self.validate_env()
+
         # update token
         jwt_user_token = services.auth.update_token( auth=auth, user=user, roles=roles )
         # add no-cache nosniff HTTP headers
