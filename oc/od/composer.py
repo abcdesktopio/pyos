@@ -15,7 +15,6 @@
 #
 import logging
 import ua_parser
-from typing_extensions import assert_type
 
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
