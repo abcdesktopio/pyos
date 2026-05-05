@@ -65,12 +65,11 @@ def api_handle_error():
     cherrypy.response.body = build_error.encode('utf-8')
 
 
-def api_build_error(status, message:str, traceback, version:str)->str:
-    
-    _ex_type, ex, _ex_tb = sys.exc_info()
+def api_build_error(status, message:str, traceback:str, version:str)->str:
     result =     { 'status': cherrypy.response.status, 'message':message }
-    log_result = { 'status': cherrypy.response.status, 'message':message,  'exception': str(ex), 'traceback':str(traceback),'version':version }
-    logger.error( log_result )
+    # 'exception': str(ex), 'traceback':str(traceback),'version':version
+    log_result = { 'status': cherrypy.response.status, 'message':message }
+    logger.error(message, exc_info=True)
     build_error = json.dumps( result ) + '\n'
     cherrypy.response.headers['Content-Type'] = 'application/json'
     return build_error.encode('utf-8')
