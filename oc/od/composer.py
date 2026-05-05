@@ -807,10 +807,10 @@ def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snapsho
 
     for label_selector in list_label_selector:
         # list all graphical pods 
-        myPodList = myOrchestrator.kubeapi.list_namespaced_pod(myOrchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
+        myPodList = myOrchestrator.kubeapi.list_namespaced_pod(myOrchestrator.namespace, label_selector=label_selector, field_selector=field_selector, timeout_seconds=180)
         if isinstance( myPodList, V1PodList):
             for pod in myPodList.items:
-                try: 
+                try:
                     isgarbagable = myOrchestrator.isgarbagable( pod, expirein, force )
                     myOrchestrator.logger.info( f"{pod.metadata.name} isgarbagable return {isgarbagable}" )
                     if isgarbagable is True:
