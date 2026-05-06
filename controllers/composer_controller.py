@@ -80,17 +80,12 @@ class ComposerController(BaseController):
     def launchdesktop(self):
         self.logger.debug('')
         cherrypy.response.timeout = 480 # increase timeout when creating the first user pod which can take more time than normal to pull the image and start the container
-        
-        # can raise exception 
+        # can raise exception
         (auth, user, roles) = self.validate_env()
-        
         # add lang to user dict   
         self.logger.debug('launchdesktop:LocaleSettingsLanguage')
         self.LocaleSettingsLanguage( user )
-        
-        self.logger.debug('launchdesktop:_launchdesktop')
-        result = self._launchdesktop(auth, user, roles, cherrypy.request.json)
-        
+        result = self._launchdesktop(auth, user, roles, cherrypy.request.json)    
         return result
     
     @cherrypy.expose
@@ -284,6 +279,9 @@ class ComposerController(BaseController):
 
         # check if request is allowed, raise an exception if deny
         self.is_permit_request()
+
+        # check if client ip is allowed, raise an exception if deny
+        self.required_controller_security_check()
 
         # can raise exception 
         (auth, user, roles) = self.validate_env()
