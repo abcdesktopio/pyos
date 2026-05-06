@@ -305,7 +305,8 @@ class BaseController(object):
           """
           self.logger.debug('')
           if isinstance(self.apikey, list):
-               return self.is_apikey()          
+               return self.is_apikey()
+          # if no apikey list is set, return True
           return True
           
      def ipfilter( self ):
@@ -317,6 +318,7 @@ class BaseController(object):
                bool: True if the client ip address is in the permitted network list or no list is set
           """
           self.logger.debug('')
+          # if no network list is set, return True
           if not isinstance(self.ipnetworklistfilter, list) :
                return True
           ipclient = getclientipaddr()
