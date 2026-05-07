@@ -143,7 +143,10 @@ class API(object):
                 # replace password data by XXXXXXXXXXXXX in jsonhidendata object
                 json_data['password'] = 'XXXXXXXXXXX'
         
-        logmessage = f"{cherrypy.request.path_info} {json_data}"
+        logmessage = cherrypy.request.path_info
+        if json_data is not None:
+            logmessage += f" {json_data}"
+        # log the request
         logger.info(logmessage)
 
     @staticmethod    
