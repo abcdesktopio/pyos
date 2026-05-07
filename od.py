@@ -133,15 +133,21 @@ class API(object):
             # auth may contains password data do not log password data 
             # cherrypy.request.path_info in [ '/auth/auth', '/auth/autologin', '/auth/logmein' ]
             json_data = cherrypy.request.json
-            if  isinstance(cherrypy.request.json, dict) and cherrypy.request.json.get('password'):
-                #
+            if  isinstance(cherrypy.request.json, dict):
+                
+                # hide authorization data in log message if exist in cherrypy.request.json['result']['authorization']
+                # {"status": 200, "result": {"authorization": "eyJ.......-uVvWw", "expire_in": 420}, "message": "ok"}
+                if cherrypy.request.json.get('result', {}).get('authorization'):
+                    json_data = cherrypy.request.json.copy()
+                    json_data['result']['authorization'] = 'XXXXXXXXXXX'
+            
                 # check if password data exist in cherrypy.request.json 
                 # and if it exist, replace it by XXXXXXXXXXXXX in log message
                 # logmessage is the message to log with hidden password value
-                #
-                json_data = cherrypy.request.json.copy()
-                # replace password data by XXXXXXXXXXXXX in jsonhidendata object
-                json_data['password'] = 'XXXXXXXXXXX'
+                if cherrypy.request.json.get('password'):
+                    json_data = cherrypy.request.json.copy()
+                    # replace password data by XXXXXXXXXXXXX in jsonhidendata object
+                    json_data['password'] = 'XXXXXXXXXXX'
         
         logmessage = cherrypy.request.path_info
         if json_data is not None:
