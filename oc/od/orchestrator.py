@@ -5097,7 +5097,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         self.logger.debug(f"event object is not a CoreV1Event")
                         continue # safe type test event object is a CoreV1Event
                     
-                    self.logger.debug(f"****** type={event_object.type} reason={event_object.reason} message={event_object.message}")
+                    # self.logger.debug(f"event type={event_object.type} reason={event_object.reason} message={event_object.message}")
 
                     if not isinstance (event_object.involved_object, V1ObjectReference ):
                         self.logger.debug(f"event_object.involved_object is not a V1ObjectReference")
