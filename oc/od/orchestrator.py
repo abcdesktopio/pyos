@@ -2548,7 +2548,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         appinstance = appinstance_class(self)
         self.logger.debug(f"createappinstance containerengine={containerengine} type={appinstance.type}")
         appinstancestatus = appinstance.create(myDesktop, app, authinfo, userinfo, userargs, **kwargs )
-        self.logger.debug(f"createappinstance appinstancestatus={appinstancestatus}")
+        if isinstance(appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus):
+            self.logger.debug(f"createappinstance appinstancestatus.container_id={appinstancestatus.id}")
         return appinstancestatus
 
 
@@ -5023,7 +5024,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 # 'date': 'Wed, 08 Oct 2025 15:01:34 GMT', 
                 # 'transfer-encoding': 'chunked'} 
                 # -+-+- None
-                self.logger.error( f"ApiException {e} is ignored because it is a known issue with some kubernetes versions" )
+                # self.logger.error( f"ApiException {e} is ignored because it is a known issue with some kubernetes versions" )
+                pass
             else:
                 self.logger.error( e )
                 data['reason'] = 'Error'
@@ -5067,14 +5069,13 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # field_selector=f'involvedObject.name={pod_name}'
         # timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
         # send_initial_events=False,
-        self.logger.debug(f"w.stream kubeapi.list_namespaced_event starting")
         # pod_resource_version = int(pod.metadata.resource_version)
         # self.logger.debug(f"resource_version = {pod_resource_version}")
         # 
         field_selector=f'involvedObject.name={pod_name},involvedObject.fieldPath=spec.ephemeralContainers{{{app_container_name}}}'
         # field_selector='reason=Pulling'
         # send_initial_events=False, sendInitialEvents is forbidden for watch unless the WatchList feature gate is enabled
-        self.logger.debug(f"field_selector={field_selector}")
+        self.logger.debug(f"w.stream kubeapi.list_namespaced_event starting field_selector={field_selector}")
 
         continue_reading_events = True
         dict_state_exec_only_once = {}
@@ -5124,6 +5125,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         w.stop()
                         continue
             except ApiException as e:
+                if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
+                    continue
                 if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
                     self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
                     continue
@@ -5134,7 +5137,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 continue_reading_events = False
                 self.logger.error( f"Exception {e}" )
 
-            self.logger.debug("read_namespaced_pod_ephemeralcontainers to get the status of the ephemeral container")
+            # self.logger.debug("read_namespaced_pod_ephemeralcontainers to get the status of the ephemeral container")
             try:
                 pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
                 if  isinstance( pod, V1Pod ) and \
@@ -5163,11 +5166,17 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                             self.orchestrator.notify_user( myDesktop, 'container', data )
                                     break
             except ApiException as e:
-                self.logger.error( e )
-                data['reason'] = 'Error'
-                data['message'] =  str(e)
-                continue_reading_events = False
-                self.orchestrator.notify_user( myDesktop, 'container', data )
+                # self.logger.debug( e )
+                # Reason: Handshake status 200 OK -+-+- 
+                # {'audit-id': '16b378ec-f2ba-4310-b2e0-a3c3ef301587', 'cache-control': 'no-cache, private', 'content-type': 'application/json', 'x-kubernetes-pf-flowschema-uid': 'b63302af-83ee-4663-8bc2-f188e4236cf7', 'x-kubernetes-pf-prioritylevel-uid': '9a4a998a-bb63-4f75-b75a-cedd6a81f010', 'date': 'Thu, 07 May 2026 12:39:35 GMT', 'transfer-encoding': 'chunked'} -+-+- None
+                if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
+                    pass
+                else:
+                    self.logger.error( e )
+                    data['reason'] = 'Error'
+                    data['message'] =  str(e)
+                    continue_reading_events = False
+                    self.orchestrator.notify_user( myDesktop, 'container', data )
             except Exception as e:
                 continue_reading_events = False
                 self.logger.error( e )  
@@ -5338,7 +5347,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         # if oc.od.settings.imagenotificationconfig.get( self.type ):
         self.create_thread_to_watch_for_end_of_pod_initializing(myDesktop, pod_name, app_container_name, app )
 
-        self.logger.debug(f"create done {appinstancestatus}")
+        self.logger.debug(f"create done container_id={appinstancestatus.id} state={appinstancestatus.message} type={appinstancestatus.type} wm_class={appinstancestatus.wm_class} icon={appinstancestatus.icon} ")
+
         return appinstancestatus
         
         
