@@ -119,7 +119,6 @@ class ODKubernetesWatcher:
                 _backoff = min( _backoff * 2, self._backoff_max )
                     
     def start(self):
-        self.logger.debug('watcher thread is starting')
         self.thead_event = threading.Thread(target=self.loopforevent)
         self.thead_event.start() # infinite loop until events.close()
 
