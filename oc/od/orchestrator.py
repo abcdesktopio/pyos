@@ -5119,20 +5119,23 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         self.orchestrator.notify_user( myDesktop, 'container', data )
                         continue_reading_events = False
                         w.stop()
+                        break
                     else:       
                         self.logger.debug(f"stop because {event_object.reason}")
                         continue_reading_events = False
                         w.stop()
-                        continue
+                        break
             except ApiException as e:
+                continue_reading_events = False
                 if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
-                    continue
+                    self.logger.debug( f"Handshake status 200 {e}")
+                    break
                 if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
                     self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
-                    continue
+                    break
                 else:
-                    continue_reading_events = False
                     self.logger.error( f"ApiException {e}" )
+                    break
             except Exception as e:
                 continue_reading_events = False
                 self.logger.error( f"Exception {e}" )
