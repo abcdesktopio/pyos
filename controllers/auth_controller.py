@@ -27,6 +27,7 @@ from oc.cherrypy import Results, getclientipaddr, getclientremote_ip
 from oc.od.services import services
 import oc.od.composer
 import oc.od.settings
+import oc.auth.authservice
 import json
 
 
@@ -527,6 +528,9 @@ class AuthController(BaseController):
         ipsource = getclientipaddr()
         self.logger.debug( f"authorizedkeys request from ip source {ipsource}")
 
+        # can raise exception 
+        self.required_controller_security_check(ipsource)
+       
         routecontenttype = {
             'application/json': self.handler_authorizedkeys_json,
             'text/plain':  self.handler_authorizedkeys_text 
@@ -631,7 +635,7 @@ class AuthController(BaseController):
         return self.getlambdaroute( routecontenttype, defaultcontenttype='text/html' )( jwt_user_token )
 
 
-    def checkloginresponseresult( self, response, msg='login' ):
+    def checkloginresponseresult( self, response:oc.auth.authservice.AuthResponse, msg='login' ):
         # check auth response
         if not isinstance( response, oc.auth.authservice.AuthResponse ):
             error = f"services auth.{msg} does not return AuthResponse object"
@@ -650,7 +654,7 @@ class AuthController(BaseController):
             self.logger.error( f"services auth.login error {message}" )
             raise cherrypy.HTTPError(401, message )  
         
-    def check_features_permissions( sefl, args:dict)->None:
+    def check_features_permissions( self, args:dict)->None:
         # if features is defined, then it must be a dict
         # this is not a dummy twice type check
         if args.get('features') is not None :
@@ -729,6 +733,7 @@ class AuthController(BaseController):
         # disable content or MIME sniffing which is used to override response Content-Type headers 
         # to guess and process the data using an implicit content type
         cherrypy.response.headers[ 'X-Content-Type-Options'] = 'nosniff'
+
         # return new token
         return Results.success( 
             "Refresh token success", 
