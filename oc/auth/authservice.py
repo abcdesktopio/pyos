@@ -860,7 +860,9 @@ class ODAuthTool(cherrypy.Tool):
         # create jwt_user_reduce
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid') }
         # create a jwt_role_reduce
-        jwt_role_reduce = dict(roles) # copy all data
+        # jwt_role_reduce = dict(roles) # copy all data
+        jwt_role_reduce = {}
+        
         # encode new jwt 
         jwt_token = self.jwt.encode( auth=jwt_auth_reduce, user=jwt_user_reduce, roles=jwt_role_reduce )
 
@@ -2593,6 +2595,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_krb5_conf = config.get('krb5_conf')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
         self.ntlm_command = config.get('ntlm_command', '/var/pyos/oc/auth/ntlm/ntlm_auth')
+        self.auth_add_memberof_in_role = config.get('auth_add_memberof_in_role', True)
         # self.kerberos_servers = config.get('kerberos_servers', self.servers)
 
         # not used deprecated 
@@ -3046,6 +3049,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if self.auth_only : 
             # return empty list
             self.logger.debug(f"provider {self.name} is a auth_only={self.auth_only}, no roles can be read return {roles}") 
+            return roles
+
+        if self.auth_add_memberof_in_role is False:
             return roles
 
         try:
