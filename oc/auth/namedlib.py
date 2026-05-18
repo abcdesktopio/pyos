@@ -92,9 +92,6 @@ def normalize_label(data:str)->str:
   return newdata
  
 
-def normalize_networkname(name:str)->str:
-  return normalize_name(name)
-
 def normalize_containername(name:str)->str:
   # get the last part of
   # registry.domain.tld:443/oc.user.14.04:latest
