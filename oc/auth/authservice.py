@@ -860,8 +860,9 @@ class ODAuthTool(cherrypy.Tool):
         # create jwt_user_reduce
         jwt_user_reduce = { 'name': user.get('name'), 'userid': user.get('userid') }
         # create a jwt_role_reduce
-        # jwt_role_reduce = dict(roles) # copy all data
-        jwt_role_reduce = {}
+
+        jwt_role_reduce = dict(roles) # copy all data
+        # jwt_role_reduce = {}
         
         # encode new jwt 
         jwt_token = self.jwt.encode( auth=jwt_auth_reduce, user=jwt_user_reduce, roles=jwt_role_reduce )
@@ -1463,6 +1464,7 @@ class ODAuthTool(cherrypy.Tool):
             # no user provider has been found
             self.logger.error( f"skipping metalogin, no metauser getuserinfo error {e}" )
             return self.login(provider, manager, **arguments)
+        
         if not isinstance( metauser, dict):
             # no user provider has been found
             # an error occurs in meta directory query
@@ -1497,10 +1499,7 @@ class ODAuthTool(cherrypy.Tool):
         # now we have found a new provider 
         # dump this info in log file
         # and them run auth
-        self.logger.info( f"metadirectory replay \
-                            from provider {provider_meta.name} -> {new_provider.name}\
-                            from user {arguments.get('userid')} -> {new_userid} \
-                            from domain {provider_meta.domain} -> {new_domain}" )
+        self.logger.info( f"metadirectory replay from provider {provider_meta.name} -> {new_provider.name} from user {arguments.get('userid')} -> {new_userid} from domain {provider_meta.domain} -> {new_domain}" )
 
         # update login with new data from meta directory
         arguments[ 'userid'   ] = new_userid
@@ -1580,14 +1579,21 @@ class ODAuthTool(cherrypy.Tool):
                 # overwrite the previous login auth_duration_in_milliseconds
                 # with the metalogin auth_duration_in_milliseconds
                 auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
+
+                # userloginresponse.result is an AuthCache 
+                # overwrite role to reduce data if need 
+                reduced_roles = newmetaprovider.reduce_roles_for_jwt( roles )
+
                 #
-                # buid a AuthCache as response result 
+                # buid a AuthCache as response result
                 metaauthcache = AuthCache( 
-                    dict_token={ 'auth': vars(auth), 'user': metauser, 'roles': roles }, 
+                    dict_token={ 'auth': vars(auth), 'user': metauser, 'roles': reduced_roles }, 
                     auth_duration_in_milliseconds=auth_duration_in_milliseconds 
                 ) 
+
                 # merge userloginresponse with metaauthdata
                 userloginresponse.result.merge( metaauthcache )
+            
                 userloginresponse.reason=f"a.Authentication on {provider_meta.getdisplaydescription()} via {new_provider.getdisplaydescription()} successful in {auth_duration_in_milliseconds:.2f} s"  # float two digits after comma
 
             except Exception as e:
@@ -1769,11 +1775,13 @@ class ODAuthTool(cherrypy.Tool):
             self.logger.debug( f"labels {auth.data.get('labels')}")
             # end of auth, mesuretimeserver_auth_duration
             auth_duration_in_milliseconds = self.mesuretimeserver_auth_duration(server_utctimestamp)
+
+             # overwrite role to reduce data if need to reduce roles for jwt
+            reduced_roles = pdr.reduce_roles_for_jwt( roles )
+
             # build a AuthCache as response result 
-            myauthcache = AuthCache( { 
-                'auth': vars(auth), 
-                'user': userinfo, 
-                'roles': roles }, 
+            myauthcache = AuthCache( 
+                { 'auth': vars(auth), 'user': userinfo, 'roles': reduced_roles }, 
                 auth_duration_in_milliseconds=auth_duration_in_milliseconds 
             ) 
 
@@ -1810,19 +1818,19 @@ class ODAuthTool(cherrypy.Tool):
         response = self.login( provider=target_provider.name, manager=None, **arguments)
         return response
 
-    def authenticate(self, provider,  manager=None, **arguments):
+    def authenticate(self, provider:str,  manager=None, **arguments):
         return self.findmanager(provider, manager).authenticate(provider, **arguments)
 
-    def getuserinfo(self, provider, authinfo, manager=None, **arguments):
+    def getuserinfo(self, provider:str, authinfo:AuthInfo, manager=None, **arguments):
         return self.findmanager(provider, manager).getuserinfo(provider, authinfo, **arguments)
 
-    def createclaims(self, provider, authinfo, userinfo, manager=None, **arguments):
+    def createclaims(self, provider:str, authinfo:AuthInfo, userinfo, manager=None, **arguments):
         return self.findmanager(provider, manager).createclaims(provider, authinfo, userinfo, **arguments)
 
-    def getroles(self, provider, authinfo, userinfo, manager=None, **arguments):
+    def getroles(self, provider:str, authinfo:AuthInfo, userinfo, manager=None, **arguments):
         return self.findmanager(provider, manager).getroles(provider, authinfo, userinfo, **arguments)
 
-    def finalize(self, provider, authinfo, manager=None, **arguments):
+    def finalize(self, provider:str, authinfo:AuthInfo, manager=None, **arguments):
         return self.findmanager(provider, manager).finalize(provider, authinfo, **arguments)
 
     def authorize(self, allow_anonymous=False, allow_authentified=True):        
@@ -1877,7 +1885,7 @@ class ODAuthManagerBase(object):
         provider = self.getprovider(provider, raise_error=True)
         return provider.createclaims(auth, userinfo, **arguments)
 
-    def getuserinfo(self, provider, token, **arguments):
+    def getuserinfo(self, provider:str, token, **arguments):
         userinfo =  self.getprovider(provider, True).getuserinfo(token, **arguments)
         if isinstance( userinfo, dict):
             # complete data from arguments
@@ -1885,22 +1893,22 @@ class ODAuthManagerBase(object):
                 userinfo[addionnalinfo]=arguments.get(addionnalinfo)
         return userinfo
 
-    def getroles(self, provider, authinfo, userinfo, **arguments):
+    def getroles(self, provider:str, authinfo:AuthInfo, userinfo:AuthUser, **arguments):
         return self.getprovider(provider, True).getroles(authinfo, userinfo, **arguments)
 
-    def finalize(self, provider, authinfo, **arguments):
+    def finalize(self, provider:str, authinfo:AuthInfo, **arguments):
         return self.getprovider(provider, True).finalize(authinfo, **arguments)
     
-    def createprovider(self, name, config):
+    def createprovider(self, name:str, config:dict):
         return ODAuthProviderBase(self, name, config)
     
-    def logout(self, provider, authinfo, **arguments):
+    def logout(self, provider:str, authinfo:AuthInfo, **arguments):
         return self.getprovider(provider, True).logout(authinfo, **arguments)
 
     def getrules(self):
         return self.rules
     
-    def getprovider(self, name, raise_error=False):
+    def getprovider(self, name:str, raise_error=False):
         """[getprovider]
             return a provider from name 
         Args:
@@ -2052,12 +2060,7 @@ class ODImplicitAuthManager(ODAuthManagerBase):
 
 
 @oc.logging.with_logger()
-class ODRoleProviderBase(object):
-    def getroles(self, authinfo, userinfo, **params):
-        return []
-
-@oc.logging.with_logger()
-class ODAuthProviderBase(ODRoleProviderBase):
+class ODAuthProviderBase(object):
     def __init__(self, manager, name, config):
         """_summary_
 
@@ -2096,9 +2099,9 @@ class ODAuthProviderBase(ODRoleProviderBase):
         # for external provider 
         self.memberof_attribut_name = config.get('memberof_attribut_name', '' )
         self.icondata = oc.lib.safe_loadicon_base64_filename( self.icon )
-
-
-
+        self.filter_reduce_roles_for_jwt = config.get('reduce_roles_for_jwt', 'raw' )
+        if isinstance( self.filter_reduce_roles_for_jwt, str ):
+            self.filter_reduce_roles_for_jwt = self.filter_reduce_roles_for_jwt.lower()
 
     def getdisplaydescription( self ):
         return self.displayname
@@ -2106,10 +2109,10 @@ class ODAuthProviderBase(ODRoleProviderBase):
     def authenticate(self, **params):
         raise NotImplementedError()
 
-    def getuserinfo(self, authinfo, **params):
+    def getuserinfo(self, authinfo:AuthInfo, **params):
         raise NotImplementedError()
     
-    def logout(self, authinfo, **arguments):
+    def logout(self, authinfo:AuthInfo, **arguments):
         # default provider pass logout
         pass
 
@@ -2166,6 +2169,15 @@ class ODAuthProviderBase(ODRoleProviderBase):
         # always use lower case
         uid = uid.lower()
         return uid
+
+    def getroles(self, authinfo:AuthInfo, userinfo:AuthUser, **params):
+        return []
+
+    def reduce_roles_for_jwt( self, roles:list)->list:
+        if self.filter_reduce_roles_for_jwt=='raw':
+            return roles
+        else:
+            return []
 
     @staticmethod
     def safe_uid(uid:str,permit_dollar:bool=False)->str:
@@ -2422,7 +2434,7 @@ class ODExternalAuthProvider(ODAuthProviderBase):
             auth.token = oauthsession.token
             oauthsession.close()
 
-    def getroles(self, authinfo, userinfo, **params):
+    def getroles(self, authinfo:AuthInfo, userinfo:AuthUser, **params):
         self.logger.debug('') 
         roles = []
 
@@ -2517,7 +2529,7 @@ class ODImplicitTLSCLientAuthProvider(ODImplicitAuthProvider):
 
 
 @oc.logging.with_logger()
-class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
+class ODLdapAuthProvider(ODAuthProviderBase):
     # common attributs 
     # from InetOrgPerson objectClass Types
     # objectClass: inetOrgPerson
@@ -2595,7 +2607,7 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_krb5_conf = config.get('krb5_conf')
         self.kerberos_ktutil = config.get('ktutil', '/usr/bin/ktutil') # change to /usr/sbin/ktutil on macOS
         self.ntlm_command = config.get('ntlm_command', '/var/pyos/oc/auth/ntlm/ntlm_auth')
-        self.auth_add_memberof_in_role = config.get('auth_add_memberof_in_role', True)
+
         # self.kerberos_servers = config.get('kerberos_servers', self.servers)
 
         # not used deprecated 
@@ -2716,7 +2728,9 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
             )
         )
 
-
+        self.filter_reduce_roles_for_jwt = config.get('reduce_roles_for_jwt', 'cn' )
+        if isinstance( self.filter_reduce_roles_for_jwt, str ):
+            self.filter_reduce_roles_for_jwt = self.filter_reduce_roles_for_jwt.lower()
 
     def getdisplaydescription( self ):
         displaydescription = super().getdisplaydescription()
@@ -2730,7 +2744,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.logger.debug('')
         newprovider = copy.deepcopy( self )
         return newprovider
-
 
     def updateauthentificationconfigfromprovider( self, provider:ODAuthProviderBase ) -> ODAuthProviderBase :
         """ updateauthentificationconfig
@@ -2754,7 +2767,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.kerberos_realm = provider.kerberos_realm
         self.kerberos_krb5_conf = provider.kerberos_krb5_conf
         self.kerberos_ktutil = provider.kerberos_ktutil
-
 
     def loadserviceaccount( self, config ):
         def readvaluefromfile( data:str ) -> str:
@@ -2782,7 +2794,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         self.userid = readvaluefromfile( serviceaccount.get('login') )
         # self.password set to None if not defined in config file
         self.password = readvaluefromfile( serviceaccount.get('password') )
-
 
     @staticmethod
     def issafeLdapAuthCommonName(cn):
@@ -3040,6 +3051,42 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
                             
         return userinfo
 
+
+    def reduce_roles_for_jwt( self, roles:list)->list:
+        filtered_roles = [] # list of roles to filter
+        if not isinstance(roles, list):
+            self.logger.error( f"Expected a list of roles gets {type(roles)} instead {roles}" )
+            return filtered_roles
+       
+        if self.filter_reduce_roles_for_jwt is None:
+            return filtered_roles
+        
+        if not isinstance( self.filter_reduce_roles_for_jwt, str ):
+            return filtered_roles
+        
+        # self.filter_reduce_roles_for_jwt is always in lowercases
+        if self.filter_reduce_roles_for_jwt=='none':
+            return filtered_roles
+        
+        # 'raw' return raw group value 
+        # for example cn=group1,ou=groups,dc=example,dc=com return cn=group1,ou=groups,dc=example,dc=com
+        if self.filter_reduce_roles_for_jwt=='raw':
+            return roles
+        
+        # 'cn' return only the cn value of the group, 
+        # for example cn=group1,ou=groups,dc=example,dc=com return group1
+        if self.filter_reduce_roles_for_jwt=='cn':
+            try:
+                for role in roles:
+                    splitted_role = role.split(',', 1)[0] # split only on the first comma
+                    if len(splitted_role) > 2:
+                        # setting the maxsplit parameter to 1, return a list with 2 elements
+                        splitted_cnvalue = splitted_role.split('=', 1) # split only on the first equal
+                        if len( splitted_cnvalue ) == 2:
+                            filtered_roles.append( splitted_cnvalue[1] )
+            except Exception as e:
+                self.logger.error( e )
+        return filtered_roles
     
     def getroles(self, authinfo:AuthInfo, userinfo:AuthUser, **params):  
         self.logger.debug('') 
@@ -3049,9 +3096,6 @@ class ODLdapAuthProvider(ODAuthProviderBase,ODRoleProviderBase):
         if self.auth_only : 
             # return empty list
             self.logger.debug(f"provider {self.name} is a auth_only={self.auth_only}, no roles can be read return {roles}") 
-            return roles
-
-        if self.auth_add_memberof_in_role is False:
             return roles
 
         try:
@@ -3918,6 +3962,7 @@ class ODAdAuthProvider(ODLdapAuthProvider):
 
     def getroles(self, authinfo:AuthInfo, userinfo:AuthUser, **params):
         self.logger.debug('')
+        roles = []
         token = authinfo.token 
         if not self.recursive_search:
             return super().getroles(authinfo, userinfo, **params)
@@ -3931,14 +3976,20 @@ class ODAdAuthProvider(ODLdapAuthProvider):
         #    conn = self.getconnection(ldap_bind_userid, ldap_bind_password)
         #else:
         #    conn = authinfo.conn
-
         
         userdn = self.getuserdn(authinfo.conn, token)
         if not isinstance(userdn, str): 
             return []
 
-        return [entry['cn'] for entry in self.search(authinfo.conn, self.group_query.basedn, ldap3.SUBTREE, '(member:1.2.840.113556.1.4.1941:=%s)' % userdn, ['cn'])]
-    
+        for entry in self.search(
+                authinfo.conn, 
+                self.group_query.basedn, 
+                ldap3.SUBTREE, 
+                f"(member:1.2.840.113556.1.4.1941:={userdn})", 
+                ['cn'] ) :
+            roles.append( entry.get('cn') )
+
+        return roles
 
     
     def issafeAdAuthusername(self, username:str):
