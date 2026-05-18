@@ -294,10 +294,8 @@ class AuthController(BaseController):
             self.logger.info( f"ValueError provider expect str get {type(provider)}" )
             raise cherrypy.HTTPError( status=401, message='missing provider parameter')
 
-        self.logger.debug( 'login done' )
-
         # checkloginresponseresult can raise exception 
-        self.logger.debug( 'login checkloginresponseresult' )
+        self.logger.debug( 'login done, checkloginresponseresult' )
         self.checkloginresponseresult( response )  
         
         services.accounting.accountex('login', 'success')
