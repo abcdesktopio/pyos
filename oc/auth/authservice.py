@@ -3187,6 +3187,7 @@ class ODLdapAuthProvider(ODAuthProviderBase):
                 if not self.verify_auth_is_supported_by_ldap_server( supported_sasl_mechanisms ):
                     self.logger.debug( f"{auth_type} is not defined in {server_name}.info.supported_sasl_mechanisms supported_sasl_mechanisms={supported_sasl_mechanisms}" )
                 
+                time_before_connection = datetime.datetime.now().timestamp()
                 # do kerberos bind
                 if auth_type == 'KERBEROS': 
                      # krb5ccname must already exist 
@@ -3225,7 +3226,9 @@ class ODLdapAuthProvider(ODAuthProviderBase):
                 # let's bind to the ldap server conn.open()
                 self.logger.debug( f"binding to the ldap server {server_name}")
                 conn.bind()
-                self.logger.debug( f"bind to {server_name} done")
+                time_after_connection = datetime.datetime.now().timestamp()
+                diff_time_connection = (time_after_connection - time_before_connection)*1000
+                self.logger.debug( f"bind to {server_name} done in {diff_time_connection} ms" )
                 #
                 # return ldap3.Connection 
                 return conn
