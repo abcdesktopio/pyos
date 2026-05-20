@@ -14,8 +14,9 @@ RUN apk update --no-cache && \
 	krb5 \
 	krb5-libs \
 	libgsasl \
-	"libssl3>3.5.4" \
-	"libcrypto3>3.5.4"
+	bash
+
+SHELL ["/bin/bash", "-c"]
 
 #   gss-ntlmssp 
 #   krb5-user 
@@ -40,9 +41,9 @@ RUN apk add --no-cache \
 	musl-dev \
 	py3-ldap \
 	py3-ldap-pyc \
-    py3-python-gssapi-pyc \
-    py3-python-gssapi \
-    krb5-dev \
+    	py3-python-gssapi-pyc \
+    	py3-python-gssapi \
+    	krb5-dev \
 	geoip-dev \
 	openldap-dev
 
@@ -67,16 +68,24 @@ COPY . .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+
+# get ASNNumber database
+# IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
+# and parsing them using provided scripts that tail the BGP AS-Path.
+RUN pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
+    rm -f rib.bz2 
+
 # remove dev package
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
 	krb5-dev \
-    gcc \
-    musl-dev \
-    krb5-dev \
-    geoip-dev \
-    openldap-dev
+    	gcc \
+    	musl-dev \
+    	krb5-dev \
+    	geoip-dev \
+    	openldap-dev
 
 # create log directory
 RUN mkdir -p /var/pyos/logs

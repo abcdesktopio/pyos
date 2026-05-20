@@ -32,7 +32,7 @@ class ODApps:
     """ ODApps
         manage application list 
     """
-    def __init__(self, mongodburl=None ):
+    def __init__(self, mongodburl:str=None, mongodbparam:str=None):
         self.lock = threading.Lock()
         self.myglobal_list = {}
         self.build_image_counter = 0
@@ -56,11 +56,11 @@ class ODApps:
         self.index_name = 'id' # id is the name of the image repoTags[0]
         self.image_collection_name = 'image'
         if isinstance( mongodburl, str) :
-            self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl, self.databasename)
+            self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl, mongodbparam, self.databasename)
             self.init_collection( collection_name=self.image_collection_name )
 
     def init_collection( self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename)
+        mongo_client = self.datastore.createclient(self.databasename)
         db = mongo_client[self.databasename]
         col = db[collection_name]
         try:
@@ -70,11 +70,11 @@ class ODApps:
         mongo_client.close()
 
     def get_collection(self, collection_name ):
-        mongo_client = oc.datastore.ODMongoDatastoreClient.createclient(self.datastore,self.databasename)
+        mongo_client = self.datastore.createclient(self.databasename)
         db = mongo_client[self.databasename]
         return db[collection_name]
 
-    def append_app_to_collection( self, app ):
+    def append_app_to_collection( self, app:dict )->bool:
         if not isinstance( app, dict):
             return False
         myapp = app.copy() # copy
@@ -513,27 +513,41 @@ class ODApps:
  
     def add_json_image_to_collection( self, json_image:str )->list|None:
         applist = None
+
         # if json image is a list add each image in list
         if isinstance( json_image, list ):
             applist = []
             for image in json_image:
                 myapp = self.json_imagetoapp( image )
-                if isinstance( myapp, dict ):
-                    if self.append_app_to_collection( myapp ):
-                        applist.append( myapp )
-
+                if self.append_app_to_collection( myapp ):
+                    applist.append( myapp )
+                    
+        # if json image is a dict add it in collection
         if isinstance( json_image, dict ):
             myapp = self.json_imagetoapp( json_image )
-            if isinstance( myapp, dict ):
-                if self.append_app_to_collection( myapp ):
-                    applist = myapp
+            if self.append_app_to_collection( myapp ):
+                applist = myapp
+
         return applist
 
     @staticmethod
-    def get_id_from_sha_id( sha_id ):
+    def get_id_from_sha_id( sha_id:str )->str:
+        """get_id_from_sha_id
+            return the image id from the sha_id
+            do not change the sha_id is not in expected format
+            for example 
+                get 390745577d89afad703253423624187bdb31f33008320946c335c20a87f0f5f6 
+                from sha256:390745577d89afad703253423624187bdb31f33008320946c335c20a87f0f5f6
+            
+            Args:
+                sha_id (str): sha id
+
+            Returns:
+                str: image id
+        """
         _sha_id = sha_id
         # "sha_id": "sha256:390745577d89afad703253423624187bdb31f33008320946c335c20a87f0f5f6"
-        # get 390745577d89afad703253423624187bdb31f33008320946c335c20a87f0f5f6
+        #            get 390745577d89afad703253423624187bdb31f33008320946c335c20a87f0f5f6
         if isinstance(sha_id, str):
             ar_sha_id = sha_id.split(':')
             if isinstance( ar_sha_id, list ) and len(ar_sha_id) > 1:
@@ -751,7 +765,6 @@ class ODApps:
                 if self.thread_event.is_set():
                     self.logger.info("MongoDB Change Stream watcher thread exited.")
                     return
-       
 
                 # If the exception has no code, we cannot handle it
                 if hasattr(e, 'code') is False:
@@ -774,8 +787,21 @@ class ODApps:
                 
         self.logger.info("MongoDB Change Stream watcher thread exited.")
 
+    def is_mongo_watcher_alive(self):
+        """is_mongo_watcher_alive
+            return True if the MongoDB watcher thread is alive, False otherwise
+        Returns:
+            bool: True if the MongoDB watcher thread is alive, False otherwise
+        """
+        return isinstance(self.watcher_thread, threading.Thread) and \
+               hasattr(self.watcher_thread, 'is_alive') and \
+               self.watcher_thread.is_alive()
+
     def start_mongo_watcher(self):
-        if isinstance(self.watcher_thread, threading.Thread) and self.watcher_thread.is_alive():
+        """start_mongo_watcher
+            start the MongoDB watcher thread if not already started
+        """
+        if self.is_mongo_watcher_alive(): # nothing to do if watcher is already alive
             return
 
         self.thread_event.clear()
@@ -788,13 +814,16 @@ class ODApps:
 
 
     def stop_mongo_watcher(self):
-        self.thread_event.set()
-        if isinstance(self.watcher_thread, threading.Thread):
-            if self.watcher_thread.is_alive():
-                self.logger.debug("MongoDB watcher_thread.join()...")
-                self.watcher_thread.join()
-            else:
-                self.logger.debug("MongoDB watcher_thread is not alive.")
+        """stop_mongo_watcher
+            stop the MongoDB watcher thread if it is alive
+        """
+        if self.is_mongo_watcher_alive():
+            if hasattr(self.watcher_thread, 'set'):
+                self.thread_event.set()
+            
+            self.logger.debug("MongoDB watcher_thread.join()...")
+            # self.watcher_thread.join()
+            self.watcher_thread = None
         else:
-            self.logger.debug("MongoDB watcher_thread is not a thread.")
+                self.logger.debug("MongoDB watcher_thread is not alive.")
         self.logger.info("MongoDB watcher stopped")

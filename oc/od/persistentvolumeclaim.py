@@ -180,47 +180,60 @@ class ODPersistentVolumeClaim():
         return pvc
 
     
-    def waitforBoundPVC( self, name:str, callback_notify, timeout:int=42 )->tuple:
+    def waitforBoundPVC( self, name:str, callback_notify )->tuple:
         self.logger.debug('')
         assert_type( name, str )
-        w = watch.Watch()                 
         event_counter = 0
-        for event in w.stream(  self.kubeapi.list_namespaced_persistent_volume_claim, 
-                                namespace=self.namespace, 
-                                timeout_seconds=oc.od.settings.desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'],
-                                field_selector=f'metadata.name={name}' ):  
-            if event_counter > oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']:
-                return (False, f"e.Volume {name} has failed {event_counter}/{oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']}")
-            
-            self.logger.debug( f"read event {event_counter} {event}")
-            # safe type test event is a dict
-            if not isinstance(event, dict ): continue
-            pvc = event.get('object')
-            if not isinstance(pvc, V1PersistentVolumeClaim ): continue
-            
-            # volume_mode = 'unknowfilesystem'
-            volume_name = 'unknowvolumename'
-            storage_class_name = 'unknowstorageclassname'
-            if isinstance( pvc.spec, V1PersistentVolumeClaimSpec ):
-                # volume_mode = pvc.spec.volume_mode
-                volume_name = pvc.spec.volume_name
-                storage_class_name = pvc.spec.storage_class_name
-            if isinstance( pvc.status, V1PersistentVolumeClaimStatus):
-                    # A volume will be in one of the following phases:
-                    #   Available -- a free resource that is not yet bound to a claim
-                    #   Bound -- the volume is bound to a claim
-                    #   Released -- the claim has been deleted, but the resource is not yet reclaimed by the cluster
-                    #   Failed -- the volume has failed its automatic reclamation
-                    if callable(callback_notify):
-                        callback_notify( f"b.Reading your persistent volume claim {name}, status is {pvc.status.phase}, using storage class {storage_class_name} " )
-                    if pvc.status.phase == 'Bound':
-                        return (True, f"b. Your persistent volume claim {name} is {pvc.status.phase} using storage class {storage_class_name} ")
-                    if pvc.status.phase == 'Failed':
-                        return (False, f"e.PersistentVolumeClaim {name} has failed its automatic reclamation, claim={name}, volume {volume_name}, storage class {storage_class_name}")
-                    if pvc.status.phase in [ 'Pending', 'Available' ]:
-                        event_counter += 1
+        continue_reading_events = True
+        w = watch.Watch()
+        while continue_reading_events:
+            try:
+                for event in w.stream(  self.kubeapi.list_namespaced_persistent_volume_claim, 
+                                        namespace=self.namespace, 
+                                        timeout_seconds=oc.od.settings.desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'],
+                                        field_selector=f'metadata.name={name}' ):  
+                     
+                    # safe type test event is a dict
+                    if not isinstance(event, dict ): continue
+                    pvc = event.get('object')
+                    if not isinstance(pvc, V1PersistentVolumeClaim ): continue
+                    volume_name = None 
+                    storage_class_name = None
+                    if isinstance( pvc.spec, V1PersistentVolumeClaimSpec ):
+                        # volume_mode = pvc.spec.volume_mode
+                        volume_name = pvc.spec.volume_name
+                        storage_class_name = pvc.spec.storage_class_name
 
-        return (False, f"e.Volume {name} has failed its automatic reclamation")
+                    if isinstance( pvc.status, V1PersistentVolumeClaimStatus):
+                        # A volume will be in one of the following phases:
+                        #   Available -- a free resource that is not yet bound to a claim
+                        #   Bound -- the volume is bound to a claim
+                        #   Released -- the claim has been deleted, but the resource is not yet reclaimed by the cluster
+                        #   Failed -- the volume has failed its automatic reclamation
+                        if callable(callback_notify):
+                            callback_notify( f"b.Reading your persistent volume claim {name}, status is {pvc.status.phase}, using storage class {storage_class_name} " )
+                        if pvc.status.phase == 'Bound':
+                            # continue_reading_events = False
+                            return (True, f"b. Your persistent volume claim {name} is {pvc.status.phase} using storage class {storage_class_name} ")
+                        if pvc.status.phase == 'Failed':
+                            # continue_reading_events = False
+                            return (False, f"e.PersistentVolumeClaim {name} has failed its automatic reclamation, claim={name}, volume {volume_name}, storage class {storage_class_name}")
+                        if pvc.status.phase in [ 'Pending', 'Available' ]:
+                            event_counter += 1
+            
+            except ApiException as e:
+                #
+                # kubernetes.client.exceptions.ApiException: (504)
+                # Reason: Timeout: Timeout: Too large resource version: 130030756, current: 130030755
+                # pass this exception 
+                # read https://github.com/kubernetes/kubernetes/issues/107133
+                # 
+                if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+                    self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
+                else:
+                    raise e
+                      
+        return (False, f"e.Volume {name} has failed its automatic reclamation after {event_counter}/{oc.od.settings.desktop['K8S_BOUND_PVC_MAX_EVENT']} events")
 
     '''
     def waitforBoundPVC( self, name:str, callback_notify, timeout:int=42 )->tuple:

@@ -36,7 +36,7 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     def set(self):
         # Check auth 
-        (auth, user ) = self.validate_env()
+        (auth, user, roles ) = self.validate_env()
         arguments = cherrypy.request.json
         if not isinstance(arguments,dict) :
             return Results.error( message='invalid parameters' )
@@ -58,7 +58,7 @@ class StoreController(BaseController):
     def get(self):
 
         # Check auth 
-        (auth, user ) = self.validate_env()
+        (auth, user, roles ) = self.validate_env()
         arguments = cherrypy.request.json
 
         if not isinstance(arguments,dict) :
@@ -93,7 +93,7 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.allow(methods=['POST'])
     def getcollection(self):
-        (auth, user ) = self.validate_env()
+        (auth, user, roles) = self.validate_env()
         userid = user.userid
         arguments = cherrypy.request.json
         if not isinstance(arguments,dict) :

@@ -143,11 +143,12 @@ class BaseController(object):
 
           user = services.auth.user
           auth = services.auth.auth
+          roles = services.auth.roles
 
           if self.isban_login(user.userid):
                raise cherrypy.HTTPError( status=401, message='user is banned')
 
-          return (auth, user)
+          return (auth, user, roles)
 
      def fail_ip( self, ipAddr:str=None ):
           if not isinstance( ipAddr, str):
@@ -212,9 +213,12 @@ class BaseController(object):
           is_ip_filter = self.ipfilter() # Check if the controller has an ip filter
           # if both filters are set, at least one must match
           # self.logger.debug( f"is_api_filter={is_api_filter}, is_ip_filter={is_ip_filter}" )
-          if not is_api_filter and not is_ip_filter:
-               self.raise_http_error_message( '403.1 - Execute access forbidden' )
-
+          if not is_api_filter or not is_ip_filter:
+               if not is_ip_filter:
+                    self.raise_http_error_message( '403.7 - IP address access denied' )
+               if not is_api_filter: 
+                    self.raise_http_error_message( '403.1 - Execute access forbidden' )
+               
           if isinstance( self.requestsallowed, dict ):
                # read the request path
                path = cherrypy.request.path_info
@@ -235,12 +239,25 @@ class BaseController(object):
                     self.raise_http_error_message( '403.8 - Site access denied' )
 
      def apifilter(self):
+          """apifilter
+               check if the request apikey is in the permitted apikey list
+               if no apikey list is set, return True
+          Returns:
+               bool: True if the request apikey is in the permitted apikey list or no list is set
+          """
           self.logger.debug('')
           if isinstance(self.apikey, list):
                return self.is_apikey()          
           return True
           
      def ipfilter( self ):
+          """ipfilter
+               check if the client ip address is in the permitted network list
+               if no network list is set, return True
+
+          Returns:
+               bool: True if the client ip address is in the permitted network list or no list is set
+          """
           self.logger.debug('')
           if not isinstance(self.ipnetworklistfilter, list) :
                return True

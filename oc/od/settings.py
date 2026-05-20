@@ -17,7 +17,8 @@ gconfig = {}	    # use for global config
 # Default namespace used by kubernetes is abcdesktop
 namespace = 'abcdesktop' 
 
-mongodburl = None  # Mongodb config Object Class
+mongodburl = None  # Mongodb config url
+mongodbparam = None  # Mongodb config parameters
 fail2banconfig = None # Fail2ban config 
 mongodblist = []
 
@@ -338,6 +339,8 @@ def init_desktop():
     desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
     desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
     desktop['nodeselector']             = gconfig.get('desktop.nodeselector', {} )
+    desktop['theme']                    = gconfig.get('desktop.theme') 
+    desktop['pulseaudiosocketpath']     = gconfig.get('desktop.pulseaudiosocketpath', '/tmp/.pulse.sock' )
     desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
     desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim') or gconfig.get('desktop.persistentvolumeclaimspec')
     desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
@@ -409,9 +412,7 @@ def init_desktop():
             'log': { 'name': 'log', 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi'   } },
             'rundbus': { 'name': 'rundbus',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
             'runuser': { 'name': 'runuser',  'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8M' } },
-            'x11socket': { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } },
-            'pulseaudiosocket' :  { 'name': 'pulseaudiosocket',  'emptyDir': { 'medium': 'Memory' } },
-            'cupsdsocket': { 'name': 'cupsdsocket',  'emptyDir': { 'medium': 'Memory' } }
+            'x11socket': { 'name': 'x11socket',  'emptyDir': { 'medium': 'Memory' } }
         }
     if not isinstance ( desktop_pod.get('default_volumes_mount'), dict ):
         desktop_pod['default_volumes_mount'] = {
@@ -421,16 +422,14 @@ def init_desktop():
             'log': { 'name': 'log',  'mountPath': '/var/log/desktop' },
             'rundbus': { 'name': 'rundbus',  'mountPath': '/var/run/dbus' },
             'runuser': { 'name': 'runuser',  'mountPath': '/run/user/' },
-            'x11socket': { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' },
-            'pulseaudiosocket':  { 'name': 'pulseaudiosocket',  'mountPath': '/tmp/.pulseaudio' },
-            'cupsdsocket': { 'name': 'cupsdsocket',  'mountPath': '/tmp/.cupsd' }
+            'x11socket': { 'name': 'x11socket',  'mountPath': '/tmp/.X11-unix' } 
         }
     if not isinstance ( desktop_pod.get('graphical', {}).get('volumes') , list ):
-        desktop_pod['graphical']['volumes'] = [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
+        desktop_pod['graphical']['volumes'] = [ 'x11socket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
         logger.debug(f"fixing desktop.pod.graphical.volumes config {desktop_pod['graphical']['volumes']}")
     if not isinstance ( desktop_pod.get('ephemeral_container', {}).get('volumes') , list ):
         # ephemeral container use the same volumes as graphical pod
-        desktop_pod['ephemeral_container']['volumes'] = [ 'x11socket', 'pulseaudiosocket', 'cupsdsocket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
+        desktop_pod['ephemeral_container']['volumes'] = [ 'x11socket', 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
         logger.debug(f"fixing desktop.pod.ephemeral_container.volumes config {desktop_pod['ephemeral_container']['volumes']}")
     if not isinstance ( desktop_pod.get('pod_application', {}).get('volumes') , list ):
         desktop_pod['pod_application']['volumes'] = [ 'tmp', 'run', 'log', 'rundbus', 'runuser' ]
@@ -562,8 +561,8 @@ def get_mongodburl():
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
     mongodbhostipaddr = _resolv(parsedmongourl.hostname)
     logger.debug(f"a simple check for mongodb: host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
-    logger.debug(f"mongodburl is set to {mongodburl}")
-    return mongodburl
+    mongodbparam = os.getenv('MONGODB_PARAM') or gconfig.get( 'mongodbparam', 'replicaSet=rs0' )
+    return (mongodburl, mongodbparam)
 
 def init_controllers():
     """Define controlers access
@@ -625,8 +624,9 @@ def init_config_mongodb():
     """
     global mongodburl
     global mongodblist
-    mongodburl = get_mongodburl()
-    logger.debug(f"MongoDB url: {mongodburl}")
+    global mongodbparam
+    (mongodburl,mongodbparam) = get_mongodburl()
+    logger.debug(f"MongoDB url: {mongodburl} param: {mongodbparam}")
     mongodblist = gconfig.get('mongodblist', ['image','fail2ban','loginHistory','applications','profiles','desktop'] )
     logger.debug(f"MongoDB list: {mongodblist}")
 
