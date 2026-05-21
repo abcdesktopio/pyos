@@ -3697,7 +3697,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         # into the object's current status.
                         if event_object.reason == 'Pulled':
                             self.logger.debug( f"Event Pulled received pulled_counter={pulled_counter}")
-                            pulledmyPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
+                            #pulledmyPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
                             pulled_counter = pulled_counter + 1
                             # if all images are pulled 
                             self.logger.debug( f"counter pulled_counter={pulled_counter} expected_containers_len={expected_containers_len}")
