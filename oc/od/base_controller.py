@@ -16,9 +16,10 @@ import ipaddress
 import cherrypy
 import oc.logging
 import re
+import hmac
 
 from netaddr import IPNetwork, IPAddress
-from oc.cherrypy import getclientipaddr
+from oc.cherrypy import getclientipaddr, getxforwardedfor, getproxy_ipaddr_from_xforwardedfor_header
 from oc.od.services import services
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,22 @@ class BaseController(object):
                     continue
                self.ipnetworklistfilter.append( ipnetwork )
 
+
+     def required_controller_security_check( self, ipAddr:str=None )->None:
+          """required_controller_security_check
+               check if the request is allowed to be processed by the controller
+               if the request is not allowed, raise cherrypy.HTTPError with status 403"""
+
+          if not isinstance( ipAddr, str): 
+               ipAddr = getclientipaddr()
+
+          if self.isban_ip(ipAddr):
+               raise cherrypy.HTTPError( status=401, message='ip address is banned' )
+        
+          if self.isspoofed_proxyxforwardedfor(): 
+               self.fail_ip(ipAddr) # ban the ip address if X-Forwarded-For header is spoofed
+               raise cherrypy.HTTPError( status=401, message='spoofed X-Forwarded-For header detected' )
+
      def validate_env(self):
           '''
                return (auth, user) if the user is identified and authenticated. 
@@ -131,13 +148,17 @@ class BaseController(object):
 
           if self.isban_ip():
                raise cherrypy.HTTPError( status=401, message='ip address is banned' )
+
+          if self.isspoofed_proxyxforwardedfor():
+               self.fail_ip() # ban the ip address if X-Forwarded-For header is spoofed
+               raise cherrypy.HTTPError( status=401, message='spoofed X-Forwarded-For header detected' )
           
           if not services.auth.isauthenticated:
-               self.fail_ip()
+               self.fail_ip() # ban the ip address if user is not authenticated
                raise cherrypy.HTTPError( status=401, message='user is not authenticated')
           
           if not services.auth.isidentified:
-               self.fail_ip()
+               self.fail_ip() # ban the ip address if user is not identified
                raise cherrypy.HTTPError( status=401, message='user is not identified')
 
 
@@ -175,6 +196,43 @@ class BaseController(object):
                self.logger.info(f"isban {login} return {isban}")
           return isban
 
+
+     def isspoofed_proxyxforwardedfor(self):
+          '''
+               return True if the X-Forwarded-For header is spoofed, else return False
+               A header is considered spoofed if the source ip address is not in trusted_proxy_cidr and X-Forwarded-For header exist
+          '''
+          bReturn = True # paranoid by default
+          try:
+               if not getxforwardedfor():
+                    # if no X-Forwarded-For header, return False
+                    return False
+               
+                # read X-Forwarded-For header
+               proxies = getproxy_ipaddr_from_xforwardedfor_header()
+               
+               if len( proxies ) == 0:
+                    # if no proxy in the HTTP request, return False
+                    return False
+
+               if len( oc.od.settings.ip_network_trusted_proxy_cidr ) == 0:
+                    # if no trusted proxy network is set, return False
+                    return False
+
+               for proxy in proxies:
+                    for network in oc.od.settings.ip_network_trusted_proxy_cidr:
+                         # if proxy is in trusted proxy cidr list, return False
+                         if IPAddress(proxy) in network:
+                              return False
+
+               # if proxy is not in trusted proxy cidr list and proxy exists in X-Forwarded-For header, 
+               # consider it as spoofed
+               return True
+
+          except Exception as e:
+               self.logger.error( e )
+          return bReturn
+
      def is_ipsource_private(self):
           '''
                return True if the source ip address is allocated for private networks. 
@@ -195,8 +253,8 @@ class BaseController(object):
           self.logger.debug( f"read http header apikey={apikey}" )
           for k in self.apikey:
                # self.logger.debug( f"compare apikey {k}={apikey}" )
-               bReturn = k == apikey
-               if bReturn is True:
+               bReturn = hmac.compare_digest(k, apikey)
+               if bReturn is True: 
                     break 
           return bReturn
      
@@ -247,7 +305,8 @@ class BaseController(object):
           """
           self.logger.debug('')
           if isinstance(self.apikey, list):
-               return self.is_apikey()          
+               return self.is_apikey()
+          # if no apikey list is set, return True
           return True
           
      def ipfilter( self ):
@@ -259,6 +318,7 @@ class BaseController(object):
                bool: True if the client ip address is in the permitted network list or no list is set
           """
           self.logger.debug('')
+          # if no network list is set, return True
           if not isinstance(self.ipnetworklistfilter, list) :
                return True
           ipclient = getclientipaddr()

@@ -14,9 +14,12 @@
 
 from oc.od.services import services
 import oc.od.orchestrator
+import threading
 
 class ODAccounting:
     def __init__(self):
+        # Used to protect accounting values in multi-threaded environments.
+        self.mutex = threading.Lock()
         #
         # set accounting value to zero by default
         self.accounting = {
@@ -56,25 +59,25 @@ class ODAccounting:
         return self.accounting.get(keyname, None)
 
     def account(self, keyname, value=1):
-        try:
-            self.accounting[keyname] += value
-        except KeyError:
-            self.accounting[keyname] = value
+        with self.mutex:
+            v = self.accounting.get( keyname, 0) # initialize the value to zero if not exist
+            self.accounting[keyname] = v + value
 
     def unaccount(self, keyname, value=1):
         self.account( keyname, -1)
 
     def accountex(self, keycat, keyname, value=1):
-        try:
-            self.accounting[keycat][keyname] += value
-        except KeyError:
-            self.accounting[keycat][keyname] = value
+        with self.mutex:
+            v = self.accounting[keycat].get( keyname, 0) # initialize the value to zero if not exist
+            self.accounting[keycat][keyname] = v + value
 
     def setaccount(self, keyname, value):
-        self.accounting[keyname] = value
+        with self.mutex:
+            self.accounting[keyname] = value
 
     def setaccountex(self, keycat, keyname, value):
-        self.accounting[keycat][keyname] = value
+        with self.mutex:
+            self.accounting[keycat][keyname] = value
 
     def todict(self):
         response = {}

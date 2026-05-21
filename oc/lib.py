@@ -190,3 +190,19 @@ def fortunewheel( mylist:list )->list:
             mylist[a] = mylist[b]
             mylist[b] = c
     return mylist
+
+
+def strtobool(val: str) -> bool:
+    """Convert a string representation of truth to `True` or `False`.
+
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; 
+    False values are 'n', 'no', 'f', 'false', 'off', and '0'.  
+    return False if val is anything else.
+    
+    """
+    val = val.lower()
+    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+        return True
+    if val in ('n', 'no', 'f', 'false', 'off', '0'):
+        return False
+    return False

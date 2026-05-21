@@ -15,9 +15,7 @@
 
 import logging
 import cherrypy
-import datetime 
-import distutils.util
-from typing_extensions import assert_type
+import datetime
 
 from oc.od.base_controller import BaseController
 import oc.od.composer
@@ -52,7 +50,7 @@ class ManagerController(BaseController):
     @cherrypy.tools.allow(methods=['GET','POST'])
     def echohttp(self):
         """echohttp
-            echo hhtp header dict 
+            echo http header dict 
         """
 
         #    def get_json(obj):
@@ -62,14 +60,15 @@ class ManagerController(BaseController):
         # return http reqest content
         # http_dump = get_json( cherrypy.request.body )
 
+        # check if request is allowed, raise an exception if deny
+        self.is_permit_request()
+
         http_dump = {   'headers' : cherrypy.request.headers,
                         'remote'  : cherrypy.request.remote.__dict__,
                         'params'  : cherrypy.request.params
         }
         # log before is_permit_request
         self.logger.debug( http_dump )
-        # check if request is allowed, raise an exception if deny
-        self.is_permit_request()
         return http_dump
 
     # buildapplist request is protected by is_permit_request()
@@ -119,9 +118,9 @@ class ManagerController(BaseController):
         nexpirein = None
         try:
             nexpirein = int( expirein )
+            
             if isinstance(force,str):
-                # convert str parameter to bool type
-                force = bool( distutils.util.strtobool( force ) )
+                force = oc.lib.strtobool( str(force) )
             else:
                 force = False
         except Exception:
@@ -177,6 +176,7 @@ class ManagerController(BaseController):
 
         '''
         self.is_permit_request()
+        # routing by method
         if cherrypy.request.method == 'GET':
             return self.handle_datastore_GET( args )
         elif cherrypy.request.method == 'PUT':
@@ -333,6 +333,7 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def images( self )->str:
         self.is_permit_request()
+        # routing by method
         if cherrypy.request.method == 'GET':
             return self.handle_images_GET()
         elif cherrypy.request.method == 'DELETE':
@@ -356,6 +357,7 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def image( self, image:str=None, node:str=None ):
         self.is_permit_request()
+        # routing by method
         if cherrypy.request.method == 'GET':
             return self.handle_image_GET( image=image )
         elif cherrypy.request.method == 'PUT':
@@ -461,6 +463,7 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def ban( self, collection, *args ):
         self.is_permit_request()
+        # routing by method
         if cherrypy.request.method == 'GET':
             return self.handle_ban_GET( collection, args )
         elif cherrypy.request.method == 'POST':
@@ -591,7 +594,9 @@ class ManagerController(BaseController):
 
     def handle_ban_GET( self, collection:str, args:tuple ):
         self.logger.debug('')
-        assert_type( collection, str )
+
+        if not isinstance( collection, str ):
+            raise cherrypy.HTTPError(status=400, message='Invalid type parameters Bad Request')
 
         # handle GET request to ban 
         if not services.fail2ban.iscollection( collection ):
@@ -645,6 +650,9 @@ class ManagerController(BaseController):
     @cherrypy.tools.json_out()
     def dry_run_desktop(self):
         self.logger.debug('validate_env')
-        (auth, user, roles) = self.validate_env()
+
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
+
         result = oc.od.composer.sampledesktop(auth, user)
         return result

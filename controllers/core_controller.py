@@ -88,15 +88,20 @@ class CoreController(BaseController):
         result_str = messageinfo + '\n'
         return result_str.encode('utf-8')
 
-
     @cherrypy.expose
     @cherrypy.tools.json_in()
     def getmessageinfo(self)->bytes:
+
+        # can raise exception
+        (auth, user, roles) = self.validate_env()
+
         lambdaroute = b'' # default return empty string
         # route content type to handler
-        routecontenttype = { 'text/plain': self.handler_messageinfo_text, 'application/json': self.handler_messageinfo_json }
+        routecontenttype = { 
+            'text/plain': self.handler_messageinfo_text, 
+            'application/json': self.handler_messageinfo_json 
+        }
         try:
-            (_auth, user, _roles) = self.validate_env()
             message = services.messageinfo.popflush(user.userid)
             lambdaroute = self.getlambdaroute( routecontenttype, defaultcontenttype='application/json' )( message )
         except Exception as e:

@@ -28,24 +28,24 @@ class UserController(BaseController):
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
 
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.json_in()
-    def getinfo(self):
-        """ Method return information from user token give as arguments parameters
-        """
-        arguments = cherrypy.request.json
-        try:
-            return services.auth.getuserinfo(arguments.get('token_provider'), arguments.get('token'))
-        except Exception:
-            return {'userid': None, 'name': None}
+    # @cherrypy.expose
+    # @cherrypy.tools.json_out()
+    # @cherrypy.tools.json_in()
+    # def getinfo(self):
+    #    """ Method return information from user token give as arguments parameters
+    #    """
+    #    arguments = cherrypy.request.json
+    #    try:
+    #        return services.auth.getuserinfo(arguments.get('token_provider'), arguments.get('token'))
+    #    except Exception:
+    #        return {'userid': None, 'name': None}
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def getlocation(self):
-        # self.logger.debug('')
-        (auth, user, roles) = self.validate_env() 
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
         location = oc.od.user.getlocation( auth )
         return Results.success(result=location)
 
@@ -57,6 +57,10 @@ class UserController(BaseController):
         auth = None
         user = None
         roles = None
+
+        # can raise exception 
+        self.required_controller_security_check()
+
         # same has super().validate_env 
         # but do not fail or ban ipaddr
         if services.auth.isauthenticated and services.auth.isidentified:

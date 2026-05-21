@@ -53,7 +53,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         # self.serverSelectionTimeoutMS = 5000
         self.index_name = 'kind'
 
-    def createhosturl( self, databasename ):
+    def createhosturl( self, databasename:str) -> str:
         url = None
         if isinstance(databasename, str ):
             # url = f"{self.mongodburl}/{databasename}?directConnection=true&replicaSet=rs0&authSource={databasename}"

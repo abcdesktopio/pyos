@@ -52,9 +52,9 @@ class ODMessageInfoManager():
     def getqueue(self, key:str):
         return ODMessageInfo( key, self.memcacheclient )
                 
-    def start(self, key:str, message=None):
+    def start(self, key:str, message:str=None):
         self._delete(key)        
-        if message:
+        if isinstance(message,str):
             self._set(key,message)
         return self.getqueue(key)
 
@@ -86,10 +86,10 @@ class ODMessageInfoManager():
 
 # 
 # ODMessageInfo is like a ODMessageInfoManager
-# restictied to one key 
+# restricted to one and unique key 
 class ODMessageInfo( ODMessageInfoManager ):
 
-    def __init__(self, key, memcacheclient ):
+    def __init__(self, key:str, memcacheclient):
         self.key = str(key)
         self.memcacheclient = memcacheclient
 

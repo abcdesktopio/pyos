@@ -23,11 +23,14 @@ class ODKubernetesWatcher:
         self.thead_event = None
         self.watch = None
         self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS = 10
+        self._backoff_min = 5   # seconds
+        self._backoff_max = 60  # seconds
         self.logger.debug( f"ODKubernetesWatcher use namespace={self.orchestrator.namespace}")
 
     def loopforevent( self ):
         # self.logger.debug('' )
-        self.watch = watch.Watch() 
+        self.watch = watch.Watch()
+        _backoff = self._backoff_min
         # self.logger.debug('loopforevent start inifity loop')
         while( True ): #  inifity loop stop when watch.stop     
             try:
@@ -43,6 +46,7 @@ class ODKubernetesWatcher:
                     if not isinstance(event,dict):
                         self.logger.error( f"event type is {type(event)}, and should be a dict, skipping event")
                         continue
+                    _backoff = self._backoff_min  # reset backoff on successful event
                     
                     # event dict must contain a object 
                     pod_event = event.get('object')
@@ -89,12 +93,10 @@ class ODKubernetesWatcher:
                                 oc.od.composer.detach_container_from_network(desktop.name)
             
             except (urllib3.exceptions.NewConnectionError, urllib3.exceptions.MaxRetryError) as e:
-                # <class 'urllib3.exceptions.MaxRetryError'> 
-                # HTTPConnectionPool(host='localhost', port=80): Max retries exceeded with url: /api/v1/namespaces/abcdesktop/pods?timeoutSeconds=10&watch=True 
-                # (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f14fc0cf6d0>: Failed to establish a new connection: [Errno 111] Connection refused'))
                 self.logger.fatal( e )
-                self.logger.fatal( f"ODKubernetesWatcher will not die but the api server is not responding {type(e)}, sleeping for 60 s" )
-                time.sleep( 60 ) # wait a minute 
+                self.logger.fatal( f"ODKubernetesWatcher will not die but the api server is not responding {type(e)}, sleeping for {_backoff} s" )
+                time.sleep( _backoff )
+                _backoff = min( _backoff * 2, self._backoff_max ) 
             
             except client.exceptions.ApiException as e:
                 self.logger.error( f"{type(e)} {e}" )
@@ -108,14 +110,15 @@ class ODKubernetesWatcher:
                     break # break this for loop and retry watch streaming
 
                 self.logger.error( f"{type(e)} {e}" )
-                time.sleep( 60 ) # wait a minute to prevent log avalanche
+                time.sleep( _backoff )  # exponential backoff to prevent log avalanche
+                _backoff = min( _backoff * 2, self._backoff_max )
 
             except Exception as e:
                 self.logger.error( f"{type(e)} {e}" )
-                time.sleep( 60 ) # wait a minute to prevent log avalanche
+                time.sleep( _backoff )  # exponential backoff to prevent log avalanche
+                _backoff = min( _backoff * 2, self._backoff_max )
                     
     def start(self):
-        self.logger.debug('watcher thread is starting')
         self.thead_event = threading.Thread(target=self.loopforevent)
         self.thead_event.start() # infinite loop until events.close()
 

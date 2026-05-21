@@ -1,13 +1,9 @@
 
 
 import logging
-from typing_extensions import assert_type
 import datetime
 import cherrypy
-
 import oc.cherrypy
-import oc.logging
-
 from oc.od.desktop import ODDesktop
 from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 from oc.od.services import services
@@ -16,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 def filter_user_for_history(auth:AuthInfo, user:AuthUser):
-    assert_type( auth, AuthInfo )
-    assert_type( user, AuthUser )
+    assert isinstance(auth, AuthInfo), f"auth has invalid type {type(auth)}, AuthInfo is expected"
+    assert isinstance(user, AuthUser), f"user has invalid type {type(user)}, AuthUser is expected"  
     filtered_user =  {
         'userid': user.get('userid'),
         'name': user.get('name'),
@@ -38,6 +34,9 @@ def addstartnewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDes
         desktop (ODDesktop): ODDesktop
         isgarbaged (bool, isgarbaged): _description_. Defaults to None.
     """
+    assert isinstance(auth, AuthInfo), f"auth has invalid type {type(auth)}, AuthInfo is expected"
+    assert isinstance(user, AuthUser), f"user has invalid type {type(user)}, AuthUser is expected"  
+ 
     addnewentryindesktophistory( auth, user, desktop, eventtype='start', isgarbaged=isgarbaged)
 
 def addresumenewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDesktop, isgarbaged:bool=None ):
@@ -60,13 +59,17 @@ def addstopnewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDesk
         desktop (ODDesktop): ODDesktop
         isgarbaged (bool, optional): isgarbaged. Defaults to False.
     """
+    assert isinstance(auth, AuthInfo), f"auth has invalid type {type(auth)}, AuthInfo is expected"
+    assert isinstance(user, AuthUser), f"user has invalid type {type(user)}, AuthUser is expected"  
+    assert isinstance(desktop, ODDesktop), f"desktop has invalid type {type(desktop)}, ODDesktop is expected"
+
     addnewentryindesktophistory( auth, user, desktop, eventtype='stop', isgarbaged=isgarbaged)
 
 def addnewentryinloginhistory(auth:AuthInfo, user:AuthUser): 
 
-    assert_type( auth, AuthInfo )
-    assert_type( user, AuthUser )
-
+    assert isinstance(auth, AuthInfo), f"auth has invalid type {type(auth)}, AuthInfo is expected"
+    assert isinstance(user, AuthUser), f"user has invalid type {type(user)}, AuthUser is expected"  
+ 
     # read client ip source addr
     webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
 
@@ -75,7 +78,7 @@ def addnewentryinloginhistory(auth:AuthInfo, user:AuthUser):
 
     # build an accounting data
     datadict={  **user_history,
-                'date': datetime.datetime.utcnow(),
+                'date': datetime.datetime.now(datetime.UTC),
                 'useragent': cherrypy.request.headers.get('User-Agent', None),
                 'ipaddr': webclient_sourceipaddr,
                 'type': 'login'
@@ -88,9 +91,9 @@ def addnewentryinloginhistory(auth:AuthInfo, user:AuthUser):
 
 def addnewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDesktop, eventtype:str=None, isgarbaged:bool=False ): 
 
-    assert_type( auth, AuthInfo )
-    assert_type( user, AuthUser )
-    assert_type( desktop, ODDesktop )
+    assert isinstance(auth, AuthInfo), f"auth has invalid type {type(auth)}, AuthInfo is expected"
+    assert isinstance(user, AuthUser), f"user has invalid type {type(user)}, AuthUser is expected"  
+    assert isinstance(desktop, ODDesktop), f"desktop has invalid type {type(desktop)}, ODDesktop is expected"
 
     # read client ip source addr
     webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
@@ -103,7 +106,7 @@ def addnewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDesktop,
                 'isgarbaged': isgarbaged,
                 'eventtype': eventtype,
                 'desktop_id': desktop.id,
-                'date': datetime.datetime.utcnow(),
+                'date': datetime.datetime.now(datetime.UTC),
                 'useragent': cherrypy.request.headers.get('User-Agent', None),
                 'ipaddr': webclient_sourceipaddr,
                 'node': desktop.nodehostname,

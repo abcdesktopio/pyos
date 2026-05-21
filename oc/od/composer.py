@@ -15,7 +15,6 @@
 #
 import logging
 import ua_parser
-from typing_extensions import assert_type
 
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
@@ -39,6 +38,12 @@ import subprocess
 import threading
 import json
 
+from concurrent.futures import ThreadPoolExecutor
+
+# Create a pool ONCE at module load
+_WEBHOOK_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='webhook')
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,26 +54,6 @@ logger = logging.getLogger(__name__)
 def selectOrchestrator():
     myOrchestrator = oc.od.orchestrator.selectOrchestrator()
     return myOrchestrator
-
-
-def securitypoliciesmatchlabel( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
-    assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
-    assert isinstance(authinfo, AuthInfo), f"authinfo is not a AuthInfo {type(authinfo)}"
-    if not isinstance(labels_filter_list, list):
-        return True
-
-    labels_authinfo = authinfo.get_labels().keys()
-    labels_desktop  = desktop.labels.keys()
-    matches = {}
-    for require_label in labels_filter_list:
-        if require_label in labels_authinfo.keys():
-            matches[require_label] = False
-            if require_label in labels_desktop.keys():
-                matches[require_label] =True
-
-    logger.debug( f"checking label matching {matches}" )
-    result = all( matches.values() )
-    return result
 
 def securitypoliciesmatchlabelvalue( desktop:ODDesktop, authinfo:AuthInfo, labels_filter_list:list ) -> bool:
     assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
@@ -100,6 +85,8 @@ def parse_user_agent_os_family()->str:
     os_family = None # default value as fallback
     try:
         user_agent = oc.cherrypy.getuseragent()
+        if isinstance(user_agent, str):
+            user_agent = user_agent[:512]  # guard against pathological UA strings
         ua_parsed = ua_parser.parse(user_agent)
         if isinstance( ua_parsed, ua_parser.core.Result):
             os_family = ua_parsed.os.family.replace(' ', '').lower()
@@ -215,11 +202,18 @@ def runwebhook( c, messageinfo=None ):
             webhook_create = [ webhook_create ]
 
         if isinstance(webhook_create, list):
-            bReturn = True # need to call a command
-            for webhook_command in webhook_create:
+            bReturn = True
+            for webhook_command in webhook_create[:16]:  # limit the list length
                 logger.debug( f"calling webhook cmd  {webhook_command}" )
-                t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
-                t1.start()
+                # Submit to the pool instead of creating a new thread
+                _WEBHOOK_EXECUTOR.submit(callwebhook, webhook_command, messageinfo)
+
+        # if isinstance(webhook_create, list):
+        #    bReturn = True # need to call a command
+        #    for webhook_command in webhook_create:
+        #        logger.debug( f"calling webhook cmd  {webhook_command}" )
+        #        t1=threading.Thread(target=callwebhook, args=[webhook_command, messageinfo])
+        #        t1.start()
 
         webhook_destroy = c.webhook.get('destroy')
         if webhook_destroy :
@@ -301,48 +295,6 @@ def get_desktop_resources_usage(desktop_name:str):
     if not isinstance( authinfo, AuthInfo) or not isinstance( userinfo, AuthUser) :
         raise ODError( status=404, message='desktop not found')
     return myOrchestrator.getdesktop_resources_usage(authinfo,userinfo)
-
-
-def fakednsquery( userid ):
-    logger.debug( locals() )
-    ipdaddr = None
-    
-    # read interface name to to get ip addr
-    dnsinterface_name = oc.od.settings.fakedns.get('interfacename')
-    if not isinstance( dnsinterface_name , str ):
-        raise ODError( status=400, message=f"fakednsquery has invalid 'interfacename' value 'str' is expected type={type(dnsinterface_name)} in configuration file")
-
-    # fake an userinfo object
-    myDesktop = None
-    myOrchestrator = selectOrchestrator()   
-    # try to find label value with insensitive case, lower and upper case
-    searchuserlist = [ userid, userid.lower(), userid.upper() ]
-    logger.debug( f"try to query {searchuserlist}" )
-    for nocaseuserid in searchuserlist:
-        userinfo = AuthUser( { 'userid': nocaseuserid } )
-        myDesktop = myOrchestrator.findDesktopByUser(authinfo=None, userinfo=userinfo )
-        if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
-            break
-
-    if not isinstance( myDesktop, oc.od.desktop.ODDesktop ):
-        logger.debug( f"findDesktopByUser {userid} return not found" )
-        return None
-
-    desktop_interfaces = myDesktop.desktop_interfaces
-    if not isinstance( desktop_interfaces, dict ):
-        logger.debug( f"desktop has no desktop_interfaces desktop_interfaces={desktop_interfaces}" )
-        return None
-    
-    # read the ip value of remappded name of dnsinterface_name
-    logger.debug( f"dnsinterface_name={dnsinterface_name}" )
-    interface = desktop_interfaces.get( dnsinterface_name )
-    logger.debug( f"desktop has desktop_interfaces={interface}" )
-    if isinstance( interface, dict ):
-        ipdaddr = interface.get('ips')
-        if isinstance( ipdaddr, list ):
-            ipdaddr = ipdaddr[0]
-
-    return ipdaddr
 
 def getdesktopdescription( authinfo, userinfo ):
     description = {}
@@ -515,7 +467,7 @@ def logContainerApp(authinfo, userinfo, podname, containerid):
     return result
 
 
-def removeContainerApp(authinfo, userinfo, podname, container_id):
+def removeContainerApp(authinfo:AuthInfo, userinfo:AuthUser, podname, container_id):
     logger.info('removeContainerApp')
 
     # new Orchestrator Object
@@ -534,19 +486,19 @@ def removeContainerApp(authinfo, userinfo, podname, container_id):
     result = myOrchestrator.removeContainerApp( authinfo, userinfo, podname, container_id )
     return result
 
-def getsecretuserinfo( authinfo, userinfo ):
+def getsecretuserinfo( authinfo:AuthInfo, userinfo:AuthUser ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     secretuserinfo = myOrchestrator.getsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
-def getldifsecretuserinfo( authinfo, userinfo ):
+def getldifsecretuserinfo( authinfo:AuthInfo, userinfo:AuthUser ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     secretuserinfo = myOrchestrator.getldifsecretuserinfo( authinfo, userinfo )
     return secretuserinfo
 
-def listContainerApps(authinfo, userinfo):
+def listContainerApps(authinfo:AuthInfo, userinfo:AuthUser):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )     
@@ -557,7 +509,7 @@ def listContainerApps(authinfo, userinfo):
 
 
 
-def envContainerApp(authinfo, userinfo, podname, containerid ):
+def envContainerApp(authinfo:AuthInfo, userinfo:AuthUser, podname:str, containerid ):
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()   
     myDesktop = myOrchestrator.findDesktopByUser( authinfo, userinfo )
@@ -573,7 +525,7 @@ def envContainerApp(authinfo, userinfo, podname, containerid ):
     result = myOrchestrator.envContainerApp( authinfo, userinfo, podname, containerid )
     return result
 
-def createExecuteEnvironment(authinfo, userinfo, app=None ):
+def createExecuteEnvironment(authinfo:AuthInfo, userinfo:AuthUser, app=None ):
     # build env dict
     # add environment variables        
     # get env from authinfo 
@@ -620,7 +572,7 @@ def createExecuteEnvironment(authinfo, userinfo, app=None ):
 
     return env
 
-def createDesktopArguments( authinfo, userinfo, args ):
+def createDesktopArguments( authinfo:AuthInfo, userinfo:AuthUser, args:dict )-> dict:
     # build env dict
     # add environment variables   
     env = createExecuteEnvironment( authinfo, userinfo  )
@@ -756,11 +708,11 @@ def openapp( auth, user={}, kwargs={} ):
     # default return value appinstancestatus dict format to json format
     return appinstancestatus.to_dict()
 
-def callwebhook(webhookcmd, messageinfo=None, timeout=60):
+def callwebhook(webhookcmd:str, messageinfo=None, timeout:int=60):
     logger.debug( f"callwebhook exec {webhookcmd}" )
     exitCode = -1
     try :
-        proc = subprocess.run(webhookcmd, timeout=timeout, stdout=subprocess.PIPE )
+        proc = subprocess.run(webhookcmd.split(), timeout=timeout, stdout=subprocess.PIPE, shell=False)
         if isinstance( proc, subprocess.CompletedProcess) :
             proc.check_returncode()
             if messageinfo:
@@ -773,14 +725,14 @@ def callwebhook(webhookcmd, messageinfo=None, timeout=60):
                 messageinfo.push("e.Webhooking updated service error, please read the log file ")
     except subprocess.CalledProcessError as e:
         if messageinfo:
-            messageinfo.push(f"e.Webhooking updated service error {e}" )
+            messageinfo.push(f"e.Webhooking updated service error" )
         logger.error( f"command failed CalledProcessError {webhookcmd} error={e}")
     except subprocess.TimeoutExpired as e :
         logger.error( f"command TimeoutExpired {webhookcmd} error={e}" )
     except Exception as e:
         logger.error( f"command exception {webhookcmd} error={e}" )
         if messageinfo:
-            messageinfo.push(f"e.Webhooking command exception error={e}" )
+            messageinfo.push(f"e.Webhooking command exception" )
         logger.error( e )
     return exitCode
 
@@ -806,7 +758,7 @@ def notify_user_from_pod_application( pod_application, message:str )->None:
             logger.error( f"image {image} is not found by find_app_by_id")
         myOrchestrator.notify_user( myDesktop, 'container', data )
 
-def notify_user(  authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )->None:
+def notify_user( authinfo:AuthInfo, userinfo:AuthUser, method:str, data:json )->None:
     """[notify_user]
         Send a notify message to a userid
     Args:
@@ -855,10 +807,10 @@ def garbagecollector( expirein:int, nodename:str=None, force:bool=False, snapsho
 
     for label_selector in list_label_selector:
         # list all graphical pods 
-        myPodList = myOrchestrator.kubeapi.list_namespaced_pod(myOrchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
+        myPodList = myOrchestrator.kubeapi.list_namespaced_pod(myOrchestrator.namespace, label_selector=label_selector, field_selector=field_selector, timeout_seconds=180)
         if isinstance( myPodList, V1PodList):
             for pod in myPodList.items:
-                try: 
+                try:
                     isgarbagable = myOrchestrator.isgarbagable( pod, expirein, force )
                     myOrchestrator.logger.info( f"{pod.metadata.name} isgarbagable return {isgarbagable}" )
                     if isgarbagable is True:

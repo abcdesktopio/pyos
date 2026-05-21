@@ -26,8 +26,8 @@ class ODJWToken( object):
         # prefere if bits length is to small
         # self.algorithms=['HS256']
         self.algorithms=['RS256'] 
-        jwt_user_privatekeyfile    = config.get('jwtuserprivatekeyfile')
-        jwt_user_publickeyfile     = config.get('jwtuserpublickeyfile')
+        jwt_user_privatekeyfile = config.get('jwtuserprivatekeyfile')
+        jwt_user_publickeyfile  = config.get('jwtuserpublickeyfile')
 
         # load private key
         f = open(jwt_user_privatekeyfile, 'r')        
@@ -45,7 +45,7 @@ class ODJWToken( object):
         self.leeway = int( config.get('leeway', 20) )
 
 
-    def encode( self, auth, user, roles ):
+    def encode( self, auth:dict, user:dict, roles:dict )->str:
         now = int( time.time() )
         expire_in = now + self._exp
         token = { 
@@ -59,10 +59,12 @@ class ODJWToken( object):
         encoded_jwt = jwt.encode( payload=token , key=self.jwt_privatekey, algorithm=self.algorithms[0])
         return encoded_jwt
 
-    def decode( self, payload ):
+    def decode( self, payload:str )->dict:
         data = None
-        assert isinstance( payload, str ), 'invalid payload data'
-
+         
+        if not isinstance( payload, str ):
+            raise TypeError(f'invalid payload data gets {type(payload)}, str is expected')
+        
         # There is no public or private key concept, all keys are private   
         # pyos use a the private key and the public key  
         # 

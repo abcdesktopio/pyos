@@ -32,8 +32,10 @@ class KeyController(BaseController):
     @cherrypy.expose
     def key(self, format='rsa', length='1024'):
         ''' return a jwt with public key in payload'''
+        self.is_permit_request()
         length = int( length )
-        self.is_permit_request()       
+        if length not in [2048, 4096]:
+            raise cherrypy.HTTPError(400)   
         jwt = oc.od.services.services.keymanager.encode( length=length)
         cherrypy.response.headers['Content-Type'] = 'application/jwt'
         return jwt

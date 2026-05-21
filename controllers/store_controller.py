@@ -35,8 +35,10 @@ class StoreController(BaseController):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def set(self):
-        # Check auth 
+        
+        # can raise exception 
         (auth, user, roles ) = self.validate_env()
+
         arguments = cherrypy.request.json
         if not isinstance(arguments,dict) :
             return Results.error( message='invalid parameters' )
@@ -57,8 +59,9 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     def get(self):
 
-        # Check auth 
+        # can raise exception 
         (auth, user, roles ) = self.validate_env()
+
         arguments = cherrypy.request.json
 
         if not isinstance(arguments,dict) :
@@ -93,22 +96,27 @@ class StoreController(BaseController):
     @cherrypy.tools.json_in()
     @cherrypy.tools.allow(methods=['POST'])
     def getcollection(self):
-        (auth, user, roles) = self.validate_env()
+        
+        # can raise exception 
+        (auth, user, roles ) = self.validate_env()
         userid = user.userid
         arguments = cherrypy.request.json
+        
         if not isinstance(arguments,dict) :
             raise cherrypy.HTTPError( status=400, message='bad request invalid parameters')
+        
         key = arguments.get('key')
-
         # only key 'loginHistory' or 'callHistory' is allowed
         if key not in ['loginHistory', 'callHistory']:
             raise cherrypy.HTTPError( status=400, message='denied key value')
         collection =  self._getcollection( databasename=key, collectionname=userid )
         return collection
     
-    def _getcollection(self, databasename, collectionname):        
-        assert isinstance( databasename, str), f"invalid databasename {type(databasename)}"
-        assert isinstance( collectionname, str), f"invalid databasename {type(collectionname)}"
+    def _getcollection(self, databasename:str, collectionname:str)->dict:
+        if not isinstance( databasename, str):
+            raise ValueError(f"invalid databasename {type(databasename)}")
+        if not isinstance( collectionname, str):
+            raise ValueError(f"invalid collectionname {type(collectionname)}")
         value = services.datastore.getcollection(databasename=databasename, collectionname=collectionname)
         if value is None:
             raise cherrypy.HTTPError( status=404, message=f"{collectionname} not found")

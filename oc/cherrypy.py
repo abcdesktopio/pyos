@@ -14,7 +14,6 @@
 import logging
 import re
 import cherrypy
-import cherrypy.lib.sessions
 import netaddr
 from cherrypy._cpdispatch import Dispatcher
 
@@ -60,9 +59,13 @@ def getuseragent():
     user_agent = cherrypy.request.headers.get('User-Agent')
     return user_agent
 
+def getxforwardedfor():
+    xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
+    return xforwardedfor
+
 def getclientxforwardedfor_listip():
     clientiplist = []
-    xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
+    xforwardedfor = getxforwardedfor()
     if isinstance(xforwardedfor, str):
         clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
         # Check if clientip is an ipAddr 
@@ -86,9 +89,17 @@ def getclientxforwardedfor_listip():
 
 def getclientxforwardedfor_ip():
     clientip = None
-    xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
+    xforwardedfor = getxforwardedfor()
     if isinstance(xforwardedfor, str):
         try:
+            # syntax
+            # X-Forwarded-For: <client>, <proxy>
+            # X-Forwarded-For: <client>, <proxy>, …, <proxyN>
+            #
+            # X-Forwarded-For: 2001:db8:85a3:8d3:1319:8a2e:370:7348
+            # X-Forwarded-For: 203.0.113.195
+            # X-Forwarded-For: 203.0.113.195, 2001:db8:85a3:8d3:1319:8a2e:370:7348
+            #
             # Check if clientip is an ipAddr 
             clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
             # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
@@ -97,11 +108,11 @@ def getclientxforwardedfor_ip():
                 ipaddr = netaddr.IPAddress( clientiplistxforwardedfor[0] )
                 # reconvert to string make sure to remove garbage data 
                 # this is not dummy
-                # you nedd to check if the str is a true ipaddress  
+                # you need to check if the str is a true ipaddress  
                 # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
                 # str( ipaddr ) returns '127.0.0.1'
                 clientip = str( ipaddr )
-
+                
         # No logging is possible inside getclientipaddr
         except netaddr.core.AddrFormatError: 
             # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
@@ -110,6 +121,37 @@ def getclientxforwardedfor_ip():
             pass
     return clientip
 
+
+def getproxy_ipaddr_from_xforwardedfor_header()->list:
+    """getproxy_ipaddr_from_xforwardedfor_header
+        return a list of proxy ip address from X-Forwarded-For header, 
+        empty list if no proxy ip address is found in X-Forwarded-For header, or if X-Forwarded-For header is not present  
+    Returns:
+    list: list of proxy ip address from X-Forwarded-For header, empty list if no proxy ip address is found in X-Forwarded-For header, or if X-Forwarded-For header is not present  
+    """
+    # get the client ip address from request headers
+    proxiesipaddrlist = []
+    xforwardedfor = getxforwardedfor()
+    if isinstance(xforwardedfor, str):
+        try:
+            # syntax
+            # X-Forwarded-For: <client>, <proxy>
+            # X-Forwarded-For: <client>, <proxy>, …, <proxyN>
+            #
+            # X-Forwarded-For: 2001:db8:85a3:8d3:1319:8a2e:370:7348
+            # X-Forwarded-For: 203.0.113.195
+            # X-Forwarded-For: 203.0.113.195, 2001:db8:85a3:8d3:1319:8a2e:370:7348
+            #
+            # Check if clientip is an ipAddr 
+            clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
+            for proxy in clientiplistxforwardedfor[1:]:
+                # there are some proxies in the X-Forwarded-For header
+                # checking for trusted proxy 
+                proxiesipaddrlist.append( proxy.strip() )
+        except Exception:
+            pass
+    return proxiesipaddrlist
+        
 def getclientipaddr_dict():
     """getclientipaddr_dict
         return a dict of all client ip 'X-Forwarded-For', X-Real-IP', and 'remoteip'

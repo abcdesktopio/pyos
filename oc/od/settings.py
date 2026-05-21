@@ -7,10 +7,15 @@ from cherrypy.lib.reprconf import Config
 from urllib.parse import urlparse
 import oc.pyutils as pyutils
 import base64
+from netaddr import IPNetwork
 
 logger = logging.getLogger(__name__)
 
+max_log_body_size = 2048 # max body size to log in trace_response, in bytes
+trusted_proxy_cidr = [] # list of trusted proxy cidr in string format, like ['192.168.0.0/24', '10.0.0.0/8'], used to check if the X-Forwarded-For header is spoofed
+ip_network_trusted_proxy_cidr = [] # list of IPNetwork object for trusted proxy cidr, used to check if the X-Forwarded-For header is spoofed 
 
+# Default configuration file name
 config  = {}	    # use for application config and global config
 gconfig = {}	    # use for global config
 
@@ -41,7 +46,7 @@ balloon_gidNumber = 4096            # default group id
 balloon_groupname = 'balloon'       # default group name
 balloon_loginname = 'balloon'       # default login name
 balloon_shell     = '/bin/bash'     # default shell
-balloon_password  = 'lmdpocpetit'   # default password
+balloon_password  = None            # default password set by config file 
 
 # default registry for snapshoted images dictionary or None 
 snapshot_mountpath = None # default mount path for containerd on ubuntu 
@@ -205,7 +210,7 @@ def init_defaulthostfqdn():
     """
     global default_host_url                 # default host url
     global default_host_url_is_securised    # default_host_url_is_securised
-    global default_geolocation_ipaddr            # default ip addr to fake real ip source in geoip
+    global default_geolocation_ipaddr       # default ip addr to fake real ip source in geoip
     global services_http_request_denied     # denied http request uri
 
 
@@ -802,7 +807,6 @@ def get_default_appdict():
     """    
     return dock
 
-
 def get_configuration_file_name():
     """get_configuration_file_name
 
@@ -834,6 +838,37 @@ def load_config():
     except Exception as e:
         logger.error(f"Failed to load configuration file {configpath} {e}")
         exit(-1)           
+
+
+def init_max_log_body_size():
+    global max_log_body_size
+    # 2KB by default, this is the max size of log body 
+    # if log body is bigger than this size, 
+    # it will be truncated and a warning will be logged
+    max_log_body_size = gconfig.get('max_log_body_size', 2048 ) 
+
+
+def init_trusted_proxy_cidr():
+    global trusted_proxy_cidr
+    global ip_network_trusted_proxy_cidr
+
+    ip_network_trusted_proxy_cidr = []
+    # by default, no trusted proxy, so use empty list
+    # if you use a reverse proxy, you should set this value to the CIDR of your reverse proxy
+    # for example, if your reverse proxy is in the same network as your application and has an IP address of 192.168.0
+    trusted_proxy_cidr = gconfig.get('trusted_proxy_cidr', [] )
+    logger.debug(f"trusted_proxy_cidr is set to {trusted_proxy_cidr}" ) 
+
+    # convert the trusted_proxy_cidr list as a network object for easy check if a ip is in the trusted proxy network
+    for cidr in trusted_proxy_cidr:
+        try:
+             # create IPNetwork object for each CIDR and check if CIDR is valid
+            ip_network_trusted_proxy_cidr.append(IPNetwork(cidr))
+        except ValueError as e:
+            logger.error(f"Invalid CIDR format in trusted_proxy_cidr: {cidr} - {e}")
+            exit(-1)
+
+
 
 def init_snapshot():
     """init_snapshot
@@ -872,6 +907,12 @@ def init():
     # load config file od.config
     # use global config and gconfig
     load_config() 
+
+    # init max_log_body_size
+    init_max_log_body_size()
+
+    # init trusted proxy cidr for reverse proxy support
+    init_trusted_proxy_cidr()
 
     # load passwd, group, shadow file
     init_localaccount()

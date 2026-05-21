@@ -64,7 +64,7 @@ def sendmessage( hostname:str, port:int, message:str='Hello graylog world', prot
 
     handler = lambda_handler( hostname, port)
     my_logger.addHandler(handler)
-    my_logger._log(level, message, None )
+    my_logger.log(level, message )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='graylog-tester', description='send a message using python graypy.GELF API')

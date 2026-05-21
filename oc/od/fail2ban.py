@@ -19,7 +19,7 @@ class ODFail2ban:
         self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl=mongodburl, mongodbparam=mongodbparam, databasename=self.databasename)
         self.collections_name = [ self.ip_collection_name, self.login_collection_name ]
         self.sanity_filter = {  
-            self.ip_collection_name:"0123456789.", 
+            self.ip_collection_name:"0123456789.:abcdefABCDEF", 
             self.login_collection_name:"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_\\/ " 
         }
         # create a new database instance
@@ -31,7 +31,13 @@ class ODFail2ban:
             self.init_collection( self.ip_collection_name )
             self.init_collection( self.login_collection_name )
 
-    def sanity( self, value, filter ):
+        # Persistent MongoClient reused for all operations (connection pool)
+        self.mongo_client = self.datastore.createclient(self.databasename)
+
+    def __del__(self):
+        self.mongo_client.close()
+
+    def sanity( self, value:str, filter:str )->bool:
         """sanity
 
         Args:
@@ -48,19 +54,17 @@ class ODFail2ban:
                 return False
         return True
 
-    def init_collection( self, collection_name ):
+    def init_collection( self, collection_name:str ):
         self.logger.debug(f"{self.databasename} {collection_name}")
-        mongo_client = self.datastore.createclient(self.databasename)
-        db = mongo_client[self.databasename]
+        db = self.mongo_client[self.databasename]
         col = db[collection_name]
         try:
             col.create_index( [( self.index_name, pymongo.ASCENDING )] )
             col.create_index( [( self.index_date, pymongo.DESCENDING )], expireAfterSeconds=self.banexpireAfterSeconds)
         except Exception as e:
             self.logger.info( e )
-        mongo_client.close()
 
-    def iscollection( self, collection_name ):
+    def iscollection( self, collection_name:str )->bool:
         bReturn = collection_name in self.collections_name
         return bReturn
 
@@ -79,19 +83,17 @@ class ODFail2ban:
         list_ban_dummy_ipaddr = self.listban_ip()
         self.logger.debug( f"dump list is {list_ban_dummy_ipaddr}")
         
-    def get_collection(self, collection_name ):
-        mongo_client = self.datastore.createclient(self.databasename)
-        db = mongo_client[self.databasename]
-        return db[collection_name]
+    def get_collection(self, collection_name:str):
+        return self.mongo_client[self.databasename][collection_name]
 
-    def fail( self, value, collection_name ):
+    def fail( self, value, collection_name:str ):
         myfail = None
         collection = self.get_collection( collection_name )
         bfind = collection.find_one({ self.index_name: value})
         myfail = self.updateorinsert( collection=collection, bUpdate=bfind, value=value, counter=1 )
         return myfail
 
-    def fail_ip( self, value ):
+    def fail_ip( self, value:str ):
 
         # if ban is not enable nothing to do
         if not self.enable: 
@@ -137,7 +139,7 @@ class ODFail2ban:
         return myban
 
 
-    def isban( self, value, collection_name ):
+    def isban( self, value:str, collection_name:str )->bool:
         """isban
 
         Args:
@@ -161,14 +163,18 @@ class ODFail2ban:
         return bReturn
 
     def updateorinsert( self, collection, bUpdate, value, counter ):
-        utc_timestamp = datetime.datetime.utcnow()
+        utc_timestamp = datetime.datetime.now(datetime.UTC)
         if bUpdate:
             count = bUpdate.get( self.counter, 0)
             if count >= self.failmaxvaluebeforeban:
                 self.logger.debug( f" {bUpdate.get(self.index_name)} has reach value {bUpdate.get(self.counter)} ")
-            q = collection.update_one({ self.index_name: value, self.index_date: utc_timestamp}, {'$inc' : { self.counter : counter } })
-        else: 
-            q = collection.insert_one({ self.index_name: value, self.index_date: utc_timestamp,  self.counter : counter })
+            # Filter only on id; use $set for the date so the TTL index refreshes
+            q = collection.update_one(
+                { self.index_name: value },
+                { '$inc': { self.counter: counter }, '$set': { self.index_date: utc_timestamp } }
+            )
+        else:
+            q = collection.insert_one({ self.index_name: value, self.index_date: utc_timestamp, self.counter: counter })
         return q
 
     def ban( self, value:str, collection_name:str )->dict:
@@ -187,12 +193,12 @@ class ODFail2ban:
             ban_result = { 'n': 1, 'ok': ban_ok }
         return ban_result
 
-    def drop( self, collection_name ):
+    def drop( self, collection_name:str ):
         collection = self.get_collection( collection_name )
         collection.drop()
         self.init_collection(collection_name=collection_name)
 
-    def unban( self, value,  collection_name ):
+    def unban( self, value:str,  collection_name:str )->dict:
         myban = {'n': 0, 'ok': 0}
         if not self.sanity( value, self.sanity_filter.get(collection_name)):
             self.logger.error("bad parameter sanity check")
@@ -207,7 +213,7 @@ class ODFail2ban:
             unban_result = { 'n': delete_one.raw_result.get('n'), 'ok': delete_one.raw_result.get('ok') }
         return unban_result
 
-    def listban( self, collection_name ):
+    def listban( self, collection_name:str )->list:
         ban_list = []
         collection = self.get_collection( collection_name )
         findall = collection.find()

@@ -39,28 +39,25 @@ class ODDesktopJWToken(object):
         self.algorithms=['RS256']  
         
         jwt_desktop_privatekeyfile    = config.get('jwtdesktopprivatekeyfile')
-        # jwt_desktop_publickeyfile     = config.get('jwtdesktoppublickeyfile')
         payload_desktop_publickeyfile = config.get('payloaddesktoppublickeyfile')
         self.rsa_encryption_protocol  = config.get('rsaencryptionprotocol', 'PKCS1_v1_5')
-        self.rsa_hash_protocol        = config.get('rsahashprotocol', 'SHA1')
-
+        self.rsa_hash_protocol        = config.get('rsahashprotocol', 'SHA256')
+        
         # read jwt_desktop_privatekeyfile
-        f = open(jwt_desktop_privatekeyfile, 'r')        
-        self.jwt_privatekey = f.read()
-        f.close()
+        with open(jwt_desktop_privatekeyfile, 'r') as f:
+            self.jwt_privatekey = f.read()
+        
+        # read payload_desktop_publickeyfile
+        with open(payload_desktop_publickeyfile, 'r') as f:
+            self.payload_desktop_publickeyfile = f.read()
 
+        # # uncomment to call decode method
+        # jwt_desktop_publickeyfile = config.get('jwtdesktoppublickeyfile')l decode me# thod
         #
-        # uncomment to call decode method
-        # readjwt_desktop_publickeyfile
-        # f = open(jwt_desktop_publickeyfile, 'r')        
+        # # read the jwt_desktop_publickeyfile
+        # f = open(jwt_desktop_publickeyfile, 'r')
         # self.jwt_publickey = f.read()
         # f.close()
-        #
-
-        # read payload_desktop_publickeyfile
-        f = open(payload_desktop_publickeyfile, 'r')        
-        self.payload_desktop_publickeyfile = f.read()
-        f.close()
 
     def exp(self):
         return self._exp

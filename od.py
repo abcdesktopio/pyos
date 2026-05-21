@@ -27,18 +27,11 @@ import oc.cherrypy
 import oc.od.settings as settings
 import oc.od.services as services
 
-# Load logging config ASAP !
-oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
 logger = logging.getLogger(__name__)
 
 # define each configration for API
 # app_config is the core service
 # img_config is file service to send icon static file 
-
-# Allow (partial) case-insensivity in URLs
-class APIDispatcher(Dispatcher):
-    def __call__(self, path_info):
-        return Dispatcher.__call__(self, path_info.lower()) 
 
 def api_handle_error():
     _ex_type, ex, _ex_tb = sys.exc_info()
@@ -64,23 +57,19 @@ def api_handle_error():
         message = 'Internal api server error'
 
     # return error dict json 
-    result = { 'status': status, 'message':message, 'exception':str(ex) }
+    # result = { 'status': status, 'message':message, 'exception':str(ex) }
+    result = { 'status': status, 'message':message }
     build_error = json.dumps( result ) + '\n'
     cherrypy.response.headers['Content-Type'] = 'application/json;charset=utf-8'
     cherrypy.response.status = status 
     cherrypy.response.body = build_error.encode('utf-8')
 
 
-def api_build_error(status, message, traceback, version):
-    _ex_type, ex, _ex_tb = sys.exc_info()
-
-    result = {  'status': cherrypy.response.status,  
-                'message':message 
-    }
-    
-    log_result = { 'status': cherrypy.response.status,  'message':message, 'traceback':str(traceback), 'version':version }
-    if cherrypy.config.get('tools.log_full.on'):
-        logger.info( log_result )
+def api_build_error(status, message:str, traceback:str, version:str)->str:
+    result =     { 'status': cherrypy.response.status, 'message':message }
+    # 'exception': str(ex), 'traceback':str(traceback),'version':version
+    log_result = { 'status': cherrypy.response.status, 'message':message }
+    logger.error(message, exc_info=True)
     build_error = json.dumps( result ) + '\n'
     cherrypy.response.headers['Content-Type'] = 'application/json'
     return build_error.encode('utf-8')
@@ -104,7 +93,7 @@ def img_handle_404_application(status, message, traceback, version):
     ''' return img/app/application-default-icon.svg '''
     curdir = os.getcwd()
     path = os.path.join(curdir, 'img/app', 'application-default-icon.svg')
-    # overwrite 404 to 200 
+    # overwrite 404 to 200
     # if status is 404 then body is not aways display
     cherrypy.response.status = 200
     cherrypy.response.message = 'OK'
@@ -136,37 +125,53 @@ class API(object):
     @staticmethod
     @cherrypy.tools.register('before_handler')
     def trace_request():
+        """ trace request """
+        json_data = None
+        if  hasattr(cherrypy.request, 'json'):
+            # copy dict cherrypy.request.json to keep it unchanged
+            json_data = cherrypy.request.json
+            # auth may contains password data do not log password data 
+            # cherrypy.request.path_info in [ '/auth/auth', '/auth/autologin', '/auth/logmein' ]
+            json_data = cherrypy.request.json
+            if  isinstance(cherrypy.request.json, dict):
+                
+                # hide authorization data in log message if exist in cherrypy.request.json['result']['authorization']
+                # {"status": 200, "result": {"authorization": "eyJ.......-uVvWw", "expire_in": 420}, "message": "ok"}
+                if cherrypy.request.json.get('result', {}).get('authorization'):
+                    json_data = cherrypy.request.json.copy()
+                    json_data['result']['authorization'] = 'XXXXXXXXXXX'
+            
+                # check if password data exist in cherrypy.request.json 
+                # and if it exist, replace it by XXXXXXXXXXXXX in log message
+                # logmessage is the message to log with hidden password value
+                if cherrypy.request.json.get('password'):
+                    json_data = cherrypy.request.json.copy()
+                    # replace password data by XXXXXXXXXXXXX in jsonhidendata object
+                    json_data['password'] = 'XXXXXXXXXXX'
         
         logmessage = cherrypy.request.path_info
-
-        if hasattr(cherrypy.request, 'json'):
-            # if request is an auth request
-            if cherrypy.request.path_info == '/auth/auth' :
-                # auth may contains password data
-                # do not log password data 
-                # copy dict cherrypy.request.json to keep it unchanged
-                jsonhidendata = cherrypy.request.json.copy()
-                # replace password data by XXXXXXXXXXXXX in jsonhidendata object
-                jsonhidendata['password'] = 'XXXXXXXXXXX'
-                # log data message with the hidden passord value
-                logmessage = logmessage + f" {jsonhidendata}"
-            else:
-                logmessage = logmessage + f" {cherrypy.request.json}"
-
+        if json_data is not None:
+            logmessage += f" {json_data}"
+        # log the request
         logger.info(logmessage)
 
     @staticmethod    
     @cherrypy.tools.register('on_end_request')
-    def trace_response():   
+    def trace_response():
         #
         # do not trace the response if cherrypy.response.notrace is set
         if hasattr(cherrypy.response, 'notrace'):
             return
 
+        MAX_LOG_BODY = settings.max_log_body_size
+        # get the body of the response and log it, but limit the size to MAX_LOG_BODY bytes
         message = b''
         if isinstance( cherrypy.response.body, list):
             for m in cherrypy.response.body:
                 message = message + m.rstrip(b' ')
+                if len(message) >= MAX_LOG_BODY:
+                    message = message[:MAX_LOG_BODY] + b'...[truncated]'
+                    break
             message = message.rstrip(b' \n')
 
         logmessage = f"{cherrypy.request.path_info} {message}"
@@ -185,13 +190,12 @@ class API(object):
             load json data file version.json in current directory
             return { 'date': 'undefined', 'commit': 'undefined' } if error
         """
-
+        
         data = { 'date': 'undefined', 'commit': 'undefined' }
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
-            json_file = open('version.json')
-            data = json.load(json_file)
-            json_file.close()
+            with open('version.json') as json_file:
+                data = json.load(json_file)
         except Exception as e:  
             logger.error( e )
         return data
@@ -254,6 +258,8 @@ def run_server():
     cherrypy.engine.block()
 
 def main(argv):
+    # Load logging config 
+    oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
     # Load config file od.config
     settings.init()    
     # Init services 
@@ -263,3 +269,16 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
+# In od.py, register a before_handler tool
+# MAX_REQUESTS_PER_WINDOW=1000
+# WINDOW_SECONDS=60
+# @cherrypy.tools.register('before_handler')
+# def rate_limit():
+#    ip = oc.cherrypy.getclientipaddr()
+#    key = f"rl:{ip}"
+#    count = services.sharecache.get(key) or 0
+#    if int(count) > MAX_REQUESTS_PER_WINDOW:
+#        raise cherrypy.HTTPError(429, "Too Many Requests")
+#    services.sharecache.set(key, int(count) + 1, expire=WINDOW_SECONDS)
+
