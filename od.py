@@ -28,6 +28,7 @@ import oc.od.settings as settings
 import oc.od.services as services
 
 logger = logging.getLogger(__name__)
+version_data = { 'date': 'undefined', 'commit': 'undefined' }
 
 # define each configration for API
 # app_config is the core service
@@ -180,25 +181,34 @@ class API(object):
     
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    @cherrypy.tools.allow(methods=['GET', 'POST']) 
+    @cherrypy.tools.allow(methods=['GET']) 
     def version(self):
         """version
 
         Returns:
             dict: content of version.json file in current directory
-            return the pyos build information as json format
-            load json data file version.json in current directory
-            return { 'date': 'undefined', 'commit': 'undefined' } if error
         """
-        
-        data = { 'date': 'undefined', 'commit': 'undefined' }
+        return version_data
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.allow(methods=['GET']) 
+    def openapi(self):
+        """openapi
+
+        Returns:
+            load json data file openapi.json in current directory
+            return {} if error
+        """
+        data = {}
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
-            with open('version.json') as json_file:
+            with open('openapi.json') as json_file:
                 data = json.load(json_file)
         except Exception as e:  
-            logger.error( e )
+            logger.error( f"Error loading openapi information from openapi.json: {e}" )
         return data
+    
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['GET','POST'])
@@ -254,16 +264,37 @@ def run_server():
     cherrypy.engine.start()
     # infite loop
     logger.info("Waiting for requests.")
-
     cherrypy.engine.block()
 
+
+def get_current_version_from_file()->dict:
+    """get_current_version_from_file read version.json file in current directory with date and commit information
+    """
+    global version_data
+    version_file = 'version.json'
+    version_data = { 'date': 'undefined', 'commit': 'undefined' }
+    try:
+        # The input encoding should be UTF-8, UTF-16 or UTF-32.
+        with open(version_file) as json_file:
+            version_data = json.load(json_file)
+    except Exception as e:  
+        logger.error( f"Error loading version information from {version_file}: {e}" )
+    return version_data
+
+
+def init_server():
+    # Load version information from version.json file
+    get_current_version_from_file()
+
 def main(argv):
-    # Load logging config 
+    # Load logging config
     oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
-    # Load config file od.config
-    settings.init()    
+    # Init settings and load config file od.config
+    settings.init()
     # Init services 
     services.init()
+    # Init server
+    init_server()
     # Let's run
     run_server()
 
