@@ -1,7 +1,7 @@
 urllib3>=2.5.0 
 haversine==2.8.1
 chevron==0.14.0
-kubernetes<=36.0.0
+kubernetes<36.0.0
 CherryPy>=18.10.0
 cryptography>=44.0.1
 pycryptodome>=3.21.0
