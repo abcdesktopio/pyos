@@ -41,9 +41,9 @@ RUN apk add --no-cache \
 	musl-dev \
 	py3-ldap \
 	py3-ldap-pyc \
-    	py3-python-gssapi-pyc \
-    	py3-python-gssapi \
-    	krb5-dev \
+    py3-python-gssapi-pyc \
+    py3-python-gssapi \
+    krb5-dev \
 	geoip-dev \
 	openldap-dev
 
@@ -81,11 +81,18 @@ RUN pyasn_util_download.py --latestv46 --filename rib.bz2 && \
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
 	krb5-dev \
-    	gcc \
-    	musl-dev \
-    	krb5-dev \
-    	geoip-dev \
-    	openldap-dev
+    gcc \
+    musl-dev \
+    krb5-dev \
+    geoip-dev \
+    openldap-dev
+
+# update for security path 
+# CVE-2026-23949 
+# CVE-2026-24049
+RUN apk add --no-cache --update  \
+    py3-wheel \
+    py3-jaraco.context
 
 # create log directory
 RUN mkdir -p /var/pyos/logs
