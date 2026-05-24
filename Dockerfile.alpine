@@ -87,7 +87,7 @@ RUN apk del --no-cache \
     geoip-dev \
     openldap-dev
 
-# update for security path 
+# update for security fix
 # CVE-2026-23949 
 # CVE-2026-24049
 RUN apk add --no-cache --update  \
