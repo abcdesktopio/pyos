@@ -3224,7 +3224,7 @@ class ODLdapAuthProvider(ODAuthProviderBase):
 
                 #
                 # let's bind to the ldap server conn.open()
-                self.logger.debug( f"binding to the ldap server {server_name}")
+                # self.logger.debug( f"binding to the ldap server {server_name}")
                 conn.bind()
                 time_after_connection = datetime.datetime.now().timestamp()
                 diff_time_connection = (time_after_connection - time_before_connection)*1000
