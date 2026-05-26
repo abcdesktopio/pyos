@@ -184,11 +184,14 @@ class API(object):
     @cherrypy.tools.allow(methods=['GET']) 
     def version(self):
         """version
-
+            Keep this code for compatibility with old version of od.py, 
+            but for security reason, do not return real version information in /version API, 
+            ALWAYS return { 'date': None, 'commit': None }
+            Please use /user/version API to get real version information, this API is protected by authentication and authorization check
         Returns:
             dict: content of version.json file in current directory
         """
-        return version_data
+        return { 'date': None, 'commit': None }
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -267,25 +270,6 @@ def run_server():
     cherrypy.engine.block()
 
 
-def get_current_version_from_file()->dict:
-    """get_current_version_from_file read version.json file in current directory with date and commit information
-    """
-    global version_data
-    version_file = 'version.json'
-    version_data = { 'date': 'undefined', 'commit': 'undefined' }
-    try:
-        # The input encoding should be UTF-8, UTF-16 or UTF-32.
-        with open(version_file) as json_file:
-            version_data = json.load(json_file)
-    except Exception as e:  
-        logger.error( f"Error loading version information from {version_file}: {e}" )
-    return version_data
-
-
-def init_server():
-    # Load version information from version.json file
-    get_current_version_from_file()
-
 def main(argv):
     # Load logging config
     oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
@@ -293,8 +277,6 @@ def main(argv):
     settings.init()
     # Init services 
     services.init()
-    # Init server
-    init_server()
     # Let's run
     run_server()
 

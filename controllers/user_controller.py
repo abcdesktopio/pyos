@@ -13,7 +13,7 @@
 #
 
 import logging
-import cherrypy		
+import cherrypy
 
 from oc.cherrypy import Results
 from oc.od.services import services
@@ -27,6 +27,7 @@ class UserController(BaseController):
 
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
+
 
     # @cherrypy.expose
     # @cherrypy.tools.json_out()
