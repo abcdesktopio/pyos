@@ -841,7 +841,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except Exception as e_in:
             # self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
             # use KUBE_CONFIG_DEFAULT_LOCATION = os.environ.get('KUBECONFIG', '~/.kube/config')
-            #self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
+            # self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
             try:
                 config.load_kube_config()
                 self.logger.debug( f"load_kube_config done" )
