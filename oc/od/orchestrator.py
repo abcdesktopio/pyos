@@ -3474,7 +3474,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     command=command,
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=list( list_containervolumeMounts.values()),
+                    list_volumeMounts=list( list_containervolumeMounts.values() ),
                     executeclass=executeclasse )
                 initContainers.append( init_container )
                 self.logger.debug( f"pod container added {currentcontainertype}" )
@@ -3586,8 +3586,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     currentcontainertype=currentcontainertype, 
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=list( list_containervolumeMounts.values(),
-                    executeclass=executeclasse )
+                    list_volumeMounts=list( list_containervolumeMounts.values() ),
+                    executeclass=executeclasse
                 )
                 pod_manifest['spec']['containers'].append( new_container )
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
