@@ -105,9 +105,8 @@ def img_handle_404_application(status, message, traceback, version):
 @oc.logging.with_logger()
 @cherrypy.config(**{ 
     'server.shutdown_timeout': 5,
-    'server.socket_port': 8000,
     'request.error_response': api_handle_error,
-    'request.body.maxbytes': 32768,
+    'request.body.maxbytes': 2097152, # 2M must be greater than the default applist size 1763525 Bytes https://raw.githubusercontent.com/abcdesktopio/images/refs/heads/main/appLists/appList.4.4.json 
     'error_page.default': api_build_error,
     'tools.trace_request.on': True,
     'tools.trace_response.on': True,
