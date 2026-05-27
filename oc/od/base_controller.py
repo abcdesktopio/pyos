@@ -250,10 +250,6 @@ class BaseController(object):
           self.logger.debug('')
           bReturn = False
           apikey = cherrypy.request.headers.get('X-API-Key') or cherrypy.request.headers.get('X-Api-Key')
-          if not isinstance(apikey, str):
-               return False
-          if len(apikey) == 0:
-               return False
           self.logger.debug( f"read http header apikey={apikey}" )
           for k in self.apikey:
                # self.logger.debug( f"compare apikey {k}={apikey}" )
@@ -275,10 +271,11 @@ class BaseController(object):
           is_ip_filter = self.ipfilter() # Check if the controller has an ip filter
           # if both filters are set, at least one must match
           # self.logger.debug( f"is_api_filter={is_api_filter}, is_ip_filter={is_ip_filter}" )
-          if not is_ip_filter:
-               self.raise_http_error_message( '403.7 - IP address access denied' )
-          if not is_api_filter: 
-               self.raise_http_error_message( '403.1 - Execute access forbidden' )
+          if not is_api_filter or not is_ip_filter:
+               if not is_ip_filter:
+                    self.raise_http_error_message( '403.7 - IP address access denied' )
+               if not is_api_filter: 
+                    self.raise_http_error_message( '403.1 - Execute access forbidden' )
                
           if isinstance( self.requestsallowed, dict ):
                # read the request path
