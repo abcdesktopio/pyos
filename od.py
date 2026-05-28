@@ -104,7 +104,6 @@ def img_handle_404_application(status, message, traceback, version):
 # main API class 
 @oc.logging.with_logger()
 @cherrypy.config(**{ 
-    'server.shutdown_timeout': 5,
     'request.error_response': api_handle_error,
     'request.body.maxbytes': 2097152, # 2M must be greater than the default applist size 1763525 Bytes https://raw.githubusercontent.com/abcdesktopio/images/refs/heads/main/appLists/appList.4.4.json 
     'error_page.default': api_build_error,
@@ -206,6 +205,9 @@ class API(object):
             return {} if error
         """
         data = {}
+        if os.environ.get('ABCDESKTOP_ENABLE_OPENAPI') is None:
+            logger.warning("OpenAPI is disabled, add environment variable ABCDESKTOP_ENABLE_OPENAPI=true to enable it")
+            return data
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
             with open('openapi.json') as json_file:
