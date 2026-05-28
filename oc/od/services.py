@@ -216,7 +216,7 @@ def init_infra():
     # read the snap registry secret name values to use snap feature if available
     myOrchestrator.init_snapregistry()
 
-    # reload default menu config because new features amy be available
+    # reload default menu config because new features may be available
     settings.init_menuconfig()
 
 

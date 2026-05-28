@@ -841,7 +841,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         except Exception as e_in:
             # self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
             # use KUBE_CONFIG_DEFAULT_LOCATION = os.environ.get('KUBECONFIG', '~/.kube/config')
-            #self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
+            # self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
             try:
                 config.load_kube_config()
                 self.logger.debug( f"load_kube_config done" )
@@ -3474,8 +3474,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     command=command,
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=list( list_containervolumeMounts.values() )
-                )
+                    list_volumeMounts=list( list_containervolumeMounts.values() ),
+                    executeclass=executeclasse )
                 initContainers.append( init_container )
                 self.logger.debug( f"pod container added {currentcontainertype}" )
             else:
@@ -3586,7 +3586,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     currentcontainertype=currentcontainertype, 
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=list( list_containervolumeMounts.values() )
+                    list_volumeMounts=list( list_containervolumeMounts.values() ),
+                    executeclass=executeclasse
                 )
                 pod_manifest['spec']['containers'].append( new_container )
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")

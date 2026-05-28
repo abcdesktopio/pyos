@@ -28,6 +28,7 @@ import oc.od.settings as settings
 import oc.od.services as services
 
 logger = logging.getLogger(__name__)
+version_data = { 'date': 'undefined', 'commit': 'undefined' }
 
 # define each configration for API
 # app_config is the core service
@@ -104,6 +105,7 @@ def img_handle_404_application(status, message, traceback, version):
 @oc.logging.with_logger()
 @cherrypy.config(**{ 
     'request.error_response': api_handle_error,
+    'request.body.maxbytes': 2097152, # 2M must be greater than the default applist size 1763525 Bytes https://raw.githubusercontent.com/abcdesktopio/images/refs/heads/main/appLists/appList.4.4.json 
     'error_page.default': api_build_error,
     'tools.trace_request.on': True,
     'tools.trace_response.on': True,
@@ -180,25 +182,40 @@ class API(object):
     
     @cherrypy.expose
     @cherrypy.tools.json_out()
-    @cherrypy.tools.allow(methods=['GET', 'POST']) 
+    @cherrypy.tools.allow(methods=['GET']) 
     def version(self):
         """version
-
+            Keep this code for compatibility with old version of od.py, 
+            but for security reason, do not return real version information in /version API, 
+            ALWAYS return { 'date': None, 'commit': None }
+            Please use /user/version API to get real version information, this API is protected by authentication and authorization check
         Returns:
             dict: content of version.json file in current directory
-            return the pyos build information as json format
-            load json data file version.json in current directory
-            return { 'date': 'undefined', 'commit': 'undefined' } if error
         """
-        
-        data = { 'date': 'undefined', 'commit': 'undefined' }
+        return { 'date': None, 'commit': None }
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.allow(methods=['GET']) 
+    def openapi(self):
+        """openapi
+
+        Returns:
+            load json data file openapi.json in current directory
+            return {} if error
+        """
+        data = {}
+        if os.environ.get('ABCDESKTOP_ENABLE_OPENAPI') is None:
+            logger.warning("OpenAPI is disabled, add environment variable ABCDESKTOP_ENABLE_OPENAPI=true to enable it")
+            return data
         try:
             # The input encoding should be UTF-8, UTF-16 or UTF-32.
-            with open('version.json') as json_file:
+            with open('openapi.json') as json_file:
                 data = json.load(json_file)
         except Exception as e:  
-            logger.error( e )
+            logger.error( f"Error loading openapi information from openapi.json: {e}" )
         return data
+    
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['GET','POST'])
@@ -254,14 +271,14 @@ def run_server():
     cherrypy.engine.start()
     # infite loop
     logger.info("Waiting for requests.")
-
     cherrypy.engine.block()
 
+
 def main(argv):
-    # Load logging config 
+    # Load logging config
     oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
-    # Load config file od.config
-    settings.init()    
+    # Init settings and load config file od.config
+    settings.init()
     # Init services 
     services.init()
     # Let's run

@@ -31,6 +31,7 @@ class CoreController(BaseController):
 
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
+        self.version_data = self.get_current_version_from_file()
 
     @cherrypy.expose
     @cherrypy.tools.json_out()
@@ -107,3 +108,30 @@ class CoreController(BaseController):
         except Exception as e:
             self.logger.error( f"getmessageinfo error {e}" )
         return lambdaroute
+    
+
+    def get_current_version_from_file(self)->dict:
+        """get_current_version_from_file read version.json file in current directory with date and commit information
+        """
+        version_file = 'version.json'
+        version_data = { 'date': 'undefined', 'commit': 'undefined' }
+        try:
+            # The input encoding should be UTF-8, UTF-16 or UTF-32.
+            with open(version_file) as json_file:
+                version_data = json.load(json_file)
+        except Exception as e:  
+            logger.error( f"Error loading version information from {version_file}: {e}" )
+        return version_data
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    # @cherrypy.tools.json_in()
+    def version(self):
+        """version
+
+        Returns:
+            dict: content of version.json file in current directory
+        """
+        # can raise exception
+        self.validate_env()
+        return self.version_data
