@@ -250,7 +250,8 @@ class BaseController(object):
           self.logger.debug('')
           bReturn = False
           apikey = cherrypy.request.headers.get('X-API-Key') or cherrypy.request.headers.get('X-Api-Key')
-          self.logger.debug( f"read http header apikey={apikey}" )
+          if apikey is None:
+               return bReturn
           for k in self.apikey:
                # self.logger.debug( f"compare apikey {k}={apikey}" )
                bReturn = hmac.compare_digest(k, apikey)
