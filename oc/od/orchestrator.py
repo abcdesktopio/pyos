@@ -2932,9 +2932,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # read desktop settings resources from executeclass
         if isinstance( executeclass, dict ):
             resources = executeclass.get('containers',{}).get(currentcontainertype,{}).get('resources',{})
+        # self.logger.debug(f"get_resources_for_container_type {currentcontainertype} is {resources}")
         # read desktop settings resources
         currentcontainertype_ressources = oc.od.settings.desktop_pod[currentcontainertype].get('resources')
         if isinstance( currentcontainertype_ressources, dict ):
+            # self.logger.debug(f"currentcontainertype_ressources {currentcontainertype} is {currentcontainertype_ressources}")
             resources.update(currentcontainertype_ressources)
         self.logger.debug(f"get_resources_for_container_type {currentcontainertype} return {resources}")
         return resources
@@ -3463,7 +3465,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     command=command,
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=list( list_containervolumeMounts.values() )
+                    list_volumeMounts=list(list_containervolumeMounts.values()),
+                    executeclass=executeclasse
                 )
                 initContainers.append( init_container )
                 self.logger.debug( f"pod container added {currentcontainertype}" )
@@ -3543,7 +3546,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 myuuid=myuuid,
                 envlist=envlist,
                 workingdir=env['HOME'],
-                list_volumeMounts=list( graphical_volumeMounts.values() ),
+                list_volumeMounts=list(graphical_volumeMounts.values()),
                 executeclass=executeclasse
             )
             # overwrite image value if a snapshoted image exists for this user
@@ -3574,7 +3577,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     currentcontainertype=currentcontainertype, 
                     myuuid=myuuid,
                     envlist=envlist,
-                    list_volumeMounts=list( list_containervolumeMounts.values() )
+                    list_volumeMounts=list(list_containervolumeMounts.values()),
+                    executeclass=executeclasse
                 )
                 pod_manifest['spec']['containers'].append( new_container )
                 self.logger.debug(f"container added {currentcontainertype} to pod {pod_name}")
