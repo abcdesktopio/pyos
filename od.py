@@ -122,7 +122,7 @@ class API(object):
             config_controllers (dict): dict controller config
             each config_controllers is the controller name
         """
-        oc.cherrypy.Tools.create_controllers(self, 'controllers', config_controllers=config_controllers ) 
+        oc.cherrypy.Tools.create_controllers(self, 'controllers', config_controllers=config_controllers )
 
     @staticmethod
     @cherrypy.tools.register('before_handler')
