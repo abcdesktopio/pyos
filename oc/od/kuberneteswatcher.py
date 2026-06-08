@@ -11,8 +11,6 @@ from kubernetes.client.models.v1_container_status import V1ContainerStatus
 from kubernetes.client.models.v1_container_state import V1ContainerState
 from kubernetes.client.models.v1_container_state_terminated import V1ContainerStateTerminated
 
-from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
-
 logger = logging.getLogger(__name__)
 
 @oc.logging.with_logger()
