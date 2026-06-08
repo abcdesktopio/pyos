@@ -97,10 +97,12 @@ import oc.od.persistentvolumeclaim
 import oc.od.secret         # manage secret for kubernetes
 import oc.od.registry
 import oc.od.appinstancestatus
-from   oc.od.error          import ODAPIError, ODError   # import all error classes
-from   oc.od.desktop        import ODDesktop
-from   oc.auth.authservice  import AuthInfo, AuthUser, AuthRoles # to read AuthInfo, AuthUser, AuthRoles
-from   oc.od.vnc_password   import ODVncPassword
+from oc.od.error import ODAPIError, ODError   # import all error classes
+from oc.od.desktop import ODDesktop
+from oc.od.vnc_password import ODVncPassword
+from oc.auth.authuser import AuthUser
+from oc.auth.authinfo import AuthInfo
+from oc.auth.authroles import AuthRoles
 
 logger = logging.getLogger(__name__)
 
