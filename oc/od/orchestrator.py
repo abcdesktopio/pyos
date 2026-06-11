@@ -5082,6 +5082,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         continue_reading_events = True
         dict_state_exec_only_once = {}
+        self.logger.debug(f"start watching")
         w = watch.Watch()
         while continue_reading_events:
             timeout_seconds = 5 # seconds
@@ -5092,6 +5093,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                         field_selector=field_selector,
                                         timeout_seconds=timeout_seconds
                                 ):
+                    self.logger.debug(f"new event received {event}")
                     if not isinstance(event, dict ): 
                         self.logger.debug(f"event not a dict")
                         continue # safe type test event is a dict
@@ -5114,11 +5116,13 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     if event_object.reason in [ 'Pulling', 'Pulled', 'Created', 'Scheduled']:
                         if dict_state_exec_only_once.get( event_object.reason, False ) is False:
                             dict_state_exec_only_once[ event_object.reason ] = True
+                            self.logger.debug(f"{event_object.reason} notify_user")
                             self.orchestrator.notify_user( myDesktop, 'container', data )
                     elif event_object.reason == 'Started':
                         # always stop the watch on Started event
                         # if dict_state_exec_only_once.get( event_object.reason, False ) is False:
                         # dict_state_exec_only_once[ event_object.reason ] = True
+                        self.logger.debug(f"{event_object.reason} notify_user")
                         self.orchestrator.notify_user( myDesktop, 'container', data )
                         continue_reading_events = False
                         w.stop()
@@ -5129,7 +5133,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         w.stop()
                         break
             except ApiException as e:
-                continue_reading_events = False
+                self.logger.debug( f"ApiException list_namespaced_event {e}")
                 if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
                     self.logger.debug( f"Handshake status 200 {e}")
                     break
@@ -5140,10 +5144,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     self.logger.error( f"ApiException {e}" )
                     break
             except Exception as e:
+                self.logger.debug( f"Exception list_namespaced_event {e}")
                 continue_reading_events = False
                 self.logger.error( f"Exception {e}" )
 
-            # self.logger.debug("read_namespaced_pod_ephemeralcontainers to get the status of the ephemeral container")
+            self.logger.debug( f"read_namespaced_pod_ephemeralcontainers {pod_name} {app_container_name}")
+
             try:
                 pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
                 if  isinstance( pod, V1Pod ) and \
@@ -5175,6 +5181,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 # self.logger.debug( e )
                 # Reason: Handshake status 200 OK -+-+- 
                 # {'audit-id': '16b378ec-f2ba-4310-b2e0-a3c3ef301587', 'cache-control': 'no-cache, private', 'content-type': 'application/json', 'x-kubernetes-pf-flowschema-uid': 'b63302af-83ee-4663-8bc2-f188e4236cf7', 'x-kubernetes-pf-prioritylevel-uid': '9a4a998a-bb63-4f75-b75a-cedd6a81f010', 'date': 'Thu, 07 May 2026 12:39:35 GMT', 'transfer-encoding': 'chunked'} -+-+- None
+                self.logger.debug( f"read_namespaced_pod_ephemeralcontainers ApiException list_namespaced_event {e}")
                 if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
                     pass
                 else:
