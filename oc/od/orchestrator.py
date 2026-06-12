@@ -4668,8 +4668,7 @@ class ODAppInstanceBase(object):
         assert isinstance(event_received, dict), f"event_received has invalid type {type(event_received)}"
         assert isinstance(myDesktop, ODDesktop), f"desktop has invalid type {type(myDesktop)}"
         assert isinstance(data, dict), f"data has invalid type {type(data)}"
-        self.logger.debug('')
-        self.logger.debug( f'event_received={event_received} before sleep for {oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS']}' )
+        self.logger.debug( f'event_received={event_received} before sleep for {oc.od.settings.desktop["K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS"]}' )
         time.sleep( oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS'] )
         if event_received.get('pulled') is False:
             event_received['pulling.notify_user'] = True
@@ -5109,8 +5108,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         continue
                     
                     # always update data
-                    data['name'] =  event_object.involved_object.name
-                    data['reason'] =  event_object.reason
+                    data['name'] = event_object.involved_object.name
+                    data['reason'] = event_object.reason
                     data['message'] = event_object.message
         
                     if event_object.reason in [ 'Pulling', 'Pulled', 'Created', 'Scheduled']:
@@ -5135,21 +5134,31 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             except ApiException as e:
                 self.logger.debug( f"ApiException list_namespaced_event {e}")
                 if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
+                    # event:anonymous read_namespaced_pod_ephemeralcontainers ApiException list_namespaced_event (0)
+                    # Reason: Handshake status 200 OK -+-+- 
+                    # {'audit-id': '1bb8710e-76ad-4d1b-aa9b-fb7aa4609140', 'cache-control': 'no-cache, private', 
+                    # 'content-type': 'application/json', 'x-kubernetes-pf-flowschema-uid': '6691937b-ac4b-40a7-9b62-687cc3ed279d', 
+                    # 'x-kubernetes-pf-prioritylevel-uid': '8e7aebf3-6f9a-4889-bcfb-4f273ff65f1a', 
+                    # 'date': 'Thu, 11 Jun 2026 20:50:29 GMT', 'transfer-encoding': 'chunked'} 
+                    # -+-+- None
                     self.logger.debug( f"Handshake status 200 {e}")
-                    break
-                if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+
+                elif hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
                     self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
                     break
                 else:
-                    self.logger.error( f"ApiException {e}" )
+                    self.logger.error( f"ApiException list_namespaced_event {e}" )
                     break
             except Exception as e:
                 self.logger.debug( f"Exception list_namespaced_event {e}")
+                data['reason'] = 'exception'
+                data['message'] = 'exception'
+                self.orchestrator.notify_user( myDesktop, 'container', data )
                 continue_reading_events = False
                 self.logger.error( f"Exception {e}" )
 
             self.logger.debug( f"read_namespaced_pod_ephemeralcontainers {pod_name} {app_container_name}")
-
+            
             try:
                 pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
                 if  isinstance( pod, V1Pod ) and \
@@ -5193,6 +5202,10 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             except Exception as e:
                 continue_reading_events = False
                 self.logger.error( e )  
+
+        data['message'] =  'end of watching'
+        data['reason'] =  'end'
+        self.orchestrator.notify_user( myDesktop, 'container', data )
 
         self.logger.debug('thread_to_watch_for_pulling_event end')
 
