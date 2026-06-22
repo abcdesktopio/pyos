@@ -718,7 +718,7 @@ def callwebhook(webhookcmd:str, messageinfo=None, timeout:int=60):
             proc.check_returncode()
             if messageinfo:
                 messageinfo.push('c.Webhooking updated service successfully')
-            logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
+            # logger.info( f"command {webhookcmd} exit_code={proc.returncode} stdtout={proc.stdout.decode()}" )
             exitCode = proc.returncode
         else:
             logger.error( f"command {webhookcmd} subprocess.run return {str(type(proc))}" )
