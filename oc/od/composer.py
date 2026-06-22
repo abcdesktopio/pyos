@@ -22,7 +22,9 @@ from oc.od.desktop import ODDesktop
 import oc.od.orchestrator
 
 from oc.od.services import services
-from oc.auth.authservice import AuthInfo, AuthUser, AuthRoles # to read AuthInfo and AuthUser
+from oc.auth.authuser import AuthUser
+from oc.auth.authinfo import AuthInfo
+from oc.auth.authroles import AuthRoles
 from oc.od.error import ODError
 import oc.od.appinstancestatus
 import oc.od.desktop
@@ -35,7 +37,6 @@ from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.rest import ApiException
 
 import subprocess
-import threading
 import json
 
 from concurrent.futures import ThreadPoolExecutor

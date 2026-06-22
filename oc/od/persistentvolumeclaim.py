@@ -15,8 +15,8 @@ import logging
 import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
-import time
-from oc.auth.authservice import AuthInfo, AuthUser
+from oc.auth.authuser import AuthUser
+from oc.auth.authinfo import AuthInfo
 from typing_extensions import assert_type
 
 from kubernetes import watch
