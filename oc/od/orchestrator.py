@@ -2719,7 +2719,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             labels = authinfo.get_labels()
             for k,v in labels.items():
                 if image.get(k):
-                    imageforcurrentcontainertype=v
+                    imageforcurrentcontainertype=image.get(k)
                     break
         
         if not isinstance(imageforcurrentcontainertype, str):
