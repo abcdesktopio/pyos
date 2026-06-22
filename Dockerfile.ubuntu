@@ -19,16 +19,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	wget \
 	gcc \
    	make \
-    	python3-dev \
+    python3-dev \
 	libffi-dev \
 	libkrb5-dev \
-    	libsasl2-dev \ 
-    	libsasl2-dev \
-    	libldap2-dev \
+    libsasl2-dev \ 
+    libsasl2-dev \
+    libldap2-dev \
 	libgeoip-dev \
-    	libssl-dev \
+    libssl-dev \
 	rustc \
-    && apt-get clean            \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 #  install kerberos libgss ldap
@@ -89,17 +89,20 @@ RUN source /var/pyos/bin/activate && \
     python3 bin/pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
     rm -f rib.bz2
 
+# There are no external modules required to use pan-python.
+RUN pip3 install pan-python --break-system-packages
+
 # remove dev lib 
 RUN apt-get remove -y \
 	libffi-dev \
 	libkrb5-dev \
-        libsasl2-dev \ 
-        libsasl2-dev \
-        libldap2-dev \
+    libsasl2-dev \ 
+    libsasl2-dev \
+    libldap2-dev \
 	libgeoip-dev \
-        libssl-dev \
+    libssl-dev \
 	rustc \
-        wget \
+    wget \
     && apt-get clean \
     && apt autoremove -y \
     && rm -rf /var/lib/apt/lists/*
