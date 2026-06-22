@@ -63,7 +63,7 @@ RUN apk add --no-cache \
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
-COPY version.json /var/pyos/version.json
+# COPY version.json /var/pyos/version.json
 
 # install upgrade pip
 # install requirements.txt
