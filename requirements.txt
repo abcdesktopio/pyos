@@ -1,5 +1,6 @@
 urllib3>2.6.0 
 fastapi>=0.138.0
+uvicorn>=0.38.0
 haversine==2.8.1
 chevron==0.14.0
 kubernetes<36.0.0
