@@ -18,10 +18,11 @@ import oc.auth.namedlib
 import oc.od.volume   # manage volume
 from   oc.auth.authservice import AuthInfo, AuthUser
 
-from kubernetes.client.rest import ApiException
-from kubernetes.client.models.v1_secret import V1Secret
-from kubernetes.client.models.v1_object_meta import V1ObjectMeta
-from kubernetes.client.models.v1_status import V1Status
+import asyncio
+from kubernetes_asyncio.client.rest import ApiException
+from kubernetes_asyncio.client.models.v1_secret import V1Secret
+from kubernetes_asyncio.client.models.v1_object_meta import V1ObjectMeta
+from kubernetes_asyncio.client.models.v1_status import V1Status
 
 import base64
 import json
@@ -140,9 +141,9 @@ class ODSecret():
         return data 
 
 
-    def read_alldata(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
+    async def read_alldata(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
         readdata = None
-        secret = self.read( authinfo, userinfo )
+        secret = await self.read( authinfo, userinfo )
         if isinstance( secret, V1Secret ):
             readdata = {}
             for key in secret.data.keys():
@@ -183,7 +184,7 @@ class ODSecret():
                 self.logger.error( e )
         return mydict_secret
 
-    def patch(self, authinfo:AuthInfo, userinfo:AuthUser, arguments )->V1Secret: 
+    async def patch(self, authinfo:AuthInfo, userinfo:AuthUser, arguments )->V1Secret: 
         assert isinstance(arguments, dict),  f"arguments has invalid type {type(arguments)}"
         myauth_dict_secret = self._create_dict( authinfo, userinfo, arguments ) 
         # we suppose that the secret has changed 
@@ -191,10 +192,10 @@ class ODSecret():
         # metadata = client.V1ObjectMeta( name=mysecretname, labels=labels_dict, namespace=self.namespace )        
         mysecretname = self.get_name( authinfo, userinfo )        
         body = { 'data' : myauth_dict_secret }
-        created_secret = self.kubeapi.patch_namespaced_secret( name=mysecretname, namespace=self.namespace, body=body)
+        created_secret = await self.kubeapi.patch_namespaced_secret( name=mysecretname, namespace=self.namespace, body=body)
         return  created_secret
 
-    def _create(self, authinfo:AuthInfo, userinfo:AuthUser, arguments:dict )->V1Secret: 
+    async def _create(self, authinfo:AuthInfo, userinfo:AuthUser, arguments:dict )->V1Secret: 
         assert isinstance(arguments, dict),  f"arguments has invalid type {type(arguments)}"
         created_secret = None
         myauth_dict_secret = self._create_dict( authinfo, userinfo, arguments )  
@@ -203,32 +204,32 @@ class ODSecret():
         metadata = V1ObjectMeta( name=mysecretname, labels=labels_dict, namespace=self.namespace )        
         mysecret = V1Secret( data=myauth_dict_secret, metadata=metadata, type=self.secret_type ) 
         if isinstance( mysecret, V1Secret) :      
-            created_secret = self.kubeapi.create_namespaced_secret( namespace=self.namespace, body=mysecret )
+            created_secret = await self.kubeapi.create_namespaced_secret( namespace=self.namespace, body=mysecret )
             self.logger.info( f"new secret name {mysecretname} type {self.secret_type} created" )
         return created_secret
 
-    def read( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Secret:
+    async def read( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Secret:
         mysecret = None
         try:            
             secret_name = self.get_name( authinfo, userinfo )
-            mysecret = self.kubeapi.read_namespaced_secret( name=secret_name, namespace=self.namespace )
+            mysecret = await self.kubeapi.read_namespaced_secret( name=secret_name, namespace=self.namespace )
         except ApiException as e:
             if e.status != 404:
                 self.logger.error(f"secret name {secret_name} can not be read {e}" ) 
         return mysecret
       
-    def delete( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Status:
+    async def delete( self, authinfo:AuthInfo, userinfo:AuthUser )->V1Status:
         ''' delete a secret '''
         self.logger.debug('')
         v1status = None
         try:            
             secret_name = self.get_name( authinfo, userinfo )
-            v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace, grace_period_seconds=0 )
+            v1status = await self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace, grace_period_seconds=0 )
         except ApiException as e:
             self.logger.error( f"secret name {secret_name} can not be deleted {e}") 
         return v1status
 
-    def create(self, authinfo:AuthInfo, userinfo:AuthUser, data:dict )->V1Secret:
+    async def create(self, authinfo:AuthInfo, userinfo:AuthUser, data:dict )->V1Secret:
         """[create secret]
 
         Args:
@@ -244,18 +245,18 @@ class ODSecret():
         op = None
 
         # sanity check 
-        readsecret = self.read(authinfo, userinfo)
+        readsecret = await self.read(authinfo, userinfo)
         try:
             # if the secret already exists, patch it with new data
             if isinstance( readsecret, V1Secret) :
                 # a secret already exists, patch it with new data 
                 # it may contains obsolete value, for example if the password has changed
                 op = 'patch' # operation is used for log message
-                mysecret = self.patch( authinfo, userinfo, arguments=data )
+                mysecret = await self.patch( authinfo, userinfo, arguments=data )
             else:
                 # the secret does not exist, create a new one
                 op = 'create'  # operation is used for log message
-                mysecret = self._create( authinfo, userinfo, data )
+                mysecret = await self._create( authinfo, userinfo, data )
         except Exception as e:
             self.logger.error( f"Failed to call method {op} on secret type={self.secret_type} {e}" )
         
@@ -323,10 +324,10 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
         self.access_type='driver'
         self.authprotocol='ntlm'
 
-    def read_credentials( self, userinfo ):
+    async def read_credentials( self, userinfo ):
         self.logger.info('')
         credentials = {}
-        mysecret = self.read( userinfo )
+        mysecret = await self.read( userinfo )
         if mysecret is None:
             self.logger.error('read secret return None, credentials failed')
             return credentials
@@ -335,8 +336,8 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
             credentials[k] = ODSecret.b64tostr( mysecret.data.get(k) )
         return credentials
     
-    def read_data( self, arguments ):
-        mysecret = self.read( arguments )
+    async def read_data( self, arguments ):
+        mysecret = await self.read( arguments )
         if mysecret is None:
             self.logger.error('read secret return None, data failed')
             return {}
@@ -371,8 +372,8 @@ class ODSecretRemoteFileSystemDriver( ODSecret ):
             mydict_secret.update( { 'domain':  ODSecret.strtob64(domain) } )
         return mydict_secret
     
-    def read_alldata(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
-        alldata = super().read_alldata(authinfo, userinfo)
+    async def read_alldata(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
+        alldata = await super().read_alldata(authinfo, userinfo)
         if isinstance(alldata,dict):
             data = alldata.get('data')
             # try to decode json data to dict 
@@ -398,10 +399,10 @@ class ODSecretRemoteFileSystemDriverUsingKerberosAuth( ODSecret ):
         self.access_type='driver'
         self.authprotocol='kerberos'
 
-    def read_credentials( self, userinfo ):
+    async def read_credentials( self, userinfo ):
         self.logger.info('')
         credentials = {}
-        mysecret = self.read( userinfo )
+        mysecret = await self.read( userinfo )
         if mysecret is None:
             self.logger.error('read secret return None, credentials failed')
             return credentials
@@ -413,8 +414,8 @@ class ODSecretRemoteFileSystemDriverUsingKerberosAuth( ODSecret ):
 
         return credentials
     
-    def read_data( self, arguments ):
-        mysecret = self.read( arguments )
+    async def read_data( self, arguments ):
+        mysecret = await self.read( arguments )
         if mysecret is None:
             self.logger.error('read secret return None, data failed')
             return {}

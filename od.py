@@ -11,291 +11,319 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
-#
 
-import sys
-import logging
+from __future__ import annotations
+
 import json
+import logging
 import os
-import cherrypy # web framework 
-from cherrypy._cpdispatch import Dispatcher
-from cherrypy.process import plugins
-from cherrypy.process.plugins import SignalHandler
+import signal
+import sys
+from contextlib import asynccontextmanager
+
+import uvicorn
+from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
+# from fastapi_mcp import FastApiMCP
+
+from collections.abc import AsyncIterable
+from fastapi.sse import EventSourceResponse, ServerSentEvent
+from pydantic import BaseModel
 
 import oc.logging
-import oc.cherrypy
 import oc.od.settings as settings
 import oc.od.services as services
+from oc.cherrypy import Results
+from oc.logging import set_request_context, reset_request_context
+from oc.auth.authservice import set_auth_cache, reset_auth_cache
+
+# import all controllers 
+import controllers.accounting_controller
+import controllers.auth_controller
+import controllers.composer_controller
+import controllers.core_controller  
+import controllers.manager_controller
+import controllers.store_controller
+import controllers.user_controller
 
 logger = logging.getLogger(__name__)
-version_data = { 'date': 'undefined', 'commit': 'undefined' }
 
-# define each configration for API
-# app_config is the core service
-# img_config is file service to send icon static file 
 
-def api_handle_error():
-    _ex_type, ex, _ex_tb = sys.exc_info()
+# ---------------------------------------------------------------------------
+# Lifespan – remplace ODCherryWatcher (start/stop)
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Gère le démarrage et l'arrêt des services."""
+    logger.info("Starting abcdesktop services...")
     
-    status = 500
-    message = None
+    # lifespan services initialization (kubernetes, snapregistry, etc)
+    await services.lifespan()
+    # start services 
+    services.services.start()
     
-    if hasattr( ex, 'code' ):   
-        status = ex.code
-    elif hasattr( ex, 'status' ):   
-        status = ex.status
-
-    for m in [ 'reason', 'message', '_message', 'description', 'args' ]:
-        if hasattr( ex, m ):
-            message = getattr( ex, m )
-            if isinstance( message, (list,tuple) ):
-                message = message[0]
-            if isinstance( message, str) and len(message) > 0:
-                break
-            
-    # message is ALWAYS a str
-    if not isinstance(message, str ):
-        message = 'Internal api server error'
-
-    # return error dict json 
-    # result = { 'status': status, 'message':message, 'exception':str(ex) }
-    result = { 'status': status, 'message':message }
-    build_error = json.dumps( result ) + '\n'
-    cherrypy.response.headers['Content-Type'] = 'application/json;charset=utf-8'
-    cherrypy.response.status = status 
-    cherrypy.response.body = build_error.encode('utf-8')
+    yield
+    logger.info("Stopping abcdesktop services...")
+    if isinstance(services.services, services.ODServices):
+        services.services.stop()
 
 
-def api_build_error(status, message:str, traceback:str, version:str)->str:
-    result =     { 'status': cherrypy.response.status, 'message':message }
-    # 'exception': str(ex), 'traceback':str(traceback),'version':version
-    log_result = { 'status': cherrypy.response.status, 'message':message }
-    logger.error(message, exc_info=True)
-    build_error = json.dumps( result ) + '\n'
-    cherrypy.response.headers['Content-Type'] = 'application/json'
-    return build_error.encode('utf-8')
+
+class Item(BaseModel):
+    name: str
+    description: str | None
 
 
-def img_handle_404_application(status, message, traceback, version):
-    """img_handle_404_application overwrite 404 to default icon
-        return 'img/app/application-default-icon.svg' content 
-        using cherrypy.lib.static.serve_file
+items = [
+    Item(name="Plumbus", description="A multi-purpose household device."),
+    Item(name="Portal Gun", description="A portal opening device."),
+    Item(name="Meeseeks Box", description="A box that summons a Meeseeks."),
+]
 
-    Args:
-        status (_type_): _description_
-        message (_type_): _description_
-        traceback (_type_): _description_
-        version (_type_): _description_
 
-    Returns:
-        _type_: _description_
-    """
-    ''' if the image icon file does not exist      '''
-    ''' return img/app/application-default-icon.svg '''
-    curdir = os.getcwd()
-    path = os.path.join(curdir, 'img/app', 'application-default-icon.svg')
-    # overwrite 404 to 200
-    # if status is 404 then body is not aways display
-    cherrypy.response.status = 200
-    cherrypy.response.message = 'OK'
-    return cherrypy.lib.static.serve_file(path, content_type='image/svg+xml')
+# ---------------------------------------------------------------------------
+# Application FastAPI
+# ---------------------------------------------------------------------------
 
-#
-# main API class 
-@oc.logging.with_logger()
-@cherrypy.config(**{ 
-    'request.error_response': api_handle_error,
-    'request.body.maxbytes': 2097152, # 2M must be greater than the default applist size 1763525 Bytes https://raw.githubusercontent.com/abcdesktopio/images/refs/heads/main/appLists/appList.4.4.json 
-    'error_page.default': api_build_error,
-    'tools.trace_request.on': True,
-    'tools.trace_response.on': True,
-    'tools.allow.on': True,
-    'tools.allow.methods': [ 'POST' ]  # POST for API, GET for OAuth 2.0 response by OAuth provider
-})
+def create_app() -> FastAPI:
 
-class API(object):
-   
-    def __init__(self, config_controllers):
-        """ init API Router
+    # Création de l'application FastAPI avec le gestionnaire de durée de vie
+    app = FastAPI(
+        title="abcdesktop API",
+        version="0.2",
+        lifespan=lifespan,
+    )
 
-        Args:
-            config_controllers (dict): dict controller config
-            each config_controllers is the controller name
-        """
-        oc.cherrypy.Tools.create_controllers(self, 'controllers', config_controllers=config_controllers ) 
+    # CORS
+    allow_origins = settings.gconfig.get("default_host_url_accesscontrol_allow_origin", ["*"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allow_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    @staticmethod
-    @cherrypy.tools.register('before_handler')
-    def trace_request():
-        """ trace request """
-        json_data = None
-        if  hasattr(cherrypy.request, 'json'):
-            # copy dict cherrypy.request.json to keep it unchanged
-            json_data = cherrypy.request.json
-            # auth may contains password data do not log password data 
-            # cherrypy.request.path_info in [ '/auth/auth', '/auth/autologin', '/auth/logmein' ]
-            json_data = cherrypy.request.json
-            if  isinstance(cherrypy.request.json, dict):
-                
-                # hide authorization data in log message if exist in cherrypy.request.json['result']['authorization']
-                # {"status": 200, "result": {"authorization": "eyJ.......-uVvWw", "expire_in": 420}, "message": "ok"}
-                if cherrypy.request.json.get('result', {}).get('authorization'):
-                    json_data = cherrypy.request.json.copy()
-                    json_data['result']['authorization'] = 'XXXXXXXXXXX'
-            
-                # check if password data exist in cherrypy.request.json 
-                # and if it exist, replace it by XXXXXXXXXXXXX in log message
-                # logmessage is the message to log with hidden password value
-                if cherrypy.request.json.get('password'):
-                    json_data = cherrypy.request.json.copy()
-                    # replace password data by XXXXXXXXXXXXX in jsonhidendata object
-                    json_data['password'] = 'XXXXXXXXXXX'
-        
-        logmessage = cherrypy.request.path_info
-        if json_data is not None:
-            logmessage += f" {json_data}"
-        # log the request
-        logger.info(logmessage)
-
-    @staticmethod    
-    @cherrypy.tools.register('on_end_request')
-    def trace_response():
-        #
-        # do not trace the response if cherrypy.response.notrace is set
-        if hasattr(cherrypy.response, 'notrace'):
-            return
-
-        MAX_LOG_BODY = settings.max_log_body_size
-        # get the body of the response and log it, but limit the size to MAX_LOG_BODY bytes
-        message = b''
-        if isinstance( cherrypy.response.body, list):
-            for m in cherrypy.response.body:
-                message = message + m.rstrip(b' ')
-                if len(message) >= MAX_LOG_BODY:
-                    message = message[:MAX_LOG_BODY] + b'...[truncated]'
-                    break
-            message = message.rstrip(b' \n')
-
-        logmessage = f"{cherrypy.request.path_info} {message}"
-        logger.info(logmessage)
-    
-    
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.allow(methods=['GET']) 
-    def version(self):
-        """version
-            Keep this code for compatibility with old version of od.py, 
-            but for security reason, do not return real version information in /version API, 
-            ALWAYS return { 'date': None, 'commit': None }
-            Please use /user/version API to get real version information, this API is protected by authentication and authorization check
-        Returns:
-            dict: content of version.json file in current directory
-        """
-        return { 'date': None, 'commit': None }
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.allow(methods=['GET']) 
-    def openapi(self):
-        """openapi
-
-        Returns:
-            load json data file openapi.json in current directory
-            return {} if error
-        """
-        data = {}
-        if os.environ.get('ABCDESKTOP_ENABLE_OPENAPI') is None:
-            logger.warning("OpenAPI is disabled, add environment variable ABCDESKTOP_ENABLE_OPENAPI=true to enable it")
-            return data
+    # ------------------------------------------------------------------
+    # Middleware : contexte de requête + cache auth
+    # ------------------------------------------------------------------
+    @app.middleware("http")
+    async def request_context_middleware(request: Request, call_next):
+        # Stocker la requête courante dans le ContextVar
+        req_token = set_request_context(request)
+        # Parser et stocker le cache d'auth pour cette requête
+        auth_cache = services.services.auth.parse_auth_request(request)
+        # Stocker aussi dans request.state pour le filtre de log
+        request.state.odauthcache = auth_cache
+        auth_token = set_auth_cache(auth_cache)
         try:
-            # The input encoding should be UTF-8, UTF-16 or UTF-32.
-            with open('openapi.json') as json_file:
-                data = json.load(json_file)
-        except Exception as e:  
-            logger.error( f"Error loading openapi information from openapi.json: {e}" )
-        return data
+            response = await call_next(request)
+        finally:
+            reset_request_context(req_token)
+            reset_auth_cache(auth_token)
+        return response
+
+    # ------------------------------------------------------------------
+    # Middleware : logging des requêtes / réponses
+    # ------------------------------------------------------------------
+    # @app.middleware("http")
+    async def trace_middleware(request: Request, call_next):
+        # Log de la requête
+        MAX_LOG_BODY = settings.max_log_body_size
+        body_bytes = b""
+        if request.method in ("POST", "PUT", "PATCH"):
+            body_bytes = await request.body()
+        if body_bytes:
+            try:
+                json_data = json.loads(body_bytes)
+                # Masquer les données sensibles
+                if isinstance(json_data, dict):
+                    if json_data.get("result", {}).get("authorization"):
+                        json_data = json_data.copy()
+                        json_data["result"]["authorization"] = "XXXXXXXXXXX"
+                    if json_data.get("password"):
+                        json_data = json_data.copy()
+                        json_data["password"] = "XXXXXXXXXXX"
+                logmessage = f"{request.url.path} {json_data}"
+            except Exception:
+                logmessage = request.url.path
+        else:
+            logmessage = request.url.path
+        logger.info(logmessage)
+
+        response = await call_next(request)
+
+        # Log de la réponse en tâche de fond (après envoi au client)
+        if not getattr(request.state, "notrace", False):
+            try:
+                resp_body = b""
+                async for chunk in response.body_iterator:
+                    resp_body += chunk
+
+                def log_response(path: str, body: bytes) -> None:
+                    body_log = body[:MAX_LOG_BODY]
+                    if len(body) > MAX_LOG_BODY:
+                        body_log += b"...[truncated]"
+                    logger.info(f"{path} {body_log.rstrip()}")
+
+                return Response(
+                    content=resp_body,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.media_type,
+                    background=BackgroundTask(log_response, request.url.path, resp_body),
+                )
+            except Exception:
+                pass
+        return response
+
+    # ------------------------------------------------------------------
+    # Gestionnaire d'erreurs global
+    # ------------------------------------------------------------------
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        result = {"status": exc.status_code, "message": exc.detail or "Internal server error"}
+        return JSONResponse(status_code=exc.status_code, content=result)
+
+    @app.exception_handler(Exception)
+    async def generic_exception_handler(request: Request, exc: Exception):
+        status = getattr(exc, "code", None) or getattr(exc, "status", 500)
+        message = None
+        for attr in ["reason", "message", "_message", "description"]:
+            if hasattr(exc, attr):
+                message = getattr(exc, attr)
+                if isinstance(message, (list, tuple)):
+                    message = message[0]
+                if isinstance(message, str) and message:
+                    break
+        if not isinstance(message, str):
+            message = "Internal server error"
+        result = {"status": status, "message": message}
+        return JSONResponse(status_code=int(status), content=result)
+
+    # ------------------------------------------------------------------
+    # Routes de base
+    # ------------------------------------------------------------------
+    @app.get("/API/version")
+    async def version():
+        version_data = {"date": "undefined", "commit": "undefined"}
+        try:
+            with open("version.json") as f:
+                version_data = json.load(f)
+        except Exception:
+            pass
+        return {"status": 200, "result": version_data}
+
+    @app.api_route("/API/healthz", methods=["GET", "POST"])
+    async def healthz(request: Request):
+        request.state.notrace = True
+        return Response(content="OK", media_type="text/plain")
+
+
     
-
-    @cherrypy.expose
-    @cherrypy.tools.allow(methods=['GET','POST'])
-    def healthz(self):
-        # disable trace response in log
-        cherrypy.response.notrace = True
-        return "OK"  
-    
-    
-class ODCherryWatcher(plugins.SimplePlugin):
-    """ signal thread to stop when cherrypy stop"""
-    def start(self):
-        if isinstance( oc.od.services.services, oc.od.services.ODServices ):
-            logger.debug( "ODCherryWatcher start events" )
-            oc.od.services.services.start()
-
-    def stop(self):
-        logger.debug("ODCherryWatcher is stopping. Stopping running threads")
-        if isinstance( oc.od.services.services, oc.od.services.ODServices  ):
-            oc.od.services.services.stop()
-
-def handler_SIGNAL( signal:str, **signum )->None:
-    logger.warning(f"*** Received signal {signal}, stopping cherrypy engine and services {len(signum)}")
-    cherrypy.engine.exit()
-
-def handler_SIGQUIT( **signum ): handler_SIGNAL( 'SIGQUIT', **signum )
-def handler_SIGINT ( **signum ): handler_SIGNAL( 'SIGINT' , **signum )
-def handler_SIGTERM( **signum ): handler_SIGNAL( 'SIGTERM', **signum )
-def handler_SIGSTOP( **signum ): handler_SIGNAL( 'SIGSTOP', **signum )
-
-def run_server():
-    logger.info("Starting cherrypy service...")
-    # update config for cherrypy with the od.config file
-    cherrypy.config.update(settings.get_configuration_file_name())
-    logger.debug(f"cherrypy.config.update({settings.get_configuration_file_name()}) done")  
-
-    # signal handler 
-    signalhandler = SignalHandler(cherrypy.engine)
-    signalhandler.handlers['SIGTERM'] = handler_SIGTERM
-    signalhandler.handlers['SIGQUIT'] = handler_SIGQUIT
-    signalhandler.handlers['SIGINT'] = handler_SIGINT
-    # signalhandler.handlers['SIGSTOP'] = handler_SIGSTOP
-    signalhandler.subscribe()
-    
-    # set auth tools
-    cherrypy.tools.auth = services.services.auth
-    # set /API
-    cherrypy.tree.mount( API(settings.controllers), '/API', settings.config )
-    # create ODCherryWatcher to subscribe start and stop
-    odthread_watcher = ODCherryWatcher(cherrypy.engine)
-    odthread_watcher.subscribe()
-    # start cherrypy engine
-    cherrypy.engine.start()
-    # infite loop
-    logger.info("Waiting for requests.")
-    cherrypy.engine.block()
+    @app.get("/items/stream", response_class=EventSourceResponse)
+    async def sse_items() -> AsyncIterable[Item]:
+        for item in items:
+            yield item
 
 
-def main(argv):
-    # Load logging config
-    oc.logging.configure( config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
-    # Init settings and load config file od.config
+    # ------------------------------------------------------------------
+    # Montage des contrôleurs
+    # ------------------------------------------------------------------
+    _mount_controllers(app)
+
+    # ------------------------------------------------------------------
+    # Fichiers statiques (images)
+    # ------------------------------------------------------------------
+    try:
+        app.mount("/img", StaticFiles(directory="img"), name="img")
+    except Exception as e:
+        logger.warning(f"Static files /img not mounted: {e}")
+
+    return app
+
+
+def _mount_controllers(app: FastAPI) -> None:
+    """Importe et monte tous les contrôleurs (qui sont eux-mêmes des APIRouter)."""
+
+    controllers_classes = [
+        controllers.accounting_controller.AccountingController,
+        controllers.auth_controller.AuthController,
+        controllers.composer_controller.ComposerController,
+        controllers.core_controller.CoreController,
+        controllers.manager_controller.ManagerController,
+        controllers.store_controller.StoreController,
+        controllers.user_controller.UserController
+    ]
+
+    # instance et montage de chaque controller
+    for controller in controllers_classes:
+        mycontoller = controller( settings.controllers.get(controller.__name__))
+        app.include_router(mycontoller, prefix="/API")  
+
+# ---------------------------------------------------------------------------
+# Signal handlers
+# ---------------------------------------------------------------------------
+
+_server: uvicorn.Server | None = None
+
+
+def _handle_signal(signame: str, *args) -> None:
+    logger.warning(f"*** Received signal {signame}, shutting down...")
+    if _server:
+        _server.should_exit = True
+
+
+# ---------------------------------------------------------------------------
+# Point d'entrée principal
+# ---------------------------------------------------------------------------
+
+def run_server() -> None:
+    global _server
+    logger.info("Starting FastAPI/uvicorn service...")
+
+    app = create_app()
+
+    host = os.environ.get("SERVER_HOST", "0.0.0.0")
+    port = int(os.environ.get("SERVER_PORT", 8000))
+
+    # Create and mount the MCP server directly to your FastAPI app
+    # mcp = FastApiMCP(app)
+    # mcp.mount()
+
+    config = uvicorn.Config(
+        app=app,
+        host=host,
+        port=port,
+        log_config=None,  # On garde notre configuration logging
+        access_log=False,
+        server_header=False
+    )
+    _server = uvicorn.Server(config)
+
+    # Signal handlers
+    for sig in (signal.SIGTERM, signal.SIGQUIT, signal.SIGINT):
+        signal.signal(sig, lambda s, f, _sig=sig: _handle_signal(signal.Signals(_sig).name))
+
+    logger.info(f"Listening on {host}:{port}")
+    _server.run( )
+
+
+def main(argv) -> None:
+    # Logging
+    oc.logging.configure(config_or_path=settings.get_configuration_file_name(), is_cp_file=True)
+    # Paramètres
     settings.init()
-    # Init services 
+    # Services
     services.init()
-    # Let's run
+    # Démarrage
     run_server()
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-
-# In od.py, register a before_handler tool
-# MAX_REQUESTS_PER_WINDOW=1000
-# WINDOW_SECONDS=60
-# @cherrypy.tools.register('before_handler')
-# def rate_limit():
-#    ip = oc.cherrypy.getclientipaddr()
-#    key = f"rl:{ip}"
-#    count = services.sharecache.get(key) or 0
-#    if int(count) > MAX_REQUESTS_PER_WINDOW:
-#        raise cherrypy.HTTPError(429, "Too Many Requests")
-#    services.sharecache.set(key, int(count) + 1, expire=WINDOW_SECONDS)
-

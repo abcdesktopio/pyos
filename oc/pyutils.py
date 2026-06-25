@@ -13,24 +13,35 @@
 
 import logging
 import importlib
-import inspect
-import pkgutil
 import functools
 import os
-import re
 import subprocess
 
 logger = logging.getLogger(__name__)
 
 class Event(object):
+    """Event class to manage events and handlers
+
+    Usage:
+        event = Event()
+        def handler(source, *args, **kwargs):
+            print(f"Event triggered by {source} with args: {args} and kwargs: {kwargs}")
+        event += handler  # Add handler to the event
+        event("Source", 1, 2, key="value")  # Trigger the event
+
+    """
+
     def __init__(self):
+        """Initialize the Event with an empty list of handlers."""
         self._handlers = list()
 
     def __call__(self, source, *args, **kwargs):
+        """Trigger the event and call all registered handlers with the given arguments."""
         for h in self._handlers: 
             h(source, *args, **kwargs)
 
     def __add__(self,other):
+        """Add a handler to the event. The handler must be callable."""
         if callable(other) is False: 
             raise ValueError('Event handler must be callable')
         if other not in self._handlers: 
@@ -38,34 +49,30 @@ class Event(object):
         return self
 
     def __sub__(self,other):
+        """Remove a handler from the event."""
         if other in self._handlers: 
             self._handlers.remove(other)
         return self
 
     def __repr__(self):
+        """Return a string representation of the Event, showing its class name and the list of handlers."""
         return type(self).__name__ + repr(self._handlers)
 
     def __len__(self):
+        """Return the number of handlers registered to the event."""
         return len(self._handlers)
 
 
-class Lazy(object):
-    Undefined = object()
-
-    def __init__(self, initializer): 
-        self._value = Lazy.Undefined
-        self.initializer = initializer
-
-    @property
-    def value(self):
-        if self._value is Lazy.Undefined: 
-            self._value = self.initializer()
-        return self._value
-
-    def __call__(self):
-        return self.value
-
-def get_class(path, class_name=None):
+def get_class(path:str, class_name:str=None):
+    """Get a class from a module path and an optional class name. If the class name is not provided, it will be inferred from the last part of the path.
+    Args:
+        path (str): The module path to import the class from.
+        class_name (str, optional): The name of the class to import. If not provided, it will be inferred from the last part of the path.
+    Returns:
+        type: The class object imported from the specified module path. If the class name is not provided, it will be inferred from the last part of the path.
+    Raises:
+        ImportError: If the module cannot be imported or the class cannot be found in the module.
+    """
     if not class_name:
         parts = path.split('.')
         class_name  = parts.pop()
@@ -74,28 +81,13 @@ def get_class(path, class_name=None):
     return getattr(importlib.import_module(path), class_name)
 
 
-def import_classes(package:str, module_name_filter:str=None, class_name_filter:str=None, base_class:type=None):
-    classes = []
-    path = importlib.import_module(package).__path__
-    logger.debug( f"Loading module in directory {path}" )
-    for _filefinder, name, ispkg in pkgutil.iter_modules(importlib.import_module(package).__path__):
-        if ispkg or (module_name_filter and not re.match(module_name_filter, name)):
-            continue 
-
-        module_name = '.'.join([package, name])
-        logger.debug(f"Importing module '{module_name}'")
-        module = importlib.import_module(module_name)       
-
-        for class_name, class_info in inspect.getmembers(module, inspect.isclass):
-            if class_name_filter and not re.match(class_name_filter, class_info.__name__):
-                continue
-            if base_class and not issubclass(class_info, base_class): 
-                continue
-            classes.append(class_info)                
-
-    return classes
-
-def get_setting(obj, path, default=None):
+def get_setting(obj:object, path:str, default=None):
+    """ Get a setting from an object using a dot-separated path. The path can contain dictionary keys, list indices, or object attributes.
+    Args:
+        obj: The object to get the setting from.
+        path: The dot-separated path to the setting.
+        default: The default value to return if the setting is not found.
+    """
     def getter(o,n):
         if isinstance(o, dict): 
             return o[n]
@@ -108,7 +100,18 @@ def get_setting(obj, path, default=None):
     except (AttributeError,KeyError,IndexError):
         return default
 
-def execproc(command,environment={},stdout=subprocess.PIPE,timeout=60,input=None, encoding='utf8'):
+def execproc(command,environment:dict={},stdout=subprocess.PIPE,timeout:int=60,input=None, encoding='utf8'):
+    """Execute a command in a subprocess and return the output and error.
+    Args:
+        command: The command to execute.
+        environment: A dictionary of environment variables to set for the subprocess.
+        stdout: The standard output configuration for the subprocess.
+        timeout: The timeout in seconds for the subprocess.
+        input: The input to pass to the subprocess.
+        encoding: The encoding to use for the subprocess output.
+    Returns:
+        tuple: A tuple containing the return code and the output of the subprocess. If the subprocess times out or encounters an error, the return code will be None and the output will contain the exception.
+    """
     try:
         env = os.environ.copy() # default env
         if type(environment) is dict and len(environment) > 0: 

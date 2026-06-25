@@ -10,272 +10,196 @@
 # Author: abcdesktop.io team
 # Software description: cloud native desktop service
 #
+# --------------------------------------------------------------------------
+# Ce module remplace les utilitaires CherryPy par des équivalents FastAPI.
+# Le contexte de la requête courante est stocké dans un ContextVar afin de
+# conserver la même API publique (getclientipaddr, etc.) sans passer
+# explicitement la Request à chaque site d'appel.
+# --------------------------------------------------------------------------
 
 import logging
-import re
-import cherrypy
-import netaddr
-from cherrypy._cpdispatch import Dispatcher
+from typing import Optional
 
-import oc.pyutils as pyutils
+import netaddr
+from fastapi import HTTPException, Request
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Fonctions publiques – même API que l'ancienne version CherryPy
+# ---------------------------------------------------------------------------
+
 #########
-# WARNING : No logging is possible inside getclientipaddr, 
+# WARNING : No logging is possible inside getclientipaddr,
 # it would generate cycling dependencies call in oc.logging functions
 #########
 
-def getclienthttp_header(header_name, default=None):
-    return cherrypy.request.headers.get(header_name, default)
 
-def getclienthttp_headers():
-    return cherrypy.request.headers
+def getclienthttp_header(request: Request, header_name: str, default=None):
+    if request is None:
+        return default
+    return request.headers.get(header_name, default)
 
-def getclientremote_ip():
-    return cherrypy.request.remote.ip
 
-def getclientreal_ip():
+def getclienthttp_headers(request: Request):
+    if request is None:
+        return {}
+    return request.headers
+
+
+def getclientremote_ip(request: Request) -> Optional[str]:
+    if request is None:
+        return None
+    return request.client.host if request.client else None
+
+
+def getclientreal_ip(request: Request) -> Optional[str]:
     realip = None
     try:
-        _realip = cherrypy.request.headers.get('X-Real-IP')
-        if isinstance( _realip, str ):
-            # Check if realip is an ipAddr 
-            # if netaddr.valid_ipv4(_realip) or netaddr.valid_ipv6(_realip) :
+        _realip = getclienthttp_header(request, "X-Real-IP")
+        if isinstance(_realip, str):
             ipaddr = netaddr.IPAddress(_realip)
-            # reconvert to string make sure to remove garbage data 
-            # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
-            # str( ipaddr ) returns '127.0.0.1'
-            realip = str( ipaddr )
-            # No logging is possible inside getclientipaddr
-    except netaddr.core.AddrFormatError: 
-        # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
+            realip = str(ipaddr)
+    except netaddr.core.AddrFormatError:
         pass
-    except Exception: 
+    except Exception:
         pass
     return realip
 
-def getuseragent():
-    user_agent = cherrypy.request.headers.get('User-Agent')
-    return user_agent
 
-def getxforwardedfor():
-    xforwardedfor = cherrypy.request.headers.get('X-Forwarded-For')
-    return xforwardedfor
+def getuseragent(request: Request) -> Optional[str]:
+    return getclienthttp_header(request, "User-Agent")
 
-def getclientxforwardedfor_listip():
+
+def getxforwardedfor(request: Request) -> Optional[str]:
+    return getclienthttp_header(request, "X-Forwarded-For")
+
+
+def getclientxforwardedfor_listip(request: Request) -> list:
     clientiplist = []
-    xforwardedfor = getxforwardedfor()
+    xforwardedfor = getxforwardedfor(request)
     if isinstance(xforwardedfor, str):
-        clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
-        # Check if clientip is an ipAddr 
-        # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
-        if isinstance( clientiplistxforwardedfor, list ):
-            for ipforwarded in clientiplistxforwardedfor:
-                try:
-                    # remove space in ipforwarded
-                    ipforwarded = ipforwarded.strip()
-                    # Check if ipaddr is an ipAddr 
-                    ipaddr = netaddr.IPAddress( ipforwarded )
-                    # reconvert to string safer way
-                    clientiplist.append( str(ipaddr) )
-                # No logging is possible inside getclientipaddr
-                except netaddr.core.AddrFormatError: 
-                    # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
-                    pass
-                except Exception: 
-                    pass
+        for ipforwarded in xforwardedfor.split(","):
+            try:
+                ipaddr = netaddr.IPAddress(ipforwarded.strip())
+                clientiplist.append(str(ipaddr))
+            except netaddr.core.AddrFormatError:
+                pass
+            except Exception:
+                pass
     return clientiplist
 
-def getclientxforwardedfor_ip():
+
+def getclientxforwardedfor_ip(request: Request) -> Optional[str]:
     clientip = None
-    xforwardedfor = getxforwardedfor()
+    xforwardedfor = getxforwardedfor(request)
     if isinstance(xforwardedfor, str):
         try:
-            # syntax
-            # X-Forwarded-For: <client>, <proxy>
-            # X-Forwarded-For: <client>, <proxy>, …, <proxyN>
-            #
-            # X-Forwarded-For: 2001:db8:85a3:8d3:1319:8a2e:370:7348
-            # X-Forwarded-For: 203.0.113.195
-            # X-Forwarded-For: 203.0.113.195, 2001:db8:85a3:8d3:1319:8a2e:370:7348
-            #
-            # Check if clientip is an ipAddr 
-            clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
-            # clientiplistxforwardedfor[0] is the first entry is the real client ip address source
-            if isinstance( clientiplistxforwardedfor, list ):
-                # Check if ipaddr is an ipAddress 
-                ipaddr = netaddr.IPAddress( clientiplistxforwardedfor[0] )
-                # reconvert to string make sure to remove garbage data 
-                # this is not dummy
-                # you need to check if the str is a true ipaddress  
-                # like space ipaddr = netaddr.IPAddress( '127.0.0.1 ' )
-                # str( ipaddr ) returns '127.0.0.1'
-                clientip = str( ipaddr )
-                
-        # No logging is possible inside getclientipaddr
-        except netaddr.core.AddrFormatError: 
-            # netaddr.core.AddrFormatError: failed to detect a valid IP address from ipaddr
+            parts = xforwardedfor.split(",")
+            if parts:
+                ipaddr = netaddr.IPAddress(parts[0].strip())
+                clientip = str(ipaddr)
+        except netaddr.core.AddrFormatError:
             pass
-        except Exception: 
+        except Exception:
             pass
     return clientip
 
 
-def getproxy_ipaddr_from_xforwardedfor_header()->list:
-    """getproxy_ipaddr_from_xforwardedfor_header
-        return a list of proxy ip address from X-Forwarded-For header, 
-        empty list if no proxy ip address is found in X-Forwarded-For header, or if X-Forwarded-For header is not present  
-    Returns:
-    list: list of proxy ip address from X-Forwarded-For header, empty list if no proxy ip address is found in X-Forwarded-For header, or if X-Forwarded-For header is not present  
-    """
-    # get the client ip address from request headers
+def getproxy_ipaddr_from_xforwardedfor_header(request: Request) -> list:
     proxiesipaddrlist = []
-    xforwardedfor = getxforwardedfor()
+    xforwardedfor = getxforwardedfor(request)
     if isinstance(xforwardedfor, str):
         try:
-            # syntax
-            # X-Forwarded-For: <client>, <proxy>
-            # X-Forwarded-For: <client>, <proxy>, …, <proxyN>
-            #
-            # X-Forwarded-For: 2001:db8:85a3:8d3:1319:8a2e:370:7348
-            # X-Forwarded-For: 203.0.113.195
-            # X-Forwarded-For: 203.0.113.195, 2001:db8:85a3:8d3:1319:8a2e:370:7348
-            #
-            # Check if clientip is an ipAddr 
-            clientiplistxforwardedfor = xforwardedfor.split(',') # ',' is the defalut separator for 'X-Forwarded-For' header
-            for proxy in clientiplistxforwardedfor[1:]:
-                # there are some proxies in the X-Forwarded-For header
-                # checking for trusted proxy 
-                proxiesipaddrlist.append( proxy.strip() )
+            parts = xforwardedfor.split(",")
+            for proxy in parts[1:]:
+                proxiesipaddrlist.append(proxy.strip())
         except Exception:
             pass
     return proxiesipaddrlist
-        
-def getclientipaddr_dict():
-    """getclientipaddr_dict
-        return a dict of all client ip 'X-Forwarded-For', X-Real-IP', and 'remoteip'
-        No logging is possible inside getclientipaddr, 
-        it would generate cycling dependencies call in oc.logging functions
 
-        take care 
-            X-Forwarded-For header can result in spoofed values being used for security-related purposes
-            Syntax X-Forwarded-For: <client>, <proxy1>, <proxy2>
-            where <client> is the client IP address
 
-    Returns:
-        dict: dict of all client ip 
-                { 'X-Forwarded-For' : clientip,
-                  'X-Real-IP':  realip,
-                  'remoteip': cherrypy.request.remote.ip }
-    """
-    remoteip = getclientremote_ip()
-    clientip = getclientxforwardedfor_ip()
-    realip   = getclientreal_ip()
-
-    clientip_dict = { 
-        'X-Forwarded-For': clientip,
-        'X-Real-IP':  realip,
-        'remoteip': remoteip 
+def getclientipaddr_dict(request: Request) -> dict:
+    return {
+        "X-Forwarded-For": getclientxforwardedfor_ip(request),
+        "X-Real-IP": getclientreal_ip(request),
+        "remoteip": getclientremote_ip(request),
     }
 
-    return clientip_dict
+
+# WARNING : No logging is possible inside getclientipaddr
+def getclientipaddr(request: Request) -> Optional[str]:
+    for myip in getclientipaddr_dict(request).values():
+        if isinstance(myip, str):
+            return myip
+    return None
 
 
-# WARNING : No logging is possible inside getclientipaddr, 
-# it would generate cycling dependencies call in oc.logging functions
-def getclientipaddr():
-    """getclientipaddr
-        return string ipAddr of browser client, None if failed
-        
-        Do the best to obtain the Client IP Address
-        [ 'X-Forwarded-For', 'X-Real-IP', 'remoteip' ]
-           use X-Forwarded-For HTTP header from nginx
-        or use X-Real-IP-For HTTP header from nginx
-        or cherrypy.request.remote.ip  
-    Returns:
-        str: ip client address
-    """
-    ipaddr = None   # the return value None by default
-    clientip_dict = getclientipaddr_dict() # getclientipaddr_dict returns always a dict
-    # look for each HTTP Header 
-    for myip in clientip_dict.values():
-        if isinstance( myip, str) : # should never be empty string
-            ipaddr = myip
-            break
-    return ipaddr
+# ---------------------------------------------------------------------------
+# WebAppError – remplace cherrypy.HTTPError
+# ---------------------------------------------------------------------------
 
 
-class WebAppError(cherrypy.HTTPError):
-    def __init__(self, message, status=400, code=400, source=None): 
-        super().__init__(status, message)
+class WebAppError(HTTPException):
+    def __init__(self, message: str, status: int = 400, code: int = 400, source=None):
+        super().__init__(status_code=status, detail=message)
         self.code = code or status
         self.source = source
         self.status = status
         self.message = message
 
-    def to_dict(self): 
-        return { 'status':self.status, 'error': { 'code': self.code, 'message': self.message, 'source': self.source  } }
-
-
-# Allow (partial) case-insensivity in URLs 
-class CaseInsensitiveDispatcher(Dispatcher):
-    def __call__(self, path_info):
-        return Dispatcher.__call__(self, path_info.lower()) 
-
-class Tools(object):
-    
-    @staticmethod
-    def create_controllers(parent, source_module, config_controllers, module_filter=r'^\w+_controller$',class_filter=r'^(\w+)Controller$'):
-        for _class in pyutils.import_classes(source_module, module_filter, class_filter):
-            # logger.debug( f"instancing class {_class.__name__}")
-            controller = _class(config_controllers.get( _class.__name__))
-            controller.root = parent
-            controller.logger = logging.getLogger(_class.__module__ + '.' + _class.__name__)
-            setattr(parent, re.match(class_filter, _class.__name__).group(1).lower(), controller)
-    
-    '''
-    @staticmethod
-    @cherrypy.tools.register('before_handler', priority=1)
-    def add_response_result():
-        request = cherrypy.serving.request
-        handler = request.handler
-        if handler is None: 
-            return
-
-        def new_handler(*args, **kwargs):
-            request.result = handler(*args, **kwargs)
-            return request.result
-
-        request.handler = new_handler
-    '''
-
-
-class Results(object):
-    @staticmethod
-    def result(message:str=None, status:int=200, result:dict=None)->dict:
-        response = {
-            'status': status,
-            'result': result
+    def to_dict(self) -> dict:
+        return {
+            "status": self.status,
+            "error": {"code": self.code, "message": self.message, "source": self.source},
         }
-        if status == 200:
-            response['message'] = message
+
+
+# ---------------------------------------------------------------------------
+# Results – réponses JSON standardisées
+# ---------------------------------------------------------------------------
+
+
+class Results:
+    @staticmethod
+    def result(message: str = None, status: int = 200, result=None) -> dict:
+        response: dict = {"status": status, "result": result}
+        if status == 200 or status == 100: 
+            response["message"] = message
         else:
-            response['error'] = message or 'Unkown error'
+            response["error"] = message or "Unknown error"
         return response
 
     @staticmethod
-    def continue_(message='continue', result=None):
+    def progress(message: str = "progress", result=None) -> dict:
         return Results.result(message, 100, result)
 
     @staticmethod
-    def success(message='ok', result=None):
+    def success(message: str = "ok", result=None) -> dict:
         return Results.result(message, 200, result)
 
     @staticmethod
-    def error(message='unknow error', status=500, _context=None):
+    def error(message: str = "unknown error", status: int = 500, _context=None) -> dict:
         return Results.result(message, status)
 
     @staticmethod
-    def unauthorized(message='unauthorized'):
+    def unauthorized(message: str = "unauthorized") -> dict:
         return Results.result(message, 401)
+
+    @staticmethod
+    def is_a_success(result: dict) -> bool:
+        if isinstance(result, dict):
+            return result.get("status") == 200
+        return False
+
+    @staticmethod
+    def is_in_progress(result: dict) -> bool:
+        if isinstance(result, dict):
+            return result.get("status") == 100
+        return False
+
+    @staticmethod
+    def is_an_error(result: dict) -> bool:
+        if isinstance(result, dict):
+            return result.get("status") not in (100, 200)
+        return False

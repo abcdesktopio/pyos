@@ -19,17 +19,21 @@ import binascii
 import oc.od.locator
 import oc.auth.authservice
 import oc.od.desktop
+from oc.auth.authuser import AuthUser
+from oc.auth.authinfo import AuthInfo
+from oc.auth.authroles import AuthRoles
+from fastapi import Request
 
 from oc.cherrypy    import getclientipaddr
 from oc.od.services import services
 
 logger = logging.getLogger(__name__)
 
-def getlocation(auth):
+async def getlocation(auth:AuthInfo, request:Request):
     logger.debug('')
     
     location = {}
-    clientip = getclientipaddr()
+    clientip = getclientipaddr(request)
     serverip = settings.default_geolocation_ipaddr
 
     locatorPrivateActiveDirectory = None
@@ -57,7 +61,7 @@ def getlocation(auth):
     return location
 
 
-def whoami(auth, user):
+async def whoami(auth:AuthInfo, user:AuthUser)->dict:
     """[whoami] getuserinfo for the current user request
 
     Args:
@@ -102,7 +106,7 @@ def whoami(auth, user):
     userinfo['userid'] = user.get('userid')
     userinfo['name'] = user.get('name')
         
-    completeuserinfo = oc.od.composer.getsecretuserinfo( auth, user  )
+    completeuserinfo = await oc.od.composer.getsecretuserinfo( auth, user  )
     if isinstance(completeuserinfo, dict):
         if completeuserinfo.get('type') == 'abcdesktop/ldif':
             data = completeuserinfo.get( 'data')
@@ -148,7 +152,7 @@ def whoami(auth, user):
                 userinfo['givenName'] = data.get( 'givenName' )
                 userinfo['description'] = data.get( 'description' )
 
-    desktop = oc.od.composer.finddesktop( auth, user  )
+    desktop = await oc.od.composer.finddesktop( auth, user  )
     # desktop can be None, if desktop is not yet created 
     if isinstance( desktop, oc.od.desktop.ODDesktop ) :
         # filter and copy data from desktop to userinfo dict

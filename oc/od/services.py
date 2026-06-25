@@ -202,7 +202,7 @@ class ODServices(object):
 # use services to access 
 services = ODServices()
 
-def init_infra():
+async def init_infra():
     """init_infra
         Check kubernetes config 
         find configuration for kubernetes
@@ -214,7 +214,7 @@ def init_infra():
         exit(-1)
 
     # read the snap registry secret name values to use snap feature if available
-    myOrchestrator.init_snapregistry()
+    await myOrchestrator.init_snapregistry()
 
     # reload default menu config because new features may be available
     settings.init_menuconfig()
@@ -223,10 +223,16 @@ def init_infra():
 def init():
     # init all services 
     services.init()
-    
+
+
+async def lifespan():
+    """lazy
+        init services that are not critical for the first user request
+        to speed up the first response time of the API
+    """
     # init kubernetes 
     # init snapregistry
-    init_infra()
+    await init_infra()
 
     # list images application
     services.init_applist()

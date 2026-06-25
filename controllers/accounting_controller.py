@@ -1,86 +1,54 @@
 #!/usr/bin/env python3
 #
 # Software Name : abcdesktop.io
-# Version: 0.2
 # SPDX-FileCopyrightText: Copyright (c) 2020-2021 Orange
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# This software is distributed under the GNU General Public License v2.0 only
-# see the "license.txt" file for more details.
-#
-# Author: abcdesktop.io team
-# Software description: cloud native desktop service
-#
-
-import logging
-import cherrypy
 import json
+import logging
+
+from fastapi import Request, Response
+
+import oc.logging
 import oc.od.services
 import oc.auth.namedlib
 from oc.od.base_controller import BaseController
 
-
 logger = logging.getLogger(__name__)
 
-@cherrypy.tools.allow(methods=['GET'])
-@cherrypy.config(**{ 'tools.auth.on': False })
+
 @oc.logging.with_logger()
 class AccountingController(BaseController):
 
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
+        self.add_api_route("/metrics", self.metrics, methods=["GET"])
 
-    # metrics request is protected by is_permit_request()
-    @cherrypy.expose    
-    def metrics(self, format='ebnf'):
-        ''' return http response to metrics default format is ebnf '''
-
-        self.is_permit_request()
-
-        # disable trace for accounting request
-        cherrypy.response.notrace = True        
-        if format == 'json' :
-            return self.dump_tojson()
+    async def metrics(self, request: Request, format: str = "ebnf") -> Response:
+        """Return metrics. Default format is ebnf."""
+        self.is_permit_request(request)
+        if format == "json":
+            return await self.dump_tojson()
         else:
-            return self.dump_toebnf()            
+            return await self.dump_toebnf()
 
-    def dump_toebnf(self):
-        ''' convert accounting dict to ebnf format '''
-        cherrypy.response.headers['Content-Type'] = 'text/plain;charset=utf-8'
+    async def dump_toebnf(self) -> Response:
         output = ""
-        #
-        # read the doc at https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form
-        # https://github.com/prometheus/docs/blob/master/content/docs/instrumenting/exposition_formats.md         
-        # Sample 
-        # metric_name [ # "{" label_name "=" `"` label_value `"` { "," label_name "=" `"` label_value `"` } [ "," ] "}" ] value [ timestamp ]
-        #
-        message = oc.od.services.services.accounting.todict()
-        if isinstance(message,dict):
+        message = await oc.od.services.services.accounting.todict()
+        if isinstance(message, dict):
             for counter_name, v in message.items():
-                # t = int( datetime.datetime.now().timestamp() )
-                # dump data                
                 if isinstance(v, dict):
-                    # # HELP http_requests_total The total number of HTTP requests.
-                    # # TYPE http_requests_total counter
-                    # http_requests_total{method="post",code="200"} 1027 1395066363000
-                    # http_requests_total{method="post",code="400"}    3 1395066363000
-
                     for ka in v:
-                        if counter_name in ['container', 'image'] :
+                        if counter_name in ["container", "image"]:
                             datatype = oc.auth.namedlib.normalize_containername(ka)
                         else:
-                            datatype=ka
-        
-                        output += f"pyos_{counter_name}_total{{{counter_name}=\"{datatype}\"}} {v.get(ka)}\n"
-                if isinstance(v, str):                
-                    # now = datetime.datetime.now() # current date and time
-                    # timestamp = datetime.timestamp(now)
-                    output += "# {counter_name} pyos_counter\n"
+                            datatype = ka
+                        output += f'pyos_{counter_name}_total{{{counter_name}="{datatype}"}} {v.get(ka)}\n'
+                if isinstance(v, str):
+                    output += f"# {counter_name} pyos_counter\n"
                     output += f"pyos_{counter_name}_total {v}\n"
-        return output.encode('utf8')
+        return Response(content=output.encode("utf8"), media_type="text/plain;charset=utf-8")
 
-    def dump_tojson(self):
-        ''' convert accounting dict to json format '''
-        cherrypy.response.headers['Content-Type'] = 'application/json;charset=utf-8'
-        message = oc.od.services.services.accounting.todict()
-        return json.dumps(message).encode('utf8')
+    async def dump_tojson(self) -> Response:
+        message = await oc.od.services.services.accounting.todict()
+        return Response(content=json.dumps(message).encode("utf8"), media_type="application/json;charset=utf-8")

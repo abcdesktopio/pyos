@@ -79,12 +79,12 @@ class ODAccounting:
         with self.mutex:
             self.accounting[keycat][keyname] = value
 
-    def todict(self):
+    async def todict(self):
         response = {}
 
         # update not updated value
         orchestrator = oc.od.orchestrator.selectOrchestrator()
-        self.setaccountex('desktop', 'current', orchestrator.countdesktop() )
+        self.setaccountex('desktop', 'current', await orchestrator.countdesktop() )
         self.setaccountex('applist', 'installed', services.apps.countApps() )
         self.setaccountex('applist', 'cached', services.apps.getCached_image_counter() )
         self.setaccountex('applist', 'build', services.apps.getBuild_image_counter() )
@@ -98,5 +98,5 @@ class ODAccounting:
         #    else:
         #                
         response.update(self.accounting)
-
+        myOrchestrator.close()
         return response

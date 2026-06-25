@@ -3,7 +3,7 @@ import socket
 import sys
 import logging
 
-from cherrypy.lib.reprconf import Config
+from oc.od.config_parser import Config
 from urllib.parse import urlparse
 import oc.pyutils as pyutils
 import base64

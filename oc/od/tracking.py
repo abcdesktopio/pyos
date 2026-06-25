@@ -2,8 +2,8 @@
 
 import logging
 import datetime
-import cherrypy
 import oc.cherrypy
+from oc.logging import get_current_request
 from oc.od.desktop import ODDesktop
 from oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
 from oc.od.services import services
@@ -71,7 +71,7 @@ def addnewentryinloginhistory(auth:AuthInfo, user:AuthUser):
     assert isinstance(user, AuthUser), f"user has invalid type {type(user)}, AuthUser is expected"  
  
     # read client ip source addr
-    webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
+    webclient_sourceipaddr = oc.cherrypy.getclientipaddr(get_current_request())
 
     # filter user's entries to accouting
     user_history = filter_user_for_history( auth, user )
@@ -79,7 +79,7 @@ def addnewentryinloginhistory(auth:AuthInfo, user:AuthUser):
     # build an accounting data
     datadict={  **user_history,
                 'date': datetime.datetime.now(datetime.UTC),
-                'useragent': cherrypy.request.headers.get('User-Agent', None),
+                'useragent': oc.cherrypy.getuseragent(get_current_request()),
                 'ipaddr': webclient_sourceipaddr,
                 'type': 'login'
     }
@@ -96,7 +96,7 @@ def addnewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDesktop,
     assert isinstance(desktop, ODDesktop), f"desktop has invalid type {type(desktop)}, ODDesktop is expected"
 
     # read client ip source addr
-    webclient_sourceipaddr = oc.cherrypy.getclientipaddr()
+    webclient_sourceipaddr = oc.cherrypy.getclientipaddr(get_current_request())
 
     # filter user's entries to accouting
     user_history = filter_user_for_history( auth, user )
@@ -107,7 +107,7 @@ def addnewentryindesktophistory(auth:AuthInfo, user:AuthUser, desktop:ODDesktop,
                 'eventtype': eventtype,
                 'desktop_id': desktop.id,
                 'date': datetime.datetime.now(datetime.UTC),
-                'useragent': cherrypy.request.headers.get('User-Agent', None),
+                'useragent': oc.cherrypy.getuseragent(get_current_request()),
                 'ipaddr': webclient_sourceipaddr,
                 'node': desktop.nodehostname,
                 'type': 'desktop'

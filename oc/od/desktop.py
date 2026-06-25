@@ -38,21 +38,20 @@ class ODDesktop(object):
                     xauthkey=None, 
                     pulseaudio_cookie=None, 
                     broadcast_cookie=None, 
-                    storage_container_id=None, 
                     labels=None, 
                     websockettcpport=None, 
                     uid=None, 
                     creation_timestamp=None, 
-                    lastlogin_datetime=None ):
+                    lastlogin_datetime=None,
+                    reduced=False ):
         self._id = desktop_id
         self._ipAddr = ipAddr
         self._status = status
+        self._reduced = reduced
 
         # remove the 'docker://' prefix if exist
         if container_id and container_id.startswith('docker://'):
-            container_id = container_id[9:] # 9 is the length of the string 'docker://'
-        if storage_container_id and storage_container_id.startswith('docker://'):
-            storage_container_id = storage_container_id[9:] # 9 is the length of the string 'docker://'    
+            container_id = container_id[9:] # 9 is the length of the string 'docker://'   
             
         self._container_id  = container_id
         self._nodehostname  = nodehostname
@@ -68,7 +67,6 @@ class ODDesktop(object):
         self._xauthkey              = xauthkey
         self._pulseaudio_cookie     = pulseaudio_cookie
         self._broadcast_cookie      = broadcast_cookie
-        self._storage_container_id  = storage_container_id
         self._labels                = labels
         self._uid                   = uid
         self._creation_timestamp    = creation_timestamp
@@ -105,9 +103,9 @@ class ODDesktop(object):
         self._name = val
 
     @property
-    def storage_container_id(self):
-        return self._storage_container_id
-
+    def reduced(self):
+        return self._reduced
+        
     @property
     def nodehostname(self):
         return self._nodehostname

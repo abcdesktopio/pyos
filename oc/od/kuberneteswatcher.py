@@ -1,17 +1,16 @@
 import logging 
 import threading
+import asyncio
 import urllib3.exceptions
 import oc.logging
 import time
 
-from kubernetes import client, watch
-from kubernetes.client.models.v1_pod import V1Pod
-from kubernetes.client.models.v1_pod_status import V1PodStatus
-from kubernetes.client.models.v1_container_status import V1ContainerStatus
-from kubernetes.client.models.v1_container_state import V1ContainerState
-from kubernetes.client.models.v1_container_state_terminated import V1ContainerStateTerminated
-
-from   oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+from kubernetes_asyncio import client, watch
+from kubernetes_asyncio.client.rest import ApiException
+from kubernetes_asyncio.client.models.v1_pod import V1Pod
+from kubernetes_asyncio.client.models.v1_pod_status import V1PodStatus
+from kubernetes_asyncio.client.models.v1_container_state_terminated import V1ContainerStateTerminated
+from kubernetes_asyncio.client.models.core_v1_event import CoreV1Event
 
 logger = logging.getLogger(__name__)
 
@@ -27,21 +26,19 @@ class ODKubernetesWatcher:
         self._backoff_max = 60  # seconds
         self.logger.debug( f"ODKubernetesWatcher use namespace={self.orchestrator.namespace}")
 
-    def loopforevent( self ):
+    async def loopforevent( self ):
         # self.logger.debug('' )
         self.watch = watch.Watch()
         _backoff = self._backoff_min
         # self.logger.debug('loopforevent start inifity loop')
-        while( True ): #  inifity loop stop when watch.stop     
+        while( True ):
             try:
-                # watch list_namespaced_pod waiting for a valid ip addr          
-                events = self.watch.stream(  self.orchestrator.kubeapi.list_namespaced_pod, namespace=self.orchestrator.namespace, timeout_seconds=self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS)
-                # events = self.watch.stream(  self.orchestrator.kubeapi.list_namespaced_ , namespace=self.orchestrator.namespace, timeout_seconds=self.DEFAULT_K8S_WATCHER_TIMEOUT_SECONDS)
-                if self.watch._stop :
-                    self.watch.stop()
-                    return  # stop this thread 
-                
-                for event in events:
+                async for event in self.watch.stream( self.orchestrator.kubeapi.list_namespaced_pod, namespace=self.orchestrator.namespace ):
+                    if self.watch._stop :
+                        self.watch.stop()
+                        self.watch.close()
+                        return  # stop this thread 
+
                     # event must be a dict, else continue
                     if not isinstance(event,dict):
                         self.logger.error( f"event type is {type(event)}, and should be a dict, skipping event")
@@ -52,15 +49,16 @@ class ODKubernetesWatcher:
                     pod_event = event.get('object')
                     # event dict must contain a type 
                     event_type = event.get('type')
+                    # self.logger.debug( f"event_type={event_type} pod_event={type(pod_event)}" )
 
                     if event_type == 'MODIFIED':
                         # if podevent type is pod
-                        if isinstance( pod_event, V1Pod ) : 
+                        # self.logger.debug( f"event_type={event_type} pod_event={type(pod_event)}" )
+                        if isinstance( pod_event, V1Pod ) and isinstance(pod_event.metadata.labels, dict) :
                             podtype = pod_event.metadata.labels.get('type')
                             # if podtype == self.orchestrator.pod_application :
                             #    self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
-                            if podtype == self.orchestrator.pod_application_pull or \
-                                podtype == self.orchestrator.pod_application  :
+                            if podtype in [ self.orchestrator.pod_application_pull, self.orchestrator.pod_application ]:
                                 # self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
                                 if isinstance( pod_event.status, V1PodStatus ):
                                     if not isinstance(pod_event.status.container_statuses, list):
@@ -72,30 +70,31 @@ class ODKubernetesWatcher:
                                             # the pod is terminated status is 'Completed'
                                             # pod_event.status.phase == 'Succeeded' or
                                             if pod_event.status.phase == 'Running':
-                                                self.orchestrator.removePod( pod_event )
+                                                await self.orchestrator.removePod( pod_event )
                                         if state.terminated.reason == 'OOMKilled':
                                             self.logger.debug( f"pod={pod_event.metadata.name} reason={state.terminated.reason} phase={pod_event.status.phase}" )
                                             if pod_event.status.phase == 'Running':
                                                 self.logger.debug( f"RemovePod pod={pod_event.metadata.name} reason={state.terminated.reason}" )
-                                                deletedPod = self.orchestrator.removePod( pod_event )
+                                                deletedPod = await self.orchestrator.removePod( pod_event )
                                                 if isinstance( deletedPod, V1Pod ):
                                                     self.logger.debug( f"watcher send notify_user_from_pod_application pod={pod_event.metadata.name} reason={state.terminated.reason}" )
-                                                    oc.od.composer.notify_user_from_pod_application( pod_application=pod_event, message=state.terminated.reason )
+                                                    await oc.od.composer.notify_user_from_pod_application( pod_application=pod_event, message=state.terminated.reason )
 
                     elif event_type == 'DELETED':
                         # if podevent type is pod
-                        if isinstance( pod_event, V1Pod ) : 
+                        # self.logger.debug( f"event_type={event_type} pod_event={type(pod_event)}" )
+                        if isinstance( pod_event, V1Pod ) and isinstance(pod_event.metadata.labels, dict) :
                             # self.logger.debug( f"{event_type} -> {pod_event.metadata.name}" )
                             podtype = pod_event.metadata.labels.get( 'type' )
                             if podtype == self.orchestrator.x11servertype :
                                 self.logger.debug( f"{event_type} -> {pod_event.metadata.name}:{podtype}" )
-                                desktop = self.orchestrator.pod2desktop( pod_event )
-                                oc.od.composer.detach_container_from_network(desktop.name)
+                                desktop = self.orchestrator.pod2desktop_reduced( pod_event )
+                                await oc.od.composer.detach_container_from_network(desktop.name)
             
             except (urllib3.exceptions.NewConnectionError, urllib3.exceptions.MaxRetryError) as e:
                 self.logger.fatal( e )
                 self.logger.fatal( f"ODKubernetesWatcher will not die but the api server is not responding {type(e)}, sleeping for {_backoff} s" )
-                time.sleep( _backoff )
+                await asyncio.sleep(_backoff)
                 _backoff = min( _backoff * 2, self._backoff_max ) 
             
             except client.exceptions.ApiException as e:
@@ -105,22 +104,28 @@ class ODKubernetesWatcher:
                     return
                 
                 if hasattr(e, 'status') and e.status == 504 and \
-                   hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+                    hasattr(e, 'reason') and 'Too large resource version' in e.reason :
                     self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
-                    break # break this for loop and retry watch streaming
+                    
 
                 self.logger.error( f"{type(e)} {e}" )
-                time.sleep( _backoff )  # exponential backoff to prevent log avalanche
+                await asyncio.sleep(_backoff) # exponential backoff to prevent log avalanche
                 _backoff = min( _backoff * 2, self._backoff_max )
 
             except Exception as e:
-                self.logger.error( f"{type(e)} {e}" )
-                time.sleep( _backoff )  # exponential backoff to prevent log avalanche
-                _backoff = min( _backoff * 2, self._backoff_max )
+                pass
+                # self.logger.error( f"{type(e)} {e}" )
+                # await asyncio.sleep(_backoff)
+                # _backoff = min( _backoff * 2, self._backoff_max )
+
+        
                     
     def start(self):
-        self.thead_event = threading.Thread(target=self.loopforevent)
-        self.thead_event.start() # infinite loop until events.close()
+        # self.thead_event = threading.Thread(target=self.loopforevent)
+        # self.thead_event.start() # infinite loop until events.close()
+        self.background_task_loopforevent = asyncio.create_task( self.loopforevent() )
+
+
 
     def stop(self):
         self.logger.debug('watcher thread is stopping')

@@ -24,70 +24,74 @@ import os
 import time
 import datetime
 import binascii
-import urllib3
-
+import aiohttp
 
 import yaml
 import json
 import chevron
 import requests
 import copy
+import asyncio
 import threading
 
-from kubernetes import client, config, watch
-from kubernetes.stream import stream
-from kubernetes.stream.ws_client import ERROR_CHANNEL
-from kubernetes.client.rest import ApiException
 
-from kubernetes.client.api.core_v1_api import CoreV1Api
 
-from kubernetes.client.models.v1_pod import V1Pod
-from kubernetes.client.models.v1_pod_spec import V1PodSpec
-from kubernetes.client.models.v1_pod_status import V1PodStatus
-# from kubernetes.client.models.v1_container import V1Container
-from kubernetes.client.models.v1_ephemeral_container import V1EphemeralContainer
-from kubernetes.client.models.v1_status import V1Status
-from kubernetes.client.models.v1_container import V1Container
+# kubernetes-asyncio: bibliothèque kubernetes asynchrone
+from kubernetes_asyncio import client, config, watch
+from kubernetes_asyncio.client.rest import ApiException
+from kubernetes_asyncio.client.api.core_v1_api import CoreV1Api
 
-# kubernetes.client.models.v1_container
-from kubernetes.client.models.v1_container_status import V1ContainerStatus
-from kubernetes.client.models.v1_container_state import V1ContainerState
-from kubernetes.client.models.v1_container_state_terminated import V1ContainerStateTerminated
-from kubernetes.client.models.v1_container_state_running import V1ContainerStateRunning
-from kubernetes.client.models.v1_container_state_waiting import V1ContainerStateWaiting
+from kubernetes_asyncio.client.models.v1_pod import V1Pod
+from kubernetes_asyncio.client.models.v1_pod_spec import V1PodSpec
+from kubernetes_asyncio.client.models.v1_pod_status import V1PodStatus
+# from kubernetes_asyncio.client.models.v1_container import V1Container
+from kubernetes_asyncio.client.models.v1_ephemeral_container import V1EphemeralContainer
+from kubernetes_asyncio.client.models.v1_status import V1Status
+from kubernetes_asyncio.client.models.v1_container import V1Container
+
+# kubernetes_asyncio.client.models.v1_container
+from kubernetes_asyncio.client.models.v1_container_status import V1ContainerStatus
+from kubernetes_asyncio.client.models.v1_container_state import V1ContainerState
+from kubernetes_asyncio.client.models.v1_container_state_terminated import V1ContainerStateTerminated
+from kubernetes_asyncio.client.models.v1_container_state_running import V1ContainerStateRunning
+from kubernetes_asyncio.client.models.v1_container_state_waiting import V1ContainerStateWaiting
 
 # Volume
-from kubernetes.client.models.v1_persistent_volume_claim import V1PersistentVolumeClaim
-#from kubernetes.client.models.v1_volume import V1Volume
-#from kubernetes.client.models.v1_volume_mount import V1VolumeMount
-#from kubernetes.client.models.v1_local_volume_source import V1LocalVolumeSource
-#from kubernetes.client.models.v1_flex_volume_source import V1FlexVolumeSource
-#from kubernetes.client.models.v1_host_path_volume_source import V1HostPathVolumeSource
-#from kubernetes.client.models.v1_secret_volume_source import V1SecretVolumeSource
+from kubernetes_asyncio.client.models.v1_persistent_volume_claim import V1PersistentVolumeClaim
+#from kubernetes_asyncio.client.models.v1_volume import V1Volume
+#from kubernetes_asyncio.client.models.v1_volume_mount import V1VolumeMount
+#from kubernetes_asyncio.client.models.v1_local_volume_source import V1LocalVolumeSource
+#from kubernetes_asyncio.client.models.v1_flex_volume_source import V1FlexVolumeSource
+#from kubernetes_asyncio.client.models.v1_host_path_volume_source import V1HostPathVolumeSource
+#from kubernetes_asyncio.client.models.v1_secret_volume_source import V1SecretVolumeSource
 
 # Secret
-from kubernetes.client.models.v1_secret import V1Secret
-#from kubernetes.client.models.v1_secret_list import V1SecretList
-from kubernetes.client.models.v1_event_source import V1EventSource
-from kubernetes.client.models.v1_object_field_selector import V1ObjectFieldSelector
-from kubernetes.client.models.v1_object_reference import V1ObjectReference
+from kubernetes_asyncio.client.models.v1_secret import V1Secret
+#from kubernetes_asyncio.client.models.v1_secret_list import V1SecretList
+from kubernetes_asyncio.client.models.v1_event_source import V1EventSource
+from kubernetes_asyncio.client.models.v1_object_field_selector import V1ObjectFieldSelector
+from kubernetes_asyncio.client.models.v1_object_reference import V1ObjectReference
 
-from kubernetes.client.models.core_v1_event import CoreV1Event
-from kubernetes.client.models.v1_node_list import V1NodeList
-from kubernetes.client.models.v1_node import V1Node
-from kubernetes.client.models.v1_env_var import V1EnvVar 
-from kubernetes.client.models.v1_pod_list import V1PodList
-#from kubernetes.client.models.v1_config_map import V1ConfigMap
-#from kubernetes.client.models.v1_endpoint import V1Endpoint
-from kubernetes.client.models.v1_endpoints import V1Endpoints
-#from kubernetes.client.models.v1_endpoints_list import V1EndpointsList
-from kubernetes.client.models.v1_endpoint_subset import V1EndpointSubset 
-from kubernetes.client.models.core_v1_endpoint_port import CoreV1EndpointPort
-from kubernetes.client.models.v1_endpoint_address import V1EndpointAddress
-from kubernetes.client.models.v1_object_meta import V1ObjectMeta
-from kubernetes.client.models.v1_resource_requirements import V1ResourceRequirements
+from kubernetes_asyncio.client.models.core_v1_event import CoreV1Event
+from kubernetes_asyncio.client.models.v1_node_list import V1NodeList
+from kubernetes_asyncio.client.models.v1_node import V1Node
+from kubernetes_asyncio.client.models.v1_env_var import V1EnvVar
+from kubernetes_asyncio.client.models.v1_pod_list import V1PodList
+#from kubernetes_asyncio.client.models.v1_config_map import V1ConfigMap
+#from kubernetes_asyncio.client.models.v1_endpoint import V1Endpoint
+from kubernetes_asyncio.client.models.v1_endpoints import V1Endpoints
+#from kubernetes_asyncio.client.models.v1_endpoints_list import V1EndpointsList
+from kubernetes_asyncio.client.models.v1_endpoint_subset import V1EndpointSubset
+from kubernetes_asyncio.client.models.core_v1_endpoint_port import CoreV1EndpointPort
+from kubernetes_asyncio.client.models.v1_endpoint_address import V1EndpointAddress
+from kubernetes_asyncio.client.models.v1_object_meta import V1ObjectMeta
+from kubernetes_asyncio.client.models.v1_resource_requirements import V1ResourceRequirements
+from kubernetes_asyncio.client.models.v1_delete_options import V1DeleteOptions
 
-from kubernetes.client.models.v1_delete_options import V1DeleteOptions
+# kubernetes (sync) - uniquement pour l'exec streaming via WebSocket
+import kubernetes as _k8s_sync
+from kubernetes.stream import stream as _k8s_sync_stream
+from kubernetes.stream.ws_client import ERROR_CHANNEL
 
 
 import oc.lib
@@ -97,10 +101,12 @@ import oc.od.persistentvolumeclaim
 import oc.od.secret         # manage secret for kubernetes
 import oc.od.registry
 import oc.od.appinstancestatus
-from   oc.od.error          import ODAPIError, ODError   # import all error classes
-from   oc.od.desktop        import ODDesktop
-from   oc.auth.authservice  import AuthInfo, AuthUser, AuthRoles # to read AuthInfo, AuthUser, AuthRoles
-from   oc.od.vnc_password   import ODVncPassword
+from oc.od.error import ODAPIError, ODError   # import all error classes
+from oc.od.desktop import ODDesktop
+from oc.od.vnc_password import ODVncPassword
+from oc.auth.authuser import AuthUser
+from oc.auth.authinfo import AuthInfo
+from oc.auth.authroles import AuthRoles
 
 logger = logging.getLogger(__name__)
 
@@ -140,8 +146,6 @@ class ODOrchestratorBase(object):
         self.filercontainernameprefix       = 'f'   # file container letter prefix f for file service
         # init name is i-UUID
         self.initcontainernameprefix        = 'i'   # init container letter prefix i for init
-        # storage name is o-UUID
-        self.storagecontainernameprefix     = 'o'   # storage container letter prefix o for secret storage
         # ssh name is h-UUID
         self.sshcontainernameprefix         = 'h'   # ssh container letter prefix h for ssh
         # webshell name is w-UUID
@@ -151,16 +155,16 @@ class ODOrchestratorBase(object):
         # name separtor only for human read 
         self.containernameseparator         = '-'   # separator
 
-        self.nameprefixdict = { 'graphical' : self.graphicalcontainernameprefix,
-                                'spawner'   : self.spawnercontainernameprefix,
-                                'webshell'  : self.webshellcontainernameprefix,
-                                'printer'   : self.printercontainernameprefix,
-                                'sound'     : self.soundcontainernameprefix,  
-                                'filer'     : self.filercontainernameprefix,
-                                'init'      : self.initcontainernameprefix,
-                                'storage'   : self.storagecontainernameprefix,
-                                'ssh'       : self.sshcontainernameprefix,
-                                'snapshot'  : self.snapshotcontainernameprefix
+        self.nameprefixdict = { 
+            'graphical' : self.graphicalcontainernameprefix,
+            'spawner'   : self.spawnercontainernameprefix,
+            'webshell'  : self.webshellcontainernameprefix,
+            'printer'   : self.printercontainernameprefix,
+            'sound'     : self.soundcontainernameprefix,  
+            'filer'     : self.filercontainernameprefix,
+            'init'      : self.initcontainernameprefix,
+            'ssh'       : self.sshcontainernameprefix,
+            'snapshot'  : self.snapshotcontainernameprefix
         }
         self.name                   = 'base'
         self.endpoint_domain        = 'desktop'
@@ -206,13 +210,13 @@ class ODOrchestratorBase(object):
     def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, **kwargs):
         raise NotImplementedError(f"{type(self)}.createdesktop")
 
-    def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
+    async def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
         raise NotImplementedError(f"{type(self)}.build_volumes")
 
     def findDesktopByUser( self, authinfo:AuthInfo, userinfo:AuthUser ):
         raise NotImplementedError(f"{type(self)}.findDesktopByUser")
 
-    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, args={}):
+    async def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, args={}):
         raise NotImplementedError(f"{type(self)}.removedesktop")
 
     def getsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser):
@@ -257,7 +261,7 @@ class ODOrchestratorBase(object):
         normalize_name = oc.auth.namedlib.normalize_name_volunename(name)
         return normalize_name
 
-    def user_connect_count(self, desktop:ODDesktop, timeout=10):
+    async def user_connect_count(self, desktop:ODDesktop, timeout=10):
         """user_connect_count
             call bash script /composer/connectcount.sh inside a desktop
         Args:
@@ -283,7 +287,7 @@ class ODOrchestratorBase(object):
         # COUNT=$(netstat -t | grep 'ESTABLISHED' | grep 6081 | wc -l)
         # echo $COUNT
         command = [ '/composer/connectcount.sh' ]      
-        result = self.execwaitincontainer( desktop, command, timeout)
+        result = await self.execwaitincontainer( desktop, command, timeout)
         if not isinstance(result,dict):
             # do not raise exception 
             return nReturn
@@ -309,8 +313,9 @@ class ODOrchestratorBase(object):
         """
         return {}
 
-    def waitForDesktopProcessReady(self, desktop:ODDesktop, callback_notify):
+    async def waitForDesktopProcessReady(self, desktop:ODDesktop):
         self.logger.debug('')
+        bReturn = False
 
         nCountMax = 42
         # check if supervisor has stated all processs
@@ -335,14 +340,14 @@ class ODOrchestratorBase(object):
         while nCount < nCountMax:
             for service in services: 
                 if not bServiceStatus[service] :
-                    callback_notify( f"c.Waiting desktop service {service}" )
-                    bServiceStatus[service] = self.waitForServiceReady( desktop, service_name=service )
+                    yield f"c.Waiting desktop service {service}"
+                    bServiceStatus[service] = await self.waitForServiceReady( desktop, service_name=service )
                     if bServiceStatus[service] is True:
                         nServiceCount += 1
             nCount += 1
             if all( bServiceStatus.values() ):
                 self.logger.debug( f"desktop services {services} are ready" )  
-                callback_notify( f"c.Desktop services {services} are started" )                
+                yield f"c.Desktop services {services} are started"                
                 break
         
         #
@@ -352,18 +357,17 @@ class ODOrchestratorBase(object):
         while nCount < nCountMax:
             for process in processes: 
                 if not bProcessStatus[process] :
-                    callback_notify( f"c.Waiting for desktop process {process}" )
-                    bProcessStatus[process] = self.waitForProcessReady( desktop, process_name=process )
+                    yield f"c.Waiting for desktop process {process}"
+                    bProcessStatus[process] = await self.waitForProcessReady( desktop, process_name=process )
                     if bProcessStatus[process] is True:
                         nProcessCount += 1
                     else:
                         sleepfor = 1/nProcessCount
                         time.sleep( sleepfor )
-                    # callback_notify( f"c.Waiting for desktop service {service} {nServiceCount}/{len(services)}" )
             nCount += 1
             if all( bProcessStatus.values() ):
                 self.logger.debug( f"desktop processes are ready" )  
-                callback_notify( f"c.Desktop processes are started" )                
+                yield f"c.Desktop processes are started"                
                 break
    
 
@@ -373,13 +377,14 @@ class ODOrchestratorBase(object):
         while nCount < nCountMax:
             for service in ['graphical', 'spawner']: 
                 messageinfo = f"c.Waiting for a response from desktop {service}"
-                callback_notify(messageinfo)
+                yield messageinfo
                 # check if WebSockifyListening id listening on tcp port 6081
                 if bServicesListening[service] is False:
-                    bServicesListening[service] = self.waitForServiceListening( desktop, service=service, timeout=0)
+                    bServicesListening[service] = await self.waitForServiceListening( desktop, service=service, timeout=0)
                     if bServicesListening[service] is False:
                         messageinfo = f"c.Desktop {service} service is not listening."
-                        time.sleep(nCount/nCountMax)
+                        yield messageinfo
+                        await asyncio.sleep(nCount/nCountMax)
             nCount += 1
             
             if  all( bServicesListening.values() ):
@@ -387,15 +392,16 @@ class ODOrchestratorBase(object):
                 end_now = datetime.datetime.now()   
                 diff_time = end_now - start_now
                 diff_time_seconds = diff_time.total_seconds()                
-                callback_notify( f"c.Desktop services are running after {diff_time_seconds}" )  
-                return True
+                yield f"c.Desktop services are running after {diff_time_seconds}"  
+                bReturn = True
+                break 
         
         # Can not chack process status     
         self.logger.warning( f"waitForDesktopProcessReady not ready services status:{bServicesListening}" )
-        return False
+        yield bReturn
 
 
-    def waitForServiceHealtz(self, desktop, service, timeout=5):
+    async def waitForServiceHealtz(self, desktop, service, timeout=5):
         """waitForServiceHealtz
 
         Args:
@@ -430,7 +436,7 @@ class ODOrchestratorBase(object):
         # curl --max-time [SECONDS] [URL]
         healtzbintimeout = oc.od.settings.desktop_pod[service].get('healtzbintimeout', timeout*1000 )
         command = [ oc.od.settings.desktop_pod[service].get('healtzbin'), '--max-time', str(healtzbintimeout), binding ]       
-        result = self.execwaitincontainer( desktop, command, timeout)
+        result = await self.execwaitincontainer( desktop, command, timeout)
         self.logger.debug( f"command {command} returns {result.get('exit_code')} output {result.get('stdout')}" )
 
         if isinstance(result, dict):
@@ -438,7 +444,7 @@ class ODOrchestratorBase(object):
         else:
             return False
 
-    def waitForServiceReady(self, desktop:ODDesktop, service_name:str)-> bool:
+    async def waitForServiceReady(self, desktop:ODDesktop, service_name:str)-> bool:
         """waitForServicePlasmaShell
 
         Args:
@@ -459,7 +465,7 @@ class ODOrchestratorBase(object):
         # Note the same timeout value is used twice
         # for the wait_port command and for the exec command  
         command = [ "/usr/bin/supervisorctl", "status", service_name ] 
-        result = self.execwaitincontainer( desktop, command )
+        result = await self.execwaitincontainer( desktop, command )
         if isinstance(result, dict):
             # self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
             isserviceready = result.get('ExitCode') == 0
@@ -467,7 +473,7 @@ class ODOrchestratorBase(object):
             return isserviceready
         return False
 
-    def waitForProcessReady(self, desktop:ODDesktop, process_name:str)-> bool:
+    async def waitForProcessReady(self, desktop:ODDesktop, process_name:str)-> bool:
         """waitForServicePlasmaShell
 
         Args:
@@ -488,7 +494,7 @@ class ODOrchestratorBase(object):
         # Note the same timeout value is used twice
         # for the wait_port command and for the exec command  
         command = [ "/usr/bin/pidof", process_name ] 
-        result = self.execwaitincontainer( desktop, command )
+        result = await self.execwaitincontainer( desktop, command )
         if isinstance(result, dict):
             # self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
             isprocessready = result.get('ExitCode') == 0
@@ -497,7 +503,7 @@ class ODOrchestratorBase(object):
         return False
 
       
-    def waitForServiceListening(self, desktop:ODDesktop, service:str, timeout:int=2)-> bool:
+    async def waitForServiceListening(self, desktop:ODDesktop, service:str, timeout:int=2)-> bool:
         """waitForServiceListening
 
         Args:
@@ -540,7 +546,7 @@ class ODOrchestratorBase(object):
         # 
         waitportbintimeout = oc.od.settings.desktop_pod[service].get('waitportbintimeout', timeout*1000 )
         command = [ oc.od.settings.desktop_pod[service].get('waitportbin'), '-t', str(waitportbintimeout), binding ]       
-        result = self.execwaitincontainer( desktop, command, timeout)
+        result = await self.execwaitincontainer( desktop, command, timeout)
      
         if isinstance(result, dict):
             self.logger.debug( f"command={command} exit_code={result.get('ExitCode')} stdout={result.get('stdout')}" )
@@ -548,7 +554,7 @@ class ODOrchestratorBase(object):
             self.logger.debug( f"isportready={isportready}")
             if isportready is True:
                 self.logger.debug( f"binding {binding} is up")
-                return self.waitForServiceHealtz(desktop, service, timeout)
+                return await self.waitForServiceHealtz(desktop, service, timeout)
 
         self.logger.debug( f"binding {binding} is down")
         return False
@@ -615,7 +621,7 @@ class ODOrchestrator(ODOrchestratorBase):
         self.logger.debug('get cached userinfo are not supported in docker mode')
         return {} 
 
-    def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
+    async def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules, **kwargs):
         raise NotImplementedError(f"{type(self)}.build_volumes")
   
     def countdesktop(self):
@@ -796,6 +802,9 @@ class ODOrchestrator(ODOrchestratorBase):
 @oc.logging.with_logger()
 class ODOrchestratorKubernetes(ODOrchestrator):
 
+    _shared_kubeapi = None
+    _shared_kubeapi_sync = None
+
     def __init__(self):
         super().__init__()
 
@@ -832,42 +841,84 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #    config.load_kube_config()
         #    # self.logger.debug( 'config.load_kube_config done')
         
-        try:   
-            # self.logger.debug( f"KUBERNETES_SERVICE_HOST={os.getenv('KUBERNETES_SERVICE_HOST')}" )
-            # self.logger.debug( f"KUBERNETES_SERVICE_PORT={os.getenv('KUBERNETES_SERVICE_PORT')}" ) 
-            # self.logger.debug( f"KUBERNETES_SERVICE_PORT_HTTPS={os.getenv('KUBERNETES_SERVICE_PORT_HTTPS')}" )
-            config.load_incluster_config() # set up the client from within a k8s pod
-            self.logger.debug( "load_incluster_config done" )
+        # Load kubernetes-asyncio config
+        # load_incluster_config is sync, load_kube_config is async
+        try:
+            config.load_incluster_config()  # sync call
+            self.logger.debug("kubernetes_asyncio load_incluster_config done")
         except Exception as e_in:
-            # self.logger.debug( f"ODOrchestratorKubernetes load_kube_config" )
-            # use KUBE_CONFIG_DEFAULT_LOCATION = os.environ.get('KUBECONFIG', '~/.kube/config')
-            # self.logger.debug( "ODOrchestratorKubernetes load_kube_config" )
-            try:
-                config.load_kube_config()
-                self.logger.debug( f"load_kube_config done" )
-            except Exception as e_out:
-                self.logger.error( f"This is a fatal error" )
-                self.logger.error( f"load_incluster_config failed {e_in}" )
-                self.logger.error( f"load_kube_config failed {e_out}" )
+            # Fallback: load_kube_config is async - run it in a fresh thread (no running loop there)
+            _exc = []
+            def _load_kube():
+                try:
+                    asyncio.run(config.load_kube_config())
+                except Exception as e:
+                    _exc.append(e)
+            _t = threading.Thread(target=_load_kube)
+            _t.start()
+            _t.join()
+            if not _exc:
+                _k8s_asyncio_configured = True
+                self.logger.debug("kubernetes_asyncio load_kube_config done")
+            else:
+                self.logger.error(f"kubernetes_asyncio load_incluster_config failed: {e_in}")
+                self.logger.error(f"kubernetes_asyncio load_kube_config failed: {_exc[0]}")
 
-        # 
-        # previous line is 
-        #   from kubernetes.client import configuration 
-        #   SSL hostname verification failure with websocket-client #138
-        #   https://github.com/kubernetes-client/python/issues/138#
-        # 
-        #   you're using minikube for development purpose. It is not able to recognise your hostname. 
-        #   https://stackoverflow.com/questions/54050504/running-connect-get-namespaced-pod-exec-using-kubernetes-client-corev1api-give
-        #
-        client.configuration.assert_hostname = False
+        # Chargement de la configuration kubernetes (sync) uniquement pour l'exec streaming
+        try:
+            _k8s_sync.config.load_incluster_config()
+        except Exception:
+            try:
+                _k8s_sync.config.load_kube_config()
+            except Exception:
+                pass
+
         self.name = 'kubernetes'
-        self.kubeapi = client.CoreV1Api()
+        # self._kubeapi = None  # lazy init : créé au premier appel dans un contexte async
+        # self._shared_kubeapi_sync = None  # lazy init : créé au premier appel dans un contexte sync
         self.namespace = oc.od.settings.namespace
         self.bConfigure = True
 
-    def close(self):
-        #self.kupeapi.close()
-        pass
+    @property
+    def kubeapi(self):
+        """Lazy init : CoreV1Api est créé au premier accès, toujours dans un contexte async (event loop uvicorn actif)."""
+        if ODOrchestratorKubernetes._shared_kubeapi is None:
+            ODOrchestratorKubernetes._shared_kubeapi = client.CoreV1Api()
+        return ODOrchestratorKubernetes._shared_kubeapi
+
+    @property
+    def kubeapi_sync(self):
+        if ODOrchestratorKubernetes._shared_kubeapi_sync is None:
+            ODOrchestratorKubernetes._shared_kubeapi_sync = _k8s_sync.client.CoreV1Api()
+        return ODOrchestratorKubernetes._shared_kubeapi_sync
+
+    async def _async_load_k8s_config(self):
+        """Charge la configuration kubernetes-asyncio de manière asynchrone."""
+        try:
+            await config.load_incluster_config()
+            self.logger.debug("load_incluster_config done")
+        except Exception as e_in:
+            try:
+                await config.load_kube_config()
+                self.logger.debug("load_kube_config done")
+            except Exception as e_out:
+                self.logger.error("This is a fatal error")
+                self.logger.error(f"load_incluster_config failed {e_in}")
+                self.logger.error(f"load_kube_config failed {e_out}")
+
+    def __del__(self):
+        # self.close())
+        self.logger.debug( 'deleting ODOrchestratorKubernetes')
+
+    async def close(self):
+        self.logger.debug( 'call kubeapi close')
+        # if isinstance( self._kubeapi, CoreV1Api):
+        #    await self._kubeapi.api_client.close()
+        # self._kubeapi = None
+        # if isinstance( self.kubeapi_sync, CoreV1Api):
+        # self.kubeapi_sync.api_client.close()
+        # self.kubeapi_sync = None
+        
 
     def is_configured(self)->bool: 
         """[is_configured]
@@ -878,7 +929,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         return self.bConfigure
         
-    def is_list_node_enabled(self)->bool: 
+    async def is_list_node_enabled(self)->bool: 
         """[is_list_node_enabled]
             return True if kubernetes is configured and can call list_node() API  
         Returns:
@@ -888,7 +939,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         try:
             if self.bConfigure :
                 # run a dummy node list to check if kube is working
-                node_list = self.kubeapi.list_node()
+                node_list = await self.kubeapi.list_node()
                 if isinstance( node_list, V1NodeList) and len(node_list.items) > 0:
                     bReturn = True
         except Exception as e:
@@ -896,7 +947,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return bReturn
 
 
-    def listEndpointAddresses( self, endpoint_name:str )->tuple:
+    async def listEndpointAddresses( self, endpoint_name:str )->tuple:
         """listEndpointAddresses
 
         Args:
@@ -909,7 +960,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         list_endpoint_addresses = None
         list_endpoint_port = None
-        endpoint = self.kubeapi.read_namespaced_endpoints( name=endpoint_name, namespace=self.namespace )
+        endpoint = await self.kubeapi.read_namespaced_endpoints( name=endpoint_name, namespace=self.namespace )
         if isinstance( endpoint, V1Endpoints ):
             if not isinstance( endpoint.subsets, list) or len(endpoint.subsets) == 0:
                 return (list_endpoint_port, list_endpoint_addresses) # (None, None)
@@ -933,7 +984,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return (list_endpoint_port, list_endpoint_addresses)
 
-    def get_podname( self, authinfo:AuthInfo, userinfo:AuthUser, pod_sufix:str )->str:
+    async def get_podname( self, authinfo:AuthInfo, userinfo:AuthUser, pod_sufix:str )->str:
         """[get_podname]
             return a pod name from authinfo, userinfo and uuid 
         Args:
@@ -944,7 +995,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         Returns:
             [str]: [name of the user pod]
         """
-        posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+        posixuser = await self.alwaysgetPosixAccountUser( authinfo, userinfo )
         podname = posixuser.get('uid') + self.containernameseparator + pod_sufix
         return oc.auth.namedlib.normalize_name_dnsname( podname )[0:252]
  
@@ -967,7 +1018,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         normalize_data = oc.auth.namedlib.normalize_label( no_accent_normalize_data )
         return normalize_data
 
-    def logs( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
+    async def logs( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
         """logs
 
         Args:
@@ -986,17 +1037,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myPod = self.findPodByUser(authinfo, userinfo)
         if isinstance(myPod, V1Pod):
             try:
-                myDesktop = self.pod2desktop( pod=myPod )
+                myDesktop = self.pod2desktop_reduced( pod=myPod )
                 pod_name = myPod.metadata.name  
                 container_name = myDesktop.container_name
-                strlogs = self.kubeapi.read_namespaced_pod_log( name=pod_name, namespace=self.namespace, container=container_name, pretty='true' )
+                strlogs = await self.kubeapi.read_namespaced_pod_log( name=pod_name, namespace=self.namespace, container=container_name, pretty='true' )
             except ApiException as e:
                 self.logger.error(e)
         else:
             self.logger.debug( f"No pod found for user {userinfo.userid}" )
         return strlogs
 
-    def build_volumes_secrets( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement:list, rules={}, **kwargs:dict)->dict:
+    async def build_volumes_secrets( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement:list, rules={}, **kwargs:dict)->dict:
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1015,7 +1066,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # for access_type in ['auth', 'ldif']:
             for access_type in ['auth']:
                 self.logger.debug( f"listing list_dict_secret_data access_type='{access_type}'" )
-                mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type=access_type )
+                mysecretdict = await self.list_dict_secret_data( authinfo, userinfo, access_type=access_type )
             
                 if isinstance( mysecretdict, dict):
                     # read all entries in dict
@@ -1065,7 +1116,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return (volumes, volumes_mount)
 
-    def build_volumes_additional_for_flexvolume( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, mountvol, **kwargs):
+    async def build_volumes_additional_for_flexvolume( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, mountvol, **kwargs):
 
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
@@ -1086,7 +1137,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # for example /home/balloon/U             
             # Read data from secret    
             secret_name         = secret.get_name( authinfo, userinfo )
-            secret_dict_data    = secret.read_alldata( authinfo, userinfo )
+            secret_dict_data    = await secret.read_alldata( authinfo, userinfo )
             if not isinstance( secret_dict_data, dict ):
                 # skipping bad values
                 self.logger.error( f"Invalid value read from secret={secret_name} type={type(secret_dict_data)}" )
@@ -1138,7 +1189,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         return (volumes, volumes_mount)
     
-    def build_volumes_additional_by_rules( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
+    async def build_volumes_additional_by_rules( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1199,7 +1250,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     continue     
                    
                 if fstype=='cifs': # this is a flexvolume
-                    (flex_volumes, flex_volumes_mount) = self.build_volumes_additional_for_flexvolume( 
+                    (flex_volumes, flex_volumes_mount) = await self.build_volumes_additional_for_flexvolume( 
                         authinfo=authinfo, 
                         userinfo=userinfo, 
                         volume_type=volume_type, 
@@ -1215,12 +1266,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return (volumes, volumes_mount)
 
-    def get_user_homedirectory(self, authinfo:AuthInfo, userinfo:AuthUser )->str:
+    async def get_user_homedirectory(self, authinfo:AuthInfo, userinfo:AuthUser )->str:
         self.logger.debug('')
         assert_type(authinfo, AuthInfo)
         assert_type(userinfo, AuthUser)
         localaccount = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
-        localaccount_secret = localaccount.read( authinfo,userinfo )
+        localaccount_secret = await localaccount.read( authinfo,userinfo )
         homeDirectory = oc.od.secret.ODSecretLocalAccount.read_data( localaccount_secret, 'homeDirectory' )
         if not isinstance( homeDirectory, str ):
             homeDirectory = oc.od.settings.getballoon_homedirectory( userinfo.userid )
@@ -1237,7 +1288,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         mixedata['uuid']=oc.lib.uuid_digits()
         return mixedata
 
-    def build_volumes_home( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement, rules={}, **kwargs):
+    async def build_volumes_home( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type:str, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1250,7 +1301,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"homedirectorytype is {homedirectorytype} and volume_type is {volume_type}")
         subpath_name = oc.auth.namedlib.normalize_name( userinfo.userid )
         self.logger.debug(f"subpath_name is {subpath_name}")
-        user_homedirectory = os.path.join(  self.get_user_homedirectory(authinfo, userinfo), 
+        user_homedirectory = os.path.join(  await self.get_user_homedirectory(authinfo, userinfo), 
                                             oc.od.settings.desktop.get('appendpathtomounthomevolume','') )
         user_homedirectory = os.path.normpath( user_homedirectory )
         self.logger.debug( f"user_homedirectory mounts home volume to {user_homedirectory}" )
@@ -1262,7 +1313,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         volumes_mount['home']   = { 'name': volume_home_name, 'mountPath': user_homedirectory }
 
         for directorytomemoryemptydir in oc.od.settings.desktop['directorytomemoryemptydir']:
-            directorytomemoryemptydir_user_homedirectory = os.path.join( self.get_user_homedirectory(authinfo, userinfo), directorytomemoryemptydir )
+            directorytomemoryemptydir_user_homedirectory = os.path.join( await self.get_user_homedirectory(authinfo, userinfo), directorytomemoryemptydir )
             self.logger.debug( f"map {directorytomemoryemptydir_user_homedirectory} to emptyDir medium Memory" )
             volume_name = oc.auth.namedlib.normalize_name( directorytomemoryemptydir )
             volumes[volume_name]       = { 'name': volume_name,  **oc.od.settings.desktop['directorytomemory']  }
@@ -1382,14 +1433,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (volumes, volumes_mount)
 
 
-    def build_volumes_vnc( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
+    async def build_volumes_vnc( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         volumes = {}        # set empty volume dict by default
         volumes_mount = {}  # set empty volume_mount dict by default
          # Add VNC password
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
+        mysecretdict = await self.list_dict_secret_data( authinfo, userinfo, access_type='vnc' )
         # mysecretdict must be a dict
         assert isinstance(mysecretdict, dict),  f"mysecretdict has invalid type {type(mysecretdict)}"
         assert len(mysecretdict)>0,             f"mysecretdict has invalid len {len(mysecretdict)}"
@@ -1414,7 +1465,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (volumes, volumes_mount)
 
 
-    def get_volumes_localaccount_name( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
+    async def get_volumes_localaccount_name( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
         """get_volumes_localaccount_name
 
         Args:
@@ -1430,13 +1481,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         
         localaccount_name = None
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
+        mysecretdict = await self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
         if isinstance(mysecretdict, dict ) and len(mysecretdict)>0:
             localaccount_name = list( mysecretdict.keys() )[0] # should be only one, get the first one
         return localaccount_name
 
 
-    def build_volumes_localaccount( self, authinfo:AuthInfo, userinfo:AuthUser ):
+    async def build_volumes_localaccount( self, authinfo:AuthInfo, userinfo:AuthUser ):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
@@ -1445,7 +1496,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         #
         # mount secret in directory desktop['secretslocalaccount'] eq: /etc/localaccount
-        mysecretdict = self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
+        mysecretdict = await self.list_dict_secret_data( authinfo, userinfo, access_type='localaccount' )
         assert isinstance(mysecretdict, dict), f"no secret type access_type='localaccount' found for userid={userinfo.userid}"
 
         # there should be only one items
@@ -1567,7 +1618,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
 
-    def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
+    async def build_volumes( self, authinfo:AuthInfo, userinfo:AuthUser, volume_type, secrets_requirement, rules={}, **kwargs):
         """[build_volumes]
 
         Args:
@@ -1585,14 +1636,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         # mount init localaccount volume
         #
-        (init_localaccount_volumes, init_localaccount_volumes_mount) = self.build_volumes_localaccount(authinfo, userinfo )
+        (init_localaccount_volumes, init_localaccount_volumes_mount) = await self.build_volumes_localaccount(authinfo, userinfo )
         volumes.update(init_localaccount_volumes)
         volumes_mount.update(init_localaccount_volumes_mount)
 
         #
         # mount home volume
         #
-        (home_volumes, home_volumes_mount) = self.build_volumes_home(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
+        (home_volumes, home_volumes_mount) = await self.build_volumes_home(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
         volumes.update(home_volumes)
         volumes_mount.update(home_volumes_mount)
 
@@ -1619,7 +1670,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # add vnc only for desktop_pod because application_pod and ephemeral_container don't need vnc access
         if volume_type == 'pod_desktop' :
             (vnc_volumes, vnc_volumes_mount) = \
-                self.build_volumes_vnc(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
+                await self.build_volumes_vnc(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
             volumes.update(vnc_volumes)
             volumes_mount.update(vnc_volumes_mount)
 
@@ -1627,7 +1678,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # mount other secrets in /var/secrets/abcdesktop
         #
         (secret_volumes, secret_volumes_mount) = \
-            self.build_volumes_secrets(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
+            await self.build_volumes_secrets(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
         volumes.update(secret_volumes)
         volumes_mount.update(secret_volumes_mount)
 
@@ -1635,7 +1686,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # mount voulumes from rules
         #
         (rules_volumes, rules_volumes_mount) = \
-            self.build_volumes_additional_by_rules(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
+            await self.build_volumes_additional_by_rules(authinfo, userinfo, volume_type, secrets_requirement, rules, **kwargs)
         volumes.update(rules_volumes)
         volumes_mount.update(rules_volumes_mount)
         self.logger.debug('volumes end')        
@@ -1662,7 +1713,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #   
         try:            
             # self.logger.debug( f"_execwaitincontainer pod_name={pod_name} container_name={container_name} command={command} timeout={timeout}" )
-            resp = stream(  self.kubeapi.connect_get_namespaced_pod_exec, 
+            resp = _k8s_sync_stream(  self.kubeapi_sync.connect_get_namespaced_pod_exec, 
                             name=pod_name, 
                             namespace=self.namespace, 
                             command=command,                                                                
@@ -1695,29 +1746,32 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return result
         
-    def execwaitincontainer( self, desktop:ODDesktop, command:list, timeout:int=5):
+    async def execwaitincontainer( self, desktop:ODDesktop, command:list, timeout:int=5)->dict:
         assert isinstance(desktop, ODDesktop), f"desktop is not a ODDesktop {type(desktop)}"
-        result = self._execwaitincontainer( pod_name=desktop.name,
-                                            container_name=desktop.container_name,
-                                            command=command,
-                                            timeout=timeout )
+        result = await asyncio.to_thread(
+            self._execwaitincontainer,
+            pod_name=desktop.name,
+            container_name=desktop.container_name,
+            command=command,
+            timeout=timeout
+        )
         return result
 
-    def get_container_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, container_name:str ) -> dict:
+    async def get_container_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, container_name:str ) -> dict:
         ephemeralcontainerappinstance = ODAppInstanceKubernetesEphemeralContainer( self )
-        return ephemeralcontainerappinstance.get_resources_usage( authinfo, userinfo, container_name )
+        return await ephemeralcontainerappinstance.get_resources_usage( authinfo, userinfo, container_name )
        
     
-    def get_pod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str ) -> dict:
+    async def get_pod_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str ) -> dict:
         podappinstance = ODAppInstanceKubernetesPod( self )
-        return podappinstance.get_resources_usage( authinfo, userinfo, pod_name )
+        return await podappinstance.get_resources_usage( authinfo, userinfo, pod_name )
 
-    def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
+    async def getdesktop_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
         """
 
         """
         resources_usage = { 'timestamp': time.time() }
-        myPod = self.findPodByUser(authinfo, userinfo )
+        myPod = await self.findPodByUser(authinfo, userinfo )
         if isinstance(myPod, V1Pod ):
             # read the graphical container name
             container = self.getcontainerfromPod( self.graphicalcontainernameprefix, myPod ) 
@@ -1725,11 +1779,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # create an app instance 
                 appinstance = ODAppInstanceBase( self )
                 # read resources of the container name 
-                resources_usage = appinstance.get_resources_usage( myPod, container.name )
+                resources_usage = await appinstance.get_resources_usage( myPod, container.name )
 
         return resources_usage
 
-    def removePod( self, myPod:V1Pod, propagation_policy:str='Foreground', grace_period_seconds:int=None) -> V1Pod:
+    async def removePod( self, myPod:V1Pod, propagation_policy:str='Foreground', grace_period_seconds:int=None) -> V1Pod:
         """_summary_
             Remove a pod
             like command 'kubectl delete pods'
@@ -1751,7 +1805,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(myPod, V1Pod), f"myPod invalid type {type(myPod)}"
         deletedPod = None
         try:  
-            deletedPod = self.kubeapi.delete_namespaced_pod(  
+            deletedPod = await self.kubeapi.delete_namespaced_pod(  
                 name=myPod.metadata.name, 
                 namespace=self.namespace, 
                 grace_period_seconds=grace_period_seconds, 
@@ -1764,7 +1818,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return deletedPod
 
-    def removesecrets( self, authinfo:AuthInfo, userinfo:AuthUser )->bool:
+    async def removesecrets( self, authinfo:AuthInfo, userinfo:AuthUser )->bool:
         """removesecrets
             remove all kubernetes secrets for a give user
             list_dict_secret_data( authinfo, userinfo, access_type=None)
@@ -1784,11 +1838,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         ''' access_type is None will list all secret type '''
         bReturn = True
         # access_type is None will list all secret type
-        dict_secret = self.list_dict_secret_data( authinfo, userinfo, access_type=None)
+        dict_secret = await self.list_dict_secret_data( authinfo, userinfo, access_type=None)
         for secret_name in dict_secret.keys():
             try:
                 self.logger.debug( f"deleting secret name {secret_name}")
-                v1status = self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
+                v1status = await self.kubeapi.delete_namespaced_secret( name=secret_name, namespace=self.namespace )
                 if not isinstance(v1status,V1Status) :
                     self.logger.error( 'invalid V1Status type return by delete_namespaced_secret')
                     continue
@@ -1804,7 +1858,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
    
 
 
-    def removeconfigmap( self, authinfo:AuthInfo, userinfo:AuthUser )->bool:
+    async def removeconfigmap( self, authinfo:AuthInfo, userinfo:AuthUser )->bool:
         """removeconfigmap
             remove all kubernetes configmap for a give user
 
@@ -1819,10 +1873,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         bReturn = True
-        dict_configmap = self.list_dict_configmap_data( authinfo, userinfo, access_type=None)
+        dict_configmap = await self.list_dict_configmap_data( authinfo, userinfo, access_type=None)
         for configmap_name in dict_configmap.keys():
             try:            
-                v1status = self.kubeapi.delete_namespaced_config_map( name=configmap_name, namespace=self.namespace )
+                v1status = await self.kubeapi.delete_namespaced_config_map( name=configmap_name, namespace=self.namespace )
                 if not isinstance(v1status,V1Status) :
                     self.logger.error( 'Invalid V1Status type return by delete_namespaced_config_map')
                     continue
@@ -1836,17 +1890,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 bReturn = bReturn and False
         return bReturn 
 
-    def removepodindesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None )->bool:
+    async def removepodindesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None )->bool:
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         # get the user's pod
         if not isinstance(myPod, V1Pod ):
-            myPod = self.findPodByUser(authinfo, userinfo )
+            myPod = await self.findPodByUser(authinfo, userinfo )
 
         if isinstance(myPod, V1Pod ):
             # delete this pod immediatly
-            deletedpod = self.removePod( myPod=myPod, propagation_policy='Foreground', grace_period_seconds=0 )
+            deletedpod = await self.removePod( myPod=myPod, propagation_policy='Foreground', grace_period_seconds=0 )
             if isinstance(deletedpod,V1Pod):
                 return True
         return False
@@ -1883,7 +1937,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return False
     """
 
-    def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None, snapshot:bool=False  )->ODDesktop:
+    async def removedesktop(self, authinfo:AuthInfo, userinfo:AuthUser, myPod:V1Pod=None, snapshot:bool=False  )->ODDesktop:
         """removedesktop
             remove kubernetes pod for a give user
             then remove kubernetes user's secrets and configmap
@@ -1901,46 +1955,33 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         # get the user's pod
         if not isinstance(myPod, V1Pod ):
-            myPod = self.findPodByUser(authinfo, userinfo )
+            myPod = await self.findPodByUser(authinfo, userinfo )
 
+        myDesktop = None
         if isinstance(myPod, V1Pod ):
             # log lovel to info for accounting
             self.logger.info( f"removedesktop {myPod.metadata.name} for {authinfo.provider} {userinfo.userid}" ) 
             
             # convert pod to ODDesktop as return value
-            myDesktop = self.pod2desktop( myPod, authinfo, userinfo)
+            myDesktop = self.pod2desktop_reduced( myPod, authinfo, userinfo)
 
-            # create an array of threads to remove user objects  
-            # removePod: remove the user pod 
-            # removeAppInstanceKubernetesPod: remove all applications pod
-            # removesecrets: remove secret 
-            # removeconfigmap: remove config map
+            # Suppression parallèle avec asyncio.gather (remplace threading)
             myappinstance = ODAppInstanceKubernetesPod( self )
-
-            removethreads =  [  
-                { 'fct':self.removePod, 'args': [ myPod ] },
-                { 'fct':myappinstance.removeAppInstanceKubernetesPod, 'args': [ authinfo, userinfo ] },
-                { 'fct':self.removesecrets, 'args': [ authinfo, userinfo ] },
-                { 'fct':self.removeconfigmap, 'args': [ authinfo, userinfo ] },
-                { 'fct':self.removepvc, 'args': [ authinfo, userinfo ] } 
-            ]
-   
-            self.logger.debug( 'starting removethreads')
-            for removethread in removethreads:
-                self.logger.debug( f"calling thread {removethread['fct'].__name__}" )
-                removethread['thread']=threading.Thread(target=removethread['fct'], args=removethread['args'])
-                removethread['thread'].start()
-
-            self.logger.debug( 'waiting for removethreads.join()')
-            # need to wait for removethread['thread'].join()
-            for removethread in removethreads:
-                removethread['thread'].join()
-            self.logger.debug( 'removethreads done')
+            self.logger.debug( 'starting remove tasks')
+            await asyncio.gather(
+                self.removePod(myPod),
+                myappinstance.removeAppInstanceKubernetesPod(authinfo, userinfo),
+                self.removesecrets(authinfo, userinfo),
+                self.removeconfigmap(authinfo, userinfo),
+                self.removepvc(authinfo, userinfo),
+                return_exceptions=True
+            )
+            self.logger.debug( 'remove tasks done')
         else:
             self.logger.error( f"removedesktop can not find desktop {authinfo} {userinfo}" )
         return myDesktop
 
-    def removepvc(self, authinfo:AuthInfo, userinfo:AuthUser)->V1PersistentVolumeClaim:
+    async def removepvc(self, authinfo:AuthInfo, userinfo:AuthUser)->V1PersistentVolumeClaim:
         self.logger.debug('')
         
         bReturn = False
@@ -1958,7 +1999,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         odvol = oc.od.persistentvolumeclaim.ODPersistentVolumeClaim( self.namespace, self.kubeapi )
         # list all pvc for the user and delete pvc
-        deleted_pvc = odvol.delete_pvc( authinfo=authinfo, userinfo=userinfo )
+        deleted_pvc = await odvol.delete_pvc( authinfo=authinfo, userinfo=userinfo )
         return deleted_pvc
 
 
@@ -1978,7 +2019,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         }
         return mydict_config
             
-    def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
+    async def prepareressources(self, authinfo:AuthInfo, userinfo:AuthUser):
         """[prepareressources]
 
         Args:
@@ -2001,7 +2042,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # auth_type = 'kerberos'
         # secret_type = 'abcdesktop/' + auth_type
         # secret = ODSecret( self.namespace, self.kubeapi, secret_type )
-        # auth_secret = secret.create( arguments )
+        # auth_secret = await secret.create( arguments )
           # compile a env list with the auth list  
         # translate auth environment to env 
 
@@ -2013,7 +2054,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # create a ldif secret
         self.logger.debug('oc.od.secret.ODSecretLDIF creating')
         secret = oc.od.secret.ODSecretLDIF( namespace=self.namespace, kubeapi=self.kubeapi )
-        createdsecret = secret.create( authinfo, userinfo, data=userinfo )
+        createdsecret = await secret.create( authinfo, userinfo, data=userinfo )
         if not isinstance( createdsecret, V1Secret):
             self.logger.error(f"can not create secret {secret.get_name(authinfo, userinfo)}")
         else:
@@ -2040,7 +2081,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # create ODSecretLocalAccount object
         secret = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
         # put localaccount_files into ODSecretLocalAccount secret
-        createdsecret = secret.create( authinfo, userinfo, data=localaccount_files )
+        createdsecret = await secret.create( authinfo, userinfo, data=localaccount_files )
         # check if createdsecret is a V1Secret
         if not isinstance( createdsecret, V1Secret):
             self.logger.error(f"can not create secret {secret.get_name(authinfo, userinfo)}")
@@ -2050,7 +2091,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if userinfo.isPosixAccount():
             self.logger.debug('posixaccount secret.create creating')
             secret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
-            createdsecret = secret.create( authinfo, userinfo, data=userinfo.getPosixAccount())
+            createdsecret = await secret.create( authinfo, userinfo, data=userinfo.getPosixAccount())
             if not isinstance( createdsecret, V1Secret):
                 self.logger.error(f"can not create posixaccount secret {secret.get_name(authinfo, userinfo)}")
             else:
@@ -2066,7 +2107,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 # values can be empty to be updated later
                 if isinstance( secret, oc.od.secret.ODSecret):
                     identity_data=identities.get(identity_key)
-                    createdsecret = secret.create( authinfo, userinfo, data=identity_data )
+                    createdsecret = await secret.create( authinfo, userinfo, data=identity_data )
                     if not isinstance( createdsecret, V1Secret):
                         self.logger.error(f"can not create secret {secret.get_name(authinfo, userinfo)}")
                     else:
@@ -2087,7 +2128,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # Flex volume use kubernetes secret, add mouting path
                     arguments = { 'mountPath': mountvol.containertarget, 'networkPath': mountvol.networkPath, 'mountOptions': mountvol.mountOptions }
                     # Build the kubernetes secret
-                    auth_secret = secret.create( authinfo, userinfo, arguments )
+                    auth_secret = await secret.create( authinfo, userinfo, arguments )
                     if not isinstance( auth_secret, V1Secret):
                         self.logger.error( f"Failed to build auth secret {secret.get_name(authinfo, userinfo)} fstype={fstype}" )
                     else:
@@ -2141,7 +2182,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return isoformat_creation_timestamp
 
 
-    def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser)->ODDesktop:
+    async def resumedesktop(self, authinfo:AuthInfo, userinfo:AuthUser)->ODDesktop:
         """resume desktop update the lastconnectdatetime annotations data
            findPodByuser and update the lastconnectdatetime using patch_namespaced_pod
         Args:
@@ -2155,7 +2196,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         myDesktop = None
-        myPod =  self.findPodByUser(authinfo, userinfo)
+        myPod = await self.findPodByUser(authinfo, userinfo)
         if isinstance(myPod, V1Pod ):
             # check the pod status
             if isinstance(myPod.status, V1PodStatus):
@@ -2170,19 +2211,20 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             annotations['lastlogin_datetime'] = new_lastlogin_datetime['lastlogin_datetime']
             newmetadata=V1ObjectMeta(annotations=annotations)
             body = V1Pod(metadata=newmetadata)
-            v1newPod = self.kubeapi.patch_namespaced_pod(   
+            v1newPod = await self.kubeapi.patch_namespaced_pod(   
                 name=myPod.metadata.name, 
                 namespace=self.namespace, 
                 body=body )
+            # do not use pod2desktop_reduced, we need to read the vnc password  
             if isinstance(v1newPod, V1Pod ):
-                myDesktop = self.pod2desktop( pod=v1newPod, authinfo=authinfo, userinfo=userinfo )
+                myDesktop = await self.pod2desktop( pod=v1newPod, authinfo=authinfo, userinfo=userinfo )
             else:
                 self.logger.error( 'Patch annontation lastlogin_datetime failed' )
                 # reread the non updated desktop if patch failed
-                myDesktop = self.pod2desktop( pod=myPod, authinfo=authinfo, userinfo=userinfo )
+                myDesktop = await self.pod2desktop( pod=myPod, authinfo=authinfo, userinfo=userinfo )
         return myDesktop
 
-    def getsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
+    async def getsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
         """read cached user info dict from a ldif secret
 
         Args:
@@ -2196,7 +2238,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('')
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
-        dict_secret = self.list_dict_secret_data( authinfo, userinfo )
+        dict_secret = await self.list_dict_secret_data( authinfo, userinfo )
         raw_secrets = {}
         for key in dict_secret.keys():
             secret = dict_secret[key]
@@ -2205,7 +2247,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 break
         return raw_secrets
 
-    def getldifsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
+    async def getldifsecretuserinfo(self, authinfo:AuthInfo, userinfo:AuthUser)->dict:
         """getldifsecretuserinfo 
                 read cached user info dict from a ldif secret
 
@@ -2221,11 +2263,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         secret = oc.od.secret.ODSecretLDIF( namespace=self.namespace, kubeapi=self.kubeapi )
-        data = secret.read_alldata(authinfo,userinfo)
+        data = await secret.read_alldata(authinfo,userinfo)
         return data
 
 
-    def list_dict_configmap_data( self, authinfo:AuthInfo, userinfo:AuthUser, access_type=None, hidden_empty=False )->dict:
+    async def list_dict_configmap_data( self, authinfo:AuthInfo, userinfo:AuthUser, access_type=None, hidden_empty=False )->dict:
         """get a dict of secret (key value) for the access_type
            if access_type is None will list all user secrets
         Args:
@@ -2246,7 +2288,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if isinstance(access_type,str) :
                 label_selector += f",access_type={access_type}"
            
-            kconfigmap_list = self.kubeapi.list_namespaced_config_map(self.namespace, label_selector=label_selector)
+            kconfigmap_list = await self.kubeapi.list_namespaced_config_map(self.namespace, label_selector=label_selector)
           
             for myconfigmap in kconfigmap_list.items:
                 if hidden_empty :
@@ -2262,7 +2304,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
     
         return configmap_dict
 
-    def list_dict_secret_data( self, authinfo:AuthInfo, userinfo:AuthUser, access_type=None, hidden_empty=False )->dict:
+    async def list_dict_secret_data( self, authinfo:AuthInfo, userinfo:AuthUser, access_type=None, hidden_empty=False )->dict:
         """get a dict of secret (key value) for the access_type
            if access_type is None will list all user secrets
         Args:
@@ -2287,7 +2329,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             if isinstance(access_type,str) :
                 label_selector += f",access_type={access_type}"
            
-            ksecret_list = self.kubeapi.list_namespaced_secret(self.namespace, label_selector=label_selector)
+            ksecret_list = await self.kubeapi.list_namespaced_secret(self.namespace, label_selector=label_selector)
           
             for mysecret in ksecret_list.items:
                 if hidden_empty :
@@ -2336,7 +2378,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # self.logger.debug(f"filldictcontextvalue return fillvalue={fillvalue}")
         return fillvalue
 
-    def countRunningAppforUser( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop)->int:
+    async def countRunningAppforUser( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop)->int:
         """countRunningAppforUser
 
         Args:
@@ -2354,11 +2396,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         count = 0
         for appinstance in self.appinstance_classes.values() :
             myappinstance = appinstance( self )
-            count += len( myappinstance.list(authinfo, userinfo, myDesktop ) )
+            count += len( await myappinstance.list(authinfo, userinfo, myDesktop ) )
         return count
 
 
-    def list_application_by_type_of_application( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, list_of_application_type:list, apps:ODApps=None, phase_filter:list=None )->list:
+    async def list_application_by_type_of_application( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, list_of_application_type:list, apps:ODApps=None, phase_filter:list=None )->list:
         assert isinstance(authinfo, AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),   f"userinfo has invalid type {type(userinfo)}"
         assert isinstance(myDesktop, ODDesktop), f"myDesktop has invalid type {type(myDesktop)}"
@@ -2368,13 +2410,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             phase_filter = self.all_phases_status
         if self.pod_application in list_of_application_type :
             myappinstance = ODAppInstanceKubernetesPod( self )
-            list_apps += myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=phase_filter, apps=apps)
+            list_apps += await myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=phase_filter, apps=apps)
         if self.ephemeral_container in list_of_application_type:
             myappinstance = ODAppInstanceKubernetesEphemeralContainer( self )
-            list_apps += myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=phase_filter, apps=apps)
+            list_apps += await myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=phase_filter, apps=apps)
         return list_apps
 
-    def listContainerApps( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, apps:ODApps=None ):
+    async def listContainerApps( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, apps:ODApps=None ):
         """listContainerApps
 
         Args:
@@ -2393,11 +2435,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         list_apps = []
         for appinstance in self.appinstance_classes.values() :
             myappinstance = appinstance( self )
-            list_apps += myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=self.all_phases_status, apps=apps)
+            list_apps += await myappinstance.list(authinfo, userinfo, myDesktop, phase_filter=self.all_phases_status, apps=apps)
         return list_apps
 
 
-    def getAppInstanceKubernetes( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
+    async def getAppInstanceKubernetes( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str):
         """getAppInstanceKubernetes
             return the AppInstanceKubernetes of an appliction
             find if contianerid is a ephemeralcontainer or a pod application
@@ -2415,7 +2457,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         assert isinstance(containerid, str), f"containerid has invalid type {type(containerid)}"
         myappinstance = None
-        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+        myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
         if isinstance( myPod, V1Pod ):
             # if type is x11server app is an ephemeral container
             pod_type = myPod.metadata.labels.get( 'type' )
@@ -2431,7 +2473,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             # try to find it as a pod application
             if myappinstance is None:
                 try:
-                    myappPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=containerid)
+                    myappPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=containerid)
                     if isinstance( myappPod, V1Pod ):
                         pod_type = myappPod.metadata.labels.get( 'type' )
                         if pod_type == self.pod_application:
@@ -2442,41 +2484,41 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return myappinstance
 
-    def logContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str):
+    async def logContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         log_app = None
-        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
+        myappinstance = await self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            log_app = myappinstance.logContainerApp(pod_name, app_name)
+            log_app = await myappinstance.logContainerApp(pod_name, app_name)
         return log_app
 
-    def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str):
+    async def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str):
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         env_result = None
-        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
+        myappinstance = await self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            env_result = myappinstance.envContainerApp(authinfo, userinfo, pod_name, app_name)
+            env_result = await myappinstance.envContainerApp(authinfo, userinfo, pod_name, app_name)
         return env_result
 
-    def stopContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->bool:
+    async def stopContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->bool:
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         stop_result = None
-        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
+        myappinstance = await self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            stop_result = myappinstance.stop(pod_name, app_name)
+            stop_result = await myappinstance.stop(pod_name, app_name)
         return stop_result
 
-    def describe_application( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str, apps:ODApps)->dict:
+    async def describe_application( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str, apps:ODApps)->dict:
         assert isinstance(pod_name, str), f"podname has invalid type {type(pod_name)}"
         assert isinstance(app_name, str), f"app_name has invalid type {type(app_name)}"
         app_description = None
-        myappinstance = self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
+        myappinstance = await self.getAppInstanceKubernetes(authinfo, userinfo, pod_name, app_name)
         if isinstance( myappinstance, ODAppInstanceBase ):
-            app_description = myappinstance.describe(pod_name, app_name, apps)
+            app_description = await myappinstance.describe(pod_name, app_name, apps)
         return app_description
 
-    def removeContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->bool:
-        return self.stopContainerApp( authinfo, userinfo, pod_name, app_name)
+    async def removeContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, app_name:str)->bool:
+        return await self.stopContainerApp( authinfo, userinfo, pod_name, app_name)
 
     """
     def read_configmap( self, name, entry ):
@@ -2514,7 +2556,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     oc.od.settings.desktop_pod[currentcontainertype].get('enable') is True
         return bReturn
 
-    def createappinstance(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs )->oc.od.appinstancestatus.ODAppInstanceStatus:
+    async def createappinstance(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs )->oc.od.appinstancestatus.ODAppInstanceStatus:
         """createappinstance
             containerengine can be one of the values
                 - 'ephemeral_container'
@@ -2547,7 +2589,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"createappinstance appinstance_class={appinstance_class}")
         appinstance = appinstance_class(self)
         self.logger.debug(f"createappinstance containerengine={containerengine} type={appinstance.type}")
-        appinstancestatus = appinstance.create(myDesktop, app, authinfo, userinfo, userargs, **kwargs )
+        appinstancestatus = await appinstance.create(myDesktop, app, authinfo, userinfo, userargs, **kwargs )
         if isinstance(appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus):
             self.logger.debug(f"createappinstance appinstancestatus.container_id={appinstancestatus.id}")
         return appinstancestatus
@@ -2574,7 +2616,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return label_selector
 
-    def alwaysgetPosixAccountUser(self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict :
+    async def alwaysgetPosixAccountUser(self, authinfo:AuthInfo, userinfo:AuthUser ) -> dict :
         """alwaysgetPosixAccountUser
 
         Args:
@@ -2588,12 +2630,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug('build a posixaccount secret trying')
             posixsecret = oc.od.secret.ODSecretPosixAccount( namespace=self.namespace, kubeapi=self.kubeapi )
             self.logger.debug('read the posixaccount secret trying')
-            posixaccount = posixsecret.read_alldata( authinfo, userinfo )
+            posixaccount = await posixsecret.read_alldata( authinfo, userinfo )
             if not isinstance( posixaccount, dict):
                 self.logger.debug('posixaccount does not exist use localaccount default')
                 localaccount = oc.od.secret.ODSecretLocalAccount( namespace=self.namespace, kubeapi=self.kubeapi )
                 self.logger.debug('read the localaccount secret')
-                localaccount_data = localaccount.read_alldata( authinfo, userinfo )
+                localaccount_data = await localaccount.read_alldata( authinfo, userinfo )
                 posixaccount = AuthUser.getPosixAccountfromlocalAccount(localaccount_data)
                 userinfo['posix'] = posixaccount
             else:
@@ -2620,7 +2662,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         else:
             return d
 
-    def chevronWithUserInfo( self, list_data:list, authinfo: AuthInfo, userinfo:AuthUser ) -> list:
+    async def chevronWithUserInfo( self, list_data:list, authinfo: AuthInfo, userinfo:AuthUser ) -> list:
         """chevronWithUserInfo
 
             replace uidNumber and gidNumber by posix account values
@@ -2639,7 +2681,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         list_command = list_data
         if isinstance( list_command, list ):
             new_list_command = []
-            posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+            posixuser = await self.alwaysgetPosixAccountUser( authinfo, userinfo )
             for command in list_command:
                 new_command  = chevron.render( command, posixuser )
                 new_list_command.append( new_command )
@@ -2647,7 +2689,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return list_command
 
 
-    def updateSecurityContextWithUserInfo( self, currentcontainertype:str, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
+    async def updateSecurityContextWithUserInfo( self, currentcontainertype:str, authinfo:AuthInfo, userinfo:AuthUser ) -> dict:
         """updateSecurityContextWithUserInfo
 
         Args:
@@ -2664,7 +2706,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             runAsUser  = securityContext.get('runAsUser')
             runAsGroup = securityContext.get('runAsGroup')
             supplementalGroups = securityContext.get('supplementalGroups')
-            posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+            posixuser = await self.alwaysgetPosixAccountUser( authinfo, userinfo )
 
             # replace 'runAsUser' if exist in configuration file
             if isinstance( runAsUser, str ): 
@@ -2946,7 +2988,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"get_resources_for_container_type {currentcontainertype} return {resources}")
         return resources
 
-    def read_pod_resources( self, pod_name:str)->dict:
+    async def read_pod_resources( self, pod_name:str)->dict:
         """read_pod_resources 
             read resource of graphicalcontainer container
 
@@ -2961,7 +3003,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # read pod 
         self.logger.debug('read_namespaced_pod creating' )  
         try:
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+            myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
             if isinstance(myPod, V1Pod ):
                 c = self.getcontainerSpecfromPod( self.graphicalcontainernameprefix, myPod )
                 if isinstance( c, V1Container ) and isinstance( c.resources, V1ResourceRequirements ):
@@ -2972,7 +3014,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return resources
 
    
-    def notify_user( self, myDesktop:ODDesktop, method:str, data:dict )->bool:
+    async def notify_user( self, myDesktop:ODDesktop, method:str, data:dict )->bool:
         """notify_user
 
         Args:
@@ -3000,7 +3042,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert_type( method, str )
         assert_type( data, dict )
         command = [ 'node',  '/composer/node/occall/occall.js', method, json.dumps(data) ]
-        result = self.execwaitincontainer( desktop=myDesktop, command=command)
+        result = await self.execwaitincontainer( desktop=myDesktop, command=command)
         if isinstance( result, dict):
             bReturn = result.get( 'ExitCode', 1)
         return bReturn
@@ -3036,7 +3078,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         rewrited_image = f"{registry}/{repository}/{image_name_no_tag}:{tag}"
         return rewrited_image
 
-    def addcontainertopod( self, authinfo:AuthInfo, userinfo:AuthUser, currentcontainertype:str, myuuid:str, envlist:list, list_volumeMounts:list, workingdir:str=None, command:str=None, executeclass:dict={} )->dict:
+    async def addcontainertopod( self, authinfo:AuthInfo, userinfo:AuthUser, currentcontainertype:str, myuuid:str, envlist:list, list_volumeMounts:list, workingdir:str=None, command:str=None, executeclass:dict={} )->dict:
         assert_type( authinfo, AuthInfo)
         assert_type( userinfo, AuthUser)
         assert_type( currentcontainertype, str)
@@ -3046,7 +3088,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         container_resources = self.get_resources_for_container_type( currentcontainertype, executeclass )
 
         self.logger.debug( f"pod container adding {currentcontainertype} to {myuuid}" )
-        securityContext = self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
+        securityContext = await self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
         image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
         container = { 
             'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
@@ -3069,7 +3111,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
 
 
-    def create_vnc_secret( self, authinfo:AuthInfo, userinfo:AuthUser ):
+    async def create_vnc_secret( self, authinfo:AuthInfo, userinfo:AuthUser ):
         """create_vnc_secret
             create a random vnc password for a new desktop
             add the vnc password as kubernetes secret
@@ -3084,13 +3126,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug('create vnc password as kubernetes secret')
         plaintext_vnc_password = ODVncPassword().getplain()
         vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
-        vnc_secret_password = vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
+        vnc_secret_password = await vnc_secret.create( authinfo=authinfo, userinfo=userinfo, data={ 'password' : plaintext_vnc_password } )
         if not isinstance( vnc_secret_password, V1Secret ):
             raise ODAPIError( f"create vnc kubernetes secret {plaintext_vnc_password} failed" )
         self.logger.debug(f"vnc kubernetes secret set to {plaintext_vnc_password}")
 
 
-    def buildinitcommand(self, authinfo:AuthInfo, userinfo:AuthUser )-> list :
+    async def buildinitcommand(self, authinfo:AuthInfo, userinfo:AuthUser )-> list :
         """buildinitcommand
             buildinitcommand to fix volume ownership
             chevronWithUserInfo to replace {} values
@@ -3108,11 +3150,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         chevron_command_list = [] # empty list
         command_list = oc.od.settings.desktop_pod.get('init', {} ).get('command')
         if isinstance( command_list, list ):
-            chevron_command_list = self.chevronWithUserInfo( command_list, authinfo, userinfo )
+            chevron_command_list = await self.chevronWithUserInfo( command_list, authinfo, userinfo )
         return chevron_command_list
        
 
-    def getPodIPAddress( self, pod_name:str )->str:
+    async def getPodIPAddress( self, pod_name:str )->str:
         """getPodIPAddress
             return the IP Address of the pod name or None
         Args:
@@ -3124,7 +3166,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         IPAddress = None
         try:
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
+            myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)
             if isinstance( myPod, V1Pod ):
                 if isinstance( myPod.status, V1PodStatus ):
                     #  myPod.status.pod_ip : Empty if not yet allocated.
@@ -3135,7 +3177,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug( f"pod_IPAddress is {IPAddress}" ) 
         return IPAddress
 
-    def init_snapregistry( self ):
+    async def init_snapregistry( self ):
         """init_snap_registry
             initialize the snapshot registry settings
             if not set, return None
@@ -3145,7 +3187,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             return None
         
         secretDockerConfigjson = oc.od.secret.ODSecretDockerConfigjson( namespace=self.namespace, kubeapi=self.kubeapi, secret_name=snapshotregistrysecretname )
-        readdata = secretDockerConfigjson.read_alldata( None, None )
+        readdata = await secretDockerConfigjson.read_alldata( None, None )
         if not isinstance( readdata, dict ) or not isinstance( readdata.get('.dockerconfigjson'), dict):
             self.logger.error( f"error in reading snapshot registry secret {snapshotregistrysecretname} data={readdata}" )
             return None 
@@ -3260,7 +3302,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return volumemountlist
 
 
-    def areAllmyContainerStarted( self, pod_name:str )->bool:
+    async def areAllmyContainerStarted( self, pod_name:str )->bool:
         """areAllmyContainerstarted
             check if all containers in the pod are started
             return True if all containers in the pod are started, False otherwise
@@ -3272,7 +3314,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         """
         assert isinstance(pod_name, str), f"pod_name has invalid type {type(pod_name)}, str is expected"
         try:
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
+            myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name) 
         except ApiException as e:
             self.logger.error( f"error in reading pod {pod_name} to check if all containers are started: {e}" )
             return False
@@ -3286,7 +3328,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 return False
         return True 
 
-    def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles,  **kwargs)-> ODDesktop :
+    async def createdesktop(self, authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles,  **kwargs) :
         """createdesktop
             create the user pod 
 
@@ -3306,7 +3348,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         myDesktop = None # default return object
         env = kwargs.get('env', {} )
-        dry_run = kwargs.get('dry_run')
 
         # get the execute class if user has a executeclassname tag
         (executeclassname, executeclasse) = self.get_executeclasse( authinfo, userinfo )
@@ -3314,10 +3355,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.debug(f"executeclassname={executeclassname} executeclasse_for_pod_spec={executeclasse_for_pod_spec}")
 
         # add a new VNC Password as kubernetes secret
-        self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
+        await self.create_vnc_secret( authinfo=authinfo, userinfo=userinfo )
 
         # get posix account user
-        posixuser = self.alwaysgetPosixAccountUser( authinfo, userinfo )
+        posixuser = await self.alwaysgetPosixAccountUser( authinfo, userinfo )
 
         # create ENV var for pod 
         self.logger.debug('env creating')
@@ -3373,7 +3414,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # create pod name
         # pod uuid suffix
         myuuid = oc.lib.uuid_digits()
-        pod_name = self.get_podname( authinfo, userinfo, myuuid ) 
+        pod_name = await self.get_podname( authinfo, userinfo, myuuid ) 
 
         self.logger.debug('envlist creating')
         # replace  'UID' : '{{ uidNumber }}' by value 
@@ -3414,10 +3455,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         tolerations = oc.od.settings.desktop_pod.get('spec',{}).get('tolerations')
 
         # all volumes and secrets
-        (pod_allvolumes, pod_allvolumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=['all'], rules=rules,  **kwargs)
+        (pod_allvolumes, pod_allvolumeMounts) = await self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=['all'], rules=rules,  **kwargs)
 
         # graphical volumes
-        ( _, graphical_volumeMounts) = self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=graphical_secrets_requirement, rules=rules,  **kwargs)
+        ( _, graphical_volumeMounts) = await self.build_volumes( authinfo, userinfo, volume_type='pod_desktop', secrets_requirement=graphical_secrets_requirement, rules=rules,  **kwargs)
         self.logger.debug('volumes created')
 
         # snapshot volumes
@@ -3456,18 +3497,18 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype = 'init'
         if self.isenablecontainerinpod( authinfo, currentcontainertype ):
             # build the init command to fix volume ownership
-            command = self.buildinitcommand( authinfo, userinfo )
+            command = await self.buildinitcommand( authinfo, userinfo )
             # get volumeMounts for init container
             list_containervolumeMounts = self.get_volumemountlistfromcontainertype( pod_allvolumeMounts, currentcontainertype )
             # get init_localaccount_volumes and init_localaccount_volumes_mount
-            (init_localaccount_volumes, init_localaccount_volumes_mount) = self.build_volumes_localaccount(authinfo, userinfo )
+            (init_localaccount_volumes, init_localaccount_volumes_mount) = await self.build_volumes_localaccount(authinfo, userinfo )
             # add init_localaccount_volumes to pod volumes
             pod_allvolumes.update( init_localaccount_volumes )
             # add init_localaccount_volumes_mount to init container
             list_containervolumeMounts.update( init_localaccount_volumes_mount )
 
             if len(command) > 0: # if the command line is requested by configuration file 
-                init_container = self.addcontainertopod( 
+                init_container = await self.addcontainertopod( 
                     authinfo=authinfo, 
                     userinfo=userinfo, 
                     currentcontainertype=currentcontainertype, 
@@ -3506,7 +3547,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 label_value = str( oc.od.settings.desktop_pod[currentcontainertype].get('tcpport','enabled') )
                 labels.update( { label_servicename: label_value } )
 
-        specssecurityContext = self.updateSecurityContextWithUserInfo( currentcontainertype='spec', authinfo=authinfo, userinfo=userinfo )
+        specssecurityContext = await self.updateSecurityContextWithUserInfo( currentcontainertype='spec', authinfo=authinfo, userinfo=userinfo )
 
         # give the give pull secret for the desktop pod
         imagePullSecrets = self.giveme_an_imagePullSecrets()
@@ -3548,7 +3589,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         currentcontainertype='graphical'
         if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
             self.logger.debug( f"adding graphical container to pod {pod_name} with executeclasse={executeclasse}" )
-            graphical_container = self.addcontainertopod( 
+            graphical_container = await self.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
                 currentcontainertype=currentcontainertype, 
@@ -3572,7 +3613,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pod_manifest['spec']['containers'].append( graphical_container )
             self.logger.debug(f"pod container created {currentcontainertype}" )
 
-        localaccount_volume_name = self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
+        localaccount_volume_name = await self.get_volumes_localaccount_name( authinfo=authinfo, userinfo=userinfo )
         assert isinstance(localaccount_volume_name, str),  f"localaccount secret volume is not found"
         
         containers_list = [ 'printer', 'sound', 'ssh', 'filer' ]
@@ -3580,7 +3621,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         for currentcontainertype in containers_list:
             if  self.isenablecontainerinpod( authinfo, currentcontainertype ):
                 list_containervolumeMounts = self.get_volumemountlistfromcontainertype( pod_allvolumeMounts, currentcontainertype )
-                new_container = self.addcontainertopod( 
+                new_container = await self.addcontainertopod( 
                     authinfo=authinfo, 
                     userinfo=userinfo, 
                     currentcontainertype=currentcontainertype, 
@@ -3608,7 +3649,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             rewrited_image = self.rewriteregistry_image( repository=userinfo.userid, image=graphical_container.get('image'), registry=oc.od.settings.snapshot_registry.get('registry') )
             snapshotenvlist.append( { 'name': 'SNAPSHOT_CONTAINER_TARGET_IMAGE', 'value': rewrited_image } )
             snapshotenvlist.append( { 'name': 'SNAPSHOT_CONTAINER_SOURCE_IMAGE', 'value': graphical_container.get('image') } )
-            new_container = self.addcontainertopod( 
+            new_container = await self.addcontainertopod( 
                 authinfo=authinfo,
                 userinfo=userinfo, 
                 currentcontainertype=currentcontainertype, 
@@ -3628,29 +3669,12 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         self.logger.info('dump create pod_manifest json pod')
         self.logger.info(jsonpod_manifest)
 
-        pod = None
-        try:
-            pod = self.kubeapi.create_namespaced_pod( namespace=self.namespace, body=pod_manifest, dry_run=dry_run)
-        except ApiException as e:
-            self.logger.error( e )
-            msg=f"e.Create pod failed {e.reason} {e.body}"
-            self.on_desktoplaunchprogress( msg )
-            return msg
-        except Exception as e:
-            self.logger.error( e )
-            msg=f"e.Create pod failed {e}"
-            self.on_desktoplaunchprogress( msg )
-            return msg
+        pod = await self.kubeapi.create_namespaced_pod( namespace=self.namespace, body=pod_manifest )
 
         if not isinstance(pod, V1Pod ):
-            self.on_desktoplaunchprogress('e.Create pod failed.' )
             raise ValueError( f"Invalid create_namespaced_pod type return {type(pod)} V1Pod is expecting")
 
-        # return json 
-        if dry_run == 'All':
-            return pod_manifest
-
-        self.on_desktoplaunchprogress(f"b.Watching for events" )
+        yield f"b.Watching for events"
         self.logger.debug('watch list_namespaced_event pod creating' )
         pulled_counter = 0 
         expected_containers_len = 0
@@ -3664,7 +3688,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         while continue_reading_events:
             try:
                 # watch list_namespaced_event
-                for event in w.stream(  self.kubeapi.list_namespaced_event, 
+                async for event in w.stream(  self.kubeapi.list_namespaced_event, 
                                         namespace=self.namespace, 
                                         timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                         field_selector=f'involvedObject.name={pod_name}'):
@@ -3673,7 +3697,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     if not isinstance(event.get('object'), CoreV1Event ): continue # safe type test event object is a CoreV1Event
                     event_object = event.get('object')
                     # self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                    self.on_desktoplaunchprogress( f"b.{event_object.message}" )
+                    yield  f"b.{event_object.message}"
 
                     #
                     # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Event.md
@@ -3685,7 +3709,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         # something might goes wrong
                         self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
                         w.stop()
-                        return f"{event_object.type} {event_object.reason} {event_object.message}"
+                        yield f"{event_object.type} {event_object.reason} {event_object.message}"
 
                     elif event_object.type == 'Normal': # event Normal
 
@@ -3713,7 +3737,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                 w.stop()
 
                         elif event_object.reason == 'Started':                      
-                            if self.areAllmyContainerStarted( pod_name=pod_name ) is True:
+                            if await self.areAllmyContainerStarted( pod_name=pod_name ) is True:
                                 continue_reading_events = False
                                 w.stop()
                             else: 
@@ -3722,7 +3746,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         else:
                             # log the events
                             self.logger.debug(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
-                            self.on_desktoplaunchprogress(f"b.Your pod gets event {event_object.message or event_object.reason}")
+                            yield f"b.Your pod gets event {event_object.message or event_object.reason}"
                             # fix for https://github.com/abcdesktopio/oc.user/issues/52
                             # this is not an error
                             continue_reading_events = False
@@ -3746,6 +3770,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.error( f"Exception: {e}" )
                 continue_reading_events = False
 
+        try:
+            await w.close()
+        except Exception as e:
+            self.logger.error( f"Exception when closing watch: {e}" )
+
         #
         # list_namespaced_event done
         #
@@ -3754,7 +3783,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         w = watch.Watch()
         while continue_reading_events:
             try:               
-                for event in w.stream(  self.kubeapi.list_namespaced_pod, 
+                async for event in w.stream(  self.kubeapi.list_namespaced_pod, 
                                         namespace=self.namespace, 
                                         timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                         field_selector=f"metadata.name={pod_name}" ):   
@@ -3768,7 +3797,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     if not isinstance( pod_event, V1Pod ): continue  # if podevent type must be a V1Pod
                     if not isinstance( pod_event.status, V1PodStatus ): continue
                     #
-                    self.on_desktoplaunchprogress( f"b.Your {pod_event.kind.lower()} is {event_type.lower()}")
+                    yield f"b.Your {pod_event.kind.lower()} is {event_type.lower()}"
                     self.logger.debug(f"The pod {pod_event.metadata.name} is in phase={pod_event.status.phase}" )
                     #
                     # from https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
@@ -3780,11 +3809,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                     # Failed	All containers in the Pod have terminated, and at least one container has terminated in failure.
                     # Unknown	For some reason the state of the Pod could not be obtained. This phase typically occurs due to an error in communicating with the node where the Pod should be running.
                     if pod_event.status.phase == 'Pending' :
-                        self.on_desktoplaunchprogress( f"b.Your pod {pod_event.metadata.name} is {pod_event.status.phase}"  )
+                        yield f"b.Your pod {pod_event.metadata.name} is {pod_event.status.phase}"
                         continue
                     elif pod_event.status.phase == 'Running' :
                         startedmsg = self.getPodStartedMessage(self.graphicalcontainernameprefix, pod_event, myEvent=None)
-                        self.on_desktoplaunchprogress( startedmsg )
+                        yield startedmsg
                         continue_reading_events = False
                         w.stop()
                     elif pod_event.status.phase == 'Succeeded' or pod_event.status.phase == 'Failed' :
@@ -3812,11 +3841,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.error( f"{e}" )
                 continue_reading_events = False
 
+        try:
+            await w.close()
+        except Exception as e:
+            self.logger.error( f"Exception when closing watch: {e}" )
+
         self.logger.debug(f"watch list_namespaced_pod created, the pod is no more in Pending phase" )
 
         # read pod again
         self.logger.debug(f"read_namespaced_pod {pod_name} again" )
-        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)   
+        myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name)   
         assert isinstance(myPod, V1Pod),  f"read_namespaced_pod returns type {type(myPod)} V1Pod is expected"
         assert isinstance(myPod.status, V1PodStatus), f"read_namespaced_pod returns pod.status type {type(myPod.status)} V1PodStatus is expected"
         self.logger.debug( f"myPod.metadata.name {myPod.metadata.name} is {myPod.status.phase} with ip {myPod.status.pod_ip}" )
@@ -3826,12 +3860,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if myPod.status.phase != 'Running':
             # something wrong 
             msg =  f"e.Your pod does not start, status is {myPod.status.phase} reason is {myPod.status.reason} message {myPod.status.message}" 
-            self.on_desktoplaunchprogress( msg )
-            return msg
+            yield msg
         else:
-            self.on_desktoplaunchprogress(f"b.Your pod is {myPod.status.phase}.")
+            yield f"b.Your pod is {myPod.status.phase}."
 
-        myDesktop = self.pod2desktop( pod=myPod, authinfo=authinfo, userinfo=userinfo)
+        myDesktop = await self.pod2desktop( pod=myPod, authinfo=authinfo, userinfo=userinfo)
         self.logger.debug(f"desktop phase:{myPod.status.phase} has interfaces properties {myDesktop.desktop_interfaces}")
         self.logger.debug('watch filldictcontextvalue creating' )
         # set desktop web hook
@@ -3846,11 +3879,11 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktop.webhook = fillednetworkconfig.get('webhook')
         self.logger.debug('watch filldictcontextvalue created' )
         self.logger.debug('createdesktop end' )
-        return myDesktop
+        yield myDesktop
 
   
     
-    def findPodByUser(self, authinfo:AuthInfo, userinfo:AuthUser )->V1Pod:
+    async def findPodByUser(self, authinfo:AuthInfo, userinfo:AuthUser )->V1Pod:
         """find a kubernetes pod for the user ( userinfo )
            if args is None, filter add always type=self.x11servertype
            if args is { 'pod_name'=name } add filter metadata.name=name without type selector
@@ -3890,7 +3923,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             #    label_selector += ',type=' + self.x11servertype
             #
 
-            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
+            myPodList = await self.kubeapi.list_namespaced_pod(self.namespace, label_selector=label_selector)
 
             if isinstance(myPodList, V1PodList) :
                 for myPod in myPodList.items:
@@ -3906,7 +3939,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         
         return None
 
-    def isPodBelongToUser( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str)->bool:
+    async def isPodBelongToUser( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str)->bool:
         """isPodBelongToUser
             return True if pod belongs to userinfo.userid and macth same auth provider
             else False
@@ -3924,7 +3957,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(pod_name, str),       f"pod_name has invalid type {type(pod_name)}"
 
         belong = False # default value
-        myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name )
+        myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=pod_name )
         if isinstance( myPod, V1Pod ):
             (pod_authinfo,pod_userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
             if  authinfo.provider == pod_authinfo.provider and \
@@ -3932,7 +3965,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 belong = True
         return belong
 
-    def findDesktopByUser(self, authinfo:AuthInfo, userinfo:AuthUser )->ODDesktop:
+    async def findDesktopByUser(self, authinfo:AuthInfo, userinfo:AuthUser )->ODDesktop:
         """findDesktopByUser
             find a desktop for authinfo and userinfo 
             return a desktop object
@@ -3948,10 +3981,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(authinfo, AuthInfo),  f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo, AuthUser),  f"userinfo has invalid type {type(userinfo)}"
         myDesktop = None  # return Desktop Object
-        myPod = self.findPodByUser( authinfo, userinfo )
+        myPod = await self.findPodByUser( authinfo, userinfo )
         if isinstance(myPod, V1Pod ):
             self.logger.debug( f"Pod is found {myPod.metadata.name}" )
-            myDesktop = self.pod2desktop( pod=myPod, authinfo=authinfo, userinfo=userinfo )
+            myDesktop = await self.pod2desktop( pod=myPod, authinfo=authinfo, userinfo=userinfo )
         return myDesktop
 
     def getcontainerfromPod( self,  prefix:str, pod:V1Pod ) -> V1ContainerStatus:
@@ -4038,7 +4071,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             defaultFQDN = myPod.metadata.name + '.' + myPod.spec.subdomain + '.' + oc.od.settings.kubernetes_default_domain
         return defaultFQDN
 
-    def pod2desktop( self, pod:V1Pod, authinfo:AuthInfo=None, userinfo:AuthUser=None )->ODDesktop:
+    def pod2desktop_reduced( self, pod:V1Pod, authinfo:AuthInfo=None, userinfo:AuthUser=None )->ODDesktop:
         """pod2Desktop convert a Pod to Desktop Object
         Args:
             myPod ([V1Pod): kubernetes.V1Pod
@@ -4050,7 +4083,99 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert isinstance(pod,V1Pod),    f"pod has invalid type {type(pod)}"
 
         desktop_container_id   = None
-        storage_container_id   = None
+        desktop_container_name = None
+        desktop_interfaces     = None
+
+        # read metadata annotations 'k8s.v1.cni.cncf.io/network-status'
+        # to get the ip address of each netwokr interface
+        network_status = None
+        if isinstance(pod.metadata.annotations, dict):
+            network_status = pod.metadata.annotations.get( 'k8s.v1.cni.cncf.io/network-status' )
+            if isinstance( network_status, str ):
+                # k8s.v1.cni.cncf.io/network-status is set
+                # load json formated string
+                network_status = json.loads( network_status )
+
+            if isinstance( network_status, list ):
+                desktop_interfaces = {}
+                # self.logger.debug( f"network_status is {network_status}" )
+                for interface in network_status :
+                    # self.logger.debug( f"reading interface {interface}" )
+                    if not isinstance( interface, dict ): 
+                        continue
+                    # read interface
+                    name = interface.get('interface')
+                    if not isinstance( name, str ): 
+                        continue
+                    # read ips
+                    ips = interface.get('ips')
+                    if not isinstance( ips, list ): 
+                        continue
+                    # read mac
+                    mac = interface.get('mac')
+                    if not isinstance( mac, str ) :
+                         continue
+                    # read default ips[0]
+                    if len(ips) == 1:   
+                        ips = str(ips[0])
+                    desktop_interfaces.update( { name : { 'mac': mac, 'ips': ips } } )
+ 
+        desktop_container = self.getcontainerfromPod( self.graphicalcontainernameprefix, pod )
+        if isinstance(desktop_container, V1ContainerStatus) :
+            desktop_container_id = desktop_container.container_id
+            desktop_container_name = desktop_container.name
+        
+        # get pod fqdn
+        internal_pod_fqdn = self.build_internalPodFQDN( pod )
+        # read the creation timestamp from pod metadata        
+        isoformat_creation_timestamp = self.read_pod_creation_timestamp( pod )
+        # read lastlogin datetime from pod annotations and convert to isoformat
+        isoformat_lastlogin_datetime = self.read_pod_annotations_lastlogin_datetime( pod )
+        if isinstance( isoformat_lastlogin_datetime, datetime.datetime ):
+            # convert to isoformat
+            isoformat_lastlogin_datetime = isoformat_lastlogin_datetime.isoformat()
+        else:
+            isoformat_lastlogin_datetime = None
+
+        # read the xauthkey from pod labels
+        
+        # Build the ODDesktop Object 
+        myDesktop = oc.od.desktop.ODDesktop(
+            nodehostname=pod.spec.node_name, 
+            name=pod.metadata.name,
+            hostname=pod.spec.hostname,
+            ipAddr=pod.status.pod_ip, 
+            status=pod.status.phase, 
+            desktop_id=pod.metadata.name, 
+            container_id=desktop_container_id,                                                   
+            container_name=desktop_container_name,
+            vncPassword=None,
+            fqdn = internal_pod_fqdn,
+            xauthkey = pod.metadata.labels.get('xauthkey'),
+            pulseaudio_cookie = pod.metadata.labels.get('pulseaudio_cookie'),
+            broadcast_cookie = pod.metadata.labels.get('broadcast_cookie'),
+            desktop_interfaces = desktop_interfaces,
+            websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
+            websocketroute = pod.metadata.labels.get('websocketroute'),
+            labels = pod.metadata.labels,
+            uid = pod.metadata.uid,
+            creation_timestamp = isoformat_creation_timestamp,
+            lastlogin_datetime = isoformat_lastlogin_datetime
+        )
+        return myDesktop
+
+    async def pod2desktop( self, pod:V1Pod, authinfo:AuthInfo=None, userinfo:AuthUser=None )->ODDesktop:
+        """pod2Desktop convert a Pod to Desktop Object
+        Args:
+            myPod ([V1Pod): kubernetes.V1Pod
+            userinfo ([]): userinfo set to None by default
+                           to obtain vnc_password, defined userinfo context 
+        Returns:
+            [ODesktop]: oc.od.desktop.ODDesktop Desktop Object
+        """
+        assert isinstance(pod,V1Pod),    f"pod has invalid type {type(pod)}"
+
+        desktop_container_id   = None
         desktop_container_name = None
         desktop_interfaces     = None
         vnc_password           = None
@@ -4069,7 +4194,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 desktop_interfaces = {}
                 # self.logger.debug( f"network_status is {network_status}" )
                 for interface in network_status :
-                    self.logger.debug( f"reading interface {interface}" )
+                    # self.logger.debug( f"reading interface {interface}" )
                     if not isinstance( interface, dict ): 
                         continue
                     # read interface
@@ -4101,13 +4226,9 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # then vnc_secret_password is not used 
         if isinstance(userinfo, AuthUser) and isinstance(authinfo, AuthInfo) : 
             vnc_secret = oc.od.secret.ODSecretVNC( self.namespace, self.kubeapi )
-            vnc_secret_password = vnc_secret.read( authinfo, userinfo )  
+            vnc_secret_password = await vnc_secret.read( authinfo, userinfo )  
             if isinstance( vnc_secret_password, V1Secret ):
                 vnc_password = oc.od.secret.ODSecret.read_data( vnc_secret_password, 'password' )
-
-        storage_container = self.getcontainerfromPod( self.storagecontainernameprefix, pod )
-        if isinstance(storage_container, V1ContainerStatus):
-           storage_container_id = storage_container.container_id
 
         # read the creation timestamp from pod metadata        
         isoformat_creation_timestamp = self.read_pod_creation_timestamp( pod )
@@ -4139,7 +4260,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             desktop_interfaces = desktop_interfaces,
             websocketrouting = pod.metadata.labels.get('websocketrouting', oc.od.settings.websocketrouting),
             websocketroute = pod.metadata.labels.get('websocketroute'),
-            storage_container_id = storage_container_id,
             labels = pod.metadata.labels,
             uid = pod.metadata.uid,
             creation_timestamp = isoformat_creation_timestamp,
@@ -4147,16 +4267,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         )
         return myDesktop
 
-    def countdesktop(self)->int:
+    async def countdesktop(self)->int:
         """countdesktop
             count the number of desktop label_selector = 'type=' + self.x11servertype
         Returns:
             int: number of desktop
         """
-        list_of_desktop = self.list_desktop()
+        list_of_desktop = await self.list_desktop()
         return len(list_of_desktop)
 
-    def list_desktop(self, phase_filter:list=[ 'Running', 'Pending' ])->list:
+    async def list_desktop(self, phase_filter:list=[ 'Running', 'Pending' ])->list:
         """list_desktop
 
         Returns:
@@ -4165,7 +4285,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         myDesktopList = []   
         try:  
             list_label_selector = 'type=' + self.x11servertype
-            myPodList = self.kubeapi.list_namespaced_pod(self.namespace, label_selector=list_label_selector)
+            myPodList = await self.kubeapi.list_namespaced_pod(self.namespace, label_selector=list_label_selector)
             if isinstance( myPodList, V1PodList):
                 for myPod in myPodList.items:
                     if isinstance( myPod.status, V1PodStatus ):
@@ -4173,7 +4293,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                         # keep only Running pod
                         if myPod.metadata.deletion_timestamp is None: 
                             if myPhase in phase_filter :
-                                mydesktop = self.pod2desktop( myPod )
+                                mydesktop = await self.pod2desktop( myPod )
                                 if isinstance( mydesktop, ODDesktop):
                                     myDesktopList.append( mydesktop.to_dict() )              
         except ApiException as e:
@@ -4181,7 +4301,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
         return myDesktopList
             
-    def isgarbagable( self, pod:V1Pod, expirein:int, force=False )->bool:
+    async def isgarbagable( self, pod:V1Pod, expirein:int, force=False )->bool:
         """isgarbagable
 
         Args:
@@ -4211,14 +4331,14 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
             return bReturn
 
-        myDesktop = self.pod2desktop( pod=pod )
+        myDesktop = await self.pod2desktop( pod=pod )
         if not isinstance(myDesktop, ODDesktop):
             self.logger.debug( f"myDesktop has bad type, ODDesktop is expected, get {type(myDesktop)}")
             self.logger.debug( f"pod {pod.metadata.name} isgarbagable returns {bReturn}")
             return bReturn
 
         if force is False:
-            nCount = self.user_connect_count( myDesktop )
+            nCount = await self.user_connect_count( myDesktop )
             self.logger.debug( f"ask if the user is connected, user_connect_count returns {nCount}")
             if nCount < 0: 
                 # if something wrong nCount is equal to -1 
@@ -4286,7 +4406,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         return (authinfo,userinfo)
 
 
-    def find_userinfo_authinfo_by_desktop_name( self, name:str )->tuple:
+    async def find_userinfo_authinfo_by_desktop_name( self, name:str )->tuple:
         """find_userinfo_authinfo_by_desktop_name
 
         Args:
@@ -4300,7 +4420,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         authinfo = None
         userinfo = None
         try:
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name )
+            myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name )
             if isinstance( myPod, V1Pod ) :  
                 (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
         except ApiException as e: 
@@ -4308,7 +4428,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             pass
         return (authinfo,userinfo)
 
-    def find_userinfo_authinfo_desktop_by_desktop_name( self, name:str )->tuple:
+    async def find_userinfo_authinfo_desktop_by_desktop_name( self, name:str )->tuple:
         """find_userinfo_authinfo_by_desktop_name
 
         Args:
@@ -4323,19 +4443,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         userinfo  = None # default returns value
         myDesktop = None # default returns value
         try:
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name )
+            myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace,name=name )
             if isinstance( myPod, V1Pod ) :  
                 (authinfo,userinfo) = self.extract_userinfo_authinfo_from_pod(myPod)
-                myDesktop = self.pod2desktop( pod=myPod )
+                myDesktop = await self.pod2desktop( pod=myPod )
         except ApiException as e: 
             # not found
             pass
         return (authinfo,userinfo,myDesktop)
     
-    def describe_desktop_byname( self, name:str )->dict:
-        return self.describe_pod_byname( name )
+    async def describe_desktop_byname( self, name:str )->dict:
+        return await self.describe_pod_byname( name )
 
-    def describe_pod_byname( self, name:str )->dict:
+    async def describe_pod_byname( self, name:str )->dict:
         """describe_desktop_byname
 
         Args:
@@ -4350,15 +4470,16 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # The method calls accept a kwarg named _preload_content.
         # Setting the argument _preload_content to False instructs the method to return the urllib3.HTTPResponse object instead of a processed str. 
         # You can then work directly with the data, which cooperates with json.loads().
-        myPod = None
+        describe = None
         try:
-            myPod = self.kubeapi.read_namespaced_pod(namespace=self.namespace, name=name, _preload_content=False)
-            if isinstance( myPod, urllib3.response.HTTPResponse ) :  
-                myPod = json.loads( myPod.data )
+            myPod = await self.kubeapi.read_namespaced_pod(namespace=self.namespace, name=name, _preload_content=False)
+            # if isinstance( myPod, urllib3.response.HTTPResponse ) :  
+            if isinstance( myPod, aiohttp.client_reqrep.ClientResponse ):
+                describe = await myPod.json()
         except ApiException as e: 
             # not found
             pass 
-        return myPod
+        return describe
     
     def giveme_an_imagePullSecrets( self )->list:
         imagePullSecrets = [] # default value 
@@ -4401,7 +4522,7 @@ class ODAppInstanceBase(object):
     def get_CUPS_SERVER( self, desktop_ip_addr:str=None ):
         raise NotImplementedError('get_CUPS_SERVER')
     
-    def overwrite_environment_variable_for_application( self, myDesktop:ODDesktop )->dict:
+    async def overwrite_environment_variable_for_application( self, myDesktop:ODDesktop )->dict:
         self.logger.debug('')
         dictenv = None
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
@@ -4416,7 +4537,7 @@ class ODAppInstanceBase(object):
         # ./overwrite_environment_variable_for_application.sh --type pod_application
         command = [ command_overwrite_environment_variable_for_application, "--type", self.type ]
         # run the command and wait for stdout
-        result = self.orchestrator.execwaitincontainer( myDesktop, command )
+        result = await self.orchestrator.execwaitincontainer( myDesktop, command )
         if not isinstance(result,dict):
             return dictenv
 
@@ -4429,12 +4550,12 @@ class ODAppInstanceBase(object):
 
         return dictenv
 
-    def get_env_for_appinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
+    async def get_env_for_appinstance(self, myDesktop, app, authinfo, userinfo={}, userargs=None, **kwargs ):
         assert isinstance(myDesktop,  ODDesktop),  f"desktop has invalid type {type(myDesktop)}"
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
 
-        posixuser = self.orchestrator.alwaysgetPosixAccountUser( authinfo, userinfo )
+        posixuser = await self.orchestrator.alwaysgetPosixAccountUser( authinfo, userinfo )
 
         # make sure env DISPLAY, PULSE_SERVER,CUPS_SERVER exist
         # read the desktop (oc.user) ip address
@@ -4497,12 +4618,12 @@ class ODAppInstanceBase(object):
         
         return envlist
 
-    def get_securitycontext(self, authinfo:AuthInfo, userinfo:AuthUser, app:dict  ):
+    async def get_securitycontext(self, authinfo:AuthInfo, userinfo:AuthUser, app:dict  ):
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
         assert isinstance(app,  dict),             f"desktop has invalid type  {type(app)}"
         securitycontext = {}
-        user_securitycontext = self.orchestrator.updateSecurityContextWithUserInfo( self.type, authinfo, userinfo )
+        user_securitycontext = await self.orchestrator.updateSecurityContextWithUserInfo( self.type, authinfo, userinfo )
         app_securitycontext = app.get('securitycontext',{}) or {} 
         securitycontext.update( user_securitycontext )
         securitycontext.update( app_securitycontext )
@@ -4560,7 +4681,7 @@ class ODAppInstanceBase(object):
         return affinity
 
 
-    def get_resources_usage( self, myPod:V1Pod, container_name:str=None ) -> dict:
+    async def get_resources_usage( self, myPod:V1Pod, container_name:str=None ) -> dict:
         resources_usage = { 'timestamp': time.time() }
         cgroup_map = oc.od.settings.desktop['resources_usage_cgroup_map'].copy()
         
@@ -4574,17 +4695,23 @@ class ODAppInstanceBase(object):
             for r in cgroup_map.keys():
                 threads_results[r] = None
 
+            
             for r in cgroup_map.keys():
                 command = [ 'cat',  cgroup_map.get(r) ]
                 threads[r] = threading.Thread( 
                                 target=self.orchestrator._execwaitincontainer, 
                                 args=[ myPod.metadata.name, container_name, command, threads_results, r ] )
                 threads[r].start()
-
-            for r in cgroup_map.keys():
-                threads[r].join()
-            self.logger.debug( f'threads_results={threads_results}' )   
-
+            
+            '''
+            tasks: list[asyncio.Task[object]] = []
+            async with asyncio.TaskGroup() as tg:
+                for r in cgroup_map.keys():
+                    command = [ 'cat',  cgroup_map.get(r) ]
+                    task = tg.create_task( self.orchestrator._execwaitincontainer(myPod.metadata.name, container_name, command, threads_results, r ) )
+                    tasks.append(task)
+            ''' 
+            
             # parse results
             for r in cgroup_map.keys():
                 try: 
@@ -4644,20 +4771,18 @@ class ODAppInstanceBase(object):
                     resources_usage[r] = None # default value because an error occurs
         return resources_usage
 
-    def create_thread_to_notify_user_application_pulled( self, myDesktop:ODDesktop, data:dict, event_received:dict )->threading.Thread:
+    def create_thread_to_notify_user_application_pulled( self, myDesktop:ODDesktop, data:dict, event_received:dict ):
         '''
-            create a thread to notify the user that the application has started
+            create a task to notify the user that the application has started
             after a delay of oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS']
             if event_received['pulled'] is still False
         '''
         assert isinstance(event_received, dict), f"event_received has invalid type {type(event_received)}"
         assert isinstance(myDesktop, ODDesktop), f"desktop has invalid type {type(myDesktop)}"
         assert isinstance(data, dict), f"data has invalid type {type(data)}"
-        notify_thread=threading.Thread(target=self.notify_user_application_pulled, args=[myDesktop, data,  event_received] )
-        notify_thread.start()
-        return notify_thread
+        return asyncio.ensure_future(self.notify_user_application_pulled(myDesktop, data, event_received))
     
-    def notify_user_application_pulled( self, myDesktop:ODDesktop, data:dict, event_received:dict )->None:
+    async def notify_user_application_pulled( self, myDesktop:ODDesktop, data:dict, event_received:dict )->None:
         '''
             notify the user that the application has started
             after a delay of oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS']
@@ -4666,13 +4791,12 @@ class ODAppInstanceBase(object):
         assert isinstance(event_received, dict), f"event_received has invalid type {type(event_received)}"
         assert isinstance(myDesktop, ODDesktop), f"desktop has invalid type {type(myDesktop)}"
         assert isinstance(data, dict), f"data has invalid type {type(data)}"
-        self.logger.debug('')
-        self.logger.debug( f'event_received={event_received} before sleep for {oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS']}' )
-        time.sleep( oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS'] )
+        self.logger.debug( f'event_received={event_received} before sleep for {oc.od.settings.desktop["K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS"]}' )
+        await asyncio.sleep( oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS'] )
         if event_received.get('pulled') is False:
             event_received['pulling.notify_user'] = True
             self.logger.debug( f'event_received={event_received} after sleep' )
-            self.orchestrator.notify_user( myDesktop, 'container', data )
+            await self.orchestrator.notify_user( myDesktop, 'container', data )
         # else do nothing because the event has been received
 
   
@@ -4692,7 +4816,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
     def get_CUPS_SERVER( self, desktop_ip_addr:str ):
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
 
-    def envContainerApp(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
+    async def envContainerApp(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
         """get_env
             return a dict of env VAR of an ephemeral container
 
@@ -4711,7 +4835,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(pod_name, str),    f"pod_name has invalid type {type(pod_name)}"
         assert isinstance(containerid, str), f"containerid has invalid type {type(containerid)}"
         env_result = None
-        pod_ephemeralcontainers = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
+        pod_ephemeralcontainers = await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
             name=pod_name, 
             namespace=self.orchestrator.namespace )
         if not isinstance(pod_ephemeralcontainers, V1Pod ):
@@ -4728,12 +4852,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     break
         return env_result
 
-    def logContainerApp(self, pod_name:str, container_name:str)->str:
+    async def logContainerApp(self, pod_name:str, container_name:str)->str:
         assert isinstance(pod_name,  str),  f"pod_name has invalid type  {type(pod_name)}"
         assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
         strlogs = 'no logs read'
         try:
-            strlogs = self.orchestrator.kubeapi.read_namespaced_pod_log( 
+            strlogs = await self.orchestrator.kubeapi.read_namespaced_pod_log( 
                 name=pod_name, 
                 namespace=self.orchestrator.namespace, 
                 container=container_name, 
@@ -4789,7 +4913,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return text_state
 
 
-    def stop(self, pod_name:str, container_name:str)->bool:
+    async def stop(self, pod_name:str, container_name:str)->bool:
         """stop
             stop an ephemeral container by removing it from the pod ephemeralcontainers list    
         Args:
@@ -4807,7 +4931,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(pod_name,  str),  f"pod_name has invalid type {type(pod_name)}"
         assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
 
-        pod_ephemeralcontainers =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
+        pod_ephemeralcontainers =  await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(
             name=pod_name, 
             namespace=self.orchestrator.namespace )
         if not isinstance(pod_ephemeralcontainers, V1Pod ):
@@ -4820,7 +4944,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     break
 
         # replace ephemeralcontainers
-        pod=self.orchestrator.kubeapi.patch_namespaced_pod_ephemeralcontainers(
+        pod=await self.orchestrator.kubeapi.patch_namespaced_pod_ephemeralcontainers(
             name=pod_name, 
             namespace=self.orchestrator.namespace, 
             body=pod_ephemeralcontainers )
@@ -4831,7 +4955,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         return stop_result
 
-    def get_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, ephemeralcontainer_name:str ) -> dict:
+    async def get_resources_usage( self, authinfo:AuthInfo, userinfo:AuthUser, ephemeralcontainer_name:str ) -> dict:
         """get_resources_usage
             return a dict of resources usage of an ephemeral container
             resources_usage = { 'timestamp': time.time(), 'cpuacct.usage': '123456789', 'memory.usage_in_bytes': '123456789', 'memory.max_usage_in_bytes': '123456789', 'memory.limit_in_bytes': '123456789', 'cpu.cfs_quota_us': '123456', 'cpu.cfs_period_us': '100000' }
@@ -4846,14 +4970,14 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
         assert isinstance(ephemeralcontainer_name, str), f" ephemeralcontainer_name has invalid type {type(ephemeralcontainer_name)}"   
         resources_usage = { 'timestamp': time.time() }
-        myPod = self.orchestrator.findPodByUser(authinfo, userinfo )
+        myPod = await self.orchestrator.findPodByUser(authinfo, userinfo )
 
         if not isinstance(ephemeralcontainer_name, str ):
             self.logger.error( f"ephemeralcontainer_name is not a str, gets {type(ephemeralcontainer_name)}" )
             return resources_usage
 
         if isinstance(myPod, V1Pod ):
-            resources_usage = super().get_resources_usage( myPod=myPod, container_name=ephemeralcontainer_name  )
+            resources_usage = await super().get_resources_usage( myPod=myPod, container_name=ephemeralcontainer_name  )
         return resources_usage
 
 
@@ -4894,7 +5018,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         mycontainer['status']         = phase
         return mycontainer
 
-    def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None )->list:
+    async def list( self, authinfo, userinfo, myDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None )->list:
         """list
             list ephemeral containers of a desktop pod filtered by phase
         Args:
@@ -4916,7 +5040,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         assert isinstance(phase_filter, list),     f"phase_filter has invalid type {type(phase_filter)}"
 
         result = []
-        myPod =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
+        myPod =  await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
         if not isinstance(myPod, V1Pod ):
             raise ValueError( 'Invalid read_namespaced_pod_ephemeralcontainers')
 
@@ -4934,48 +5058,16 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return result
 
 
-    def create_thread_to_watch_for_pulling_event( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->threading.Thread:
-        '''
-            create a thread to watch for pulling event of an ephemeral container
-            if a pulling event is received, notify the user that the application is being pulled
-            if a warning event is received, notify the user that the application failed to start
-            if no pulling event is received after oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS']
-            notify the user that the application has started
-        Args:
-            myDesktop (ODDesktop): ODDesktop
-            pod_name (str): name of the pod
-            app_container_name (str): name of the ephemeral container
-            app (dict): app dict
-        Returns:
-            threading.Thread: thread object
-        '''
+    def create_thread_to_watch_for_pulling_event( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict ):
         self.logger.debug( '')
-        watch_thread=threading.Thread(target=self.watch_for_pulling_event, args=[myDesktop, pod_name, app_container_name, app] )
-        watch_thread.start()
-        return watch_thread
+        return asyncio.ensure_future(self.watch_for_pulling_event(myDesktop, pod_name, app_container_name, app))
 
 
-    def create_thread_to_watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->threading.Thread:
-        '''
-            create a thread to watch for pulling event of an ephemeral container
-            if a pulling event is received, notify the user that the application is being pulled
-            if a warning event is received, notify the user that the application failed to start
-            if no pulling event is received after oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS']
-            notify the user that the application has started
-        Args:
-            myDesktop (ODDesktop): ODDesktop
-            pod_name (str): name of the pod
-            app_container_name (str): name of the ephemeral container
-            app (dict): app dict
-        Returns:
-            threading.Thread: thread object
-        '''
+    def create_thread_to_watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict ):
         self.logger.debug( '')
-        watch_thread=threading.Thread(target=self.watch_for_end_of_pod_initializing, args=[myDesktop, pod_name, app_container_name, app] )
-        watch_thread.start()
-        return watch_thread
+        return asyncio.ensure_future(self.watch_for_end_of_pod_initializing(myDesktop, pod_name, app_container_name, app))
 
-    def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->None:
+    async def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->None:
         self.logger.debug('')
           
         # default message data
@@ -4989,7 +5081,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         }
         # check if app_container_name is running
         try:
-            pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
+            pod = await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
             if  isinstance( pod, V1Pod ) and \
                 isinstance( pod.status, V1PodStatus ) and \
                 isinstance( pod.status.ephemeral_container_statuses, list):
@@ -5001,17 +5093,17 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                     if isinstance(c.state.waiting, V1ContainerStateWaiting):
                                         data['reason'] =  c.state.waiting.reason
                                         data['message'] =  c.state.waiting.reason
-                                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                                     
                                     if isinstance(c.state.terminated, V1ContainerStateTerminated ):
                                         data['message'] =  c.state.terminated.reason
                                         data['reason'] =  c.state.terminated.reason
-                                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                                        await self.orchestrator.notify_user( myDesktop, 'container', data )
 
                                     if isinstance(c.state.running, V1ContainerStateRunning ):
                                         data['reason'] =  'Started'
                                         data['message'] =  c.state.running.started_at.strftime("%Y-%m-%d %H:%M:%S")
-                                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                                 break
         except ApiException as e:
             if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
@@ -5032,13 +5124,13 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 data['reason'] = 'Error'
                 data['message'] =  str(e)
                 # report error to the user 
-                self.orchestrator.notify_user( myDesktop, 'container', data )
+                await self.orchestrator.notify_user( myDesktop, 'container', data )
         except Exception as e:
             self.logger.error( e )  
         self.logger.debug('end of watch_for_end_of_pod_initializing')
 
 
-    def watch_for_pulling_event( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->None:
+    async def watch_for_pulling_event( self, myDesktop:ODDesktop, pod_name:str, app_container_name:str, app:dict )->None:
         """
             thread to watch for pulling event of an ephemeral container
             if a pulling event is received, notify the user that the application is being pulled
@@ -5080,16 +5172,18 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         continue_reading_events = True
         dict_state_exec_only_once = {}
+        self.logger.debug(f"start watching")
         w = watch.Watch()
         while continue_reading_events:
             timeout_seconds = 5 # seconds
             try:
                 # watch list_namespaced_event
-                for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
+                async for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
                                         namespace=self.orchestrator.namespace,
                                         field_selector=field_selector,
                                         timeout_seconds=timeout_seconds
                                 ):
+                    self.logger.debug(f"new event received {event}")
                     if not isinstance(event, dict ): 
                         self.logger.debug(f"event not a dict")
                         continue # safe type test event is a dict
@@ -5105,19 +5199,21 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         continue
                     
                     # always update data
-                    data['name'] =  event_object.involved_object.name
-                    data['reason'] =  event_object.reason
+                    data['name'] = event_object.involved_object.name
+                    data['reason'] = event_object.reason
                     data['message'] = event_object.message
         
                     if event_object.reason in [ 'Pulling', 'Pulled', 'Created', 'Scheduled']:
                         if dict_state_exec_only_once.get( event_object.reason, False ) is False:
                             dict_state_exec_only_once[ event_object.reason ] = True
-                            self.orchestrator.notify_user( myDesktop, 'container', data )
+                            self.logger.debug(f"{event_object.reason} notify_user")
+                            await self.orchestrator.notify_user( myDesktop, 'container', data )
                     elif event_object.reason == 'Started':
                         # always stop the watch on Started event
                         # if dict_state_exec_only_once.get( event_object.reason, False ) is False:
                         # dict_state_exec_only_once[ event_object.reason ] = True
-                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        self.logger.debug(f"{event_object.reason} notify_user")
+                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                         continue_reading_events = False
                         w.stop()
                         break
@@ -5127,23 +5223,35 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                         w.stop()
                         break
             except ApiException as e:
-                continue_reading_events = False
+                self.logger.debug( f"ApiException list_namespaced_event {e}")
                 if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
+                    # event:anonymous read_namespaced_pod_ephemeralcontainers ApiException list_namespaced_event (0)
+                    # Reason: Handshake status 200 OK -+-+- 
+                    # {'audit-id': '1bb8710e-76ad-4d1b-aa9b-fb7aa4609140', 'cache-control': 'no-cache, private', 
+                    # 'content-type': 'application/json', 'x-kubernetes-pf-flowschema-uid': '6691937b-ac4b-40a7-9b62-687cc3ed279d', 
+                    # 'x-kubernetes-pf-prioritylevel-uid': '8e7aebf3-6f9a-4889-bcfb-4f273ff65f1a', 
+                    # 'date': 'Thu, 11 Jun 2026 20:50:29 GMT', 'transfer-encoding': 'chunked'} 
+                    # -+-+- None
                     self.logger.debug( f"Handshake status 200 {e}")
-                    break
-                if hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
+
+                elif hasattr(e, 'status') and e.status == 504 and hasattr(e, 'reason') and 'Too large resource version' in e.reason :
                     self.logger.debug( f"retrying after Timeout: Too large resource version ApiException {e}")
                     break
                 else:
-                    self.logger.error( f"ApiException {e}" )
+                    self.logger.error( f"ApiException list_namespaced_event {e}" )
                     break
             except Exception as e:
+                self.logger.debug( f"Exception list_namespaced_event {e}")
+                data['reason'] = 'exception'
+                data['message'] = 'exception'
+                await self.orchestrator.notify_user( myDesktop, 'container', data )
                 continue_reading_events = False
                 self.logger.error( f"Exception {e}" )
 
-            # self.logger.debug("read_namespaced_pod_ephemeralcontainers to get the status of the ephemeral container")
+            self.logger.debug( f"read_namespaced_pod_ephemeralcontainers {pod_name} {app_container_name}")
+            
             try:
-                pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
+                pod = await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
                 if  isinstance( pod, V1Pod ) and \
                     isinstance( pod.status, V1PodStatus ) and \
                     isinstance( pod.status.ephemeral_container_statuses, list):
@@ -5157,22 +5265,23 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                         if isinstance(c.state.waiting, V1ContainerStateWaiting):
                                             data['reason'] =  c.state.waiting.reason
                                             data['message'] =  c.state.waiting.reason
-                                            self.orchestrator.notify_user( myDesktop, 'container', data )
+                                            await self.orchestrator.notify_user( myDesktop, 'container', data )
                                         if isinstance(c.state.terminated, V1ContainerStateTerminated ):
                                             continue_reading_events = False
                                             data['message'] =  c.state.terminated.reason
                                             data['reason'] =  c.state.terminated.reason
-                                            self.orchestrator.notify_user( myDesktop, 'container', data )
+                                            await self.orchestrator.notify_user( myDesktop, 'container', data )
                                         if isinstance(c.state.running, V1ContainerStateRunning ):
                                             continue_reading_events = False
                                             data['reason'] =  'Started'
                                             data['message'] =  c.state.running.started_at.strftime("%Y-%m-%d %H:%M:%S")
-                                            self.orchestrator.notify_user( myDesktop, 'container', data )
+                                            await self.orchestrator.notify_user( myDesktop, 'container', data )
                                     break
             except ApiException as e:
                 # self.logger.debug( e )
                 # Reason: Handshake status 200 OK -+-+- 
                 # {'audit-id': '16b378ec-f2ba-4310-b2e0-a3c3ef301587', 'cache-control': 'no-cache, private', 'content-type': 'application/json', 'x-kubernetes-pf-flowschema-uid': 'b63302af-83ee-4663-8bc2-f188e4236cf7', 'x-kubernetes-pf-prioritylevel-uid': '9a4a998a-bb63-4f75-b75a-cedd6a81f010', 'date': 'Thu, 07 May 2026 12:39:35 GMT', 'transfer-encoding': 'chunked'} -+-+- None
+                self.logger.debug( f"read_namespaced_pod_ephemeralcontainers ApiException list_namespaced_event {e}")
                 if isinstance( e.reason, str) and e.reason.startswith('Handshake status 200 OK'):
                     pass
                 else:
@@ -5180,15 +5289,24 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                     data['reason'] = 'Error'
                     data['message'] =  str(e)
                     continue_reading_events = False
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    await self.orchestrator.notify_user( myDesktop, 'container', data )
             except Exception as e:
                 continue_reading_events = False
                 self.logger.error( e )  
 
+        try:
+            await w.close()
+        except Exception as e:
+            self.logger.error( f"Exception when closing watch: {e}" )
+
+        data['message'] =  'end of watching'
+        data['reason'] =  'end'
+        await self.orchestrator.notify_user( myDesktop, 'container', data )
+
         self.logger.debug('thread_to_watch_for_pulling_event end')
 
 
-    def create(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
+    async def create(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
         """create
             create an ephemeral container in a desktop pod
         Args:
@@ -5226,15 +5344,15 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
         self.logger.debug( f"reading pod desktop desktop.id={myDesktop.id} myDesktop.container_name={myDesktop.container_name} app_container_name={app_container_name}")
 
-        envlist = self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
+        envlist = await self.get_env_for_appinstance(  myDesktop, app, authinfo, userinfo, userargs, **kwargs )
         # add EXECUTION CONTEXT env var inside the container
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RUNTIME', 'value': self.type} )
-        resources = self.orchestrator.read_pod_resources(myDesktop.name)
+        resources = await self.orchestrator.read_pod_resources(myDesktop.name)
         envlist.append( { 'name': 'ABCDESKTOP_EXECUTE_RESOURCES', 'value': json.dumps(resources) } )
 
         kwargs['uid'] = myDesktop.uid
         kwargs['container_name'] = myDesktop.container_name
-        (volumeBinds, volumeMounts) = self.orchestrator.build_volumes( 
+        (volumeBinds, volumeMounts) = await self.orchestrator.build_volumes( 
             authinfo,
             userinfo,
             volume_type=self.type,
@@ -5247,7 +5365,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         self.logger.debug( f"list volume binds pod desktop {list_volumeBinds}")
         self.logger.debug( f"list volume mounts pod desktop {list_volumeMounts}")
 
-        workingDir = self.orchestrator.get_user_homedirectory( authinfo, userinfo )
+        workingDir = await self.orchestrator.get_user_homedirectory( authinfo, userinfo )
         self.logger.debug( f"user workingDir={workingDir}")
 
         # remove subPath
@@ -5266,7 +5384,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             f"desktop.persistentvolumeclaimforcesubpath is {oc.od.settings.desktop['persistentvolumeclaimforcesubpath']} \
             Subpath mounts are not allowed for ephemeral containers"
 
-        securitycontext = self.get_securitycontext( authinfo, userinfo, app )
+        securitycontext = await self.get_securitycontext( authinfo, userinfo, app )
         
         # Fix python kubernetes
         # Ephemeral container not added to pod #1859
@@ -5304,7 +5422,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         pod_name = myDesktop.id
 
         # patch_namespaced_pod_ephemeralcontainers 
-        pod = self.orchestrator.kubeapi.patch_namespaced_pod_ephemeralcontainers(   
+        pod = await self.orchestrator.kubeapi.patch_namespaced_pod_ephemeralcontainers(   
             name=pod_name,
             namespace=self.orchestrator.namespace, 
             body=body)
@@ -5328,7 +5446,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         appinstancestatus = oc.od.appinstancestatus.ODAppInstanceStatus( id=app_container_name, type=self.type, wm_class=app.get('launch'), icon=app.get('icon'), icondata=app.get('icondata') )
         appinstancestatus.message = "Application" # default message 
 
-        pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
+        pod = await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=pod_name)
         if  isinstance( pod, V1Pod ) and \
             isinstance( pod.status, V1PodStatus ) and \
             isinstance( pod.status.ephemeral_container_statuses, list):
@@ -5341,7 +5459,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                     # report error to the user 
                                     appinstancestatus.message = 'Terminated'
                                     data[ 'message' ] = 'Application is terminated'
-                                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                                    await self.orchestrator.notify_user( myDesktop, 'container', data )
                                 elif isinstance(c.state.running, V1ContainerStateRunning ):
                                     appinstancestatus.message = 'Running'
                                 elif isinstance(c.state.waiting, V1ContainerStateWaiting):
@@ -5356,9 +5474,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         return appinstancestatus
         
         
-    def describe( self, pod_name:str, app_name:str, apps:ODApps ):
+    async def describe( self, pod_name:str, app_name:str, apps:ODApps ):
         description = None
-        myPod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=pod_name)
+        myPod = await self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=pod_name)
         if  isinstance( myPod, V1Pod ) and \
             isinstance( myPod.spec, V1PodSpec ) and \
             isinstance( myPod.spec.ephemeral_containers, list):
@@ -5372,7 +5490,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                                 break
         return description
 
-    def findRunningAppInstanceforUserandImage( self, authinfo:AuthInfo, userinfo:AuthUser, app):
+    async def findRunningAppInstanceforUserandImage( self, authinfo:AuthInfo, userinfo:AuthUser, app):
         self.logger.debug('')
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
         assert isinstance(userinfo,   AuthUser),   f"userinfo has invalid type {type(userinfo)}"
@@ -5390,7 +5508,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             self.logger.error('Desktop not found')
             raise ValueError( 'Desktop not found')
 
-        pod_ephemeralcontainers =  self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
+        pod_ephemeralcontainers =  await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(name=myDesktop.id, namespace=self.orchestrator.namespace )
         if not isinstance(pod_ephemeralcontainers, V1Pod ):
             self.logger.error(f"Invalid read_namespaced_pod_ephemeralcontainers {myDesktop.id} not found: pod_ephemeralcontainers is not a V1Pod")
             raise ValueError("Invalid read_namespaced_pod_ephemeralcontainers {myDesktop.id} not found")
@@ -5426,9 +5544,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
     def get_CUPS_SERVER( self, desktop_ip_addr:str )->str:
         return desktop_ip_addr + ':' + str(DEFAULT_CUPS_TCP_PORT)
     
-    def describe( self, pod_name:str, app_name:str, apps:ODApps ):
+    async def describe( self, pod_name:str, app_name:str, apps:ODApps ):
         description = {}
-        myPod = self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=app_name)
+        myPod = await self.orchestrator.kubeapi.read_namespaced_pod(namespace=self.orchestrator.namespace,name=app_name)
         if isinstance( myPod, V1Pod ):
             if isinstance( myPod.spec.containers, list):
                 if isinstance( myPod.spec.containers[0], V1Container ):
@@ -5487,7 +5605,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         mycontainer['status']       = myPod.status.phase
         return mycontainer
 
-    def list( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None ):
+    async def list( self, authinfo:AuthInfo, userinfo:AuthUser, myDesktop:ODDesktop, phase_filter=[ 'Running', 'Waiting'], apps:ODApps=None ):
         self.logger.debug('')
 
         assert isinstance(authinfo,   AuthInfo),   f"authinfo has invalid type {type(authinfo)}"
@@ -5504,7 +5622,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             label_selector += ',access_provider='  + access_provider
 
             # use list_namespaced_pod to filter user pod
-            myPodList = self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
+            myPodList = await self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
             if isinstance( myPodList, V1PodList ):
                 for myPod in myPodList.items:
                     phase = myPod.status.phase
@@ -5522,7 +5640,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return result
 
 
-    def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
+    async def envContainerApp( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str, containerid:str )->dict:
         '''get the environment vars exec for the containerid '''
         env_result = None
 
@@ -5532,7 +5650,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         field_selector = f"metadata.name={pod_name}"
         label_selector = f"access_userid={access_userid},type={self.type},access_provider={access_provider}"
 
-        myPodList = self.orchestrator.kubeapi.list_namespaced_pod(
+        myPodList = await self.orchestrator.kubeapi.list_namespaced_pod(
             self.orchestrator.namespace, 
             label_selector=label_selector, 
             field_selector=field_selector)
@@ -5546,12 +5664,12 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     env_result[ e.name ] =  e.value
         return env_result
 
-    def logContainerApp(self, pod_name:str, container_name:str)->str:
+    async def logContainerApp(self, pod_name:str, container_name:str)->str:
         assert isinstance(pod_name,  str),  f"pod_name has invalid type  {type(pod_name)}"
         assert isinstance(container_name,  str),  f"container_name has invalid type {type(container_name)}"
         strlogs = 'no logs read'
         try:
-            strlogs = self.orchestrator.kubeapi.read_namespaced_pod_log( 
+            strlogs = await self.orchestrator.kubeapi.read_namespaced_pod_log( 
                 name=pod_name, 
                 namespace=self.orchestrator.namespace, 
                 container=container_name, 
@@ -5562,7 +5680,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             self.logger.error( e )
         return strlogs
 
-    def stop( self, pod_name:str, container_name:str=None )->bool:
+    async def stop( self, pod_name:str, container_name:str=None )->bool:
         '''get the user's containerid stdout and stderr'''
         result = None
         propagation_policy = 'Foreground'
@@ -5571,7 +5689,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             propagation_policy = propagation_policy, 
             grace_period_seconds=grace_period_seconds )
 
-        v1status = self.orchestrator.kubeapi.delete_namespaced_pod(  
+        v1status = await self.orchestrator.kubeapi.delete_namespaced_pod(  
             name=container_name,
             namespace=self.orchestrator.namespace,
             body=delete_options,
@@ -5582,14 +5700,14 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return result
 
 
-    def removeAppInstanceKubernetesPod( self, authinfo, userinfo ):
+    async def removeAppInstanceKubernetesPod( self, authinfo, userinfo ):
         '''get the user's containerid stdout and stderr'''
         result = True
         access_userid = userinfo.userid
         access_provider = authinfo.provider
         label_selector = f"access_userid={access_userid},type={self.type},access_provider={access_provider}"
 
-        myPodList = self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector)
+        myPodList = await self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector)
         if isinstance( myPodList, V1PodList ) and len(myPodList.items) > 0 :
             for pod in myPodList.items:
                 # propagation_policy = 'Background'
@@ -5599,7 +5717,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     propagation_policy = propagation_policy, 
                     grace_period_seconds=grace_period_seconds )
                 try:
-                    v1status = self.orchestrator.kubeapi.delete_namespaced_pod(  
+                    v1status = await self.orchestrator.kubeapi.delete_namespaced_pod(  
                         name=pod.metadata.name,
                         namespace=self.orchestrator.namespace,
                         body=delete_options,
@@ -5610,7 +5728,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         return result
 
-    def get_resources_usage(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str)->dict:
+    async def get_resources_usage(self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str)->dict:
         """ 
         """
         resources_usage = { 'timestamp': time.time() }
@@ -5619,17 +5737,17 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         field_selector = f"metadata.name={pod_name}"
         label_selector = f"access_userid={access_userid},type={self.type},access_provider={access_provider}"
 
-        myPodList = self.orchestrator.kubeapi.list_namespaced_pod( self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
+        myPodList = await self.orchestrator.kubeapi.list_namespaced_pod( self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
         if isinstance( myPodList, V1PodList ) and len(myPodList.items) > 0 :
             # take only the first one, there is only one
             myPod = myPodList.items[0]
             firstcontainer = self.orchestrator.getfirstcontainerfromPod( myPod )
             if isinstance( firstcontainer, V1Container ):
                 container_name = firstcontainer.name
-                resources_usage = super().get_resources_usage( myPod=myPod, container_name=container_name)
+                resources_usage = await super().get_resources_usage( myPod=myPod, container_name=container_name)
         return resources_usage
 
-    def list_and_stop( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str )->bool:
+    async def list_and_stop( self, authinfo:AuthInfo, userinfo:AuthUser, pod_name:str )->bool:
         
         result = None
         access_userid = userinfo.userid
@@ -5637,7 +5755,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         field_selector = f"metadata.name={pod_name}"
         label_selector = f"access_userid={access_userid},type={self.type},access_provider={access_provider}"
 
-        myPodList = self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
+        myPodList = await self.orchestrator.kubeapi.list_namespaced_pod(self.orchestrator.namespace, label_selector=label_selector, field_selector=field_selector)
         if isinstance( myPodList, V1PodList ) and len(myPodList.items) > 0 :
             # propagation_policy = 'Background'
             propagation_policy = 'Foreground'
@@ -5646,7 +5764,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 propagation_policy = propagation_policy, 
                 grace_period_seconds=grace_period_seconds )
 
-            v1status = self.kubeapi.delete_namespaced_pod(  
+            v1status = await self.orchestrator.kubeapi.delete_namespaced_pod(  
                 name=pod_name,
                 namespace=self.orchestrator.namespace,
                 body=delete_options,
@@ -5656,7 +5774,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         return result
 
-    def findRunningPodforUserandImage( self, authinfo, userinfo, app):
+    async def findRunningPodforUserandImage( self, authinfo, userinfo, app):
         self.logger.debug('')
 
         myrunningPodList = []
@@ -5671,7 +5789,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             if oc.od.settings.desktop['authproviderneverchange'] is True:
                 label_selector += f",access_provider={access_provider}"
 
-            myPodList = self.orchestrator.kubeapi.list_namespaced_pod(
+            myPodList = await self.orchestrator.kubeapi.list_namespaced_pod(
                 self.orchestrator.namespace, 
                 label_selector=label_selector, 
                 field_selector=field_selector
@@ -5688,9 +5806,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         return myrunningPodList
 
 
-    def findRunningAppInstanceforUserandImage( self, authinfo, userinfo, app):
+    async def findRunningAppInstanceforUserandImage( self, authinfo, userinfo, app):
         pod = None
-        podlist = self.findRunningPodforUserandImage( authinfo, userinfo, app)
+        podlist = await self.findRunningPodforUserandImage( authinfo, userinfo, app)
         if len(podlist) > 0:
             pod = podlist[0]
             pod.id = pod.metadata.name # add an id for container compatibility
@@ -5698,27 +5816,11 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
 
     
-    def create_thread_to_watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, app_pod_name:str, app:dict )->threading.Thread:
-        '''
-            create a thread to watch for pulling event of an ephemeral container
-            if a pulling event is received, notify the user that the application is being pulled
-            if a warning event is received, notify the user that the application failed to start
-            if no pulling event is received after oc.od.settings.desktop['K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS']
-            notify the user that the application has started
-        Args:
-            myDesktop (ODDesktop): ODDesktop
-            pod_name (str): name of the pod
-            app_container_name (str): name of the ephemeral container
-            app (dict): app dict
-        Returns:
-            threading.Thread: thread object
-        '''
+    def create_thread_to_watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, app_pod_name:str, app:dict ):
         self.logger.debug( '')
-        watch_thread=threading.Thread(target=self.watch_for_end_of_pod_initializing, args=[myDesktop, app_pod_name, app] )
-        watch_thread.start()
-        return watch_thread
+        return asyncio.ensure_future(self.watch_for_end_of_pod_initializing(myDesktop, app_pod_name, app))
 
-    def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, app_pod_name:str, app:dict )->None:
+    async def watch_for_end_of_pod_initializing( self, myDesktop:ODDesktop, app_pod_name:str, app:dict )->None:
         self.logger.debug('')
 
         # pod data object is complete, stop reading event
@@ -5738,7 +5840,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         # if kubernetes.client.exceptions.ApiException: (504) Reason: Timeout: Timeout: Too large resource version: 135065452, current: 135065439
         try:          
             w = watch.Watch()
-            for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
+            async for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_pod, 
                                     namespace=self.orchestrator.namespace, 
                                     timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                     field_selector=f"metadata.name={app_pod_name}" ):   
@@ -5762,7 +5864,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 if pod_event.status.phase == 'Running':
                     data['reason'] = pod_event.status.phase
                     data['message'] = pod_event.status.message or pod_event.status.phase
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    await self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
                     continue
 
@@ -5770,13 +5872,13 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     if pod_event.status.reason in [ 'Pulling', 'Pulled', 'Started' ]:
                         data['reason'] = pod_event.status.phase
                         data['message'] = pod_event.status.message or pod_event.status.phase
-                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                     continue
 
                 if pod_event.status.phase == 'Warning':
                     data['reason'] = pod_event.status.phase
                     data['message'] = pod_event.status.message 
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    await self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
 
                 elif pod_event.status.phase in [ 'Failed', 'Unknown', 'Warning', 'Succeeded'] :
@@ -5785,23 +5887,25 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     # an error occurs
                     data['reason'] = pod_event.status.type
                     data['message'] = pod_event.status.reason
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    await self.orchestrator.notify_user( myDesktop, 'container', data )
                     self.logger.debug(f"The pod is not in Pending phase, phase={pod_event.status.phase} stop watching" )
                     w.stop()
 
         except Exception as e:
             self.logger.error( f"Exception in watch_for_end_of_pod_initializing: {e}" )
     
+        try:
+            await w.close()
+        except Exception as e:
+            self.logger.error( f"Exception when closing watch: {e}" )
+
         self.logger.debug('end of watch_for_end_of_pod_initializing')
 
 
     def create_thread_to_watch_for_pulling_event( self, myDesktop:ODDesktop, app_pod_name:str, app:dict ):
-        thread = threading.Thread( target=self.watch_for_pulling_event, args=( myDesktop, app_pod_name, app ) )
-        thread.daemon = True
-        thread.start()
-        return thread
+        return asyncio.ensure_future(self.watch_for_pulling_event(myDesktop, app_pod_name, app))
 
-    def watch_for_pulling_event( self, myDesktop:ODDesktop, app_pod_name:str, app:dict )->None:
+    async def watch_for_pulling_event( self, myDesktop:ODDesktop, app_pod_name:str, app:dict )->None:
         """
             thread to watch for pulling event of an ephemeral container
             if a pulling event is received, notify the user that the application is being pulled
@@ -5832,7 +5936,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         # if kubernetes.client.exceptions.ApiException: (504) Reason: Timeout: Timeout: Too large resource version: 135065452, current: 135065439
         try:     
             w = watch.Watch()     
-            for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
+            async for event in w.stream(  self.orchestrator.kubeapi.list_namespaced_event, 
                                     namespace=self.orchestrator.namespace, 
                                     timeout_seconds=oc.od.settings.desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'],
                                     field_selector=f'involvedObject.name={app_pod_name}' ):  
@@ -5851,18 +5955,18 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                 if event_object.type == 'Normal':
                     if event_object.reason == 'Pulling':
                         data['message'] =  f"{event_object.reason} {app.get('name')}, please wait"             
-                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                     elif event_object.reason == 'Pulled':
                         self.logger.debug( f"Event Pulled received")
-                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                     elif event_object.reason == 'Started': 
-                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                         w.stop()
                     elif event_object.reason in [ 'Scheduled', 'Created' ]:
-                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                     else:
                         data['message'] = f"{event_object.reason} {event_object.message}"
-                        self.orchestrator.notify_user( myDesktop, 'container', data )
+                        await self.orchestrator.notify_user( myDesktop, 'container', data )
                         self.logger.error(f"{event_object.type} reason={event_object.reason} message={event_object.message}")
                         w.stop()
                     
@@ -5870,16 +5974,22 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     # an error occurs
                     data['name'] = event_object.type
                     data['message'] = event_object.reason
-                    self.orchestrator.notify_user( myDesktop, 'container', data )
+                    await self.orchestrator.notify_user( myDesktop, 'container', data )
                     w.stop()
         except Exception as e:
             self.logger.error( f"Exception in watch_for_end_of_pod_initializing: {e}" )
+
+        try:
+            await w.close()
+        except Exception as e:
+            self.logger.error( f"Exception when closing watch: {e}" )
+        
         self.logger.debug('end of watch_for_pulling_event')
         
 
 
 
-    def create(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
+    async def create(self, myDesktop:ODDesktop, app:dict, authinfo:AuthInfo, userinfo:AuthUser={}, userargs=None, **kwargs ):
         self.logger.debug('')
 
         rules = app.get('rules', {}) or {} # app['rules] can be set to None
@@ -5888,7 +5998,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             rules.update( desktop_rules )
         network_config = self.orchestrator.applyappinstancerules_network( authinfo, rules )
 
-        (volumeBinds, volumeMounts) = self.orchestrator.build_volumes(   
+        (volumeBinds, volumeMounts) = await self.orchestrator.build_volumes(   
             authinfo,
             userinfo,
             volume_type='pod_application',
@@ -5911,7 +6021,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         myuuid = oc.lib.uuid_digits()
         pod_sufix = 'app_' + app['name'] + '_' +  myuuid
-        app_pod_name = self.orchestrator.get_podname( authinfo, userinfo, pod_sufix)
+        app_pod_name = await self.orchestrator.get_podname( authinfo, userinfo, pod_sufix)
 
         # default empty dict annotations
         annotations = {}
@@ -5922,8 +6032,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
 
         # get the node selector merged data from desktop.pod['pod_application'] and app['nodeSelector']
         nodeSelector = self.get_appnodeSelector( authinfo, userinfo, app)
-        securitycontext = self.get_securitycontext( authinfo, userinfo, app )
-        workingDir = self.orchestrator.get_user_homedirectory( authinfo, userinfo )
+        securitycontext = await self.get_securitycontext( authinfo, userinfo, app )
+        workingDir = await self.orchestrator.get_user_homedirectory( authinfo, userinfo )
         resources = self.get_resources( authinfo, userinfo, app.get('executeclassname') )
         affinity = self.get_affinity( authinfo, userinfo, app, myDesktop )
 
@@ -5931,20 +6041,20 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         initContainers = []
         currentcontainertype = 'init'
         # build the init command 
-        init_command = self.orchestrator.buildinitcommand( authinfo, userinfo )
+        init_command = await self.orchestrator.buildinitcommand( authinfo, userinfo )
         # init_command can be a str or a list
         if len(init_command) > 0:
             # get volumeMounts for init container
             init_volumeMounts =  volumeMounts.copy()
             # get init_localaccount_volumes and init_localaccount_volumes_mount
-            (init_localaccount_volumes, init_localaccount_volumes_mount) = self.orchestrator.build_volumes_localaccount(authinfo, userinfo )
+            (init_localaccount_volumes, init_localaccount_volumes_mount) = await self.orchestrator.build_volumes_localaccount(authinfo, userinfo )
             # add init_localaccount_volumes to pod volumes
             volumeBinds.update( init_localaccount_volumes )
             # add init_localaccount_volumes_mount to init container 
             # and only for init container to prevent user access to localaccount files
             init_volumeMounts.update( init_localaccount_volumes_mount )
             
-            init_container = self.orchestrator.addcontainertopod( 
+            init_container = await self.orchestrator.addcontainertopod( 
                 authinfo=authinfo, 
                 userinfo=userinfo, 
                 currentcontainertype=currentcontainertype, 
@@ -6007,7 +6117,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         self.logger.info(f"dump create pod_manifest json {self.type}")
         self.logger.info( json.dumps( pod_manifest, indent=2 ) )
         try:
-            pod = self.orchestrator.kubeapi.create_namespaced_pod(
+            pod = await self.orchestrator.kubeapi.create_namespaced_pod(
                 namespace=self.orchestrator.namespace,
                 body=pod_manifest )
         except ApiException as e:
@@ -6029,7 +6139,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         self.create_thread_to_watch_for_pulling_event( myDesktop, app_pod_name, app )
         self.create_thread_to_watch_for_end_of_pod_initializing( myDesktop, app_pod_name, app )
 
-        pod = self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=app_pod_name)
+        pod = await self.orchestrator.kubeapi.read_namespaced_pod_ephemeralcontainers(namespace=self.orchestrator.namespace,name=app_pod_name)
         phase = 'Unknown'
         if isinstance( pod, V1Pod ) :
             phase = pod.status.phase
