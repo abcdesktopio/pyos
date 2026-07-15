@@ -218,9 +218,16 @@ class BaseController(APIRouter):
                 self.raise_http_error_message("403.8 - Site access denied")
 
     def apifilter(self, request: Request) -> bool:
-        self.logger.debug("")
+        """apifilter
+            check if the request apikey is in the permitted apikey list
+            if no apikey list is set, return True
+        Returns:
+            bool: True if the request apikey is in the permitted apikey list or no list is set
+        """
+        self.logger.debug('')
         if isinstance(self.apikey, list):
             return self.is_apikey(request)
+        # if no apikey list is set, return True
         return True
 
     def ipfilter(self, request: Request) -> bool:

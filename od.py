@@ -209,23 +209,11 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     # Routes de base
     # ------------------------------------------------------------------
-    @app.get("/API/version")
-    async def version():
-        version_data = {"date": "undefined", "commit": "undefined"}
-        try:
-            with open("version.json") as f:
-                version_data = json.load(f)
-        except Exception:
-            pass
-        return {"status": 200, "result": version_data}
-
     @app.api_route("/API/healthz", methods=["GET", "POST"])
     async def healthz(request: Request):
         request.state.notrace = True
         return Response(content="OK", media_type="text/plain")
 
-
-    
     @app.get("/items/stream", response_class=EventSourceResponse)
     async def sse_items() -> AsyncIterable[Item]:
         for item in items:
@@ -291,10 +279,6 @@ def run_server() -> None:
 
     host = os.environ.get("SERVER_HOST", "0.0.0.0")
     port = int(os.environ.get("SERVER_PORT", 8000))
-
-    # Create and mount the MCP server directly to your FastAPI app
-    # mcp = FastApiMCP(app)
-    # mcp.mount()
 
     config = uvicorn.Config(
         app=app,

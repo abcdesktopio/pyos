@@ -35,7 +35,7 @@ class ManagerController(BaseController):
         self.add_api_route("/desktop",                  self.desktop,                  methods=["GET"])
         self.add_api_route("/desktop/{path:path}",      self.desktop,                  methods=["GET", "DELETE"])
         self.add_api_route("/images",                   self.images,                   methods=["GET", "DELETE"])
-        self.add_api_route("/image/{image}",            self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
+        self.add_api_route("/image/{path:path}",        self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
         self.add_api_route("/ban/{collection}/{path:path}", self.ban,                  methods=["GET", "POST", "DELETE"])
         self.add_api_route("/ban/{collection}",         self.ban_root,                 methods=["GET", "POST", "DELETE"])
 
@@ -98,7 +98,7 @@ class ManagerController(BaseController):
             return self.handle_datastore_DELETE(args)
         raise HTTPException(status_code=405, detail="Method Not Allowed")
 
-    async def desktop(self, request: Request, path: str = "") -> dict | list:
+    async def desktop(self, request: Request, path: str = "") -> dict | list | bool:
         self.is_permit_request(request)
         args = tuple(path.split("/")) if path else ()
         if request.method == "GET":

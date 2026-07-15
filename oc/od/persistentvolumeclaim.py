@@ -181,11 +181,12 @@ class ODPersistentVolumeClaim():
         return pvc
 
     
-    async def waitforBoundPVC( self, name:str, callback_notify )->tuple:
+    async def waitforBoundPVC( self, name:str, queue: asyncio.Queue=None )->tuple:
         self.logger.debug('')
         assert_type( name, str )
         event_counter = 0
         continue_reading_events = True
+        if queue: queue.put_nowait( (100, f"c.Waiting for your persistent volume claim {name} to be bound") )
         w = watch.Watch()
         while continue_reading_events:
             try:
@@ -211,8 +212,8 @@ class ODPersistentVolumeClaim():
                         #   Bound -- the volume is bound to a claim
                         #   Released -- the claim has been deleted, but the resource is not yet reclaimed by the cluster
                         #   Failed -- the volume has failed its automatic reclamation
-                        if callable(callback_notify):
-                            callback_notify( f"b.Reading your persistent volume claim {name}, status is {pvc.status.phase}, using storage class {storage_class_name} " )
+                        if queue: 
+                            queue.put_nowait( (100, f"c.Your persistent volume claim {name} is {pvc.status.phase} using storage class {storage_class_name}") )
                         if pvc.status.phase == 'Bound':
                             # continue_reading_events = False
                             return (True, f"b. Your persistent volume claim {name} is {pvc.status.phase} using storage class {storage_class_name} ")

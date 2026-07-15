@@ -154,7 +154,7 @@ class ODAuthTool:
         """Retourne le AuthCache pour la requête courante (via ContextVar)."""
         cache = get_auth_cache()
         if cache is None:
-            self.logger.debug( 'request is not cached' )
+            # self.logger.debug( ' ->. request is not cached .<-' )
             cache = self.parse_auth_request()
             set_auth_cache(cache)
         else:

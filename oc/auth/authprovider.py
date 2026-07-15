@@ -33,6 +33,8 @@ import chevron
 from requests_oauthlib import OAuth2Session
 from threading import Lock
 
+import urllib
+
 import oc.logging
 import oc.od.settings
 import oc.od.resolvdns
@@ -280,10 +282,11 @@ class ODExternalAuthProvider(ODAuthProviderBase):
         data['state'] = state
         return data
 
-    def authenticate(self, code=None, **params) -> AuthInfo:
-        from oc.cherrypy import get_current_request
-        req = get_current_request()
-        query_string = str(req.url.query) if req else ""
+    def authenticate(self, **params) -> AuthInfo:
+        # we don't need to add manager and provider parameters
+        # query_string = f"manager={self.manager.name}&provider={self.name}"
+        # query_string = ""
+        query_string = urllib.parse.urlencode(params)
         oauthsession = OAuth2Session(self.client_id, scope=self.scope, redirect_uri=self.redirect_uri)
         authorization_response = self.redirect_uri_prefix + '?' + query_string
         access_token = oauthsession.fetch_token(self.token_url, client_secret=self.client_secret, include_client_id=self.include_client_id, authorization_response=authorization_response)

@@ -5,6 +5,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2020-2021 Orange
 # SPDX-License-Identifier: GPL-2.0-only
 #
+import asyncio
 import json
 import logging
 from typing import Any
@@ -34,14 +35,53 @@ class ResultItem(BaseModel):
     message: str | None
     result: dict | None
 
+
+
+async def _parse_launchdesktop_args(request: Request) -> dict:
+    """Dependency: reads and validates the launchdesktop request body.
+
+    Must be a Depends() dependency so FastAPI resolves it during the
+    dependency-injection phase, *before* the async-generator endpoint is
+    created and before SSE response headers are sent.  Reading the body
+    inside the generator body would block indefinitely because the ASGI
+    receive channel is no longer available once the SSE send phase starts.
+    """
+    try:
+        args = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"invalid parameters: {e}")
+    return args
+
+
+async def _parse_ocrun_args(request: Request) -> dict:
+    """Dependency: reads and validates the ocrun request body.
+
+    Must be a Depends() dependency so FastAPI resolves it during the
+    dependency-injection phase, *before* the async-generator endpoint is
+    created and before SSE response headers are sent.  Reading the body
+    inside the generator body would block indefinitely because the ASGI
+    receive channel is no longer available once the SSE send phase starts.
+    """
+    try:
+        args = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"invalid parameters: {e}")
+    if not isinstance(args, dict):
+        raise HTTPException(status_code=400, detail="invalid parameters")
+    return args
+
 @oc.logging.with_logger()
 class ComposerController(BaseController):
     """Description: Composer Controller"""
 
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
-        self.add_api_route("/ocrun",                   self.ocrun,                   methods=["POST"])
-        self.add_api_route( path="/launchdesktop",     endpoint=self.launchdesktop,  dependencies=[Depends(self.live_jsonl_headers)],methods=["POST"], response_class=EventSourceResponse)
+        self.add_api_route( path="/ocrun",             endpoint=self.ocrun,         methods=["POST"], response_class=EventSourceResponse)
+        self.add_api_route( path="/launchdesktop",     endpoint=self.launchdesktop, methods=["POST"], response_class=EventSourceResponse)
+        
+        # self.add_api_route( path="/launchdesktop",     endpoint=self.launchdesktop,  dependencies=[Depends(self.live_jsonl_headers)],methods=["POST"], response_class=EventSourceResponse)
+       
+
         self.add_api_route("/list_applications_by_phase", self.list_applications_by_phase, methods=["POST"])
         self.add_api_route("/getlogs",                 self.getlogs,                 methods=["POST"])
         self.add_api_route("/stopcontainer",           self.stopcontainer,           methods=["POST"])
@@ -57,76 +97,95 @@ class ComposerController(BaseController):
         self.add_api_route("/getapplist",              self.getapplist,              methods=["POST"])
 
 
-    async def live_jsonl_headers(self, response:Response) -> Response:
-        # response.headers["Cache-Control"] = "no-cache"
-        response.headers["X-Accel-Buffering"] = "no"
-        return response
-
+    # async def live_jsonl_headers(self, response:Response) -> Response:
+    #    # response.headers["Cache-Control"] = "no-cache"
+    #    response.headers["X-Accel-Buffering"] = "no"
+    #    return response
 
     def LocaleSettingsLanguage(self, user: dict, request: Request) -> None:
         accept_language = request.headers.get("Accept-Language") if request else None
         locale = oc.i18n.detectLocale(accept_language, oc.od.settings.supportedLocales)
         user["locale"] = locale
 
-    async def ocrun(self, request: Request) -> dict:
+    async def ocrun(self, request: Request, args: dict = Depends(_parse_ocrun_args)) -> AsyncIterable[ServerSentEvent]:
         self.logger.debug("")
         (auth, user, roles) = self.validate_env(request)
-        try:
-            args = await request.json()
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"invalid parameters: {e}")
-        if not isinstance(args, dict):
-            raise HTTPException(status_code=400, detail="invalid parameters")
+        self.LocaleSettingsLanguage(user, request)
         appname = args.get("image")
         if not isinstance(appname, str) or len(appname) == 0:
             raise HTTPException(status_code=400, detail="invalid image parameters")
-        self.LocaleSettingsLanguage(user, request)
-        result = await oc.od.composer.openapp(auth, user, args)
-        if not isinstance(result, dict):
-            raise HTTPException(status_code=400, detail="ocrun error")
-        return Results.success(result=result)
+        progress_item = ( 100, None )
+        result_item = None
+        queue: asyncio.Queue = asyncio.Queue()
+        i = 0
+        task_app = asyncio.create_task( oc.od.composer.openapp(auth, user, queue, args) )    
+        try:
+            while progress_item[0] == 100 :
+                i = i + 1
+                progress_item = await asyncio.wait_for( queue.get(), timeout=None)
+                self.logger.debug(f"ocrun:yield_{i} {progress_item}")
+                if isinstance(progress_item, tuple):
+                    if progress_item[0] == 100:
+                        result_item = Results.progress(message=progress_item[1])
+                        yield ServerSentEvent(data=Results.progress(message=progress_item[1]), event="message", id=str(i) )
+                    if progress_item[0] == 200:
+                        result_item = Results.progress(message=progress_item[1])
+                        break
+                    if progress_item[0] in {400, 500}:
+                        result_item = Results.error(message=progress_item[1])
+                        break
+                else:
+                    self.logger.error(f"ocrun:yield_{i} {progress_item}")
+                    yield ServerSentEvent(data=Results.progress(message=str(progress_item)), event="message", id=str(i) )
+                    break
+        except TimeoutError:
+            self.logger.error(e)
+        except Exception as e:
+            self.logger.error(e)
 
-    async def launchdesktop(self, request: Request )-> AsyncIterable[ ResultItem ]:
-    # async def launchdesktop(self, request: Request, response: Response = Depends(live_jsonl_headers))-> AsyncIterable[ ResultItem ]:
-    # async def launchdesktop(self, request: Request)-> AsyncIterable[ ServerSentEvent ]:
+        result_item = await task_app
+        yield ServerSentEvent(data=result_item, event="message", id=str(i) )
+
+
+    async def launchdesktop(self, request: Request, args: dict = Depends(_parse_launchdesktop_args) )-> AsyncIterable[ ServerSentEvent ]:
         self.logger.debug("")
         (auth, user, roles) = self.validate_env(request)
         self.logger.debug("launchdesktop:LocaleSettingsLanguage")
         self.LocaleSettingsLanguage(user, request)
-        args = {}
+        progress_item = ( 100, None )
+        result_item = None
+        queue: asyncio.Queue = asyncio.Queue()
+        i = 0
+        task_desktop = asyncio.create_task(
+            self._launchdesktop(auth, user, roles, args, request, queue)
+        )
+        
+        try:
+            while progress_item[0] == 100 :
+                i = i + 1
+                progress_item = await asyncio.wait_for( queue.get(), timeout=None)
+                self.logger.debug(f"launchdesktop:yield_{i} {progress_item}")
+                if isinstance(progress_item, tuple):
+                    if progress_item[0] == 100:
+                        result_item = Results.progress(message=progress_item[1])
+                        yield ServerSentEvent(data=Results.progress(message=progress_item[1]), event="message", id=str(i) )
+                    if progress_item[0] == 200:
+                        result_item = Results.progress(message=progress_item[1])
+                        break
+                    if progress_item[0] in {400, 500}:
+                        result_item = Results.error(message=progress_item[1])
+                        break
+        except Exception as e:
+            self.logger.error(e)
 
-        #try:
-        #    args = await request.json()
-        #except Exception as e:
-        #    raise HTTPException(status_code=400, detail=f"invalid parameters: {e}")
+        try:
+            result_item = await task_desktop
+        except Exception as e:
+            self.logger.error(e)
+            result_item = Results.error(message=str(e))
         
-        # response.headers["Cache-Control"] = "no-cache"
-        # response.headers["X-Accel-Buffering"] = "no"
+        yield ServerSentEvent(data=result_item, event="message", id=str(i) )
 
-        if not isinstance(args, dict):
-            raise HTTPException(status_code=400, detail="invalid parameters")
-        
-        #yield ServerSentEvent(comment="stream of item updates")
-        resultitem = None
-        launchdesktop_events = self._launchdesktop(auth, user, roles, args, request)
-        i=0
-        async for item in launchdesktop_events:
-            self.logger.debug(f"launchdesktop:yield_{i} {item}")
-            if isinstance(item, dict):
-                resultitem=ResultItem(status=item.get("status"), message=item.get("message"), result=item.get("result"))
-                if Results.is_a_success(item):
-                    await launchdesktop_events.aclose()
-                if Results.is_in_progress(item): 
-                    # yield ServerSentEvent(data=resultitem, event="item_update", id=str(i), retry=5000)
-                    yield resultitem
-                if Results.is_an_error(item):
-                    await launchdesktop_events.aclose()
-            else:
-                resultitem=ResultItem(status=500, message="unknown error", result=None)
-            i=i+1
-        
-        # yield ServerSentEvent(data=resultitem, event="item_update", id=str(i), retry=5000)
-        yield resultitem
 
 
     async def list_applications_by_phase(self, request: Request) -> list:
@@ -286,47 +345,46 @@ class ComposerController(BaseController):
         (auth, user, roles) = self.validate_env(request)
         return Results.success(result=services.apps.get_json_applist())
 
-    async def _launchdesktop(self, auth: AuthInfo, user: AuthUser, roles: AuthRoles, args: dict, request: Request):
+    async def _launchdesktop(self, auth: AuthInfo, user: AuthUser, roles: AuthRoles, args: dict, request: Request, queue: asyncio.Queue = None):
         self.logger.debug("")
         
         # read http headers for accounting and log history data
         args[ 'ABCDESKTOP_WEBCLIENT_SOURCEIPADDR' ] = oc.cherrypy.getclientremote_ip(request)
         args[ 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY' ] = self.get_webclient_os_family(request) # parse_user_agent_os_family()
     
-        desktop_events = oc.od.composer.opendesktop(auth, user, roles, args)
-        async for desktop in desktop_events:
-            if not isinstance(desktop, oc.od.desktop.ODDesktop):
-                if isinstance(desktop, str):
-                    if desktop.startswith("e."):
-                        await desktop_events.aclose()
-                        yield Results.error(message=desktop)
-                    else:
-                        yield Results.progress(message=desktop)
+        desktop = await oc.od.composer.opendesktop(auth, user, roles, args, queue)
+        if not isinstance(desktop, oc.od.desktop.ODDesktop):
+            if isinstance(desktop, str):
+                queue.put_nowait((500, desktop))
+                if desktop.startswith("e."):
+                    return Results.error(message=desktop)
                 else:
-                    await desktop_events.aclose()
-                    yield Results.error(message="e.Desktop creation failed")
-            elif not oc.od.desktop.isdesktopreachabled(desktop):
-                await desktop_events.aclose()
-                if await oc.od.composer.removedesktop(auth, user) is True:
-                    yield Results.error(message="e.Your desktop is unreachabled. Delete desktop done.")
-                else:
-                    error_msg = oc.od.desktop.getunreachablemessage(desktop)
-                    yield Results.error(message=f"Your desktop previous was unreachable. {error_msg}. Please try to reload again.")
+                    return Results.error(message='Desktop creation failed')
             else:
-                jwtdesktoptoken = services.jwtdesktop.encode(desktop.internaluri)
-                target = desktop.ipAddr
-                if desktop.websocketrouting == "bridge":
-                    target = desktop.websocketroute
-                expire_in = services.jwtdesktop.exp()
-                target_ip = self.get_target_ip_route(target, desktop.websocketrouting, request)
-                yield Results.success(result={
-                    "target_ip": target_ip,
-                    "vncpassword": desktop.vncPassword,
-                    "authorization": jwtdesktoptoken,
-                    "websocketrouting": desktop.websocketrouting,
-                    "websockettcpport": oc.od.settings.desktop_pod["graphical"].get("tcpport"),
-                    "expire_in": expire_in,
-                })
+                return Results.error(message="e.Desktop creation failed")
+        elif not oc.od.desktop.isdesktopreachabled(desktop):
+            queue.put_nowait((500, 'desktop is unreachabled'))
+            if await oc.od.composer.removedesktop(auth, user) is True:
+                return Results.error(message="e.Your desktop is unreachabled. Delete desktop done.")
+            else:
+                error_msg = oc.od.desktop.getunreachablemessage(desktop)
+                return Results.error(message=f"Your desktop previous was unreachable. {error_msg}. Please try to reload again.")
+        else:
+            queue.put_nowait((200, 'desktop is reachabled'))
+            jwtdesktoptoken = services.jwtdesktop.encode(desktop.internaluri)
+            target = desktop.ipAddr
+            if desktop.websocketrouting == "bridge":
+                target = desktop.websocketroute
+            expire_in = services.jwtdesktop.exp()
+            target_ip = self.get_target_ip_route(target, desktop.websocketrouting, request)
+            return Results.success(result={
+                "target_ip": target_ip,
+                "vncpassword": desktop.vncPassword,
+                "authorization": jwtdesktoptoken,
+                "websocketrouting": desktop.websocketrouting,
+                "websockettcpport": oc.od.settings.desktop_pod["graphical"].get("tcpport"),
+                "expire_in": expire_in,
+            })
 
 
     def get_target_ip_route(self, target: str, websocketrouting: str, request: Request) -> str:

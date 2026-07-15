@@ -15,6 +15,7 @@
 #
 import logging
 import asyncio
+import queue
 
 from oc.cherrypy import getclientipaddr
 from oc.od.desktop import ODDesktop
@@ -26,6 +27,7 @@ from oc.auth.authuser import AuthUser
 from oc.auth.authinfo import AuthInfo
 from oc.auth.authroles import AuthRoles
 from oc.od.error import ODError
+from oc.cherrypy import Results
 import oc.od.appinstancestatus
 import oc.od.desktop
 import oc.od.services
@@ -74,7 +76,7 @@ def securitypoliciesmatchlabelvalue( desktop:ODDesktop, authinfo:AuthInfo, label
     result = all( matches.values() )
     return result
 
-async def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, args:dict ):
+async def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, args:dict, queue:asyncio.Queue ):
     """open a new or return a desktop
     Args:
         authinfo (AuthInfo): authentification data
@@ -98,64 +100,64 @@ async def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles,
         # ok we find a desktop
         # let's check if security policies match the desktop
         logger.debug('a desktop has been found')
-        yield 'b.Applying labels security policy'
+        queue.put_nowait( (100, 'b.Applying labels security policy') ) 
         # the list of uniq_labels_filter must be the same as the user label
         logger.debug('checking if securitypoliciesmatchlabelvalue')
         if securitypoliciesmatchlabelvalue( desktop, authinfo, oc.od.settings.desktop.get('policies').get('user_uniq_labels')) :
             logger.debug('Warm start, reconnecting to running desktop') 
-            yield 'c.Warm start, reconnecting to your running desktop'
+            queue.put_nowait( (100, 'c.Warm start, reconnecting to your running desktop') ) 
             # if the desktop exists resume the connection
             services.accounting.accountex( desktoptype, 'resumed')
             desktop = await resumedesktop( authinfo, userinfo ) # update last connection datetime
             if isinstance( desktop, ODDesktop):
                 oc.od.tracking.addresumenewentryindesktophistory(authinfo, userinfo, desktop )
-                yield desktop
+                queue.put_nowait( (200, 'd.Your desktop is resuming') )
+                return desktop
             else:
                 # something goes wrong with this pod
                 # delete the current desktop
-                yield f"b. something goes wrong with this pod "  
+                queue.put_nowait( (100, "b. something goes wrong with this pod ") )
                 # only remove the pod, do not delete secret configmap and everythings else
                 removed_desktop = await removepodindesktop( authinfo, userinfo )
                 if removed_desktop is True:
-                    yield 'b.Your desktop is deleted. creating a new one'
+                    queue.put_nowait( (100, 'b.Your desktop is deleted. creating a new one') ) 
                     services.accounting.accountex( desktoptype, 'deletesuccess')
                 else:
                     logger.error(f"Cannot delete desktop") 
                     services.accounting.accountex( desktoptype, 'deletefailed')
-                    yield 'e.Your desktop can not be deleted'
+                    queue.put_nowait( (500, 'e.Your desktop can not be deleted') )
+                    return 'e.Your desktop can not be deleted'
         else:
             # security polcies does not match
             # delete the current desktop
-            yield 'b.Deleting your running desktop. It does not match the security policies'
+            queue.put_nowait( (100, 'b.Deleting your running desktop. It does not match the security policies') )
             # only remove the pod, do not delete secret configmap and everythings else
             removed_desktop = await removepodindesktop( authinfo, userinfo )
             if removed_desktop is True:
-                yield 'b.Your desktop is deleted. creating a new one with new security policies'
                 services.accounting.accountex( desktoptype, 'deletesuccess')
+                queue.put_nowait( (100, 'b.Your desktop is deleted. creating a new one with new security policies') )
             else:
                 logger.error(f"Cannot delete desktop {desktop}") 
                 services.accounting.accountex( desktoptype, 'deletefailed')
-                yield 'e.Your desktop can not be deleted to apply new security policies'
-    else:
-        logger.debug( 'Cold start, creating your new desktop' )
-        yield 'c.Cold start, creating your new desktop' 
-        #
-        # desktop is not found or has been deleted to match security policies
-        # create a new desktop
-        create_desktop_events = createdesktop( authinfo, userinfo, rolesinfo, args)
-        async for desktop in create_desktop_events:        
-            if isinstance( desktop, ODDesktop) :
-                oc.od.tracking.addstartnewentryindesktophistory(authinfo, userinfo, desktop )
-                services.accounting.accountex( desktoptype, 'createsuccess')
-                await create_desktop_events.aclose()
-                yield desktop
-            elif isinstance( desktop, str):
-                if desktop.startswith('e.'):
-                    services.accounting.accountex( desktoptype, 'createfailed')
-                    await create_desktop_events.aclose()
-                yield desktop
-            
+                queue.put_nowait( (500, 'e.Your desktop can not be deleted to apply new security policies') )
+                return 'Your desktop can not be deleted to apply new security policies' 
     
+    logger.debug( 'Cold start, creating your new desktop' )
+    queue.put_nowait( (100, 'c.Cold start, creating your new desktop') )
+    #
+    # desktop is not found or has been deleted to match security policies
+    # create a new desktop
+    desktop = await createdesktop( authinfo, userinfo, rolesinfo, queue, args )
+    if isinstance( desktop, ODDesktop) :
+        oc.od.tracking.addstartnewentryindesktophistory(authinfo, userinfo, desktop )
+        services.accounting.accountex( desktoptype, 'createsuccess')
+        queue.put_nowait( (200, 'd.Your desktop is created') )
+    elif isinstance( desktop, str):
+        if desktop.startswith('e.'):
+            services.accounting.accountex( desktoptype, 'createfailed')
+        queue.put_nowait( (500, desktop) )
+    return desktop
+
 
 def runwebhook( c:ODDesktop ) -> bool:
     bReturn = False
@@ -601,7 +603,7 @@ async def resumedesktop( authinfo:AuthInfo, userinfo:AuthUser ) -> ODDesktop:
     return myDesktop
         
 
-async def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, args  ):
+async def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles, queue:asyncio.Queue, args )-> ODDesktop | str:
     """create a new desktop 
 
     Args:
@@ -612,40 +614,33 @@ async def createdesktop( authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRol
     Returns:
         [type]: [description]
     """
-    logger.info('Starting desktop creation') 
     logger.debug('createdesktop:createDesktopArguments')
     myCreateDesktopArguments = createDesktopArguments( authinfo, userinfo, args )
 
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()
-    # createdesktop 
+    myDesktop = None
     try:
-        create_desktop_events = myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo, rolesinfo=rolesinfo, **myCreateDesktopArguments )
-        async for myDesktop in create_desktop_events :    
-            if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
-                await create_desktop_events.aclose() # close the async generator
-            else:
-                yield myDesktop
-
+        myDesktop = await myOrchestrator.createdesktop( userinfo=userinfo, authinfo=authinfo, rolesinfo=rolesinfo, queue=queue, **myCreateDesktopArguments )
         if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
             if runwebhook( myDesktop ): # run web hook as soon as possible 
-                yield 'c.Webhooking network services'
-            
-        yield 'c.Starting up core services'
-        desktop_ready_events = myOrchestrator.waitForDesktopProcessReady( myDesktop )
-        async for myevent in desktop_ready_events:
-            if isinstance( myevent, bool):
-                await desktop_ready_events.aclose() # close the async generator
+                queue.put_nowait( (100, 'c.Webhooking updated service') )
+            queue.put_nowait( (100,  'c.Starting up core services') )
+            processready = await myOrchestrator.waitForDesktopProcessReady( myDesktop, queue=queue )
+            queue.put_nowait( (100, f"c.Core services started {processready}") )
+            services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
+            await myOrchestrator.close()
+        else:
+            await myOrchestrator.close()
+            if isinstance( myDesktop, str ):
+                # this is an error message
+                queue.put_nowait( (500, myDesktop) )
             else:
-                yield myevent
-
-        services.accounting.accountex('desktop', 'new') # increment new destkop creation accounting counter
-        await myOrchestrator.close()
-        yield myDesktop
+                queue.put_nowait( (500, f"e.CreateDesktop error - myOrchestrator.createDesktop return {type(myDesktop)}") )
     except Exception as e:
-        logger.error( f"createdesktop exception {e}" )
         await myOrchestrator.close()
-        yield f"e.Exception during desktop creation: {e}"
+        myDesktop = f"e.Exception during desktop creation: {e}"
+    return myDesktop
 
 async def list_desktop():
     # new Orchestrator Object
@@ -655,7 +650,7 @@ async def list_desktop():
     return listdesktop
 
     
-async def openapp( auth, user={}, kwargs={} ):
+async def openapp( auth:AuthInfo, user:AuthUser, queue: asyncio.Queue = None, kwargs={} ):
     logger.debug('')
     
     appname  = kwargs.get('image')        # name of the image
@@ -693,16 +688,20 @@ async def openapp( auth, user={}, kwargs={} ):
             await myOrchestrator.close()
             raise ODError( status=400, message=f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
 
-    appinstancestatus = await myOrchestrator.createappinstance( myDesktop, app, auth, user, userargs, **kwargs )
-    if not isinstance( appinstancestatus, oc.od.appinstancestatus.ODAppInstanceStatus ):
-        await myOrchestrator.close()
-        raise ODError( status=500, message=f"Failed to run application createappinstance return {type(appinstancestatus)}")
-    logger.info(f"app {appinstancestatus.id} is {appinstancestatus.message}")
+    result = None
+    appinstance = await myOrchestrator.createappinstance( myDesktop, app, auth, user, queue, userargs, **kwargs )
     
+    if isinstance( appinstance, oc.od.appinstancestatus.ODAppInstanceStatus ):
+        result = Results.success( result=appinstance.to_dict() )
+    elif isinstance( appinstance, str ):
+        if appinstance.startswith("e."):
+            result = Results.error(message=appinstance)
+    else:
+        result = Results.error(message=f"openapp:unknown type {type(appinstance)}")
+
     await myOrchestrator.close()
-    # runwebhook( appinstancestatus )
-    # default return value appinstancestatus dict format to json format
-    return appinstancestatus.to_dict()
+
+    return result
 
 async def callwebhook(webhookcmd:str, messageinfo=None, timeout:int=60):
     logger.debug( f"callwebhook exec {webhookcmd}" )
@@ -733,8 +732,8 @@ async def notify_user_from_pod_application( pod_application, message:str )->None
     myDesktop = await myOrchestrator.findDesktopByUser(authinfo=authinfo, userinfo=userinfo )
     if isinstance( myDesktop, oc.od.desktop.ODDesktop ):
         # default message data 
-        data = {    'message': pod_application.metadata.name, 
-                    'name': message
+        data = { 'message': pod_application.metadata.name, 
+                 'name': message
         }
         # get image from the pod image
         image = pod_application.status.container_statuses[0].image
