@@ -27,6 +27,7 @@ class ManagerController(BaseController):
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
         self.add_api_route("/healtz",                   self.healtz,                   methods=["GET"])
+        self.add_api_route("/config",                   self.config,                   methods=["GET", "POST"])
         self.add_api_route("/echohttp",                 self.echohttp,                 methods=["GET", "POST"])
         self.add_api_route("/buildapplist",             self.buildapplist,             methods=["GET"])
         self.add_api_route("/updateactivedirectorysite",self.updateactivedirectorysite,methods=["GET"])
@@ -44,6 +45,27 @@ class ManagerController(BaseController):
         request.state.notrace = True
         return {"controler": self.__class__.__name__, "status": "ok"}
 
+    async def config(self, request: Request) -> dict:
+        self.is_permit_request(request)
+        if request.method == "GET":
+            return self.handle_config_GET()
+        elif request.method == "POST":
+            try:
+                body = await request.json()
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"invalid parameters: {e}")
+            return await self.handle_config_POST(body)
+        return oc.od.settings.config
+
+    def handle_config_GET(self) -> dict:
+        return oc.od.settings.config
+
+    def handle_config_POST(self, json_config: dict) -> dict:
+        if not isinstance(json_config, dict):
+            raise HTTPException(status_code=400, detail="invalid parameters")
+        oc.od.settings.config.update(json_config)
+        return oc.od.settings.config
+    
     async def echohttp(self, request: Request) -> dict:
         self.is_permit_request(request)
         http_dump = {

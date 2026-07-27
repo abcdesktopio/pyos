@@ -15,9 +15,8 @@ max_log_body_size = 2048 # max body size to log in trace_response, in bytes
 trusted_proxy_cidr = [] # list of trusted proxy cidr in string format, like ['192.168.0.0/24', '10.0.0.0/8'], used to check if the X-Forwarded-For header is spoofed
 ip_network_trusted_proxy_cidr = [] # list of IPNetwork object for trusted proxy cidr, used to check if the X-Forwarded-For header is spoofed 
 
-# Default configuration file name
-config  = {}	    # use for application config and global config
-gconfig = {}	    # use for global config
+
+config  = {} 
 
 # Default namespace used by kubernetes is abcdesktop
 namespace = 'abcdesktop' 
@@ -158,10 +157,10 @@ def init_localaccount():
     global DEFAULT_SHADOW_FILE
     global DEFAULT_GSHADOW_FILE
 
-    passwd_filename = gconfig.get('template_passwd_filename', 'passwd' )
-    group_filename = gconfig.get('template_group_filename', 'group' )
-    shadow_filename = gconfig.get('template_shadow_filename', 'shadow' )
-    gshadow_filename = gconfig.get('template_gshadow_filename', 'gshadow' )
+    passwd_filename = config.get('template_passwd_filename', 'passwd' )
+    group_filename = config.get('template_group_filename', 'group' )
+    shadow_filename = config.get('template_shadow_filename', 'shadow' )
+    gshadow_filename = config.get('template_gshadow_filename', 'gshadow' )
     DEFAULT_PASSWD_FILE  = loadfile(passwd_filename)
     DEFAULT_GROUP_FILE   = loadfile(group_filename)
     DEFAULT_SHADOW_FILE  = loadfile(shadow_filename)
@@ -170,11 +169,11 @@ def init_localaccount():
    
 def init_tipsinfo():
     global tipsinfoconfig
-    tipsinfoconfig = gconfig.get('tipsinfo', {})
+    tipsinfoconfig = config.get('tipsinfo', {})
 
 def init_welcomeinfo():
     global welcomeinfoconfig
-    welcomeinfoconfig = gconfig.get('welcomeinfo', {})
+    welcomeinfoconfig = config.get('welcomeinfo', {})
 
 
 def init_config_stack():
@@ -191,17 +190,17 @@ def init_config_stack():
     #   else use os.environ.get('POD_NAMESPACE')
     #   else use the default value 'abcdesktop'
     logger.debug( f"reading the current namespace defined" )
-    namespace = os.getenv('POD_NAMESPACE') or gconfig.get('namespace', namespace )
+    namespace = os.getenv('POD_NAMESPACE') or config.get('namespace', namespace )
     logger.debug( f"use namespace={namespace}" )
     logger.debug( f"reading kubernetesdefaultsvcclusterlocal option in config file" )
-    kubernetesdefaultsvcclusterlocal = gconfig.get('kubernetesdefaultsvcclusterlocal', 'svc.cluster.local')
+    kubernetesdefaultsvcclusterlocal = config.get('kubernetesdefaultsvcclusterlocal', 'svc.cluster.local')
     logger.debug( f"kubernetes default domain svc.cluster.local={kubernetesdefaultsvcclusterlocal}" )
     # kubernetes_default_domain should be by default abcdesktop.svc.cluster.local
-    kubernetes_default_domain = gconfig.get('kubernetesdefaultabcdesktopsvcclusterlocal', f"{namespace}.{kubernetesdefaultsvcclusterlocal}" )
+    kubernetes_default_domain = config.get('kubernetesdefaultabcdesktopsvcclusterlocal', f"{namespace}.{kubernetesdefaultsvcclusterlocal}" )
     logger.debug( f"abcdesktop domain={kubernetes_default_domain}" )
     # desktopdescription is used to display network page
     # by default desktopdescription is a dict of None values
-    desktopdescription = gconfig.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
+    desktopdescription = config.get( 'desktop.description',  { 'internalipaddr': None, 'externalipaddr': None} )   
 
 def init_defaulthostfqdn():
     """init_defaulthostfqdn
@@ -215,16 +214,16 @@ def init_defaulthostfqdn():
 
 
     # OAUTHLIB params
-    if gconfig.get('OAUTHLIB_INSECURE_TRANSPORT') is True:
+    if config.get('OAUTHLIB_INSECURE_TRANSPORT') is True:
         # This allows us to use oauthlib plain HTTP callback
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-    if gconfig.get('OAUTHLIB_RELAX_TOKEN_SCOPE') is True:
+    if config.get('OAUTHLIB_RELAX_TOKEN_SCOPE') is True:
         os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1' 
 
 
     # Use for reserve proxy
-    default_host_url = gconfig.get('default_host_url')
+    default_host_url = config.get('default_host_url')
     if not isinstance( default_host_url, str):
         logger.warning('Invalid default_host_url in config file')
         logger.warning('Use Host HTTP header to redirect url, this is a security Warning')
@@ -234,7 +233,7 @@ def init_defaulthostfqdn():
         default_host_url_is_securised = default_host_url.lower().startswith('https')
 
 
-    default_geolocation_ipaddr = gconfig.get('server.geolocation_ipaddr')
+    default_geolocation_ipaddr = config.get('server.geolocation_ipaddr')
     if not isinstance(default_geolocation_ipaddr, str): 
        # try to get the ip add from the url hostname
        try:
@@ -249,18 +248,18 @@ def init_defaulthostfqdn():
 
 
     # if not set autologin is denied 
-    services_http_request_denied = gconfig.get('services_http_request_denied', { 'autologin': True } )
+    services_http_request_denied = config.get('services_http_request_denied', { 'autologin': True } )
     logger.debug( f"services http request denied: {services_http_request_denied}")
 
 def init_logmein():
     global logmein
-    logmein = gconfig.get(  'auth.logmein', { 'enable': False } )
+    logmein = config.get(  'auth.logmein', { 'enable': False } )
     if logmein.get('enable') is True:
         logger.debug( f"logmein config {logmein}")
 
 def init_prelogin():
     global prelogin
-    prelogin = gconfig.get(  'auth.prelogin', { 'enable': False } )
+    prelogin = config.get(  'auth.prelogin', { 'enable': False } )
     if prelogin.get('enable') is True:
         logger.debug( f"prelogin config {prelogin}" )
 
@@ -270,7 +269,7 @@ def init_websocketrouting():
        check if websocketrouting value is correct and make sence
     """
     global websocketrouting
-    websocketrouting = gconfig.get('websocketrouting', 'http_origin')
+    websocketrouting = config.get('websocketrouting', 'http_origin')
 
     # check permit value 
     if websocketrouting not in ['bridge', 'default_host_url', 'host','http_origin']:
@@ -281,7 +280,7 @@ def init_websocketrouting():
         # this value must be set in configuration file
         if default_host_url is None:
             logger.error("webroutingmode is set to 'default_host_url', but 'default_host_url' is not set")
-            logger.error("please set the default_host_url parameter in gconfig file")
+            logger.error("please set the default_host_url parameter in config file")
             exit(-1)
 
         # try to parse 'default_host_url'
@@ -300,11 +299,11 @@ def init_websocketrouting():
   
 def init_fakedns():
     global fakedns
-    fakedns = gconfig.get('fakedns', { 'interfacename': 'eth0' } )
+    fakedns = config.get('fakedns', { 'interfacename': 'eth0' } )
 
 def init_authorized_keys():
     global authorized_keys
-    authorized_keys = gconfig.get('authorized_keys', {} )
+    authorized_keys = config.get('authorized_keys', {} )
     if not isinstance(authorized_keys, dict):
         logger.error("authorized_keys must be a dict of user:public_keys")
         exit(-1) 
@@ -317,9 +316,9 @@ def init_desktop():
     # read authmanagers configuration 
     # if an explicitproviderapproval is set, then set  desktopauthproviderneverchange to False
     # desktop authprovider can change on the fly 
-    desktop['authproviderneverchange'] = gconfig.get('desktop.authproviderneverchange', False )
+    desktop['authproviderneverchange'] = config.get('desktop.authproviderneverchange', False )
 
-    authmanagers = gconfig.get('authmanagers', {} )
+    authmanagers = config.get('authmanagers', {} )
     for manager in authmanagers.values():
         providers = manager.get('providers',{})
         for provider in providers.values():
@@ -327,63 +326,63 @@ def init_desktop():
                 desktop['authproviderneverchange'] = False # this allow a user to change auth provider on the fly
                 break
 
-    desktop_pod = gconfig.get( 'desktop.pod' )
+    desktop_pod = config.get( 'desktop.pod' )
     if not isinstance( desktop_pod, dict ):
         logger.error(f"desktop.pod is not defined or is not a dict, read type is {type(desktop.pod)}")
         logger.error('this is a fatal error in configuration file')
         sys.exit(-1)
 
     # default secret path
-    desktop['secretsrootdirectory']     = gconfig.get('desktop.secretsrootdirectory', '/var/secrets/')
-    desktop['secretslocalaccount']      = gconfig.get('desktop.secretslocalaccount',  '/var/lib/extrausers')
-    desktop['zoom']                     = gconfig.get('desktop.zoom', 1)
-    desktop['removehomedirectory']      = gconfig.get('desktop.removehomedirectory', False)
-    desktop['policies']                 = gconfig.get('desktop.policies', {} )
-    desktop['webhookencodeparams']      = gconfig.get('desktop.webhookencodeparams', False )
-    desktop['webhookdict']              = gconfig.get('desktop.webhookdict', {} )
-    desktop['defaultbackgroundcolors']  = gconfig.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
-    desktop['homedirectorytype']        = gconfig.get('desktop.homedirectorytype', 'hostPath')
-    desktop['hostPathRoot']             = gconfig.get('desktop.hostPathRoot', '/mnt')
-    desktop['usedbussession']           = gconfig.get('desktop.usedbussession', False )
-    desktop['usedbussystem']            = gconfig.get('desktop.usedbussystem', False )
-    desktop['useinternalfqdn']          = gconfig.get('desktop.useinternalfqdn', False ) 
-    desktop['uselocaltime']             = gconfig.get('desktop.uselocaltime', False ) 
-    desktop['dnspolicy']                = gconfig.get('desktop.dnspolicy', 'ClusterFirst')
-    desktop['dnsconfig']                = gconfig.get('desktop.dnsconfig')
-    desktop['nodeselector']             = gconfig.get('desktop.nodeselector', {} )
-    desktop['theme']                    = gconfig.get('desktop.theme') 
-    desktop['pulseaudiosocketpath']     = gconfig.get('desktop.pulseaudiosocketpath', '/tmp/.pulse.sock' )
-    desktop['prestopexeccommand']       = gconfig.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
-    desktop['persistentvolumeclaim']    = gconfig.get('desktop.persistentvolumeclaim') or gconfig.get('desktop.persistentvolumeclaimspec')
-    desktop['persistentvolume']         = gconfig.get('desktop.persistentvolume') or gconfig.get('desktop.persistentvolumespec')
-    desktop['homedirdotcachetoemptydir']= gconfig.get('desktop.homedirdotcachetoemptydir', False)
-    desktop['directorytomemoryemptydir']= gconfig.get('desktop.directorytomemoryemptydir', [])
-    desktop['directorytomemory']        = gconfig.get('desktop.directorytomemory', { 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } })
-    desktop['removepersistentvolume']   = gconfig.get('desktop.removepersistentvolume', False)
-    desktop['appendpathtomounthomevolume'] = gconfig.get('desktop.appendpathtomounthomevolume','')
-    desktop['removepersistentvolumeclaim'] = gconfig.get('desktop.removepersistentvolumeclaim', False)
-    desktop['persistentvolumeclaimforcesubpath'] = gconfig.get('desktop.persistentvolumeclaimforcesubpath',False)
+    desktop['secretsrootdirectory']     = config.get('desktop.secretsrootdirectory', '/var/secrets/')
+    desktop['secretslocalaccount']      = config.get('desktop.secretslocalaccount',  '/var/lib/extrausers')
+    desktop['zoom']                     = config.get('desktop.zoom', 1)
+    desktop['removehomedirectory']      = config.get('desktop.removehomedirectory', False)
+    desktop['policies']                 = config.get('desktop.policies', {} )
+    desktop['webhookencodeparams']      = config.get('desktop.webhookencodeparams', False )
+    desktop['webhookdict']              = config.get('desktop.webhookdict', {} )
+    desktop['defaultbackgroundcolors']  = config.get('desktop.defaultbackgroundcolors', ['#6EC6F0',  '#CD3C14', '#4BB4E6', '#50BE87', '#A885D8', '#FFB4E6'])
+    desktop['homedirectorytype']        = config.get('desktop.homedirectorytype', 'hostPath')
+    desktop['hostPathRoot']             = config.get('desktop.hostPathRoot', '/mnt')
+    desktop['usedbussession']           = config.get('desktop.usedbussession', False )
+    desktop['usedbussystem']            = config.get('desktop.usedbussystem', False )
+    desktop['useinternalfqdn']          = config.get('desktop.useinternalfqdn', False ) 
+    desktop['uselocaltime']             = config.get('desktop.uselocaltime', False ) 
+    desktop['dnspolicy']                = config.get('desktop.dnspolicy', 'ClusterFirst')
+    desktop['dnsconfig']                = config.get('desktop.dnsconfig')
+    desktop['nodeselector']             = config.get('desktop.nodeselector', {} )
+    desktop['theme']                    = config.get('desktop.theme') 
+    desktop['pulseaudiosocketpath']     = config.get('desktop.pulseaudiosocketpath', '/tmp/.pulse.sock' )
+    desktop['prestopexeccommand']       = config.get('desktop.prestopexeccommand', [ "/bin/bash", "-c", "rm -rf ~/{*,.*}" ] )
+    desktop['persistentvolumeclaim']    = config.get('desktop.persistentvolumeclaim') or config.get('desktop.persistentvolumeclaimspec')
+    desktop['persistentvolume']         = config.get('desktop.persistentvolume') or config.get('desktop.persistentvolumespec')
+    desktop['homedirdotcachetoemptydir']= config.get('desktop.homedirdotcachetoemptydir', False)
+    desktop['directorytomemoryemptydir']= config.get('desktop.directorytomemoryemptydir', [])
+    desktop['directorytomemory']        = config.get('desktop.directorytomemory', { 'emptyDir': { 'medium': 'Memory', 'sizeLimit': '8Gi' } })
+    desktop['removepersistentvolume']   = config.get('desktop.removepersistentvolume', False)
+    desktop['appendpathtomounthomevolume'] = config.get('desktop.appendpathtomounthomevolume','')
+    desktop['removepersistentvolumeclaim'] = config.get('desktop.removepersistentvolumeclaim', False)
+    desktop['persistentvolumeclaimforcesubpath'] = config.get('desktop.persistentvolumeclaimforcesubpath',False)
     
-    desktop['overwrite_environment_variable_for_application'] = gconfig.get('desktop.overwrite_environment_variable_for_application')
+    desktop['overwrite_environment_variable_for_application'] = config.get('desktop.overwrite_environment_variable_for_application')
     # features_permissions
     # 'read' features_permissions is exposed to the frontend
     # 'submit' features_permissions can be set to create a desktop
     # full permissions are [ 'read', 'submit' ]
-    desktop['features_permissions'] = gconfig.get('desktop.features_permissions', [] )
+    desktop['features_permissions'] = config.get('desktop.features_permissions', [] )
     # Kubernetes timeout 
-    desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = gconfig.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
-    desktop['K8S_BOUND_PVC_MAX_EVENT'] = gconfig.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
-    desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 300 )
-    desktop['K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS'] = gconfig.get('K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS', 300 )
-    desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS'] = gconfig.get('K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS', 2 )    
-    desktop['K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS'] = gconfig.get('K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS', 5 )    
+    desktop['K8S_BOUND_PVC_TIMEOUT_SECONDS'] = config.get('K8S_BOUND_PVC_TIMEOUT_SECONDS', 60 )
+    desktop['K8S_BOUND_PVC_MAX_EVENT'] = config.get('K8S_BOUND_PVC_MAX_EVENT', 5 )
+    desktop['K8S_CREATE_POD_TIMEOUT_SECONDS'] = config.get('K8S_CREATE_POD_TIMEOUT_SECONDS', 300 )
+    desktop['K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS'] = config.get('K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS', 300 )
+    desktop['K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS'] = config.get('K8S_NOTIFY_USER_APPLICATION_PULLED_DELAY_SECONDS', 2 )    
+    desktop['K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS'] = config.get('K8S_NOTIFY_USER_APPLICATION_STARTED_DELAY_SECONDS', 5 )    
 
     if not isinstance(desktop['nodeselector'], dict):
         logger.error( f"nodeselector must be a dict or None, get {type(desktop['nodeselector'])}" )
         sys.exit(-1)
 
     # add default env local vars if not set 
-    desktop['environmentlocal'] = gconfig.get(  
+    desktop['environmentlocal'] = config.get(  
         'desktop.envlocal', 
         {   'DISPLAY'               : ':0.0',
             'LIBOVERLAY_SCROLLBAR'  : '0',
@@ -393,7 +392,7 @@ def init_desktop():
     )
 
     # add default env local rules vars if not set 
-    desktop['environmentlocalrules'] = gconfig.get(  'desktop.envlocalrules', {} )
+    desktop['environmentlocalrules'] = config.get(  'desktop.envlocalrules', {} )
     # environmentlocalrules must be a dict 
     if not isinstance( desktop['environmentlocalrules'], dict ):
         desktop['environmentlocalrules'] = {}  
@@ -404,15 +403,15 @@ def init_desktop():
         exit(-1)
     
     # for compatibiliy with 3.x
-    if gconfig.get('desktop.homedirdotcachetoemptydir', False):
+    if config.get('desktop.homedirdotcachetoemptydir', False):
         # homedirdotcachetoemptydir is True
         if '.cache' not in desktop['directorytomemoryemptydir']:
             desktop['directorytomemoryemptydir'].append('.cache')
 
-    if isinstance( gconfig.get('desktop.snapshotregistrysecretname'), str ):
-        desktop['snapshotregistrysecretname'] = gconfig.get('desktop.snapshotregistrysecretname')
+    if isinstance( config.get('desktop.snapshotregistrysecretname'), str ):
+        desktop['snapshotregistrysecretname'] = config.get('desktop.snapshotregistrysecretname')
     
-    desktop['snapshotregistryprotocol'] = gconfig.get('desktop.snapshotregistryprotocol', 'https' )
+    desktop['snapshotregistryprotocol'] = config.get('desktop.snapshotregistryprotocol', 'https' )
 
 
     # fix volume values if missing for compatibility
@@ -469,7 +468,7 @@ def init_desktop():
         logger.error("cgroup version is not detected, this is a fatal error")
         sys.exit(-1)
     if cgroup_version == 'cgroup v1':
-        desktop['resources_usage_cgroup_map'] = gconfig.get(
+        desktop['resources_usage_cgroup_map'] = config.get(
             'desktop.resources_usage_cgroup_map', 
             {   'memory.usage_in_bytes': '/sys/fs/cgroup/memory/memory.usage_in_bytes',
                 'memory.limit_in_bytes': '/sys/fs/cgroup/memory/memory.limit_in_bytes',
@@ -478,7 +477,7 @@ def init_desktop():
             } 
         )
     if cgroup_version == 'cgroup v2':
-        desktop['resources_usage_cgroup_map'] = gconfig.get(
+        desktop['resources_usage_cgroup_map'] = config.get(
             'desktop.resources_usage_cgroup_map', 
             {   'memory.usage_in_bytes': '/sys/fs/cgroup/memory.current',
                 'memory.limit_in_bytes': '/sys/fs/cgroup/memory.max',
@@ -489,7 +488,7 @@ def init_desktop():
 
 def init_menuconfig():
     global menuconfig
-    menuconfig = gconfig.get('front.menuconfig', {  'settings': True, 
+    menuconfig = config.get('front.menuconfig', {  'settings': True, 
                                                     'appstore': True, 
                                                     'screenshot': True, 
                                                     'logout': True,
@@ -500,7 +499,7 @@ def init_menuconfig():
 
 def init_imagenotificationconfig():
     global imagenotificationconfig
-    imagenotificationconfig = gconfig.get(
+    imagenotificationconfig = config.get(
         'front.imagenotification', { 'ephemeral_container' : False, 'pod_application' : False } )
     logger.debug(f"imagenotificationconfig: {imagenotificationconfig}")
 
@@ -508,7 +507,7 @@ def init_geolocation():
     global geolocation
     # geolocation config
     # options = { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 };
-    geolocation = gconfig.get('geolocation')
+    geolocation = config.get('geolocation')
 
 def init_balloon():
     global balloon_uidNumber
@@ -520,14 +519,14 @@ def init_balloon():
     global balloon_homedirectory
     global homerootdirectory 
 
-    homerootdirectory = gconfig.get('desktop.homerootdirectory', '/home')
-    balloon_loginname = gconfig.get('desktop.username',  'balloon')
-    balloon_groupname = gconfig.get('desktop.groupname', 'balloon')
-    balloon_uidNumber = gconfig.get('desktop.userid', 4096)
-    balloon_gidNumber = gconfig.get('desktop.groupid', 4096)
-    balloon_shell     = gconfig.get('destkop.shell', '/bin/bash')
-    balloon_password  = gconfig.get('desktop.userpasswd', 'lmdpocpetit')
-    balloon_homedirectory = gconfig.get(
+    homerootdirectory = config.get('desktop.homerootdirectory', '/home')
+    balloon_loginname = config.get('desktop.username',  'balloon')
+    balloon_groupname = config.get('desktop.groupname', 'balloon')
+    balloon_uidNumber = config.get('desktop.userid', 4096)
+    balloon_gidNumber = config.get('desktop.groupid', 4096)
+    balloon_shell     = config.get('destkop.shell', '/bin/bash')
+    balloon_password  = config.get('desktop.userpasswd', 'lmdpocpetit')
+    balloon_homedirectory = config.get(
         'desktop.userhomedirectory', 
         os.path.join( homerootdirectory, balloon_loginname ) 
     )
@@ -558,11 +557,11 @@ def _resolv( fqdh:str )->str:
 def init_config_memcached():
     global memconnectionstring
     # Build memcached memconnectionstring
-    memcachedserver = os.getenv('MEMCACHESERVER') or gconfig.get('memcacheserver', 'memcached' )
+    memcachedserver = os.getenv('MEMCACHESERVER') or config.get('memcacheserver', 'memcached' )
     logger.debug( f"memcachedserver is read as {memcachedserver}" )
     memcachedipaddr = _resolv(memcachedserver)
     logger.debug(f"a simple check for memcache: host {memcachedserver} resolved as {memcachedipaddr}")
-    memcachedport = gconfig.get('memcacheport', gconfig.get('memcachedport', 11211) )
+    memcachedport = config.get('memcacheport', config.get('memcachedport', 11211) )
     memconnectionstring = f"{memcachedserver}:{memcachedport}"
     logger.debug(f"memcached connection string is set to {memconnectionstring}")
 
@@ -580,13 +579,13 @@ def get_mongodburl():
     """
     # read MONGODB_URL env var
     # 'mongodb://pyos:YWUwNDJhZTI3NjVjZDg4Zjhk@mongodb.abcdesktop.svc.cluster.local:30017'
-    mongodburl = os.getenv('MONGODB_URL') or gconfig.get( 'mongodburl' )
+    mongodburl = os.getenv('MONGODB_URL') or config.get( 'mongodburl' )
     logger.debug( f"mongodburl is read as {mongodburl}" )
     parsedmongourl = urlparse( mongodburl )
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
     mongodbhostipaddr = _resolv(parsedmongourl.hostname)
     logger.debug(f"a simple check for mongodb: host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
-    mongodbparam = os.getenv('MONGODB_PARAM') or gconfig.get( 'mongodbparam', 'replicaSet=rs0' )
+    mongodbparam = os.getenv('MONGODB_PARAM') or config.get( 'mongodbparam', 'replicaSet=rs0' )
     return (mongodburl, mongodbparam)
 
 def init_controllers():
@@ -596,7 +595,7 @@ def init_controllers():
 
     # by default manager controller is protected by filtering source ip address as local net 
     # local net is defined as list_local_subnet
-    controllers = gconfig.get(  
+    controllers = config.get(  
         'controllers',  { 
             'ManagerController': { 
                 'permitip': [ 
@@ -653,14 +652,14 @@ def init_config_mongodb():
     global mongodbparam
     (mongodburl,mongodbparam) = get_mongodburl()
     logger.debug(f"MongoDB url: {mongodburl} param: {mongodbparam}")
-    mongodblist = gconfig.get('mongodblist', ['image','fail2ban','loginHistory','applications','profiles','desktop'] )
+    mongodblist = config.get('mongodblist', ['image','fail2ban','loginHistory','applications','profiles','desktop'] )
     logger.debug(f"MongoDB list: {mongodblist}")
 
 def init_config_fail2ban():
     """init fail2ban config
     """
     global fail2banconfig
-    fail2banconfig = gconfig.get('fail2ban', { 'enable' : False } )
+    fail2banconfig = config.get('fail2ban', { 'enable' : False } )
     logger.debug(f"Fail2ban config: {fail2banconfig}" )
 
 
@@ -676,7 +675,7 @@ def init_config_auth():
                 configref_name = cfg.get('config_ref')
                 if isinstance( configref_name, str ) :
                     logger.debug( f"config {name} as use configref_name={configref_name}" )
-                    config_ref = gconfig.get(configref_name)
+                    config_ref = config.get(configref_name)
                     if not isinstance(config_ref, dict):
                         logger.error( f"config {name} can not read configref_name={configref_name}, skipping" )
                         continue
@@ -691,7 +690,7 @@ def init_config_auth():
                         logger.error( f"{configref_name} is not a dict, invalid format type={type(conncfg)}" )
 
     # load authmanagers from config file
-    authmanagers = gconfig.get('authmanagers', {})
+    authmanagers = config.get('authmanagers', {})
 
     # load configref for all providers
     parse_provider_configref( authmanagers, 'implicit.providers')
@@ -704,17 +703,17 @@ def init_jwt_config():
     """
     global jwt_config_user
     global jwt_config_desktop
-    jwt_config_user     = gconfig.get('jwt_token_user',    { 'exp': 180, 'privatekeyfile': 'userprivatekey.pem',    'publickeyfile': 'userpublickey.pem'    })
-    jwt_config_desktop  = gconfig.get('jwt_token_desktop', { 'exp': 180, 'privatekeyfile': 'desktopprivatekey.pem', 'publickeyfile': 'desktoppublickey.pem' })
+    jwt_config_user     = config.get('jwt_token_user',    { 'exp': 180, 'privatekeyfile': 'userprivatekey.pem',    'publickeyfile': 'userpublickey.pem'    })
+    jwt_config_desktop  = config.get('jwt_token_desktop', { 'exp': 180, 'privatekeyfile': 'desktopprivatekey.pem', 'publickeyfile': 'desktoppublickey.pem' })
 
 
 def init_internaldns_config():
     global internaldns    
-    internaldns['subdomain']   = gconfig.get('internaldns.subdomain',  'desktop')
-    internaldns['domain']      = gconfig.get('internaldns.domain',     'abcdesktop.local')
-    internaldns['secret']      = gconfig.get('internaldns.secret',     'abcdesktopinternaldnssecret')
-    internaldns['server']      = gconfig.get('internaldns.server',      None)
-    internaldns['enable']      = gconfig.get('internaldns.enable',      False)
+    internaldns['subdomain']   = config.get('internaldns.subdomain',  'desktop')
+    internaldns['domain']      = config.get('internaldns.domain',     'abcdesktop.local')
+    internaldns['secret']      = config.get('internaldns.secret',     'abcdesktopinternaldnssecret')
+    internaldns['server']      = config.get('internaldns.server',      None)
+    internaldns['enable']      = config.get('internaldns.enable',      False)
 
 
 def init_locales():
@@ -722,7 +721,7 @@ def init_locales():
     # get supported language
     # all containers application must support this list
     # by default support en_US language
-    supportedLocales = gconfig.get('language', ['en_US'])
+    supportedLocales = config.get('language', ['en_US'])
 
 
 
@@ -770,9 +769,9 @@ def init_dock():
     """
     logger.debug('')
     global dock
-    dock = gconfig.get('dock', {})
+    dock = config.get('dock', {})
     # img_path is img/app by default
-    img_path = gconfig.get('dock.img_path',  os.path.join('img', 'app') )
+    img_path = config.get('dock.img_path',  os.path.join('img', 'app') )
     for key in dock.keys():
         logger.debug( f"loading dock entry {key}")
         if not isinstance( dock[key], dict ):
@@ -791,7 +790,7 @@ def init_dock():
 def init_executeclass():
     global executeclasses
 
-    executeclasses = gconfig.get('executeclasses', {} )
+    executeclasses = config.get('executeclasses', {} )
     if not isinstance( executeclasses.get('default'), dict ):
         default_executeclass =  { 'description': 'default description', 'nodeSelector' : None, 'resources': None } # no limits
         logger.error('something wrong in the config file no default executeclass has been defined ')
@@ -807,36 +806,34 @@ def get_default_appdict():
     """    
     return dock
 
+
+
 def get_configuration_file_name():
     """get_configuration_file_name
 
     Returns:
-        str: name of the config file 'od.config' by default or read 'OD_CONFIG_PATH' os.getenv
+        str: name of the config file 'config.json' by default or read 'OD_CONFIG_PATH' os.getenv
     """
-    configuration_file_name = os.getenv('OD_CONFIG_PATH', 'od.config')
+    configuration_file_name = os.getenv('OD_CONFIG_PATH', 'config.json')
     return configuration_file_name
+
 
 def load_config():
     """load_config
-       load configuration file 'od.config'
-       set global config and gconfig
+       load configuration file 'config.json'
+       set global config and config
     """
     global config
-    global gconfig
 
-    configpath = get_configuration_file_name()
-    logger.debug(f"Loading configuration file {configpath}")
+    configuration_file_name = get_configuration_file_name()
+    logger.debug(f"Loading configuration file {configuration_file_name}")
     try:
-        config = Config(configpath)
-        if isinstance( config.get('global'), dict ):
-            logger.debug(f"config file contains [global] entry (ini file format)")
-            gconfig = config.get('global', {}) # = cherrypy.gconfig 
-        else:
-            logger.debug(f"config file does not set [global] entry")
-            logger.debug(f"config file is not a ini file format, use json")
-            
+        config = Config( configuration_file_name )
+        if not isinstance( config, dict ):
+            raise ValueError(f"Configuration file {configuration_file_name} is not a valid JSON object")
+             
     except Exception as e:
-        logger.error(f"Failed to load configuration file {configpath} {e}")
+        logger.error(f"Failed to load configuration file {configuration_file_name} {e}")
         exit(-1)           
 
 
@@ -845,7 +842,7 @@ def init_max_log_body_size():
     # 2KB by default, this is the max size of log body 
     # if log body is bigger than this size, 
     # it will be truncated and a warning will be logged
-    max_log_body_size = gconfig.get('max_log_body_size', 2048 ) 
+    max_log_body_size = config.get('max_log_body_size', 2048 ) 
 
 
 def init_trusted_proxy_cidr():
@@ -856,7 +853,7 @@ def init_trusted_proxy_cidr():
     # by default, no trusted proxy, so use empty list
     # if you use a reverse proxy, you should set this value to the CIDR of your reverse proxy
     # for example, if your reverse proxy is in the same network as your application and has an IP address of 192.168.0
-    trusted_proxy_cidr = gconfig.get('trusted_proxy_cidr', [] )
+    trusted_proxy_cidr = config.get('trusted_proxy_cidr', [] )
     logger.debug(f"trusted_proxy_cidr is set to {trusted_proxy_cidr}" ) 
 
     # convert the trusted_proxy_cidr list as a network object for easy check if a ip is in the trusted proxy network
@@ -869,7 +866,6 @@ def init_trusted_proxy_cidr():
             exit(-1)
 
 
-
 def init_snapshot():
     """init_snapshot
        read snapshot config
@@ -877,9 +873,9 @@ def init_snapshot():
     global snapshot_mountpath
     global snapshot_mounttype
     global snapshot_registry_protocol 
-    snapshot_mountpath = gconfig.get('desktop.snapshotmountpath', '/run/containerd/containerd.sock')
-    snapshot_mounttype = gconfig.get('desktop.snapshotmounttype', 'Socket')
-    snapshot_registry_protocol = gconfig.get('desktop.snapshotregistryprotocol', 'https' )
+    snapshot_mountpath = config.get('desktop.snapshotmountpath', '/run/containerd/containerd.sock')
+    snapshot_mounttype = config.get('desktop.snapshotmounttype', 'Socket')
+    snapshot_registry_protocol = config.get('desktop.snapshotregistryprotocol', 'https' )
 
 def detect_cgroup_version():
     """detect_cgroup_version
@@ -905,7 +901,7 @@ def init():
     logger.debug('Init configuration start')
 
     # load config file od.config
-    # use global config and gconfig
+    # use global config and config
     load_config() 
 
     # init max_log_body_size
@@ -974,7 +970,7 @@ def init():
     # must be call before init_controllers
     init_desktop()
 
-    # init gconfig how to route web socket
+    # init config how to route web socket
     init_websocketrouting()
 
     # init locales vars

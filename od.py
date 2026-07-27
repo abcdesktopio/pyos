@@ -100,7 +100,7 @@ def create_app() -> FastAPI:
     )
 
     # CORS
-    allow_origins = settings.gconfig.get("default_host_url_accesscontrol_allow_origin", ["*"])
+    allow_origins = settings.config.get("default_host_url_accesscontrol_allow_origin", ["*"])
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allow_origins,
