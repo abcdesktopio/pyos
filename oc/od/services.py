@@ -26,6 +26,9 @@ class ODServices(object):
         self.fail2ban = None
         self.asnumber = None
         self.authorized_keys = None
+        # list of mounted API controllers (BaseController instances)
+        # populated by od.py at startup, used by reload_controllers()
+        self.controllers = []
 
     def init(self):
         """[init services call all services init() methods]
@@ -44,6 +47,20 @@ class ODServices(object):
         self.init_fail2ban()
         self.init_asnumber()
         self.init_authorized_keys()
+
+    def reload_controllers(self):
+        """reload_controllers
+            reapply the per-controller security configuration (apikey,
+            permitip, enable, requestsallowed, database_acl) read from
+            settings.controllers to every mounted API controller, without
+            recreating the controller or its routes.
+        """
+        for controller in self.controllers:
+            controller_config = settings.controllers.get(type(controller).__name__)
+            try:
+                controller.reload(controller_config)
+            except Exception as e:
+                self.logger.error(f"Failed to reload controller {type(controller).__name__}: {e}")
 
     def start(self):
         """start

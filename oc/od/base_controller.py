@@ -43,6 +43,14 @@ class BaseController(APIRouter):
         router_kwargs.setdefault("tags", [self.controllerprefix])
         super().__init__(**router_kwargs)
 
+        self._apply_config(config)
+
+    def _apply_config(self, config) -> None:
+        """(Re)apply this controller's configuration snapshot (apikey,
+        permitip, enable, requestsallowed, database_acl).
+        Called at construction time and whenever the configuration is
+        reloaded at runtime (see reload()).
+        """
         # by default a controller is enabled even if config is not set
         self.enable = True
         self.config = config
@@ -58,6 +66,15 @@ class BaseController(APIRouter):
             self.enable = config.get("enable", True)
             self.apikey = config.get("apikey")
             self.database_acl = config.get("database_acl", [])
+
+    def reload(self, config) -> None:
+        """reload
+        Refresh this controller's security configuration (apikey, permitip,
+        enable, requestsallowed, database_acl) from an updated config file,
+        without recreating the controller or its routes.
+        """
+        self.logger.info(f"Reloading controller configuration for {self.__class__.__name__}")
+        self._apply_config(config)
 
     # ------------------------------------------------------------------
     def getlambdaroute(self, routecontenttype: dict, defaultcontenttype: str, request: Request):

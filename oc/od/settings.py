@@ -837,6 +837,70 @@ def load_config():
         exit(-1)           
 
 
+def reload_config(new_config: dict) -> dict:
+    """reload_config
+       merge 'new_config' into the running in-memory configuration and
+       recompute every setting derived from it, without restarting the
+       process nor touching the 'config.json' file on disk.
+
+       Used by the ManagerController '/manager/configuration' POST endpoint:
+       the caller supplies a (possibly partial) configuration dict that is
+       merged into the current 'config' dict (existing keys not present in
+       'new_config' are left untouched).
+
+       In addition to recomputing settings, this also:
+         - reconfigures logging (level, handlers, formatters, ...) from the
+           (possibly updated) 'logging' section
+         - rebuilds services (auth, fail2ban, jwt, prelogin, logmein, ...)
+           from the new settings
+         - refreshes the security configuration (apikey, permitip, enable,
+           requestsallowed, database_acl) of every mounted API controller
+
+       If recomputing the settings fails, the previous configuration is
+       restored so the running process is left in a consistent state.
+
+    Args:
+        new_config (dict): configuration entries to merge into the running config.
+
+    Returns:
+        dict: the updated global 'config' dict.
+
+    Raises:
+        ValueError: if 'new_config' is not a dict, or if the reload fails.
+    """
+    global config
+
+    if not isinstance(new_config, dict):
+        raise ValueError(f"new_config must be a dict, got {type(new_config)}")
+
+    logger.info("Reloading configuration from posted json_config")
+    previous_config = dict(config)
+    try:
+        config.update(new_config)
+        _init_from_config()
+
+        # reconfigure logging (level, handlers, formatters, ...)
+        import oc.logging
+        oc.logging.configure(config_or_path=config.get('logging', {}), is_cp_file=False)
+
+        # rebuild services (auth, fail2ban, jwt, prelogin, logmein, ...) from the new settings
+        # deferred import: oc.od.services imports oc.od.settings, avoid circular import at module load time
+        import oc.od.services
+        oc.od.services.services.init()
+
+        # refresh the security configuration (apikey, permitip, enable, ...) of every mounted controller
+        oc.od.services.services.reload_controllers()
+    except Exception as e:
+        logger.error(f"Failed to reload configuration, restoring previous configuration: {e}")
+        config.clear()
+        config.update(previous_config)
+        _init_from_config()
+        raise ValueError(f"Failed to reload configuration: {e}") from e
+
+    logger.info("Configuration reloaded successfully")
+    return config
+
+
 def init_max_log_body_size():
     global max_log_body_size
     # 2KB by default, this is the max size of log body 
@@ -902,8 +966,19 @@ def init():
 
     # load config file od.config
     # use global config and config
-    load_config() 
+    load_config()
 
+    _init_from_config()
+
+    logger.debug('Init configuration done.')
+
+
+def _init_from_config():
+    """_init_from_config
+       (re)compute every setting derived from the global 'config' dict.
+       Shared by init() (first load from config.json) and reload_config()
+       (runtime reload from a posted json_config).
+    """
     # init max_log_body_size
     init_max_log_body_size()
 
@@ -993,5 +1068,3 @@ def init():
     # for SET_DEFAULT_WALLPAPER option
     # for SET_DEFAULT_COLOR option
     init_controllers()
-
-    logger.debug('Init configuration done.')

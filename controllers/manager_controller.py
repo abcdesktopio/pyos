@@ -59,11 +59,13 @@ class ManagerController(BaseController):
     def handle_config_GET(self) -> dict:
         return oc.od.settings.config
 
-    async def handle_config_POST(self, json_config: dict) -> dict:
+    def handle_config_POST(self, json_config: dict) -> dict:
         if not isinstance(json_config, dict):
             raise HTTPException(status_code=400, detail="invalid parameters")
-        oc.od.settings.config.update(json_config)
-        return oc.od.settings.config
+        try:
+            return oc.od.settings.reload_config(json_config)
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=f"Failed to reload configuration: {e}")
     
     async def echohttp(self, request: Request) -> dict:
         self.is_permit_request(request)

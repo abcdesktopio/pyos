@@ -252,6 +252,10 @@ def _mount_controllers(app: FastAPI) -> None:
     # instance et montage de chaque controller
     for controller in controllers_classes:
         mycontoller = controller( settings.controllers.get(controller.__name__))
+        # keep a reference to the mounted controller instance so its
+        # security configuration (apikey, permitip, enable, ...) can be
+        # refreshed at runtime by settings.reload_config()
+        services.services.controllers.append(mycontoller)
         app.include_router(mycontoller, prefix="/API")  
 
 # ---------------------------------------------------------------------------
