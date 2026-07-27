@@ -1060,10 +1060,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # abcdesktop is the default namespace
         # mount secret in /var/secrets/$NAMESPACE
         #
-        self.logger.debug( f"secrets_requirement is {secrets_requirement}" ) 
         if not isinstance( secrets_requirement, list ):
-            self.logger.debug( f"skipping secrets_requirement type={type(secrets_requirement)}, no secret to mount" ) 
+            self.logger.debug( f"skipping secrets_requirement={secrets_requirement} type={type(secrets_requirement)}, no secret to mount" ) 
         else:
+            self.logger.debug( f"secrets_requirement is {secrets_requirement}" ) 
             # for access_type in ['auth', 'ldif']:
             for access_type in ['auth']:
                 self.logger.debug( f"listing list_dict_secret_data access_type='{access_type}'" )
@@ -5751,13 +5751,17 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         if not isinstance(pod, V1Pod ):
             raise ValueError( 'Invalid patch_namespaced_pod_ephemeralcontainers')
         
-        data = {    'name':     app.get('name'),
-                    'icondata': app.get('icondata'),
-                    'icon':     app.get('icon'),
-                    'image':    app.get('id'),
-                    'launch':   app.get('launch'),
+        data = {    
+            'type': self.type,
+            'name': app.get('name'),
+            'icondata': app.get('icondata'),
+            'icon': app.get('icon'),
+            'image': app.get('id'),
+            'launch': app.get('launch')
         }
-        queue.put_nowait( (100, f"ephemeral container {app_container_name} created", data) )
+       
+        data['reason'] = 'Patched'
+        queue.put_nowait( (100, data) )
 
         field_selector=f'involvedObject.name={pod_name},involvedObject.fieldPath=spec.ephemeralContainers{{{app_container_name}}}'
         continue_reading_events = True
@@ -5765,7 +5769,7 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         self.logger.debug(f"start watching")
         w = watch.Watch()
         
-        timeout_seconds = 5 # seconds
+        timeout_seconds = oc.od.settings.desktop['K8S_CREATE_EPHEMERALCONTAINER_TIMEOUT_SECONDS'] # seconds
         try:
             # watch list_namespaced_event
             async for event in w.stream( self.orchestrator.kubeapi.list_namespaced_event, 
@@ -5787,16 +5791,17 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
                 # always update data
                 data['name'] = event_object.involved_object.name
                 data['reason'] = event_object.reason
+                data['message'] = event_object.message
     
                 if event_object.reason in [ 'Pulling', 'Scheduled', 'Created' ]:
                     if dict_state_exec_only_once.get( event_object.reason, False ) is False:
                         dict_state_exec_only_once[ event_object.reason ] = True
-                        queue.put_nowait( (100, f"ephemeral container {app_container_name} {event_object.reason.lower()}") )
+                        queue.put_nowait( (100, data) )
                     continue
 
                 if event_object.reason in [ 'Started', 'Pulled' ]:
                     continue_reading_events = False
-                    queue.put_nowait( (100, f"ephemeral container {app_container_name} {event_object.reason}") )
+                    queue.put_nowait( (100, data) )
                     w.stop()
                     continue
                         
