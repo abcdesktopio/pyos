@@ -180,9 +180,12 @@ class BaseController(APIRouter):
         return bReturn
 
     def is_apikey(self, request: Request) -> bool:
-        self.logger.debug("")
+        # self.logger.debug("")
         bReturn = False
         apikey = getclienthttp_header(request, "X-API-Key") or getclienthttp_header(request, "X-Api-Key")
+        # special case if apikey is None and None is in the list of permitted apikeys, return True
+        if apikey is None and None in self.apikey:
+            return True
         if apikey is None:
             return bReturn
         for k in self.apikey:
@@ -224,14 +227,14 @@ class BaseController(APIRouter):
         Returns:
             bool: True if the request apikey is in the permitted apikey list or no list is set
         """
-        self.logger.debug('')
+        # self.logger.debug('')
         if isinstance(self.apikey, list):
             return self.is_apikey(request)
         # if no apikey list is set, return True
         return True
 
     def ipfilter(self, request: Request) -> bool:
-        self.logger.debug("")
+        # self.logger.debug("")
         if not isinstance(self.ipnetworklistfilter, list):
             return True
         ipclient = getclientipaddr(request)
