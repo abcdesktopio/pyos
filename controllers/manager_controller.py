@@ -184,7 +184,7 @@ class ManagerController(BaseController):
             return self.handle_image_PATCH(image=image, json_images=body)
         raise HTTPException(status_code=405, detail="Method Not Allowed")
 
-    async def ban(self, request: Request, collection: str, path: str = "") -> dict:
+    async def ban(self, request: Request, collection: str, path: str = "") -> dict|list:
         self.is_permit_request(request)
         args = tuple(path.split("/")) if path else ()
         if request.method == "GET":
@@ -195,7 +195,7 @@ class ManagerController(BaseController):
             return self.handle_ban_DELETE(collection, args)
         raise HTTPException(status_code=405, detail="Method Not Allowed")
 
-    async def ban_root(self, request: Request, collection: str) -> dict:
+    async def ban_root(self, request: Request, collection: str) -> dict|list:
         return await self.ban(request, collection, "")
 
     # ------------------------------------------------------------------
