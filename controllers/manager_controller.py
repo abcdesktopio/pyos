@@ -249,15 +249,19 @@ class ManagerController(BaseController):
         services.datastore.stringify(value)
         return value
 
-    def handle_datastore_PUT(self, args: tuple, json_object) -> bool:
+    def handle_datastore_PUT(self, args: tuple, json_object:dict) -> bool:
         self.logger.debug("")
         if "write" not in self.database_acl and "put" not in self.database_acl:
             raise HTTPException(status_code=400, detail="put is denied")
         if not isinstance(args, tuple) or len(args) != 3:
             raise HTTPException(status_code=400, detail="invalid request")
-        if  services.datastore.set_document_value_in_collection(args[0], args[1], args[2], json_object) is True:
+        databasename = args[0]
+        collectionname = args[1]
+        key = args[2]
+        if services.datastore.set_document_value_in_collection(databasename=databasename, collectionname=collectionname, key=key, value=json_object) is True:
             return True
-        raise HTTPException(status_code=400, detail="set_document_value_in_collection failed")
+        else:
+            raise HTTPException(status_code=400, detail="set_document_value_in_collection failed")
 
     async def handle_datastore_DELETE(self, args: tuple):
         self.logger.debug("")
@@ -265,11 +269,17 @@ class ManagerController(BaseController):
             raise HTTPException(status_code=400, detail="delete is denied")
         if not isinstance(args, tuple):
             raise HTTPException(status_code=400, detail="invalid request")
+        if len(args) < 2:
+            raise HTTPException(status_code=400, detail="invalid request")
+        databasename = args[0]
+        collectionname = args[1]
         if len(args) == 2:
-            return services.datastore.drop_collection(databasename=args[0], collectionname=args[1])
+            return services.datastore.drop_collection(databasename=databasename, collectionname=collectionname)
         elif len(args) == 3:
-            return services.datastore.delete_one_in_colection(databasename=args[0], collectionname=args[1], key=args[2])
-        raise HTTPException(status_code=400, detail="invalid request")
+            key = args[2]
+            return services.datastore.delete_one_in_colection(databasename=databasename, collectionname=collectionname, key=key)
+        else:
+            raise HTTPException(status_code=400, detail="invalid request")
 
     # ------------------------------------------------------------------
     # Handle desktop
