@@ -27,7 +27,7 @@ class ManagerController(BaseController):
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
         self.add_api_route("/healtz",                   self.healtz,                   methods=["GET"])
-        self.add_api_route("/configuration",            self.configuration,            methods=["GET", "POST"])
+        self.add_api_route("/configure",                self.configure,                methods=["GET", "PUT", "POST"])
         self.add_api_route("/echohttp",                 self.echohttp,                 methods=["GET", "POST"])
         self.add_api_route("/buildapplist",             self.buildapplist,             methods=["GET"])
         self.add_api_route("/updateactivedirectorysite",self.updateactivedirectorysite,methods=["GET"])
@@ -45,11 +45,11 @@ class ManagerController(BaseController):
         request.state.notrace = True
         return {"controler": self.__class__.__name__, "status": "ok"}
 
-    async def configuration(self, request: Request) -> dict:
+    async def configure(self, request: Request) -> dict:
         self.is_permit_request(request)
         if request.method == "GET":
             return self.handle_config_GET()
-        elif request.method == "POST":
+        elif request.method == "PUT" or request.method == "POST":
             try:
                 body = await request.json()
             except Exception as e:
