@@ -77,7 +77,9 @@ from kubernetes_asyncio.client.models.v1_node_list import V1NodeList
 from kubernetes_asyncio.client.models.v1_node import V1Node
 from kubernetes_asyncio.client.models.v1_env_var import V1EnvVar
 from kubernetes_asyncio.client.models.v1_pod_list import V1PodList
-#from kubernetes_asyncio.client.models.v1_config_map import V1ConfigMap
+from kubernetes_asyncio.client.models.v1_config_map import V1ConfigMap
+from kubernetes_asyncio.client.models.v1_deployment import V1Deployment
+
 #from kubernetes_asyncio.client.models.v1_endpoint import V1Endpoint
 from kubernetes_asyncio.client.models.v1_endpoints import V1Endpoints
 #from kubernetes_asyncio.client.models.v1_endpoints_list import V1EndpointsList
@@ -1018,6 +1020,89 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         no_accent_normalize_data = oc.lib.remove_accents( label_value )
         normalize_data = oc.auth.namedlib.normalize_label( no_accent_normalize_data )
         return normalize_data
+
+
+    async def commit_config( self, configmap_name:str, config:dict)->dict:
+        """commit_config
+
+        Args:
+            config (dict): config dict to commit
+
+        Returns:
+            dict: config dict commited
+        """
+        self.logger.debug('')
+        assert isinstance(configmap_name, str),  f"configmap_name has invalid type {type(configmap_name)}"
+        assert isinstance(config, dict),  f"config has invalid type {type(config)}"
+        # write config to kubernetes configmap
+        # use the same name as the namespace
+        try:
+            # read the configmap if exist
+            myconfigmap = await self.kubeapi.read_namespaced_config_map( name=configmap_name, namespace=self.namespace )
+            if isinstance(myconfigmap, V1ConfigMap):
+                # update the configmap with new data
+                myconfigmap.data = config
+                myconfigmap.metadata.resource_version = myconfigmap.metadata.resource_version
+                updated_configmap = await self.kubeapi.replace_namespaced_config_map( name=configmap_name, namespace=self.namespace, body=myconfigmap )
+                return updated_configmap.data
+        except ApiException as e:
+            if e.status == 404:
+                # create a new configmap if not exist
+                new_configmap = V1ConfigMap(
+                    metadata=V1ObjectMeta(name=configmap_name),
+                    data=config
+                )
+                created_configmap = await self.kubeapi.create_namespaced_config_map( namespace=self.namespace, body=new_configmap )
+                return created_configmap.data
+            else:
+                self.logger.error(e)
+                raise e
+
+
+    async def rollout_deployment( self, deployment_name:str, timeout:int=60)->dict|bool:
+        """rollout_deployment
+
+        Args:
+            deployment_name (str): name of the deployment
+            timeout (int, optional): timeout in seconds. Defaults to 30.
+
+        Returns:
+            bool: True if rollout is successful, False otherwise
+        """
+        self.logger.debug('')
+        assert isinstance(deployment_name, str),  f"deployment_name has invalid type {type(deployment_name)}"
+        assert isinstance(timeout, int),  f"timeout has invalid type {type(timeout)}"
+
+        try:
+            appsV1Api = client.AppsV1Api()
+
+            # Get the current deployment
+            deployment = await appsV1Api.read_namespaced_deployment(name=deployment_name, namespace=self.namespace)
+            if not isinstance(deployment, V1Deployment):
+                self.logger.error(f"Deployment {deployment_name} not found in namespace {self.namespace}")
+                return False
+
+            now = datetime.datetime.utcnow()
+            now = str(now.isoformat("T") + "Z")
+            body = {
+                'spec': {
+                    'template':{
+                        'metadata': {
+                            'annotations': {
+                                'kubectl.kubernetes.io/restartedAt': now
+                            }
+                        }
+                    }
+                }
+            }
+
+            # Rollout the deployment
+            patched = await appsV1Api.patch_namespaced_deployment(name=deployment_name, namespace=self.namespace, body=body)
+            return patched.status.to_dict()
+           
+        except Exception as a:
+            self.logger.error(f"Error during rollout of deployment {deployment_name}: {a}")
+            return False
 
     async def logs( self, authinfo:AuthInfo, userinfo:AuthUser )->str:
         """logs

@@ -649,6 +649,20 @@ async def list_desktop():
     await myOrchestrator.close()
     return listdesktop
 
+async def commit_config()->dict:
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+    json_configmap = { 'od.config' : json.dumps(oc.od.settings.config) }
+    commit_config = await myOrchestrator.commit_config( 'abcdesktop-config', json_configmap )
+    await myOrchestrator.close()
+    return commit_config
+
+async def rollout_deployment()->bool|dict:
+    # new Orchestrator Object
+    myOrchestrator = selectOrchestrator()
+    rollout = await myOrchestrator.rollout_deployment( "pyos-od" )
+    await myOrchestrator.close()
+    return rollout
     
 async def openapp( auth:AuthInfo, user:AuthUser, queue: asyncio.Queue = None, kwargs={} ):
     logger.debug('')

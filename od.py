@@ -288,9 +288,10 @@ def run_server() -> None:
         app=app,
         host=host,
         port=port,
-        log_config=None,  # On garde notre configuration logging
+        log_config=None,
         access_log=False,
-        server_header=False
+        server_header=False,
+        timeout_keep_alive=180
     )
     _server = uvicorn.Server(config)
 

@@ -28,6 +28,8 @@ class ManagerController(BaseController):
         super().__init__(config_controller)
         self.add_api_route("/healtz",                   self.healtz,                   methods=["GET"])
         self.add_api_route("/configure",                self.configure,                methods=["GET", "PUT", "POST"])
+        self.add_api_route("/commit_config",            self.commit_config,            methods=["GET","POST"])
+        self.add_api_route("/rollout",                  self.rollout_deployment,          methods=["GET","POST"])
         self.add_api_route("/echohttp",                 self.echohttp,                 methods=["GET", "POST"])
         self.add_api_route("/buildapplist",             self.buildapplist,             methods=["GET"])
         self.add_api_route("/updateactivedirectorysite",self.updateactivedirectorysite,methods=["GET"])
@@ -67,6 +69,24 @@ class ManagerController(BaseController):
         except ValueError as e:
             raise HTTPException(status_code=500, detail=f"Failed to reload configuration: {e}")
     
+    async def commit_config(self, request: Request) -> dict:
+        self.is_permit_request(request)
+        request.state.notrace = True
+        try:
+            commited_config = await oc.od.composer.commit_config()
+            return commited_config
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to commit configuration: {e}")
+
+    async def rollout_deployment(self, request: Request) -> dict|bool:
+        self.is_permit_request(request)
+        request.state.notrace = True
+        try:
+            result = await oc.od.composer.rollout_deployment()
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to rollout configuration: {e}")
+
     async def echohttp(self, request: Request) -> dict:
         self.is_permit_request(request)
         http_dump = {
