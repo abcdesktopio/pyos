@@ -38,7 +38,9 @@ class ManagerController(BaseController):
         self.add_api_route("/desktop",                  self.desktop,                  methods=["GET"])
         self.add_api_route("/desktop/{path:path}",      self.desktop,                  methods=["GET", "DELETE"])
         self.add_api_route("/images",                   self.images,                   methods=["GET", "DELETE"])
-        self.add_api_route("/image/{path:path}",        self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
+        self.add_api_route("/image",                    self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
+        self.add_api_route("/image/",                   self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
+        self.add_api_route("/image/{image}",            self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
         self.add_api_route("/ban/{collection}/{path:path}", self.ban,                  methods=["GET", "POST", "DELETE"])
         self.add_api_route("/ban/{collection}",         self.ban_root,                 methods=["GET", "POST", "DELETE"])
 
@@ -158,7 +160,7 @@ class ManagerController(BaseController):
             return self.handle_images_DELETE()
         raise HTTPException(status_code=405, detail="Method Not Allowed")
 
-    async def image(self, request: Request, image: str = None, node: str = None) -> dict|list:
+    async def image(self, request: Request, image:str=None, node: str = None) -> dict|list:
         self.is_permit_request(request)
         if request.method == "GET":
             return self.handle_image_GET(image=image)
