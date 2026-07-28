@@ -26,6 +26,8 @@ class ManagerController(BaseController):
 
     def __init__(self, config_controller=None):
         super().__init__(config_controller)
+        # Starlette's default redirect_slashes=True 
+        # already 307-redirects /image/ -> /image
         self.add_api_route("/healtz",                   self.healtz,                   methods=["GET"])
         self.add_api_route("/configure",                self.configure,                methods=["GET", "PUT", "POST"])
         self.add_api_route("/commit_config",            self.commit_config,            methods=["GET","POST"])
@@ -39,7 +41,6 @@ class ManagerController(BaseController):
         self.add_api_route("/desktop/{path:path}",      self.desktop,                  methods=["GET", "DELETE"])
         self.add_api_route("/images",                   self.images,                   methods=["GET", "DELETE"])
         self.add_api_route("/image",                    self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
-        self.add_api_route("/image/",                   self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
         self.add_api_route("/image/{image}",            self.image,                    methods=["GET", "PUT", "POST", "DELETE", "PATCH"])
         self.add_api_route("/ban/{collection}/{path:path}", self.ban,                  methods=["GET", "POST", "DELETE"])
         self.add_api_route("/ban/{collection}",         self.ban_root,                 methods=["GET", "POST", "DELETE"])
