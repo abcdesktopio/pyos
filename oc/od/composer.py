@@ -652,7 +652,7 @@ async def list_desktop():
 async def commit_config()->dict:
     # new Orchestrator Object
     myOrchestrator = selectOrchestrator()
-    json_configmap = { 'od.config' : json.dumps(oc.od.settings.config) }
+    json_configmap = { 'config.json' : json.dumps(oc.od.settings.config) }
     commit_config = await myOrchestrator.commit_config( 'abcdesktop-config', json_configmap )
     await myOrchestrator.close()
     return commit_config
