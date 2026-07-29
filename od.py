@@ -73,19 +73,6 @@ async def lifespan(app: FastAPI):
         services.services.stop()
 
 
-
-class Item(BaseModel):
-    name: str
-    description: str | None
-
-
-items = [
-    Item(name="Plumbus", description="A multi-purpose household device."),
-    Item(name="Portal Gun", description="A portal opening device."),
-    Item(name="Meeseeks Box", description="A box that summons a Meeseeks."),
-]
-
-
 # ---------------------------------------------------------------------------
 # Application FastAPI
 # ---------------------------------------------------------------------------
@@ -214,12 +201,6 @@ def create_app() -> FastAPI:
         request.state.notrace = True
         return Response(content="OK", media_type="text/plain")
 
-    @app.get("/items/stream", response_class=EventSourceResponse)
-    async def sse_items() -> AsyncIterable[Item]:
-        for item in items:
-            yield item
-
-
     # ------------------------------------------------------------------
     # Montage des contrôleurs
     # ------------------------------------------------------------------
@@ -300,7 +281,7 @@ def run_server() -> None:
         signal.signal(sig, lambda s, f, _sig=sig: _handle_signal(signal.Signals(_sig).name))
 
     logger.info(f"Listening on {host}:{port}")
-    _server.run( )
+    _server.run()
 
 
 def main(argv) -> None:

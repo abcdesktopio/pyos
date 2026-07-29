@@ -56,18 +56,18 @@ record_hostname = os.environ.get('HOSTNAME', socket.gethostname() )
 
 
 # Return the name of a function in the call stack
-def func_name(frame_num=0,append_module=True):
-    try:
-        frame = sys._getframe(frame_num + 1)
-        name = frame.f_code.co_name
-        if append_module:
-            try:
-                return inspect.getmodule(frame).__name__ + '.' + name
-            except Exception:
-                pass
-        return name
-    except Exception:
-        return ''
+#def func_name(frame_num=0,append_module=True):
+#    try:
+#        frame = sys._getframe(frame_num + 1)
+#        name = frame.f_code.co_name
+#        if append_module:
+#            try:
+#                return inspect.getmodule(frame).__name__ + '.' + name
+#            except Exception:
+#                pass
+#        return name
+#    except Exception:
+#        return ''
 
 # Class decorator that add a 'logger' field refering a logging.Logger named as the owner class
 # Usage:
@@ -84,25 +84,21 @@ def with_logger(name=None,prop_name=None):
   return decorate
 
 
-def load_config(path, is_cp_file=False): 
+def load_config(path, is_cp_file:bool=False)->dict|None: 
     """ 
-        load the config file from default configuration file 'od.config' if is_cp_file is True 
+        load the config file from default configuration file 'config.json' if is_cp_file is True 
         load the config file PATH if is_cp_file is False """
     cfg_logging = None
 
     if is_cp_file is True:
-        logger.info(f"Reading cherrypy configuration section 'global/logging': path = {path}")
+        logger.info(f"Reading logging configuration section 'logging': path = {path}")
         config = Config(path)
-        if isinstance( config.get('global'), dict ):
-            cfg_logging = config.get('global').get('logging')
-        else:
-            cfg_logging = config.get('logging')
+        cfg_logging = config.get('logging')
     else:
+        # dedicated json logging configuration file
         logger.info(f"Reading json file: path = {path}")
         with open(path, encoding='UTF-8') as f: 
-            cfg_logging = json.decode(f.read())
-
-    logger.debug(f"logging configuration : {cfg_logging}")
+            cfg_logging = json.loads(f.read())
     return cfg_logging
 
 
