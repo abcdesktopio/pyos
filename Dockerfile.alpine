@@ -92,7 +92,8 @@ RUN apk del --no-cache \
 # update for security fix
 # CVE-2026-23949 
 # CVE-2026-24049
-RUN apk upgrade --no-cache
+# RUN apk upgrade --no-cache
+RUN apk update && apk upgrade
 RUN apk add --no-cache --update  \
     py3-wheel \
     py3-wheel-pyc \
