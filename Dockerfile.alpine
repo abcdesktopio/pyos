@@ -97,7 +97,11 @@ RUN apk add --no-cache --update  \
     py3-wheel \
     py3-wheel-pyc \
     py3-jaraco.context \
-    py3-jaraco.context-pyc
+    py3-jaraco.context-pyc \
+	py3-setuptools \
+	py3-setuptools-pyc
+# dump for troubleshooting
+RUN apk list > apk.list
 
 # create log directory
 RUN mkdir -p /var/pyos/logs
