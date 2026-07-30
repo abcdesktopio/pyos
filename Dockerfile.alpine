@@ -95,7 +95,7 @@ RUN apk del --no-cache \
 RUN pip uninstall -y pip setuptools
 
 # dump for troubleshooting
-RUN apk list > apk.list
+RUN apk list -I > apk.list
 
 # create log directory
 RUN mkdir -p /var/pyos/logs
