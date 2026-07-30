@@ -32,5 +32,5 @@ gssapi>=1.9.0a
 geoip2>=5.1.0
 passlib>=1.7.4
 standard-imghdr>=3.13.0
-setuptools==80.0.0
+setuptools==83.0.0
 ua-parser==1.0.1
