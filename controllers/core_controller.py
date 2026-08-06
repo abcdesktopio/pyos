@@ -27,8 +27,8 @@ class CoreController(BaseController):
         super().__init__(config_controller)
         self.version_data = self.get_current_version_from_file()
         self.add_api_route("/getkeyinfo",    self.getkeyinfo,    methods=["POST"])
-        self.add_api_route("/getmessageinfo", self.getmessageinfo, methods=["POST"])
-        self.add_api_route("/version",       self.version,       methods=["GET"])
+        # self.add_api_route("/getmessageinfo", self.getmessageinfo, methods=["POST"])
+        self.add_api_route("/version",       self.version,       methods=["GET", "POST"])
 
     async def getkeyinfo(self, request: Request) -> dict:
         """Return the key id if key is set in configuration file."""
@@ -64,33 +64,6 @@ class CoreController(BaseController):
             if "read" in oc.od.settings.desktop.get("features_permissions", []):
                 id = oc.od.settings.executeclasses
         return {"id": id, "callbackurl": callbackurl}
-
-    def handler_messageinfo_json(self, messageinfo) -> Response:
-        data = Results.success(message=messageinfo)
-        result_str = json.dumps(data) + "\n"
-        return Response(content=result_str.encode("utf-8"), media_type="application/json;charset=utf-8")
-
-    def handler_messageinfo_text(self, messageinfo) -> Response:
-        result_str = messageinfo + "\n"
-        return Response(
-            content=result_str.encode("utf-8"),
-            media_type="text/text;charset=utf-8",
-            headers={"Cache-Control": "no-cache, private"},
-        )
-
-    async def getmessageinfo(self, request: Request) -> Response:
-        (auth, user, roles) = self.validate_env(request)
-        lambdaroute = b""
-        routecontenttype = {
-            "text/plain": self.handler_messageinfo_text,
-            "application/json": self.handler_messageinfo_json,
-        }
-        try:
-            message = services.messageinfo.popflush(user.userid)
-            lambdaroute = self.getlambdaroute(routecontenttype, defaultcontenttype="application/json", request=request)(message)
-        except Exception as e:
-            self.logger.error(f"getmessageinfo error {e}")
-        return lambdaroute
 
     def get_current_version_from_file(self) -> dict:
         version_file = "version.json"

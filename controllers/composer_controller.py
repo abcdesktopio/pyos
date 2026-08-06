@@ -126,13 +126,22 @@ class ComposerController(BaseController):
                 self.logger.debug(f"ocrun:yield_{i} {progress_item}")
                 if isinstance(progress_item, tuple):
                     if progress_item[0] == 100:
-                        result_item = Results.progress(message=progress_item[1])
-                        yield ServerSentEvent(data=Results.progress(message=progress_item[1]), event="message", id=str(i) )
+                        yield ServerSentEvent(
+                            data=Results.progress(message=progress_item[1]), 
+                            event="message", 
+                            id=str(i) )
                     if progress_item[0] == 200:
                         result_item = Results.progress(message=progress_item[1])
+                        yield ServerSentEvent(
+                            data=Results.success(message=progress_item[1]), 
+                            event="message", 
+                            id=str(i) )
                         break
                     if progress_item[0] in {400, 500}:
-                        result_item = Results.error(message=progress_item[1])
+                        yield ServerSentEvent(
+                            data=Results.error(message=progress_item[1]),
+                            event="message", 
+                            id=str(i) )
                         break
                 else:
                     self.logger.error(f"ocrun:yield_{i} {progress_item}")
@@ -143,8 +152,7 @@ class ComposerController(BaseController):
         except Exception as e:
             self.logger.error(e)
 
-        result_item = await task_app
-        yield ServerSentEvent(data=result_item, event="message", id=str(i) )
+        await task_app
 
 
     async def launchdesktop(self, request: Request, args: dict = Depends(_parse_launchdesktop_args) )-> AsyncIterable[ ServerSentEvent ]:

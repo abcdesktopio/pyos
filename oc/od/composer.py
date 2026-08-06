@@ -390,8 +390,7 @@ async def finddesktop( authinfo, userinfo  ):
 
     Returns:
         [ODesktop]: oc.od.desktop.ODDesktop Desktop Object or None if not found
-    """
-    services.messageinfo.push(userinfo.userid, 'Looking for your desktop.')        
+    """       
     myOrchestrator = selectOrchestrator() # new Orchestrator Object    
     myDesktop = await myOrchestrator.findDesktopByUser(authinfo, userinfo)     
     await myOrchestrator.close()
@@ -664,7 +663,7 @@ async def rollout_deployment()->bool|dict:
     await myOrchestrator.close()
     return rollout
     
-async def openapp( auth:AuthInfo, user:AuthUser, queue: asyncio.Queue = None, kwargs={} ):
+async def openapp( auth:AuthInfo, user:AuthUser, queue: asyncio.Queue = None, kwargs={} )->None:
     logger.debug('')
     
     appname  = kwargs.get('image')        # name of the image
@@ -701,21 +700,9 @@ async def openapp( auth:AuthInfo, user:AuthUser, queue: asyncio.Queue = None, kw
         if running_user_applications_counter > max_app_counter:
             await myOrchestrator.close()
             raise ODError( status=400, message=f"policies {running_user_applications_counter}/{max_app_counter} too much applications are running, stop one of them" )
-
-    result = None
-    appinstance = await myOrchestrator.createappinstance( myDesktop, app, auth, user, queue, userargs, **kwargs )
-    
-    if isinstance( appinstance, oc.od.appinstancestatus.ODAppInstanceStatus ):
-        result = Results.success( result=appinstance.to_dict() )
-    elif isinstance( appinstance, str ):
-        if appinstance.startswith("e."):
-            result = Results.error(message=appinstance)
     else:
-        result = Results.error(message=f"openapp:unknown type {type(appinstance)}")
-
+        await myOrchestrator.createappinstance( myDesktop, app, auth, user, queue, userargs, **kwargs )
     await myOrchestrator.close()
-
-    return result
 
 async def callwebhook(webhookcmd:str, messageinfo=None, timeout:int=60):
     logger.debug( f"callwebhook exec {webhookcmd}" )
@@ -835,32 +822,6 @@ async def garbagecollector( expirein:int, nodename:str=None, force:bool=False, s
                     logger.error(e)
     await myOrchestrator.close()
     return garbaged
-
-
-
-
-
-# call info messages service
-def on_desktoplaunchprogress_info(source, key, *args):
-    logger.debug('')
-    if key=='lookup_desktop':
-        message = key
-    elif key=='create_networks':
-        message = key
-    elif key=='create_desktop':
-        message = key
-    elif key=='start_desktop':
-        message = key
-    elif key=='wait_desktop_ready':
-        message = key
-    elif key=='desktop_ready':
-        message = key
-    else:
-        try:
-            message = key.format(*args)
-        except Exception:
-            message = key    
-    services.messageinfo.push( services.auth.user.userid, message)
 
 async def detach_container_from_network( id:str ):
     """detach_container_from_network

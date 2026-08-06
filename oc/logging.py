@@ -89,26 +89,23 @@ def load_config(path, is_cp_file:bool=False)->dict|None:
         load the config file from default configuration file 'config.json' if is_cp_file is True 
         load the config file PATH if is_cp_file is False """
     cfg_logging = None
+    logger.info(f"logging is reading json file: path = {path}")
 
     if is_cp_file is True:
-        logger.info(f"Reading logging configuration section 'logging': path = {path}")
         config = Config(path)
         cfg_logging = config.get('logging')
     else:
         # dedicated json logging configuration file
-        logger.info(f"Reading json file: path = {path}")
         with open(path, encoding='UTF-8') as f: 
             cfg_logging = json.loads(f.read())
     return cfg_logging
 
 
-def init_logging(config_or_path, is_cp_file=True):   
+def init_logging(config_or_path, is_cp_file=True):
     ''' init logging, load configuration file logging section '''
-    logger.info("Initializing logging subsystem")
-    
+    logger.debug("Initializing logging subsystem")
     cfg = config_or_path if isinstance(config_or_path, dict) else load_config(config_or_path, is_cp_file)
-
-    logger.info("Applying configuration")
+    logger.debug("Applying configuration")
     logging.config.dictConfig(cfg)
 
 

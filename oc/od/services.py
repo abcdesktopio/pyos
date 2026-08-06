@@ -12,7 +12,6 @@ class ODServices(object):
     def __init__(self):
         self.datastore = None
         self.sharecache = None
-        self.messageinfo = None
         self.auth = None
         self.accounting = None
         self.internaldns = None
@@ -33,7 +32,6 @@ class ODServices(object):
     def init(self):
         """[init services call all services init() methods]
         """
-        self.init_messageinfo()
         self.init_accounting()
         self.init_datastore()
         self.init_datacache()
@@ -198,10 +196,6 @@ class ODServices(object):
     def init_logmein(self):
         import oc.auth.logmein
         self.logmein = oc.auth.logmein.ODLogmein( config=settings.logmein )
-
-    def init_messageinfo(self):
-        import oc.od.messageinfo
-        self.messageinfo = oc.od.messageinfo.ODMessageInfoManager(settings.memconnectionstring)
 
     def init_auth(self):
         import oc.auth.authservice
