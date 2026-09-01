@@ -203,8 +203,9 @@ class BaseController(APIRouter):
         # special case if apikey is None and None is in the list of permitted apikeys, return True
         if apikey is None and None in self.apikey:
             return True
-        if apikey is None:
-            return bReturn
+        if apikey is None or apikey == 'null' or apikey == '':
+            # 'null' or empty string should be treated as no API key provided
+            return False
         for k in self.apikey:
             bReturn = hmac.compare_digest(k, apikey)
             if bReturn:
