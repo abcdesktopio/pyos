@@ -27,8 +27,6 @@ from oc.auth.authuser import AuthUser
 from oc.auth.authinfo import AuthInfo
 from oc.auth.authroles import AuthRoles
 from oc.od.error import ODError
-from oc.cherrypy import Results
-import oc.od.appinstancestatus
 import oc.od.desktop
 import oc.od.services
 import oc.od.tracking
@@ -38,7 +36,6 @@ import oc.od.settings
 from kubernetes.client.models.v1_pod_list import V1PodList
 from kubernetes.client.rest import ApiException
 
-import subprocess
 import json
 
 from concurrent.futures import ThreadPoolExecutor
