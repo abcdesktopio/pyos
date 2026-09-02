@@ -203,7 +203,13 @@ class BaseController(APIRouter):
         # special case if apikey is None and None is in the list of permitted apikeys, return True
         if apikey is None and None in self.apikey:
             return True
-        if apikey is None or apikey == 'null' or apikey == '':
+        if apikey is None :
+            # no API key provided
+            return False
+        if not isinstance(apikey, str):
+            # API key must be a string
+            return False
+        if apikey == 'null' or apikey == '':
             # 'null' or empty string should be treated as no API key provided
             return False
         for k in self.apikey:
