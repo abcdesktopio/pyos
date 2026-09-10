@@ -5073,6 +5073,7 @@ class ODAppInstanceBase(object):
         # LC_ALL is the environment variable that overrides all the other localisation settings 
         # (except $LANGUAGE under some circumstances).
         env['LANGUAGE'] = language
+        env['XKB_LAYOUT'] = language
         env['LANG'] = language + '.UTF-8'
         env['LC_ALL']= language + '.UTF-8'
 
