@@ -13,7 +13,7 @@
 
 import sys
 import inspect
-import json
+import jsonc
 import logging
 import logging.config
 import os
@@ -97,7 +97,7 @@ def load_config(path, is_cp_file:bool=False)->dict|None:
     else:
         # dedicated json logging configuration file
         with open(path, encoding='UTF-8') as f: 
-            cfg_logging = json.loads(f.read())
+            cfg_logging = jsonc.loads(f.read())
     return cfg_logging
 
 

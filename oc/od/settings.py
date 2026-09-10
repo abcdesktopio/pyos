@@ -814,7 +814,7 @@ def get_configuration_file_name():
     Returns:
         str: name of the config file 'config.json' by default or read 'OD_CONFIG_PATH' os.getenv
     """
-    configuration_file_name = os.getenv('OD_CONFIG_PATH', 'config.json')
+    configuration_file_name = os.getenv('OD_CONFIG_PATH', 'config.jsonc')
     return configuration_file_name
 
 

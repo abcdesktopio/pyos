@@ -1,4 +1,4 @@
-import json
+import jsonc
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,8 +24,9 @@ class Config(dict):
             raw = f.read()
 
         try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
+            data = jsonc.loads(raw)
+        except jsonc.JSONDecodeError:
+            logger.error(f"sd;jfhbqsdkjfhgqsdkfjhgsdf")
             logger.error(f"Error parsing JSON configuration file: {path}")
             raise
 
