@@ -37,7 +37,6 @@ from pydantic import BaseModel
 import oc.logging
 import oc.od.settings as settings
 import oc.od.services as services
-from oc.cherrypy import Results
 from oc.logging import set_request_context, reset_request_context
 from oc.auth.authservice import set_auth_cache, reset_auth_cache
 
