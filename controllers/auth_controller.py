@@ -81,7 +81,7 @@ class AuthController(BaseController):
             return Results.success(result={"url": url})
         else:
             self.logger.error("user try to logout, but user is not identified")
-            return Results.error(message="invalid user credentials", result={"url": url})
+            return Results.error(message="invalid user credentials")
 
     async def logout(self, request: Request, redirect_uri: str = None) -> dict:
         """Logout a connected user, remove the desktop."""
@@ -111,9 +111,15 @@ class AuthController(BaseController):
     async def oauth(self, request: Request) -> Response:
         self.required_controller_security_check(request)
         params = dict(request.query_params)
+        
+        # Ensure that the 'provider' parameter is present in the request
+        if not params.get("provider"):
+            raise HTTPException(status_code=400, detail="missing provider parameter")
+
         params["manager"] = "external"  # OAuth MUST force 'external' manager
         self.update_features_args(args=params)
         self.check_features_permissions(args=params)
+
         response = services.auth.login(**params)
         self.checkloginresponseresult(response)
         await oc.od.composer.prepareressources(authinfo=response.result.auth, userinfo=response.result.user)
