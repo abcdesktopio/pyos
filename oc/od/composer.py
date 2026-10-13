@@ -83,7 +83,10 @@ async def opendesktop(authinfo:AuthInfo, userinfo:AuthUser, rolesinfo:AuthRoles,
             'querystring':  QUERYSTRING env inside the container,
             'metadata' :    METADATA env inside the container,
             'args' :        APPARGS inside the container,
-            'timezone' :    TZ env inside the contianer }
+            'timezone' :    TZ env inside the contianer,
+            'xkb_layout':    XKB_LAYOUT env inside the container,
+            'xkb_variant':    XKB_VARIANT env inside the container,
+        }
 
     Returns:
         [ODesktop]: Desktop Object if success 
@@ -586,6 +589,13 @@ def createDesktopArguments( authinfo:AuthInfo, userinfo:AuthUser, args:dict )-> 
     # add source ip addr as WEBCLIENT_SOURCEIPADDR var env
     env.update( { 'ABCDESKTOP_WEBCLIENT_SOURCEIPADDR':  args.get('ABCDESKTOP_WEBCLIENT_SOURCEIPADDR') } )   
     env.update( { 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY':  args.get('ABCDESKTOP_WEBCLIENT_USERAGENT_OS_FAMILY') } )
+    env.update( { 'ABCDESKTOP_WEBCLIENT_USERAGENT_OS_VERSION':  args.get('ABCDESKTOP_WEBCLIENT_USERAGENT_OS_VERSION') } )
+    if args.get('xkb_layout'): 
+        env.update( { 'XKB_DEFAULT_LAYOUT': args.get('xkb_layout') } )
+    if args.get('xkb_variant'):
+        env.update( { 'XKB_DEFAULT_VARIANT': args.get('xkb_variant') } )
+    if args.get('xkb_model'):
+        env.update( { 'XKB_DEFAULT_MODEL': args.get('xkb_model') } )
     authorizedkey = services.authorized_keys.get_key( userinfo.userid )      
     if isinstance( authorizedkey, str ): 
         env.update( { 'ABCDESKTOP_AUTHORIZEDKEY': authorizedkey } )
