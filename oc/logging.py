@@ -11,13 +11,11 @@
 # Software description: cloud native desktop service
 #
 
-import sys
-import inspect
-import jsonc
 import logging
 import logging.config
 import os
 import socket
+import jsonc
 from contextvars import ContextVar
 from typing import Optional
 
