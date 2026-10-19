@@ -131,6 +131,7 @@ class ManagerController(BaseController):
 
     async def datastore(self, request: Request, path: str = "") -> dict:
         self.is_permit_request(request)
+        self.logger.debug(f"Handling datastore request with method: {request.method}")
         args = tuple(path.split("/")) if path else ()
         if request.method == "GET":
             return  self.handle_datastore_GET(args)
@@ -146,6 +147,7 @@ class ManagerController(BaseController):
 
     async def desktop(self, request: Request, path: str = "") -> dict | list | bool:
         self.is_permit_request(request)
+        self.logger.debug(f"Handling desktop request with method: {request.method}")
         args = tuple(path.split("/")) if path else ()
         if request.method == "GET":
             return await self.handle_desktop_GET(args)
@@ -153,8 +155,9 @@ class ManagerController(BaseController):
             return await self.handle_desktop_DELETE(args)
         raise HTTPException(status_code=405, detail="Method Not Allowed")
 
-    async def images(self, request: Request) -> dict:
+    async def images(self, request: Request) -> dict|list:
         self.is_permit_request(request)
+        self.logger.debug(f"Handling images request with method: {request.method}")
         if request.method == "GET":
             return self.handle_images_GET()
         elif request.method == "DELETE":
@@ -163,6 +166,7 @@ class ManagerController(BaseController):
 
     async def image(self, request: Request, image:str=None, node: str = None) -> dict|list:
         self.is_permit_request(request)
+        self.logger.debug(f"Handling image request with method: {request.method}")
         if request.method == "GET":
             return self.handle_image_GET(image=image)
         elif request.method == "PUT":
@@ -189,6 +193,7 @@ class ManagerController(BaseController):
 
     async def ban(self, request: Request, collection: str, path: str = "") -> dict|list:
         self.is_permit_request(request)
+        self.logger.debug(f"Handling ban request with method: {request.method}")
         args = tuple(path.split("/")) if path else ()
         if request.method == "GET":
             return self.handle_ban_GET(collection, args)
@@ -342,6 +347,7 @@ class ManagerController(BaseController):
         return oc.od.services.services.apps.get_json_applist()
 
     def handle_images_DELETE(self):
+        self.logger.debug("")
         return oc.od.composer.del_application_all_images()
 
     def handle_image_GET(self, image: str = None):
