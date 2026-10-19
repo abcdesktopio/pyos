@@ -1,5 +1,5 @@
-import jsonc
 import logging
+import jsonc
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,6 @@ class Config(dict):
         data = None        
         with open(path, "r", encoding="utf-8") as f:
             raw = f.read()
-
         try:
             data = jsonc.loads(raw)
         except jsonc.JSONDecodeError:
