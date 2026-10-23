@@ -58,14 +58,18 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         if isinstance(databasename, str ):
             # url = f"{self.mongodburl}/{databasename}?directConnection=true&replicaSet=rs0&authSource={databasename}"
             # url = f"{self.mongodburl}/{databasename}?replicaSet=rs0&authSource={databasename}"
-            url = f"{self.mongodburl}/{databasename}?{self.mongodbparam}&authSource={databasename}"
+            if isinstance(self.mongodbparam,str) and len( self.mongodbparam) >0:
+                url = f"{self.mongodburl}/{databasename}?{self.mongodbparam}&authSource={databasename}"
+            else:
+                url = f"{self.mongodburl}/{databasename}?authSource={databasename}"
         else:
             url = self.mongodburl
         return url
 
     def createclient(self, databasename:str):
         hosturl = self.createhosturl( databasename )
-        mongo_client = MongoClient(host=hosturl)
+        # self.logger.debug(f"Creating MongoClient with hosturl: {hosturl}")
+        mongo_client = MongoClient(hosturl)
         return mongo_client
 
     def get_document_value_in_collection(self, databasename, collectionname, key):
