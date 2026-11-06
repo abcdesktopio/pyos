@@ -16,6 +16,7 @@ import oc.logging
 import pymongo
 import pymongo.errors
 from pymongo import MongoClient
+import threading
 # from pymongo.errors import ConnectionFailure
 import bson.objectid
 import datetime
@@ -41,6 +42,8 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             self.mongodbparam = ''
         else: 
             self.mongodbparam = mongodbparam
+        self._clients = {}
+        self._clients_lock = threading.Lock()
 
          # Defaults to 20000 (20 seconds). 
         # set to 5000 (5 seconds). 
@@ -64,9 +67,19 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         return url
 
     def createclient(self, databasename:str):
-        hosturl = self.createhosturl( databasename )
-        mongo_client = MongoClient(host=hosturl)
-        return mongo_client
+        with self._clients_lock:
+            if databasename not in self._clients:
+                hosturl = self.createhosturl(databasename)
+                self._clients[databasename] = MongoClient(host=hosturl)
+            client = self._clients[databasename]
+        return client
+
+    def close(self):
+        with self._clients_lock:
+            clients = list(self._clients.values())
+            self._clients.clear()
+        for client in clients:
+            client.close()
 
     def get_document_value_in_collection(self, databasename, collectionname, key):
         obj = None
@@ -78,9 +91,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
                 obj = collection.find_one( { self.index_name:key })
                 if obj is not None:
                     data = obj.get(key, None)                 
-                    client.close()
                     return data          
-            client.close()  
         except pymongo.errors.ConnectionFailure as e:
             self.logger.error( f"get_document_value_in_collection: {e}" )       
         except Exception as e :            
@@ -97,7 +108,6 @@ class ODMongoDatastoreClient(ODDatastoreClient):
                 findcollection = collection.find(filter=myfilter, limit=limit)
                 if isinstance( findcollection, pymongo.cursor.Cursor):
                     mycollection = list( findcollection )
-            client.close()
         except pymongo.errors.ConnectionFailure  as e  :
             self.logger.error( f"getcollection {e}" )
         except Exception  as e  :            
@@ -149,7 +159,6 @@ class ODMongoDatastoreClient(ODDatastoreClient):
                 collection.replace_one( {'_id': obj['_id']}, datadict)
             else:
                 collection.insert_one( datadict )
-            client.close()
             return True
         except pymongo.errors.ConnectionFailure  as e :
             self.logger.error( f"set_document_value_in_collection {e}" ) 
@@ -163,7 +172,6 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             client = self.createclient(databasename)        
             collection = client[databasename][collectionname]                                    
             collection.insert_one(datadict)
-            client.close()
             return True
         except pymongo.errors.ConnectionFailure  as e  :
             self.logger.error( f"addtocollection {e}" )     
@@ -177,7 +185,6 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             client = self.createclient(databasename)        
             collection = client[databasename][collectionname]                                    
             collection.drop()
-            client.close()
             return True
         except pymongo.errors.ConnectionFailure  as e  :
             self.logger.error( f"drop_collection {e}" )     
@@ -197,7 +204,6 @@ class ODMongoDatastoreClient(ODDatastoreClient):
                 result = collection.delete_one({'_id': obj['_id']})
                 if isinstance( result, pymongo.results.DeleteResult):
                     bReturn = True
-            client.close()
         except pymongo.errors.ConnectionFailure  as e :
             self.logger.error( f"delete_one_in_colection {e}" ) 
         except Exception  as e  :            
@@ -222,7 +228,6 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         try:
             client = self.createclient(databasename)
             collections = client[databasename].list_collection_names()
-            client.close()
         except Exception  as e  :
             self.logger.error( f"list_collections {e}" ) 
         return collections

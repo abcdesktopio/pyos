@@ -586,7 +586,7 @@ def get_mongodburl():
     assert isinstance(parsedmongourl.hostname, str), f"Can not parse mongodburl {mongodburl} result {parsedmongourl}"
     mongodbhostipaddr = _resolv(parsedmongourl.hostname)
     logger.debug(f"a simple check for mongodb: host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
-    mongodbparam = os.getenv('MONGODB_PARAM') or gconfig.get( 'mongodbparam', 'replicaSet=rs0' )
+    mongodbparam = os.getenv('MONGODB_PARAM') or gconfig.get( 'mongodbparam', 'replicaSet=rs0&maxPoolSize=20&maxConnecting=2' )
     return (mongodburl, mongodbparam)
 
 def init_controllers():

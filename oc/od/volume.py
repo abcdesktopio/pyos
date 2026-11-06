@@ -13,7 +13,8 @@
 import os
 import logging
 import oc.logging
-from  oc.auth.authservice  import AuthInfo, AuthUser # to read AuthInfo and AuthUser
+from oc.auth.authinfo import AuthInfo
+from oc.auth.authuser import AuthUser
 
 logger = logging.getLogger(__name__)
 

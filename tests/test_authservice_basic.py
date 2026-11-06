@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import oc.auth.authservice as authservice
+import oc.auth.authprovider as authprovider
 
 
 class TestAuthRoles(unittest.TestCase):
@@ -57,27 +58,27 @@ class TestAuthenticationError(unittest.TestCase):
 
 
 class TestAuthConstants(unittest.TestCase):
-    """Test cases for authentication constants"""
+    """Test cases for authentication provider limits"""
     
     def test_uid_max_length(self):
         """Test UID_MAX_LENGTH constant"""
-        self.assertEqual(authservice.UID_MAX_LENGTH, 32)
+        self.assertEqual(authprovider.UID_MAX_LENGTH, 32)
     
     def test_krb5_uid_max_length(self):
         """Test KRB5_UID_MAX_LENGTH constant"""
-        self.assertEqual(authservice.KRB5_UID_MAX_LENGTH, 256)
+        self.assertEqual(authprovider.KRB5_UID_MAX_LENGTH, 256)
     
     def test_krb5_password_max_length(self):
         """Test KRB5_PASSWORD_MAX_LENGTH constant"""
-        self.assertEqual(authservice.KRB5_PASSWORD_MAX_LENGTH, 256)
+        self.assertEqual(authprovider.KRB5_PASSWORD_MAX_LENGTH, 256)
     
     def test_ldap_uid_max_length(self):
         """Test LDAP_UID_MAX_LENGTH constant"""
-        self.assertEqual(authservice.LDAP_UID_MAX_LENGTH, 256)
+        self.assertEqual(authprovider.LDAP_UID_MAX_LENGTH, 256)
     
     def test_ldap_password_max_length(self):
         """Test LDAP_PASSWORD_MAX_LENGTH constant"""
-        self.assertEqual(authservice.LDAP_PASSWORD_MAX_LENGTH, 64)
+        self.assertEqual(authprovider.LDAP_PASSWORD_MAX_LENGTH, 64)
 
 
 class TestAuthServiceBasicStructure(unittest.TestCase):
@@ -87,11 +88,11 @@ class TestAuthServiceBasicStructure(unittest.TestCase):
         """Test that authservice has AuthRoles class"""
         self.assertTrue(hasattr(authservice, 'AuthRoles'))
     
-    def test_authservice_has_constants(self):
-        """Test that authservice has required constants"""
-        self.assertTrue(hasattr(authservice, 'UID_MAX_LENGTH'))
-        self.assertTrue(hasattr(authservice, 'KRB5_UID_MAX_LENGTH'))
-        self.assertTrue(hasattr(authservice, 'LDAP_UID_MAX_LENGTH'))
+    def test_authprovider_has_constants(self):
+        """Test that authprovider has required constants"""
+        self.assertTrue(hasattr(authprovider, 'UID_MAX_LENGTH'))
+        self.assertTrue(hasattr(authprovider, 'KRB5_UID_MAX_LENGTH'))
+        self.assertTrue(hasattr(authprovider, 'LDAP_UID_MAX_LENGTH'))
 
 
 if __name__ == '__main__':

@@ -16,7 +16,10 @@ class ODFail2ban:
         self.failmaxvaluebeforeban = fail2banconfig.get('failsbeforeban', 5 ) # specify a positive non-zero value 
         self.banexpireAfterSeconds = fail2banconfig.get('banexpireafterseconds', 30*60 )
         self.protectedNetworks    = fail2banconfig.get('protectednetworks', [] )
-        self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl=mongodburl, mongodbparam=mongodbparam, databasename=self.databasename)
+        self.datastore = oc.datastore.ODMongoDatastoreClient(
+		mongodburl=mongodburl,
+		mongodbparam=mongodbparam,
+		databasename=self.databasename)
         self.collections_name = [ self.ip_collection_name, self.login_collection_name ]
         self.sanity_filter = {  
             self.ip_collection_name:"0123456789.:abcdefABCDEF", 
@@ -26,16 +29,14 @@ class ODFail2ban:
         self.index_name = 'id'
         self.counter = 'count'
         self.index_date = 'date'
+        self.mongo_client = self.datastore.createclient(self.databasename)
 
         if self.enable is True:
             self.init_collection( self.ip_collection_name )
             self.init_collection( self.login_collection_name )
 
-        # Persistent MongoClient reused for all operations (connection pool)
-        self.mongo_client = self.datastore.createclient(self.databasename)
-
-    def __del__(self):
-        self.mongo_client.close()
+    def close(self):
+        self.datastore.close()
 
     def sanity( self, value:str, filter:str )->bool:
         """sanity

@@ -16,7 +16,8 @@ import oc.logging
 import oc.od.settings
 import oc.auth.namedlib
 import oc.od.volume   # manage volume
-from   oc.auth.authservice import AuthInfo, AuthUser
+from oc.auth.authinfo import AuthInfo
+from oc.auth.authuser import AuthUser
 
 from kubernetes.client.rest import ApiException
 from kubernetes.client.models.v1_secret import V1Secret

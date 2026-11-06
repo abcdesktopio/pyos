@@ -6,6 +6,7 @@ Tests for data models and schemas used in the project
 import unittest
 import sys
 import os
+from unittest.mock import Mock, call, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -67,6 +68,65 @@ class TestDatastoreModule(unittest.TestCase):
             self.assertIsNotNone(oc.datastore)
         except ImportError:
             self.skipTest("datastore module not available")
+
+
+    def test_createclient_reuses_client_per_database(self):
+        import oc.datastore as datastore_module
+
+        with patch.object(datastore_module, 'MongoClient', side_effect=[Mock(), Mock()]) as mongo_client:
+            datastore = datastore_module.ODMongoDatastoreClient('mongodb://mongodb:27017', 'replicaSet=rs0')
+            first_client = datastore.createclient('users')
+            second_client = datastore.createclient('users')
+            other_client = datastore.createclient('applications')
+
+            self.assertIs(first_client, second_client)
+            self.assertIsNot(first_client, other_client)
+            self.assertEqual(mongo_client.call_args_list, [
+                call(host='mongodb://mongodb:27017/users?replicaSet=rs0&authSource=users'),
+                call(host='mongodb://mongodb:27017/applications?replicaSet=rs0&authSource=applications'),
+            ])
+
+    def test_createclient_does_not_enable_pool_instrumentation(self):
+        import oc.datastore as datastore_module
+
+        with patch.dict(os.environ, {'MONGODB_POOL_METRICS': 'true'}):
+            with patch.object(datastore_module, 'MongoClient') as mongo_client:
+                datastore = datastore_module.ODMongoDatastoreClient('mongodb://mongodb:27017')
+                datastore.createclient('users')
+
+                mongo_client.assert_called_once_with(host=datastore.createhosturl('users'))
+                self.assertFalse(hasattr(datastore_module, 'MongoPoolEventLogger'))
+
+    def test_close_closes_each_cached_client_once(self):
+        import oc.datastore as datastore_module
+
+        with patch.object(datastore_module, 'MongoClient', side_effect=[Mock(), Mock()]):
+            datastore = datastore_module.ODMongoDatastoreClient('mongodb://mongodb:27017')
+            users_client = datastore.createclient('users')
+            applications_client = datastore.createclient('applications')
+
+            datastore.close()
+            datastore.close()
+
+            users_client.close.assert_called_once_with()
+            applications_client.close.assert_called_once_with()
+            self.assertEqual(datastore._clients, {})
+
+    def test_operations_keep_client_open_until_datastore_close(self):
+        import oc.datastore as datastore_module
+
+        with patch.object(datastore_module, 'MongoClient') as mongo_client:
+            datastore = datastore_module.ODMongoDatastoreClient('mongodb://mongodb:27017')
+            client = datastore.createclient('users')
+            client['users']['settings'].find_one.return_value = None
+
+            datastore.get_document_value_in_collection('users', 'settings', 'theme')
+            datastore.get_document_value_in_collection('users', 'settings', 'locale')
+
+            mongo_client.assert_called_once()
+            client.close.assert_not_called()
+            datastore.close()
+            client.close.assert_called_once_with()
 
 
 class TestLoggingModule(unittest.TestCase):

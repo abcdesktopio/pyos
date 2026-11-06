@@ -50,13 +50,17 @@ class ODApps:
         self.private_attr_list  = [ 'acl',  'rules', 'securityContext' ]
         self.thread_event = threading.Event()
         self.watcher_thread = None
+        self.watcher_status = "stopped"
 
         # mongo db defines
         self.databasename = 'applications'
         self.index_name = 'id' # id is the name of the image repoTags[0]
         self.image_collection_name = 'image'
         if isinstance( mongodburl, str) :
-            self.datastore = oc.datastore.ODMongoDatastoreClient(mongodburl, mongodbparam, self.databasename)
+            self.datastore = oc.datastore.ODMongoDatastoreClient(
+		mongodburl, 
+		mongodbparam,
+		self.databasename)
             self.init_collection( collection_name=self.image_collection_name )
 
     def init_collection( self, collection_name ):
@@ -67,7 +71,6 @@ class ODApps:
             col.create_index( [ (self.index_name, pymongo.ASCENDING) ], unique=True )
         except Exception as e:
             self.logger.error( e )
-        mongo_client.close()
 
     def get_collection(self, collection_name ):
         mongo_client = self.datastore.createclient(self.databasename)
@@ -102,17 +105,12 @@ class ODApps:
         return q
 
     def list_app_images( self )->list:
-        # get the collection
-        collection = self.get_collection( self.image_collection_name ) 
-        app_images_collecion = []
         try:
-            # get all the collection
-            app_images_collecion = list( collection.find() )
-        except Exception as e:
-            # log error
-            self.logger.error( e )
-        # return the list of app images
-        return app_images_collecion
+            collection = self.get_collection( self.image_collection_name )
+            return list( collection.find() )
+        except pymongo.errors.PyMongoError:
+            self.logger.exception("Failed to read application images")
+            raise
 
     def countApps(self):
         return len(self.myglobal_list)
@@ -695,45 +693,46 @@ class ODApps:
         """
         self.logger.info(f"[ODApps] Insert detected for {full_doc.get('id')}")
 
-        # Refresh internal cache
-        self.cached_applist(bRefresh=True)
-
-
     def on_mongo_update(self, full_doc, updated_fields):
         """
         updated_fields: dict containing only the modified fields
         """
         self.logger.info(f"[ODApps] Update detected for {full_doc.get('id')}, changes={updated_fields}")
 
-        # Refresh internal cache
-        self.cached_applist(bRefresh=True)
+    def on_mongo_replace(self, full_doc):
+        """
+        full_doc: complete replacement document as returned by MongoDB
+        """
+        self.logger.info(f"[ODApps] Replace detected for {full_doc.get('id')}")
 
 
     def on_mongo_delete(self, deleted_id):
+        """
+        deleted_id: the _id of the deleted document
+        """
         self.logger.info(f"[ODApps] Delete detected for id={deleted_id}")
-
-        # Refresh internal cache
-        self.cached_applist(bRefresh=True)
-
 
     def _mongo_watch_loop(self):
         """
         MongoDB watcher thread.
         Watches the 'image' collection.
         """
-        collection = self.get_collection(self.image_collection_name)
-
         self.logger.info("Starting MongoDB Change Stream...")
+        retry_delay = 1
+        permanent_error_codes = {18, 40573}
         while self.thread_event.is_set() is False:
+            connected_at = None
             try:
-                with collection.watch(full_document='updateLookup') as stream:
-                    if self.thread_event.is_set():
-                        break
-
-                    for change in stream:
-                        if not( isinstance(change, dict) ):
+                collection = self.get_collection(self.image_collection_name)
+                with collection.watch(full_document='updateLookup', max_await_time_ms=1000) as stream:
+                    self.cached_applist(bRefresh=True)
+                    connected_at = time.monotonic()
+                    self.watcher_status = "running"
+                    while not self.thread_event.is_set():
+                        change = stream.try_next()
+                        if not isinstance(change, dict):
                             continue
-                        
+
                         op = change["operationType"]
                         full_doc = change.get("fullDocument")
 
@@ -745,36 +744,46 @@ class ODApps:
                             updated = change["updateDescription"]["updatedFields"]
                             self.on_mongo_update(full_doc, updated)
 
+                        elif op == "replace":
+                            self.on_mongo_replace(full_doc)
+
                         elif op == "delete":
                             deleted_id = change["documentKey"]["_id"]
                             self.on_mongo_delete(deleted_id)
+                        else:
+                            self.logger.debug(f"Ignoring MongoDB change event: {op}")
+                            continue
 
-            except Exception as e:
-                self.logger.error(f"Change Stream Error: {e}")
-                
+                        self.cached_applist(bRefresh=True)
+
+            except pymongo.errors.PyMongoError as exc:
                 if self.thread_event.is_set():
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return
+                    break
 
-                # If the exception has no code, we cannot handle it
-                if hasattr(e, 'code') is False:
+                if getattr(exc, 'code', None) in permanent_error_codes:
+                    self.watcher_status = "failed"
+                    self.logger.error(f"MongoDB Change Stream stopped: {exc}")
                     self.thread_event.set()
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return 
+                    break
 
-                # The $changeStream stage is only supported on replica sets
-                if e.code == 40573:
-                    self.thread_event.set()
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return
+                self.watcher_status = "degraded"
+                if connected_at is not None and time.monotonic() - connected_at >= 60:
+                    retry_delay = 1
 
-                if e.code == 18 :
-                    # Authentication failed
-                    # it's time to die
-                    self.thread_event.set()
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return 
-                
+                self.logger.warning(
+                    f"MongoDB Change Stream error; retrying in {retry_delay}s: {exc}"
+                )
+                if self.thread_event.wait(retry_delay):
+                    break
+                retry_delay = min(retry_delay * 2, 30)
+            except Exception:
+                self.watcher_status = "failed"
+                self.logger.exception("Unexpected MongoDB Change Stream failure")
+                self.thread_event.set()
+                break
+
+        if self.watcher_status == "stopping":
+            self.watcher_status = "stopped"
         self.logger.info("MongoDB Change Stream watcher thread exited.")
 
     def is_mongo_watcher_alive(self):
@@ -795,6 +804,7 @@ class ODApps:
         if self.is_mongo_watcher_alive(): # nothing to do if watcher is already alive
             return
 
+        self.watcher_status = "starting"
         self.thread_event.clear()
         self.watcher_thread = threading.Thread(
             target=self._mongo_watch_loop,
@@ -809,12 +819,17 @@ class ODApps:
             stop the MongoDB watcher thread if it is alive
         """
         if self.is_mongo_watcher_alive():
-            if hasattr(self.watcher_thread, 'set'):
-                self.thread_event.set()
-            
+            self.watcher_status = "stopping"
+            self.thread_event.set()
             self.logger.debug("MongoDB watcher_thread.join()...")
-            # self.watcher_thread.join()
-            self.watcher_thread = None
+            self.watcher_thread.join(timeout=5)
+            if self.watcher_thread.is_alive():
+                self.logger.warning("MongoDB watcher thread did not stop within 5 seconds")
+            else:
+                self.watcher_thread = None
         else:
-                self.logger.debug("MongoDB watcher_thread is not alive.")
+            self.logger.debug("MongoDB watcher_thread is not alive.")
+            self.watcher_thread = None
+            if self.watcher_status != "failed":
+                self.watcher_status = "stopped"
         self.logger.info("MongoDB watcher stopped")

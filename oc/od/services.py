@@ -88,6 +88,18 @@ class ODServices(object):
         else:
             self.logger.debug( 'self.kuberneteswatcher is not defined')
 
+        datastores = [
+            getattr(self.apps, 'datastore', None),
+            getattr(self.fail2ban, 'datastore', None),
+            self.datastore,
+        ]
+        for datastore in datastores:
+            if datastore is not None:
+                try:
+                    datastore.close()
+                except Exception as e:
+                    self.logger.error(f"Error while closing MongoDB datastore: {e}")
+
         self.logger.debug('done, this is the end') # pom pom pom 
 
 
@@ -168,7 +180,9 @@ class ODServices(object):
 
     def init_datastore(self):
         import oc.datastore
-        self.datastore = oc.datastore.ODMongoDatastoreClient(settings.mongodburl, settings.mongodbparam)
+        self.datastore = oc.datastore.ODMongoDatastoreClient(
+		settings.mongodburl,
+		settings.mongodbparam)
 
     def init_datacache(self):
         import oc.sharecache
@@ -193,7 +207,9 @@ class ODServices(object):
     def init_applist( self ):
         import oc.od.apps 
         # Build applist cache data
-        self.apps = oc.od.apps.ODApps(mongodburl=settings.mongodburl, mongodbparam=settings.mongodbparam )
+        self.apps = oc.od.apps.ODApps(
+		mongodburl=settings.mongodburl, 
+		mongodbparam=settings.mongodbparam)
         self.apps.cached_applist(bRefresh=True)
 
     def init_kuberneteswatcher( self ):

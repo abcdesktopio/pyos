@@ -1,4 +1,4 @@
-FROM python:3
+FROM python:3-bookworm
 
 # upgrade
 RUN apt-get update && apt-get upgrade -y && apt-get clean  && rm -rf /var/lib/apt/lists/*
@@ -51,7 +51,7 @@ RUN mkdir -p /usr/share/geolite2 && \
 # support for linux_arm64 and linux_amd64
 # FROM python is a debian:bookworm image
 
-COPY --from=ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm /dist/*.deb /tmp
+COPY --from=ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm /dist/*.deb /tmp/
 RUN apt-get update && \
     apt-get install -y  --no-install-recommends /tmp/*.deb && \
     apt-get clean  && \
