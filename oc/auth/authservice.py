@@ -22,7 +22,7 @@ from oc.cherrypy import getclientipaddr, getclientreal_ip, getclientxforwardedfo
 import oc.logging
 import oc.od.acl
 import oc.od.services
-import oc.auth.jwtoken
+import oc.auth.jwt
 import oc.pyutils as pyutils
 from oc.od.asnumber import ODASNumber
 
@@ -65,7 +65,7 @@ class ODAuthTool(cherrypy.Tool):
         super().__init__('before_handler', self.authorize)
         self.redirect_url = redirect_url
         self.managers = {}
-        self.jwt = oc.auth.jwtoken.ODJWToken( jwt_config )
+        self.jwt = oc.auth.jwt.ODJWToken( jwt_config )
         for name,cfg in config.items():
             try:
                 # skip the entry if not enabled
