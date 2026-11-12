@@ -1455,7 +1455,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if len(localaccountsecretitems) != 1:
             self.logger.error( f"{userinfo.userid} localaccountsecretitems is invalid len, len=1 is expected gets, len={len(localaccountsecretitems)} {localaccountsecretitems}" )
             self.logger.debug( f"{userinfo.userid} abcdesktop secret has expired, found {len(localaccountsecretitems)} expecting 1" )
-            raise Exception( f"Your secret has been deleted, found {len(localaccountsecretitems)}, please reload" )
+            raise Exception( f"Your secret has been deleted, found {len(localaccountsecretitems)} expecting 1, please reload" )
 
         secret_auth_name = list(mysecretdict.keys())[0]
         assert isinstance(secret_auth_name,str), f"secret_auth_name is not a str {secret_auth_name}"

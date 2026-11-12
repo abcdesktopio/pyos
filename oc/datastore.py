@@ -72,12 +72,12 @@ class ODMongoDatastoreClient(ODDatastoreClient):
         mongo_client = MongoClient(hosturl)
         return mongo_client
 
-    def get_document_value_in_collection(self, databasename, collectionname, key):
+    def get_document_value_in_collection(self, databasename:str, collectionname:str, key:str):
         obj = None
         # self.logger.debug( f"database={databasename} collectionname={collectionname} key={key}" )
-        try:            
-            client = self.createclient(databasename)        
-            collection = client[databasename][collectionname]            
+        try:
+            client = self.createclient(databasename)
+            collection = client[databasename][collectionname]
             if collection is not None:
                 obj = collection.find_one( { self.index_name:key })
                 if obj is not None:
@@ -91,7 +91,7 @@ class ODMongoDatastoreClient(ODDatastoreClient):
             self.logger.error( f"get_document_value_in_collection: {e}" )       
         return obj
 
-    def getcollection(self, databasename, collectionname, myfilter=None, limit=0):
+    def getcollection(self, databasename:str, collectionname:str, myfilter=None, limit:int=0):
         self.logger.debug( f"database={databasename} collectionname={collectionname}" )
         mycollection = []
         try:            
