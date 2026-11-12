@@ -22,7 +22,7 @@ from oc.cherrypy import getclientipaddr, getclientreal_ip, getclientxforwardedfo
 import oc.logging
 import oc.od.acl
 import oc.od.services
-import oc.auth.jwt
+import oc.auth.jwtuser
 import oc.pyutils as pyutils
 from oc.od.asnumber import ODASNumber
 
