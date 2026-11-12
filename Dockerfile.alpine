@@ -36,18 +36,18 @@ RUN mkdir -p /usr/share/geolite2 && \
 # FROM python is a debian:bookworm image
 
 RUN apk add --no-cache \
-	krb5-dev \
-	gcc \
-	musl-dev \
-	py3-virtualenv \
-	python3-dev \
-	py3-ldap \
-	py3-ldap-pyc \
+		krb5-dev \
+		gcc \
+		musl-dev \
+		py3-virtualenv \
+		python3-dev \
+		py3-ldap \
+		py3-ldap-pyc \
     	py3-python-gssapi-pyc \
     	py3-python-gssapi \
     	krb5-dev \
-	geoip-dev \
-	openldap-dev
+		geoip-dev \
+		openldap-dev
 
 ##################
 # Commented for alpine no install ntlm_auth / samba support 
@@ -68,7 +68,7 @@ COPY . .
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 
 # install upgrade pip
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip --no-cache-dir
 
 # install requirements.txt
 RUN virtualenv /var/pyos && \
@@ -89,9 +89,9 @@ RUN ./mkversion.sh
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
-	krb5-dev \
+		krb5-dev \
     	gcc \
-	python3-dev \
+		python3-dev \
     	musl-dev \
     	krb5-dev \
     	geoip-dev \
@@ -101,7 +101,7 @@ RUN apk del --no-cache \
 # CVE-2026-23949 
 # CVE-2026-24049
 RUN source bin/activate && \
-    pip uninstall -y pip setuptools
+    pip uninstall -y pip setuptools  --no-cache-dir
 
 # dump for troubleshooting
 RUN apk list -I > apk.list
