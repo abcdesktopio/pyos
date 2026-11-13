@@ -60,13 +60,13 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
+          # fetch-depth:0 for the command line git rev-list --count HEAD
           fetch-depth: 0
         
       - name: create version
         run: |
            bash -x ./mkversion.sh
            cat version.json
-           ls -la .git
            
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
