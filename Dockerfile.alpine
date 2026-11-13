@@ -81,9 +81,7 @@ RUN virtualenv /var/pyos && \
 RUN source bin/activate && \
     pyasn_util_download.py --latestv46 --filename rib.bz2 && \
     pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
-    rm -f rib.bz2 
-
-RUN ./mkversion.sh
+    rm -f rib.bz2
 
 # remove dev package
 # should better use a builder instance
