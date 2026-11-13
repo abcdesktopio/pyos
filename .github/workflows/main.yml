@@ -91,6 +91,7 @@ jobs:
             branch:${{ env.branch }}
           file: Dockerfile.${{ env.DISTRIB }}
           provenance: false
+          context: .
           platforms: ${{ env.OS_PLATFORM }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ env.DISTRIB }}_${{ env.RELEASE }}:${{ env.imagetag }}.${{ env.PLATFORM }}
