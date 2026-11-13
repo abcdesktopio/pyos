@@ -65,7 +65,7 @@ jobs:
         
       - name: create version
         run: |
-           bash -x ./mkversion.sh
+           ./mkversion.sh
            cat version.json
            
       - name: Set up QEMU
