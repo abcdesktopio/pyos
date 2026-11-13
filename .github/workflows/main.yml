@@ -63,9 +63,9 @@ jobs:
         
       - name: create version
         run: |
-           ./mkversion.sh
+           bash -x ./mkversion.sh
            cat version.json
-           ls -la
+           ls -la .git
            
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
