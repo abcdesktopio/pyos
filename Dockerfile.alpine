@@ -36,16 +36,18 @@ RUN mkdir -p /usr/share/geolite2 && \
 # FROM python is a debian:bookworm image
 
 RUN apk add --no-cache \
-	krb5-dev \
-	gcc \
-	musl-dev \
-	py3-ldap \
-	py3-ldap-pyc \
-    py3-python-gssapi-pyc \
-    py3-python-gssapi \
-    krb5-dev \
-	geoip-dev \
-	openldap-dev
+		krb5-dev \
+		gcc \
+		musl-dev \
+		py3-virtualenv \
+		python3-dev \
+		py3-ldap \
+		py3-ldap-pyc \
+    	py3-python-gssapi-pyc \
+    	py3-python-gssapi \
+    	krb5-dev \
+		geoip-dev \
+		openldap-dev
 
 ##################
 # Commented for alpine no install ntlm_auth / samba support 
@@ -63,41 +65,47 @@ RUN apk add --no-cache \
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
-# COPY version.json /var/pyos/version.json
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 
 # install upgrade pip
-# install requirements.txt
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip --no-cache-dir
 
+# install requirements.txt
+RUN virtualenv /var/pyos && \
+    source /var/pyos/bin/activate && \
+    pip install --no-cache-dir -r requirements.txt
 
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
 # and parsing them using provided scripts that tail the BGP AS-Path.
-RUN pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+RUN source bin/activate && \
+    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
     pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
-    rm -f rib.bz2 
+    rm -f rib.bz2
 
 # remove dev package
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
-	krb5-dev \
-    gcc \
-    musl-dev \
-    krb5-dev \
-    geoip-dev \
-    openldap-dev
+		krb5-dev \
+    	gcc \
+		python3-dev \
+    	musl-dev \
+    	krb5-dev \
+    	geoip-dev \
+    	openldap-dev
 
 # update for security fix
 # CVE-2026-23949 
 # CVE-2026-24049
-RUN pip uninstall -y pip setuptools
+RUN source bin/activate && \
+    pip uninstall -y pip setuptools  --no-cache-dir
 
 # dump for troubleshooting
 RUN apk list -I > apk.list
 
 # create log directory
 RUN mkdir -p /var/pyos/logs
-# CMD is od.py
-CMD [ "./od.py" ]
+
+# CMD
+CMD [ "/docker-entrypoint.sh" ]

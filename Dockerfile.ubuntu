@@ -89,6 +89,8 @@ RUN source /var/pyos/bin/activate && \
     python3 bin/pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
     rm -f rib.bz2
 
+RUN ./mkversion.sh
+
 # There are no external modules required to use pan-python.
 RUN pip3 install pan-python --break-system-packages
 
