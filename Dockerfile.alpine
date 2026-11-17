@@ -17,6 +17,11 @@ RUN apk add --no-cache --update \
     py3-setuptools \
     py3-asn1 \
 	bash
+# update pip using pip install command 
+RUN pip install --no-cache-dir --upgrade pip
+# update pip using pip install command 
+RUN pip install --no-cache-dir --upgrade setuptools
+
 
 SHELL ["/bin/bash", "-c"]
 
