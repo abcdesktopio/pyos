@@ -17,79 +17,38 @@ RUN apk add --no-cache --update \
 	krb5 \
 	krb5-libs \
 	libgsasl \
-    	py3-pip \
-    	py3-asn1 \
+    py3-asn1 \
 	bash
 
 SHELL ["/bin/bash", "-c"]
 
-#   gss-ntlmssp 
-#   krb5-user 
-#   krb5-config sasl2-bin
-
-
-ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
-
 # GeoLite2
+ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
 RUN mkdir -p /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-City.mmdb -P /usr/share/geolite2
 
-# install ntlm_auth
-# ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
-# support for linux_arm64 and linux_amd64
-# FROM python is a debian:bookworm image
-
-RUN apk add --no-cache \
+RUN apk add --no-cache --update \
 	krb5-dev \
 	gcc \
 	musl-dev \
 	py3-virtualenv \
 	python3-dev \
 	py3-ldap \
+    py3-pip \
 	py3-ldap-pyc \
-    	py3-python-gssapi-pyc \
-    	py3-python-gssapi \
-    	krb5-dev \
+    py3-python-gssapi-pyc \
+    py3-python-gssapi \
+    krb5-dev \
 	geoip-dev \
-	openldap-dev && \
-    rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs/
+	openldap-dev
 
-
-
-RUN pip install --no-cache-dir --upgrade \
- PyJWT \     
- certifi \        
- cryptography \    
- dnspython \  
- jaraco.context \  
- multidict \
- pip \     
- pyasn1 \         
- pymongo         
-
-##################
-# Commented for alpine no install ntlm_auth / samba support 
-# use ubuntu image to get SSO features
-# - ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
-# - support for linux_arm64 and linux_amd64
-# FROM python is a debian:bookworm image
-# RUN mkdir /dist
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/packages/main/*/ /dist
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/.abuild/*.pub /etc/apk/keys
-# RUN apk update  && apk add --no-cache /dist/*.apk
-##################
-
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+# install upgrade pip
+RUN pip install --upgrade pip  --no-cache-dir 
 
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
-RUN ls -la
-
-# install upgrade pip
-# RUN pip install --upgrade pip  --no-cache-dir 
 
 # install requirements.txt
 RUN virtualenv /var/pyos && \
@@ -97,23 +56,21 @@ RUN virtualenv /var/pyos && \
     pip install --no-cache-dir -r requirements.txt && \
     rm -rf /root/.cache/virtualenv
 
-# --no-cache-dir
-
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
 # and parsing them using provided scripts that tail the BGP AS-Path.
-#RUN source bin/activate && \
-#    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
-#    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
-#    rm -f rib.bz2 
+RUN source bin/activate && \
+    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
+    rm -f rib.bz2 
 
 # remove dev package
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
-	krb5-dev \
+		krb5-dev \
     	gcc \
-	python3-dev \
+		python3-dev \
     	musl-dev \
     	krb5-dev \
     	geoip-dev \
@@ -122,14 +79,16 @@ RUN apk del --no-cache \
 # update for security fix
 # CVE-2026-23949 
 # CVE-2026-24049
-RUN source bin/activate && \
-    pip uninstall -y pip setuptools --no-cache-dir
+RUN source bin/activate && pip uninstall -y pip setuptools --no-cache-dir
+RUN pip uninstall -y pip setuptools --no-cache-dir
 
-# dump for troubleshooting
-RUN apk list -I > apk.list
+# dump for troubleshooting CVE
+RUN apk list -I > /apk.list
 
 # create log directory
-RUN mkdir -p /var/pyos/logs
+RUN mkdir -p /var/pyos/logs 
+RUN rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs
 
 # CMD
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 CMD [ "/docker-entrypoint.sh" ]
