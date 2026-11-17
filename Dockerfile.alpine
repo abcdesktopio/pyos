@@ -5,9 +5,8 @@ LABEL org.opencontainers.image.description=abcdesktop.pyos
 ## install kerberos libgss ldap
 ## we must install curl command line for pullapps bash script 
 
-RUN apk update --no-cache && \
-    apk upgrade --no-cache && \
-    apk add --no-cache --update \
+RUN apk update && apk upgrade
+RUN apk add --no-cache --update \
  	wget \
 	curl \
 	cntlm \
@@ -16,6 +15,7 @@ RUN apk update --no-cache && \
 	libgsasl \
     py3-pip \
     py3-setuptools \
+    py3-asn1 \
 	bash
 
 SHELL ["/bin/bash", "-c"]
@@ -38,18 +38,18 @@ RUN mkdir -p /usr/share/geolite2 && \
 # FROM python is a debian:bookworm image
 
 RUN apk add --no-cache \
-		krb5-dev \
-		gcc \
-		musl-dev \
-		py3-virtualenv \
-		python3-dev \
-		py3-ldap \
-		py3-ldap-pyc \
+	krb5-dev \
+	gcc \
+	musl-dev \
+	py3-virtualenv \
+	python3-dev \
+	py3-ldap \
+	py3-ldap-pyc \
     	py3-python-gssapi-pyc \
     	py3-python-gssapi \
     	krb5-dev \
-		geoip-dev \
-		openldap-dev
+	geoip-dev \
+	openldap-dev
 
 ##################
 # Commented for alpine no install ntlm_auth / samba support 
@@ -64,26 +64,29 @@ RUN apk add --no-cache \
 # RUN apk update  && apk add --no-cache /dist/*.apk
 ##################
 
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN ls -la
 
 # install upgrade pip
-RUN pip install --upgrade pip --no-cache-dir
+RUN pip install --upgrade pip  --no-cache-dir 
 
 # install requirements.txt
 RUN virtualenv /var/pyos && \
     source /var/pyos/bin/activate && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt 
 
 # get ASNNumber database
-# IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
+# IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources),
 # and parsing them using provided scripts that tail the BGP AS-Path.
-RUN source bin/activate && \
-    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
-    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
-    rm -f rib.bz2
+# Disabled: requires FTP access to archive.routeviews.org which may be blocked
+# RUN source bin/activate && \
+#     pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+#     pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
+#     rm -f rib.bz2 
 
 # remove dev package
 # should better use a builder instance
@@ -101,7 +104,7 @@ RUN apk del --no-cache \
 # CVE-2026-23949 
 # CVE-2026-24049
 RUN source bin/activate && \
-    pip uninstall -y pip setuptools  --no-cache-dir
+    pip uninstall -y pip setuptools --no-cache-dir
 
 # dump for troubleshooting
 RUN apk list -I > apk.list
