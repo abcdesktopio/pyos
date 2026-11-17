@@ -17,7 +17,7 @@ RUN apk add --no-cache --update \
 	krb5 \
 	krb5-libs \
 	libgsasl \
-    	py3-asn1 \
+    py3-asn1 \
 	bash
 
 SHELL ["/bin/bash", "-c"]
@@ -36,9 +36,9 @@ RUN apk add --no-cache --update \
 	python3-dev \
 	py3-ldap \
 	py3-ldap-pyc \
-    	py3-python-gssapi-pyc \
-    	py3-python-gssapi \
-    	krb5-dev \
+    py3-python-gssapi-pyc \
+    py3-python-gssapi \
+    krb5-dev \
 	geoip-dev \
 	openldap-dev
 
@@ -50,7 +50,8 @@ COPY . .
 RUN virtualenv /var/pyos
 RUN source /var/pyos/bin/activate && \
     pip install --no-cache-dir -r requirements.txt && \
-    rm -rf /root/.cache/virtualenv
+    rm -rf /root/.cache/virtualenv && \
+    rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs
 
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
@@ -64,9 +65,9 @@ RUN source bin/activate && \
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
-	krb5-dev \
+		krb5-dev \
     	gcc \
-	python3-dev \
+		python3-dev \
     	musl-dev \
     	krb5-dev \
     	geoip-dev \
@@ -75,15 +76,15 @@ RUN apk del --no-cache \
 # update for security fix
 # CVE-2026-23949 
 # CVE-2026-24049
-# RUN source bin/activate && pip uninstall -y pip setuptools --no-cache-dir
-# RUN pip uninstall -y pip setuptools --no-cache-dir
+RUN source bin/activate && pip uninstall -y pip setuptools --no-cache-dir
+RUN pip uninstall -y pip setuptools --no-cache-dir
 
 # dump for troubleshooting CVE
 RUN apk list -I > /apk.list
 
 # create log directory
 RUN mkdir -p /var/pyos/logs 
-RUN rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs
+
 
 # CMD
 COPY docker-entrypoint.sh /docker-entrypoint.sh
