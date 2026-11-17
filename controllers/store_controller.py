@@ -15,7 +15,6 @@
 import logging
 import oc.logging
 import cherrypy
-import json
 from oc.od.services import services
 from oc.cherrypy import Results
 from oc.od.base_controller import BaseController

@@ -57,12 +57,14 @@ jobs:
           fi
           
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
+          # fetch-depth:0 for the command line git rev-list --count HEAD
+          fetch-depth: 0
         
       - name: create version
-        run: | 
+        run: |
            ./mkversion.sh
            cat version.json
            
@@ -89,6 +91,7 @@ jobs:
             branch:${{ env.branch }}
           file: Dockerfile.${{ env.DISTRIB }}
           provenance: false
+          context: .
           platforms: ${{ env.OS_PLATFORM }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ghcr.io/${{ env.REGISTRY_IMAGE }}_${{ env.DISTRIB }}_${{ env.RELEASE }}:${{ env.imagetag }}.${{ env.PLATFORM }}

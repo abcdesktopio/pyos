@@ -11,7 +11,7 @@
             "program": "od.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
-            "justMyCode": false
+            "justMyCode": true
         }
     ]
 }
