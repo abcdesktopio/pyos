@@ -53,7 +53,8 @@ COPY . .
 # install requirements.txt
 RUN virtualenv /var/pyos && \
     source /var/pyos/bin/activate && \
-    pip install --no-cache-dir -r requirements.txt 
+    pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /root/.cache/virtualenv
 
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
