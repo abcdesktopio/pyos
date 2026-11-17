@@ -48,9 +48,9 @@ RUN apk add --no-cache \
 	python3-dev \
 	py3-ldap \
 	py3-ldap-pyc \
-    	py3-python-gssapi-pyc \
-    	py3-python-gssapi \
-    	krb5-dev \
+    py3-python-gssapi-pyc \
+    py3-python-gssapi \
+    krb5-dev \
 	geoip-dev \
 	openldap-dev
 
