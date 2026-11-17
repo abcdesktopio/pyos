@@ -18,14 +18,9 @@ RUN apk add --no-cache --update \
 	krb5-libs \
 	libgsasl \
     py3-asn1 \
-	bash && \
-    rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs
+	bash
 
 SHELL ["/bin/bash", "-c"]
-
-#   gss-ntlmssp 
-#   krb5-user 
-#   krb5-config sasl2-bin
 
 # GeoLite2
 ENV GEOLITE_URL=https://github.com/P3TERX/GeoLite.mmdb/raw/download
@@ -33,48 +28,27 @@ RUN mkdir -p /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-City.mmdb -P /usr/share/geolite2
 
-# install ntlm_auth
-# ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
-# support for linux_arm64 and linux_amd64
-# FROM python is a debian:bookworm image
-
-RUN apk add --no-cache \
+RUN apk add --no-cache --update \
 	krb5-dev \
 	gcc \
 	musl-dev \
 	py3-virtualenv \
 	python3-dev \
 	py3-ldap \
+    py3-pip \
 	py3-ldap-pyc \
     py3-python-gssapi-pyc \
     py3-python-gssapi \
     krb5-dev \
 	geoip-dev \
-	openldap-dev && \
-    rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs
+	openldap-dev
 
-##################
-# Commented for alpine no install ntlm_auth / samba support 
-# use ubuntu image to get SSO features
-# - ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
-# - support for linux_arm64 and linux_amd64
-# FROM python is a debian:bookworm image
-# RUN mkdir /dist
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /dist/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/packages/main/*/ /dist
-# COPY --from=ghcr.io/abcdesktopio/ntlm_auth:alpine_edge /root/.abuild/*.pub /etc/apk/keys
-# RUN apk update  && apk add --no-cache /dist/*.apk
-##################
-
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+# install upgrade pip
+RUN pip install --upgrade pip  --no-cache-dir 
 
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
-RUN ls -la
-
-# install upgrade pip
-RUN pip install --upgrade pip  --no-cache-dir 
 
 # install requirements.txt
 RUN virtualenv /var/pyos && \
@@ -107,11 +81,13 @@ RUN apk del --no-cache \
 RUN source bin/activate && pip uninstall -y pip setuptools --no-cache-dir
 RUN pip uninstall -y pip setuptools --no-cache-dir
 
-# dump for troubleshooting
-RUN apk list -I > apk.list
+# dump for troubleshooting CVE
+RUN apk list -I > /apk.list
 
 # create log directory
-RUN mkdir -p /var/pyos/logs
+RUN mkdir -p /var/pyos/logs 
+RUN rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs
 
 # CMD
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 CMD [ "/docker-entrypoint.sh" ]
