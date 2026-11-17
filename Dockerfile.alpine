@@ -17,8 +17,8 @@ RUN apk add --no-cache --update \
 	krb5 \
 	krb5-libs \
 	libgsasl \
-    py3-pip \
-    py3-asn1 \
+    	py3-pip \
+    	py3-asn1 \
 	bash
 
 SHELL ["/bin/bash", "-c"]
@@ -48,12 +48,25 @@ RUN apk add --no-cache \
 	python3-dev \
 	py3-ldap \
 	py3-ldap-pyc \
-    py3-python-gssapi-pyc \
-    py3-python-gssapi \
-    krb5-dev \
+    	py3-python-gssapi-pyc \
+    	py3-python-gssapi \
+    	krb5-dev \
 	geoip-dev \
-	openldap-dev &&
+	openldap-dev && \
     rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs/
+
+
+
+RUN pip install --no-cache-dir --upgrade \
+ PyJWT \     
+ certifi \        
+ cryptography \    
+ dnspython \  
+ jaraco.context \  
+ multidict \
+ pip \     
+ pyasn1 \         
+ pymongo         
 
 ##################
 # Commented for alpine no install ntlm_auth / samba support 
@@ -76,28 +89,31 @@ COPY . .
 RUN ls -la
 
 # install upgrade pip
-RUN pip install --upgrade pip  --no-cache-dir 
+# RUN pip install --upgrade pip  --no-cache-dir 
 
 # install requirements.txt
 RUN virtualenv /var/pyos && \
     source /var/pyos/bin/activate && \
-    pip install --no-cache-dir -r requirements.txt 
+    pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /root/.cache/virtualenv
+
+# --no-cache-dir
 
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
 # and parsing them using provided scripts that tail the BGP AS-Path.
-RUN source bin/activate && \
-    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
-    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
-    rm -f rib.bz2 
+#RUN source bin/activate && \
+#    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+#    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
+#    rm -f rib.bz2 
 
 # remove dev package
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
-		krb5-dev \
+	krb5-dev \
     	gcc \
-		python3-dev \
+	python3-dev \
     	musl-dev \
     	krb5-dev \
     	geoip-dev \
