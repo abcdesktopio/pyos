@@ -17,7 +17,7 @@ RUN apk add --no-cache --update \
 	krb5 \
 	krb5-libs \
 	libgsasl \
-    py3-asn1 \
+    	py3-asn1 \
 	bash
 
 SHELL ["/bin/bash", "-c"]
@@ -35,24 +35,20 @@ RUN apk add --no-cache --update \
 	py3-virtualenv \
 	python3-dev \
 	py3-ldap \
-    py3-pip \
 	py3-ldap-pyc \
-    py3-python-gssapi-pyc \
-    py3-python-gssapi \
-    krb5-dev \
+    	py3-python-gssapi-pyc \
+    	py3-python-gssapi \
+    	krb5-dev \
 	geoip-dev \
 	openldap-dev
-
-# install upgrade pip
-RUN pip install --upgrade pip  --no-cache-dir 
 
 # install pyos in /var/pyos
 WORKDIR /var/pyos
 COPY . .
 
 # install requirements.txt
-RUN virtualenv /var/pyos && \
-    source /var/pyos/bin/activate && \
+RUN virtualenv /var/pyos
+RUN source /var/pyos/bin/activate && \
     pip install --no-cache-dir -r requirements.txt && \
     rm -rf /root/.cache/virtualenv
 
@@ -68,9 +64,9 @@ RUN source bin/activate && \
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
-		krb5-dev \
+	krb5-dev \
     	gcc \
-		python3-dev \
+	python3-dev \
     	musl-dev \
     	krb5-dev \
     	geoip-dev \
@@ -79,8 +75,8 @@ RUN apk del --no-cache \
 # update for security fix
 # CVE-2026-23949 
 # CVE-2026-24049
-RUN source bin/activate && pip uninstall -y pip setuptools --no-cache-dir
-RUN pip uninstall -y pip setuptools --no-cache-dir
+# RUN source bin/activate && pip uninstall -y pip setuptools --no-cache-dir
+# RUN pip uninstall -y pip setuptools --no-cache-dir
 
 # dump for troubleshooting CVE
 RUN apk list -I > /apk.list
