@@ -52,7 +52,8 @@ RUN apk add --no-cache \
     py3-python-gssapi \
     krb5-dev \
 	geoip-dev \
-	openldap-dev
+	openldap-dev &&
+    rm -rf /var/pyos/lib/python3.14/site-packages/slapdtest/certs/
 
 ##################
 # Commented for alpine no install ntlm_auth / samba support 
