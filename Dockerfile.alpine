@@ -2,10 +2,14 @@ FROM python:alpine
 
 LABEL org.opencontainers.image.description=abcdesktop.pyos
 
-## install kerberos libgss ldap
-## we must install curl command line for pullapps bash script 
+RUN rm -f /usr/local/lib/python*/site-packages/pip/_vendor/bom.cdx.json
+RUN apk update && apk upgrade --no-cache
 
-RUN apk update && apk upgrade
+RUN pip install --no-cache-dir --upgrade pip "setuptools>=84.1.0" && \
+    BUNDLED_DIR=$(python -c "import ensurepip, os; print(os.path.join(os.path.dirname(ensurepip.__file__), '_bundled'))") && \
+    rm -f "$BUNDLED_DIR"/setuptools-*.whl && \
+    pip download --no-cache-dir --no-deps "setuptools>=84.1.0" -d "$BUNDLED_DIR"
+
 RUN apk add --no-cache --update \
  	wget \
 	curl \
@@ -14,14 +18,8 @@ RUN apk add --no-cache --update \
 	krb5-libs \
 	libgsasl \
     py3-pip \
-    py3-setuptools \
     py3-asn1 \
 	bash
-# update pip using pip install command 
-RUN pip install --no-cache-dir --upgrade pip
-# update pip using pip install command 
-RUN pip install --no-cache-dir --upgrade setuptools
-
 
 SHELL ["/bin/bash", "-c"]
 
