@@ -1,0 +1,8 @@
+# local virtualenv, created by the Dockerfile inside the image
+bin/
+lib/
+pyvenv.cfg
+
+# local generated files, not part of the image
+logs/
+
