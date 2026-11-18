@@ -5318,12 +5318,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             working_dir = workingDir
         )
 
-        # This succeeds and the ephemeral container is added but without any volume mounts or messages
-        # because its sending the dictionary as snake_case and k8s is expecting camelCase, 
-        # solved this by just making a raw dictionary with the proper casing
-        ephemeralcontainer_dict = ephemeralcontainer.to_dict()
-        #  snake_case to camelCase entries
-        ephemeralcontainer_dict_CamelCase = oc.auth.namedlib.dictSnakeCaseToCamelCase( ephemeralcontainer_dict )
+        # to_dict() keeps snake_case keys in nested lists (env, volumeMounts); the API client serializes to camelCase
+        ephemeralcontainer_dict_CamelCase = self.orchestrator.kubeapi.api_client.sanitize_for_serialization( ephemeralcontainer )
         # create ther request fixed body
         body = {
             'spec': {
