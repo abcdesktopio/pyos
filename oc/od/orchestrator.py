@@ -3076,7 +3076,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( command, list):
             container['command'] = command
         if isinstance( securityContext, dict ) :
-            container['securityContext'] = securityContext
+            # supplementalGroups is a pod-level field, kept in the pod spec securityContext
+            container['securityContext'] = { k: v for k, v in securityContext.items() if k != 'supplementalGroups' }
         return container
 
 
@@ -5307,7 +5308,8 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
         image_pull_policy = oc.od.settings.desktop_pod[self.type].get('imagePullPolicy')
         ephemeralcontainer = V1EphemeralContainer(  
             name=app_container_name,
-            security_context=securitycontext,
+            # supplementalGroups is a pod-level field, not valid on V1EphemeralContainer
+            security_context={ k: v for k, v in securitycontext.items() if k != 'supplementalGroups' },
             env=envlist,
             image=app['id'],
             command=app.get('cmd'),
