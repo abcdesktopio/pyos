@@ -295,7 +295,10 @@ class ODApps:
         if isinstance( apps, list):
             for myapp in apps:
                 if isinstance( myapp, dict ):
-                    mydict[ myapp['id'] ] = myapp
+                    # if myapp has an id, use it as the key in the dictionary
+                    # else skip this app as it has no id, bad format
+                    if myapp.get('id'):
+                        mydict[ myapp['id'] ] = myapp
         return mydict
 
     def get_json_applist(self, filter=True)->dict:
