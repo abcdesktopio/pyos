@@ -5441,6 +5441,11 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
 @oc.logging.with_logger()
 class ODAppInstanceKubernetesPod(ODAppInstanceBase):
+    # fields accepted by V1PodSecurityContext
+    POD_SECURITY_CONTEXT_FIELDS = ('appArmorProfile', 'fsGroup', 'fsGroupChangePolicy', 'runAsGroup', 'runAsNonRoot', 'runAsUser', 'seLinuxChangePolicy', 'seLinuxOptions', 'seccompProfile', 'supplementalGroups', 'supplementalGroupsPolicy', 'sysctls', 'windowsOptions')
+    # fields accepted only by V1SecurityContext (container level)
+    CONTAINER_SECURITY_CONTEXT_FIELDS = ('allowPrivilegeEscalation', 'capabilities', 'privileged', 'procMount', 'readOnlyRootFilesystem')
+
     def __init__(self, orchestrator):
         super().__init__(orchestrator)
         self.type = self.orchestrator.pod_application
@@ -5931,11 +5936,15 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'access_providertype':  authinfo.providertype,
             'access_provider':  authinfo.provider,
             'access_userid':    userinfo.userid,
-            'access_username':  self.orchestrator.get_labelvalue(userinfo.name), # 
+            'access_username':  self.orchestrator.get_labelvalue(userinfo.name),
             'type':             self.type,
-            'uniquerunkey':     app.get('uniquerunkey'),
             'netpol/ocapplication': 'true'
         }
+        if app.get('uniquerunkey'):
+            labels['uniquerunkey'] = app.get('uniquerunkey')
+        
+        # label values must be strings, drop the None values
+        labels = { k: v for k, v in labels.items() if v is not None }
 
         myuuid = oc.lib.uuid_digits()
         pod_sufix = 'app_' + app['name'] + '_' +  myuuid
@@ -5951,6 +5960,8 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         # get the node selector merged data from desktop.pod['pod_application'] and app['nodeSelector']
         nodeSelector = self.get_appnodeSelector( authinfo, userinfo, app)
         securitycontext = self.get_securitycontext( authinfo, userinfo, app )
+        pod_securitycontext = { k: v for k, v in securitycontext.items() if k in self.POD_SECURITY_CONTEXT_FIELDS }
+        container_securitycontext = { k: v for k, v in securitycontext.items() if k in self.CONTAINER_SECURITY_CONTEXT_FIELDS }
         workingDir = self.orchestrator.get_user_homedirectory( authinfo, userinfo )
         resources = self.get_resources( authinfo, userinfo, app.get('executeclassname') )
         affinity = self.get_affinity( authinfo, userinfo, app, myDesktop )
@@ -6008,7 +6019,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'spec': {
                 'terminationGracePeriodSeconds': 0,  # Time to wait before moving from a TERM signal to the pod's main process to a KILL signal.
                 'restartPolicy' : 'Never',
-                'securityContext': securitycontext,
+                'securityContext': pod_securitycontext,
                 'affinity': affinity,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'volumes': list( volumeBinds.values() ),
@@ -6025,6 +6036,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     'env': envlist,
                     'volumeMounts': list( volumeMounts.values() ),
                     'resources': resources,
+                    'securityContext': container_securitycontext or None,
                     'workingDir' : workingDir
                 } ]
             }
