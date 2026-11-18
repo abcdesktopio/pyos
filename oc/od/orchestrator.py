@@ -2690,7 +2690,17 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                                 for posixuser_supplementalGroup in posixuser_supplementalGroups:
                                     supplementalGroups.append(posixuser_supplementalGroup)
                             break
-                else:
+            # 
+            # Remove 'supplementalGroups' if it is an empty list
+            #
+            # prevent issue on kubernetes module >=1.37 
+            # Create pod failed 1 validation error for 
+            # CoreV1Api.create_namespaced_pod 
+            # body.spec.containers.0.securityContext.supplementalGroups
+            # Extra inputs are not permitted [type=extra_forbidden, input_value=[], input_type=list]
+            #
+            if isinstance( securityContext.get('supplementalGroups'), list ):
+                if len( securityContext['supplementalGroups'] ) == 0:
                     del securityContext['supplementalGroups']
 
         return securityContext
