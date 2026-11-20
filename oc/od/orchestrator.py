@@ -3520,7 +3520,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert_type( myuuid, str)
         assert_type( list_volumeMounts, list )
 
-        container_resources = self.get_resources_for_container_type( currentcontainertype, executeclass )
+        # get container resources
+        container_resources = self.get_resources_for_container_type( currentcontainertype, executeclass.get('resources', {}) )
 
         self.logger.debug( f"pod container adding {currentcontainertype} to {myuuid}" )
         securityContext = await self.updateSecurityContextWithUserInfo( currentcontainertype, authinfo, userinfo )
