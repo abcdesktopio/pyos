@@ -23,6 +23,7 @@ namespace = 'abcdesktop'
 
 mongodburl = None  # Mongodb config url
 mongodbparam = None  # Mongodb config parameters
+mongodb_applist_ttl = 300 # default ttl value in seconds for applist cache
 fail2banconfig = None # Fail2ban config 
 mongodblist = []
 
@@ -586,7 +587,8 @@ def get_mongodburl():
     mongodbhostipaddr = _resolv(parsedmongourl.hostname)
     logger.debug(f"a simple check for mongodb: host {parsedmongourl.hostname} resolved as {mongodbhostipaddr}")
     mongodbparam = os.getenv('MONGODB_PARAM') or config.get( 'mongodbparam', 'replicaSet=rs0' )
-    return (mongodburl, mongodbparam)
+    mongodb_applist_ttl = os.getenv('MONGODB_APPLIST_TTL') or config.get('mongodb_applist_ttl', 300)
+    return (mongodburl, mongodbparam, mongodb_applist_ttl)
 
 def init_controllers():
     """Define controlers access
@@ -650,8 +652,9 @@ def init_config_mongodb():
     global mongodburl
     global mongodblist
     global mongodbparam
-    (mongodburl,mongodbparam) = get_mongodburl()
-    logger.debug(f"MongoDB url: {mongodburl} param: {mongodbparam}")
+    global mongodb_applist_ttl
+    (mongodburl, mongodbparam, mongodb_applist_ttl) = get_mongodburl()
+    logger.debug(f"MongoDB url: {mongodburl} param: {mongodbparam} applist_ttl: {mongodb_applist_ttl}")
     mongodblist = config.get('mongodblist', ['image','fail2ban','loginHistory','applications','profiles','desktop'] )
     logger.debug(f"MongoDB list: {mongodblist}")
 

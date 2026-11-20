@@ -131,25 +131,9 @@ class ODApps:
             mybuild_applist = self.build_applist()
             with self.lock:
                 self.myglobal_list = mybuild_applist
-            
-            #
-            # Note: this section code has been remove for user dedicated userapplist
-            # 
-            # Mimemap and Extension section
-            # Sort the applist using MimeType as index
-            # ODApps.buildmap(ODApps.myglobal_list, 'mimetype', ODApps.Mimemap)
-            # Sort the applist using FileExtension as index
-            # ODApps.buildmap(ODApps.myglobal_list, 'fileextension', ODApps.FileExtensionsmap)
-            # Sort the applist using LegacyFileExtension as index
-            # ODApps.buildmap(ODApps.myglobal_list, 'legacyfileextensions', ODApps.LegacyFileExtensionsmap)
-            #
-            # End of Note: user dedicated userapplist
-            #
-
             self.build_image_counter = self.build_image_counter + 1 
         else:
             self.cached_image_counter = self.cached_image_counter + 1 
-
         return self.myglobal_list
 
     
@@ -282,7 +266,7 @@ class ODApps:
             else:
                 self.logger.error( 'skipping bad data in secrets_requirement')
         return mylist
-
+    
     def build_applist(self)->dict:
         self.logger.debug('')
         mydict = {}
@@ -290,10 +274,12 @@ class ODApps:
         if isinstance( apps, list):
             for myapp in apps:
                 if isinstance( myapp, dict ):
-                    self.logger.debug( f"build_applist add {myapp['id']}")
-                    mydict[ myapp['id'] ] = myapp
+                    # if myapp has an id, use it as the key in the dictionary
+                    # else skip this app as it has no id, bad format
+                    if myapp.get('id'):
+                        mydict[ myapp['id'] ] = myapp
         return mydict
-
+    
     def get_json_applist(self, filter=True)->dict:
         #
         # a = json_util.dumps(self.myglobal_list)
@@ -686,97 +672,26 @@ class ODApps:
 
         return app # can be None if not found
     
-    #
-    # MongoDB Change Stream handlers
-    #
-    def on_mongo_insert(self, full_doc):
-        """
-        full_doc: complete document as returned by MongoDB
-        """
-        self.logger.info(f"[ODApps] Insert detected for {full_doc.get('id')}")
-
-        # Refresh internal cache
-        self.cached_applist(bRefresh=True)
-
-
-    def on_mongo_update(self, full_doc, updated_fields):
-        """
-        updated_fields: dict containing only the modified fields
-        """
-        self.logger.info(f"[ODApps] Update detected for {full_doc.get('id')}, changes={updated_fields}")
-
-        # Refresh internal cache
-        self.cached_applist(bRefresh=True)
-
-
-    def on_mongo_delete(self, deleted_id):
-        self.logger.info(f"[ODApps] Delete detected for id={deleted_id}")
-
-        # Refresh internal cache
-        self.cached_applist(bRefresh=True)
-
 
     def _mongo_watch_loop(self):
-        """
-        MongoDB watcher thread.
-        Watches the 'image' collection.
-        """
-        collection = self.get_collection(self.image_collection_name)
-
-        self.logger.info("Starting MongoDB Change Stream...")
-        while self.thread_event.is_set() is False:
-            try:
-                with collection.watch(full_document='updateLookup') as stream:
-                    if self.thread_event.is_set():
-                        break
-
-                    for change in stream:
-                        if not( isinstance(change, dict) ):
-                            continue
-                        
-                        op = change["operationType"]
-                        full_doc = change.get("fullDocument")
-
-                        # HANDLERS
-                        if op == "insert":
-                            self.on_mongo_insert(full_doc)
-
-                        elif op == "update":
-                            updated = change["updateDescription"]["updatedFields"]
-                            self.on_mongo_update(full_doc, updated)
-
-                        elif op == "delete":
-                            deleted_id = change["documentKey"]["_id"]
-                            self.on_mongo_delete(deleted_id)
-
-            except Exception as e:
-                self.logger.error(f"Change Stream Error: {e}")
-                
-                if self.thread_event.is_set():
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return
-
-                # If the exception has no code, we cannot handle it
-                if hasattr(e, 'code') is False:
-                    self.thread_event.set()
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return 
-
-                # The $changeStream stage is only supported on replica sets
-                if e.code == 40573:
-                    self.thread_event.set()
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return
-
-                if e.code == 18 :
-                    # Authentication failed
-                    # it's time to die
-                    self.thread_event.set()
-                    self.logger.info("MongoDB Change Stream watcher thread exited.")
-                    return 
-                
-        self.logger.info("MongoDB Change Stream watcher thread exited.")
-
+            """
+            MongoDB watcher thread.
+            Watches the 'image' collection.
+            """
+            
+            while( not self.thread_event.is_set() ):
+                # we sleep for the configured TTL before checking for updates again
+                time.sleep( oc.od.settings.mongodb_applist_ttl )
+                # if an update is detected, refresh the cache
+                new_app_list = self.build_applist()
+                if new_app_list == self.myglobal_list:
+                    self.logger.debug("build_applist no change in app list.")
+                else:
+                    self.logger.info("Detected change in app list, refreshing cache.")
+                    self.cached_applist(bRefresh=True, latest_mybuild_applist=new_app_list)
+        
+            self.logger.info("MongoDB Change Stream watcher thread exited.")
+        
     def is_mongo_watcher_alive(self):
         """is_mongo_watcher_alive
             return True if the MongoDB watcher thread is alive, False otherwise
