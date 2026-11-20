@@ -2807,6 +2807,19 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 else:
                     del securityContext['supplementalGroups']
 
+        # 
+        # Remove 'supplementalGroups' if it is an empty list
+        #
+        # prevent issue on kubernetes module >=1.37 
+        # Create pod failed 1 validation error for 
+        # CoreV1Api.create_namespaced_pod 
+        # body.spec.containers.0.securityContext.supplementalGroups
+        # Extra inputs are not permitted [type=extra_forbidden, input_value=[], input_type=list]
+        #
+        if isinstance( securityContext.get('supplementalGroups'), list ):
+            if len( securityContext['supplementalGroups'] ) == 0:
+                del securityContext['supplementalGroups']
+
         return securityContext
 
     async def add_ephemeral_container_and_watch(
@@ -3528,7 +3541,8 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         if isinstance( command, list):
             container['command'] = command
         if isinstance( securityContext, dict ) :
-            container['securityContext'] = securityContext
+            # supplementalGroups is a pod-level field, kept in the pod spec securityContext
+            container['securityContext'] = { k: v for k, v in securityContext.items() if k != 'supplementalGroups' }
         return container
 
 
@@ -4270,6 +4284,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         #
         self.logger.debug('watch list_namespaced_pod creating, waiting for pod quit Pending phase' )
         continue_reading_events = True
+        
         w = watch.Watch()
         while continue_reading_events:
             try:               
@@ -5660,12 +5675,9 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
             working_dir = workingDir
         )
 
-        # This succeeds and the ephemeral container is added but without any volume mounts or messages
-        # because its sending the dictionary as snake_case and k8s is expecting camelCase, 
-        # solved this by just making a raw dictionary with the proper casing
-        ephemeralcontainer_dict = ephemeralcontainer.to_dict()
-        #  snake_case to camelCase entries
-        ephemeralcontainer_dict_CamelCase = oc.auth.namedlib.dictSnakeCaseToCamelCase( ephemeralcontainer_dict )
+        # to_dict() keeps snake_case keys in nested lists (env, volumeMounts); the API client serializes to camelCase
+        ephemeralcontainer_dict_CamelCase = self.orchestrator.kubeapi.api_client.sanitize_for_serialization( ephemeralcontainer )
+        
         # create ther request fixed body
         body = {
             'spec': {
@@ -5897,6 +5909,12 @@ class ODAppInstanceKubernetesEphemeralContainer(ODAppInstanceBase):
 
 @oc.logging.with_logger()
 class ODAppInstanceKubernetesPod(ODAppInstanceBase):
+    
+    # fields accepted by V1PodSecurityContext
+    POD_SECURITY_CONTEXT_FIELDS = ('appArmorProfile', 'fsGroup', 'fsGroupChangePolicy', 'runAsGroup', 'runAsNonRoot', 'runAsUser', 'seLinuxChangePolicy', 'seLinuxOptions', 'seccompProfile', 'supplementalGroups', 'supplementalGroupsPolicy', 'sysctls', 'windowsOptions')
+    # fields accepted only by V1SecurityContext (container level)
+    CONTAINER_SECURITY_CONTEXT_FIELDS = ('allowPrivilegeEscalation', 'capabilities', 'privileged', 'procMount', 'readOnlyRootFilesystem')
+
     def __init__(self, orchestrator):
         super().__init__(orchestrator)
         self.type = self.orchestrator.pod_application
@@ -6206,11 +6224,16 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'access_providertype':  authinfo.providertype,
             'access_provider':  authinfo.provider,
             'access_userid':    userinfo.userid,
-            'access_username':  self.orchestrator.get_labelvalue(userinfo.name), # 
+            'access_username':  self.orchestrator.get_labelvalue(userinfo.name),
             'type':             self.type,
-            'uniquerunkey':     app.get('uniquerunkey'),
             'netpol/ocapplication': 'true'
         }
+
+        if app.get('uniquerunkey'):
+            labels['uniquerunkey'] = app.get('uniquerunkey')
+        
+        # label values must be strings, drop the None values
+        labels = { k: v for k, v in labels.items() if v is not None }
 
         myuuid = oc.lib.uuid_digits()
         pod_sufix = 'app_' + app['name'] + '_' +  myuuid
@@ -6226,6 +6249,9 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
         # get the node selector merged data from desktop.pod['pod_application'] and app['nodeSelector']
         nodeSelector = self.get_appnodeSelector( authinfo, userinfo, app)
         securitycontext = await self.get_securitycontext( authinfo, userinfo, app )
+        pod_securitycontext = { k: v for k, v in securitycontext.items() if k in self.POD_SECURITY_CONTEXT_FIELDS }
+        container_securitycontext = { k: v for k, v in securitycontext.items() if k in self.CONTAINER_SECURITY_CONTEXT_FIELDS }
+        # get the volumeMounts merged data from desktop
         workingDir = await self.orchestrator.get_user_homedirectory( authinfo, userinfo )
         resources = self.get_resources( authinfo, userinfo, app.get('executeclassname') )
         affinity = self.get_affinity( authinfo, userinfo, app, myDesktop )
@@ -6283,7 +6309,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
             'spec': {
                 'terminationGracePeriodSeconds': 0,  # Time to wait before moving from a TERM signal to the pod's main process to a KILL signal.
                 'restartPolicy' : 'Never',
-                'securityContext': securitycontext,
+                'securityContext': pod_securitycontext,
                 'affinity': affinity,
                 'automountServiceAccountToken': False,  # disable service account inside pod
                 'volumes': list( volumeBinds.values() ),
@@ -6300,6 +6326,7 @@ class ODAppInstanceKubernetesPod(ODAppInstanceBase):
                     'env': envlist,
                     'volumeMounts': list( volumeMounts.values() ),
                     'resources': resources,
+                    'securityContext': container_securitycontext or None,
                     'workingDir' : workingDir
                 } ]
             }
