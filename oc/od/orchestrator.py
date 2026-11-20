@@ -2774,7 +2774,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
             dict: a securityContext dict with { 'runAsUser': UID , 'runAsGroup': GID } or None
         """
         securityContext = None
-        securityContextConfig = oc.od.settings.desktop_pod.get(currentcontainertype, {}).get( 'securityContext')
+        securityContextConfig = oc.od.settings.desktop_pod.get(currentcontainertype, {}).get('securityContext')
         if isinstance( securityContextConfig, dict):
             securityContext = copy.deepcopy(securityContextConfig)
             runAsUser  = securityContext.get('runAsUser')
@@ -2816,7 +2816,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # body.spec.containers.0.securityContext.supplementalGroups
         # Extra inputs are not permitted [type=extra_forbidden, input_value=[], input_type=list]
         #
-        if isinstance( securityContext.get('supplementalGroups'), list ):
+        if isinstance(securityContext, dict) and isinstance( securityContext.get('supplementalGroups'), list ):
             if len( securityContext['supplementalGroups'] ) == 0:
                 del securityContext['supplementalGroups']
 
@@ -3527,7 +3527,6 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         image = self.getimagecontainerfromauthlabels( currentcontainertype, authinfo )
         container = { 
             'name': self.get_containername( authinfo, userinfo, currentcontainertype, myuuid ),
-            # 'name': currentcontainertype,
             'imagePullPolicy': oc.od.settings.desktop_pod[currentcontainertype].get('imagePullPolicy', 'IfNotPresent' ),
             'image': image,                             
             'env': envlist,
