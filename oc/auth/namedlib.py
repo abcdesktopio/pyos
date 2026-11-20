@@ -144,15 +144,3 @@ def snakeCaseToCamelCase(s:str)->str:
   except Exception:
     pass
   return result
-
-  
-def dictSnakeCaseToCamelCase(d:dict)->dict:
-  new_dict = {}
-  for key in d.keys():
-    entry = d.get(key)
-    newkey = snakeCaseToCamelCase(key) or key
-    if isinstance(entry, dict):
-      new_dict[newkey]=dictSnakeCaseToCamelCase(entry)
-    else:
-      new_dict[newkey]=entry
-  return new_dict
