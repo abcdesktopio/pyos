@@ -21,7 +21,10 @@ RUN apk add --no-cache --update \
 	krb5 \
 	krb5-libs \
 	libgsasl \
-        py3-asn1 \
+    py3-asn1 \
+	py3-virtualenv \
+	py3-ldap \
+    py3-python-gssapi \
 	bash
 
 SHELL ["/bin/bash", "-c"]
@@ -32,16 +35,14 @@ RUN mkdir -p /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-City.mmdb -P /usr/share/geolite2
 
+
+# install Python dependencies from requirements.txt in the virtual environment
+# these packages are needed to compile Python extensions and other dependencies
 RUN apk add --no-cache --update \
 	krb5-dev \
 	gcc \
 	musl-dev \
-	py3-virtualenv \
 	python3-dev \
-	py3-ldap \
-	py3-ldap-pyc \
-    py3-python-gssapi-pyc \
-    py3-python-gssapi \
     krb5-dev \
 	geoip-dev \
 	openldap-dev
@@ -52,6 +53,8 @@ COPY . .
 
 # install requirements.txt
 RUN virtualenv /var/pyos
+
+# activate the virtual environment and install Python dependencies from requirements.txt
 RUN source /var/pyos/bin/activate && \
     pip install --no-cache-dir -r requirements.txt && \
     rm -rf /root/.cache/virtualenv && \
@@ -60,22 +63,24 @@ RUN source /var/pyos/bin/activate && \
 # get ASNNumber database
 # IPASN data files can be created by downloading MRT/RIB BGP archives from Routeviews (or similar sources), 
 # and parsing them using provided scripts that tail the BGP AS-Path.
-RUN source bin/activate && \
-    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
-    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
-    rm -f rib.bz2 
+# RUN source bin/activate && \
+#    pyasn_util_download.py --latestv46 --filename rib.bz2 && \
+#    pyasn_util_convert.py --single rib.bz2 ipasn_db.dat && \
+#    rm -f rib.bz2
+
 
 # remove dev package
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
 	krb5-dev \
-    	gcc \
+	gcc \
+	musl-dev \
 	python3-dev \
-    	musl-dev \
-    	krb5-dev \
-    	geoip-dev \
-    	openldap-dev
+	musl-dev \
+	krb5-dev \
+	geoip-dev \
+	openldap-dev
 
 # update for security fix
 # CVE-2026-23949 
@@ -92,7 +97,12 @@ RUN apk list -I > /apk.list
 # create log directory
 RUN mkdir -p /var/pyos/logs 
 
+# create an unprivileged user to run od.py
+RUN addgroup -S -g 1000 pyos && \
+    adduser -S -D -H -u 1000 -G pyos pyos && \
+    chown -R pyos:pyos /var/pyos/logs
 
 # CMD
 COPY docker-entrypoint.sh /docker-entrypoint.sh
+USER pyos
 CMD [ "/docker-entrypoint.sh" ]
