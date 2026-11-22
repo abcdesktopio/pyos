@@ -19,7 +19,7 @@ import re
 import hmac
 
 from netaddr import IPNetwork, IPAddress
-from oc.cherrypy import getclientipaddr, getxforwardedfor, getproxy_ipaddr_from_xforwardedfor_header
+from oc.cherrypy import getclientremote_ip, getclientipaddr, getxforwardedfor, getproxy_ipaddr_from_xforwardedfor_header
 from oc.od.services import services
 
 logger = logging.getLogger(__name__)
@@ -322,7 +322,7 @@ class BaseController(object):
           # if no network list is set, return True
           if not isinstance(self.ipnetworklistfilter, list) :
                return True
-          ipclient = getclientipaddr()
+          ipclient = getclientremote_ip()
           if isinstance(ipclient, str):
                for ipnetwork in self.ipnetworklistfilter:
                     if IPAddress(ipclient) in ipnetwork:
