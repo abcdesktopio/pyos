@@ -15,7 +15,7 @@
 import secrets          # for randomStringwithDigitsAndSymbols
 import string           # for randomStringwithDigitsAndSymbols
 import unicodedata      # for remove accent
-import uuid             # for uuid_digits 
+import secrets          # for randomStringwithDigitsAndSymbols
 import json             # for try_to_read_json_entry
 import base64           # for base64
 
@@ -58,17 +58,11 @@ def remove_accents(input_str:str)->str:
     return r
 
 def uuid_digits( ndigits:int=5)->str:
-    """uuid_digits
-        return a uuid string with the number of digit requested
-    Args:
-        ndigits (int, optional): number of digit. Defaults to 5.
-
-    Returns:
-        str: uuid str formated with the number of digit requested
-    """
-    digits = uuid.uuid4().hex
-    local_uuid = digits[-ndigits:]
-    return local_uuid
+    """Return a random lowercase hex string of `ndigits` characters."""
+    if ndigits <= 0:
+        raise ValueError("ndigits must be positive")
+    # token_hex takes bytes (1 byte = 2 hex chars), so we slice to exact length(ndigits)
+    return secrets.token_hex((ndigits + 1) // 2)[:ndigits]
 
 def load_local_file( filename:str ):
     """[load_local_file]
