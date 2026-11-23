@@ -322,7 +322,7 @@ class BaseController(object):
           # if no network list is set, return True
           if not isinstance(self.ipnetworklistfilter, list) :
                return True
-          ipclient = getclientremote_ip()
+          ipclient = getclientipaddr()
           if isinstance(ipclient, str):
                for ipnetwork in self.ipnetworklistfilter:
                     if IPAddress(ipclient) in ipnetwork:
