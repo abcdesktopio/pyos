@@ -908,10 +908,10 @@ class ODOrchestratorKubernetes(ODOrchestrator):
 
     def __del__(self):
         # self.close())
-        self.logger.debug( 'deleting ODOrchestratorKubernetes')
+        # self.logger.debug( 'deleting ODOrchestratorKubernetes')
 
     async def close(self):
-        self.logger.debug( 'call kubeapi close')
+        # self.logger.debug( 'call kubeapi close')
         # if isinstance( self._kubeapi, CoreV1Api):
         #    await self._kubeapi.api_client.close()
         # self._kubeapi = None
