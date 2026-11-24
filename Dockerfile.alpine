@@ -30,11 +30,6 @@ RUN mkdir -p /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-ASN.mmdb -P /usr/share/geolite2 && \
     wget ${GEOLITE_URL}/GeoLite2-City.mmdb -P /usr/share/geolite2
 
-# install ntlm_auth
-# ghcr.io/abcdesktopio/ntlm_auth:debian_bookworm is multi-arch 
-# support for linux_arm64 and linux_amd64
-# FROM python is a debian:bookworm image
-
 RUN apk add --no-cache \
 	krb5-dev \
 	gcc \
@@ -80,7 +75,7 @@ RUN pyasn_util_download.py --latestv46 --filename rib.bz2 && \
 # should better use a builder instance
 # but I can't find how to grab all new libraries
 RUN apk del --no-cache \
-	krb5-dev \
+	    krb5-dev \
     	gcc \
     	musl-dev \
     	krb5-dev \
