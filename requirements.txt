@@ -3,8 +3,8 @@ fastapi>=0.165.0
 uvicorn>=0.54.0
 haversine==2.9.0
 chevron==0.14.0
-kubernetes>=37.0.3
-kubernetes_asyncio>=36.1.0
+kubernetes==36.0.3
+kubernetes_asyncio==36.1.0
 cryptography>=50.0.2
 pycryptodome>=4.5.0
 pyopenssl>=26.4.0
