@@ -89,5 +89,13 @@ RUN apk del --no-cache \
 
 # create log directory
 RUN mkdir -p /var/pyos/logs
+
+# create an unprivileged user to run od.py
+RUN addgroup -S -g 1000 pyos && \
+    adduser -S -D -H -u 1000 -G pyos pyos && \
+    chown -R pyos:pyos /var/pyos/logs
+
+USER pyos 
+
 # CMD is od.py
 CMD [ "./od.py" ]
