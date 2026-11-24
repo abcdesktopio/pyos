@@ -905,12 +905,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
                 self.logger.error("This is a fatal error")
                 self.logger.error(f"load_incluster_config failed {e_in}")
                 self.logger.error(f"load_kube_config failed {e_out}")
-    """
-    def __del__(self):
-        # self.close())
-        # self.logger.debug( 'deleting ODOrchestratorKubernetes')
+    
+    # def __del__(self):
+    #    self.close())
+    #    self.logger.debug( 'deleting ODOrchestratorKubernetes')
 
     async def close(self):
+        pass
         # self.logger.debug( 'call kubeapi close')
         # if isinstance( self._kubeapi, CoreV1Api):
         #    await self._kubeapi.api_client.close()
@@ -918,7 +919,7 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         # if isinstance( self.kubeapi_sync, CoreV1Api):
         # self.kubeapi_sync.api_client.close()
         # self.kubeapi_sync = None
-    """ 
+     
 
     def is_configured(self)->bool: 
         """[is_configured]
