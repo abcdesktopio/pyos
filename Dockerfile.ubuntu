@@ -118,8 +118,8 @@ RUN  cp /usr/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
 RUN mkdir -p /var/pyos/logs
 
 # create an unprivileged user to run od.py
-RUN groupadd -r -g 1000 pyos && \
-	useradd -r -M -s /usr/sbin/nologin -u 1000 -g pyos pyos && \
+RUN groupadd -r pyos && \
+	useradd -r -M -s /usr/sbin/nologin -g pyos pyos && \
 	chown -R pyos:pyos /var/pyos/logs
 
 USER pyos 
