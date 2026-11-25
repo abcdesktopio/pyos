@@ -118,9 +118,9 @@ RUN  cp /usr/bin/ntlm_auth /var/pyos/oc/auth/ntlm/ntlm_auth
 RUN mkdir -p /var/pyos/logs
 
 # create an unprivileged user to run od.py
-RUN addgroup -S -g 1000 pyos && \
-    adduser -S -D -H -u 1000 -G pyos pyos && \
-    chown -R pyos:pyos /var/pyos/logs
+RUN groupadd -r -g 1000 pyos && \
+	useradd -r -M -s /usr/sbin/nologin -u 1000 -g pyos pyos && \
+	chown -R pyos:pyos /var/pyos/logs
 
 USER pyos 
 EXPOSE 8000
