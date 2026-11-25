@@ -98,8 +98,8 @@ RUN apk list -I > /apk.list
 RUN mkdir -p /var/pyos/logs 
 
 # create an unprivileged user to run od.py
-RUN addgroup -S -g 1000 pyos && \
-    adduser -S -D -H -u 1000 -G pyos pyos && \
+RUN addgroup -S pyos && \
+    adduser -S -D -H -G pyos pyos && \
     chown -R pyos:pyos /var/pyos/logs
 
 # CMD
