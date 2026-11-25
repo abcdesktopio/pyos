@@ -123,6 +123,6 @@ RUN addgroup -S -g 1000 pyos && \
     chown -R pyos:pyos /var/pyos/logs
 
 USER pyos 
-
+EXPOSE 8000
 # CMD is od.py
 CMD [ "/docker-entrypoint.sh" ]
