@@ -34,4 +34,4 @@ passlib>=1.7.4
 setuptools>=84.1.0
 ua-parser==1.0.1
 certifi>=2026.10.18
-multidict-=6.9.1
+multidict>=6.9.1
