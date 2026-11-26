@@ -98,8 +98,8 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN mkdir -p /var/pyos/logs
 
 # create an unprivileged user to run od.py
-RUN addgroup -S pyos && \
-    adduser -S -D -H -G pyos pyos && \
+RUN addgroup -S pyos -g 2048 && \
+    adduser -S -D -H -u 2048 -G pyos pyos && \
     chown -R pyos:pyos /var/pyos/logs
 
 USER pyos 
