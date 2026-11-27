@@ -3265,13 +3265,13 @@ class ODOrchestratorKubernetes(ODOrchestrator):
         assert_type( volumemount, dict )
         assert_type( currentcontainertype, str )
         volumemountlist = {}
-        self.logger.debug( f"volumes for {currentcontainertype} is {oc.od.settings.desktop_pod.get( currentcontainertype, {}).get('volumes', [])}" )
+        # self.logger.debug( f"volumes for {currentcontainertype} is {oc.od.settings.desktop_pod.get( currentcontainertype, {}).get('volumes', [])}" )
         for volumeMount_name in oc.od.settings.desktop_pod.get( currentcontainertype, {}).get('volumes', []):
             if isinstance( volumemount.get( volumeMount_name ), dict ):
                 volumemountlist[ volumeMount_name ] = volumemount.get( volumeMount_name )
             else:
                 self.logger.warning( f"volumeMount {volumeMount_name} not found for container type {currentcontainertype}" )
-        self.logger.debug( f"volumemountlist for {currentcontainertype} is {volumemountlist}" )
+        # self.logger.debug( f"volumemountlist for {currentcontainertype} is {volumemountlist}" )
         return volumemountlist
 
 
